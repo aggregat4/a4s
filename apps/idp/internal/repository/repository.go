@@ -1,15 +1,17 @@
-package schema
+package repository
 
 import (
+	"aggregat4/openidprovider/pkg/migrations"
 	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 )
 
-var migrations = []Migration{
-	{1,
-		`
+var mymigrations = []migrations.Migration{
+	{
+		SequenceId: 1,
+		Sql: `
 		-- Enable WAL mode on the database to allow for concurrent reads and writes
 		PRAGMA journal_mode=WAL;
 		PRAGMA foreign_keys = ON;
@@ -65,7 +67,11 @@ func (store *Store) InitAndVerifyDb(dbUrl string) error {
 	if err != nil {
 		return err
 	}
-	return MigrateSchema(store.db)
+	return migrations.MigrateSchema(store.db, mymigrations)
+}
+
+func MigrateSchema(dB *sql.DB) {
+	panic("unimplemented")
 }
 
 func (store *Store) CreateUser(username, hashedPassword string) error {

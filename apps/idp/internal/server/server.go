@@ -1,9 +1,9 @@
 package server
 
 import (
-	"aggregat4/openidprovider/crypto"
-	"aggregat4/openidprovider/domain"
-	"aggregat4/openidprovider/schema"
+	"aggregat4/openidprovider/internal/domain"
+	"aggregat4/openidprovider/internal/repository"
+	"aggregat4/openidprovider/pkg/crypto"
 	"crypto/subtle"
 	"embed"
 	"html/template"
@@ -30,7 +30,7 @@ var viewTemplates embed.FS
 const CONTENT_TYPE_JSON = "application/json;charset=UTF-8"
 
 type Controller struct {
-	Store  *schema.Store
+	Store  *repository.Store
 	Config domain.Configuration
 }
 
@@ -269,7 +269,7 @@ func (controller *Controller) login(c echo.Context) error {
 		// See https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2 for the oauth 2 spec on Authorization responses
 		// See also https://www.oauth.com/oauth2-servers/authorization/the-authorization-response/ for implementation hints
 		uuid := uuid.New().String()
-		err := controller.Store.SaveCode(schema.Code{Code: uuid, UserName: user.Username, ClientId: clientId, RedirectUri: redirectUri, Created: time.Now().Unix()})
+		err := controller.Store.SaveCode(repository.Code{Code: uuid, UserName: user.Username, ClientId: clientId, RedirectUri: redirectUri, Created: time.Now().Unix()})
 		if err != nil {
 			return sendInternalError(c, fullRedirectUri, state)
 		}

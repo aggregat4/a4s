@@ -1,4 +1,4 @@
-package schema
+package migrations
 
 import "database/sql"
 
@@ -39,7 +39,7 @@ type Migration struct {
 	Sql        string
 }
 
-func MigrateSchema(db *sql.DB) error {
+func MigrateSchema(db *sql.DB, migrations []Migration) error {
 	println("Migrating schema")
 	exists, err := existsMigrationTable(db)
 	if err != nil {

@@ -1,10 +1,10 @@
 package server_test
 
 import (
-	"aggregat4/openidprovider/crypto"
-	"aggregat4/openidprovider/domain"
-	"aggregat4/openidprovider/schema"
-	"aggregat4/openidprovider/server"
+	"aggregat4/openidprovider/internal/domain"
+	"aggregat4/openidprovider/internal/repository"
+	"aggregat4/openidprovider/internal/server"
+	"aggregat4/openidprovider/pkg/crypto"
 
 	"fmt"
 	"io"
@@ -287,8 +287,8 @@ func extractCsrfToken(body string) string {
 }
 
 func waitForServer() (*echo.Echo, server.Controller) {
-	var store schema.Store
-	err := store.InitAndVerifyDb(schema.CreateInMemoryDbUrl())
+	var store repository.Store
+	err := store.InitAndVerifyDb(repository.CreateInMemoryDbUrl())
 	if err != nil {
 		panic(err)
 	}

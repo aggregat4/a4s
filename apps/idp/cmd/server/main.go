@@ -1,11 +1,9 @@
 package main
 
 import (
-	"aggregat4/openidprovider/crypto"
-	"aggregat4/openidprovider/domain"
-	"aggregat4/openidprovider/schema"
-	"aggregat4/openidprovider/server"
-	"flag"
+	"aggregat4/openidprovider/internal/domain"
+	"aggregat4/openidprovider/internal/repository"
+	"aggregat4/openidprovider/internal/server"
 	"log"
 
 	"github.com/joho/godotenv"
@@ -20,35 +18,18 @@ import (
 func main() {
 	const dbName = "openidprovider"
 
-	var initdbPassword string
-	flag.StringVar(&initdbPassword, "initdb-password", "", "Initializes the database with a user with this password")
-	var initdbUsername string
-	flag.StringVar(&initdbUsername, "initdb-username", "", "Initializes the database with a user with this username")
-	flag.Parse()
-
-	var store schema.Store
-	err := store.InitAndVerifyDb(schema.CreateFileDbUrl(dbName))
+	var store repository.Store
+	err := store.InitAndVerifyDb(repository.CreateFileDbUrl(dbName))
 	if err != nil {
 		log.Fatalf("Error initializing database: %s", err)
 	}
 	defer store.Close()
 
-	if initdbPassword != "" && initdbUsername != "" {
-		hashedPassword, err := crypto.HashPassword(initdbPassword)
-		if err != nil {
-			log.Fatalf("Error hashing password: %s", err)
-		}
-		err = store.CreateUser(initdbUsername, hashedPassword)
-		if err != nil {
-			log.Fatalf("Error initializing database: %s", err)
-		}
-	} else {
-		err := godotenv.Load()
-		if err != nil {
-			log.Fatalf("error loading .env file: %s", err)
-		}
-		server.RunServer(server.Controller{Store: &store, Config: readConfig()})
+	err = godotenv.Load()
+	if err != nil {
+		log.Fatalf("error loading .env file: %s", err)
 	}
+	server.RunServer(server.Controller{Store: &store, Config: readConfig()})
 }
 
 func readConfig() domain.Configuration {
