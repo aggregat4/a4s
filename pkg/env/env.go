@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func requireStringFromEnv(s string) string {
+func RequireStringFromEnv(s string) string {
 	value := os.Getenv(s)
 	if value == "" {
 		panic(fmt.Errorf("env variable %s is required", s))
@@ -14,7 +14,7 @@ func requireStringFromEnv(s string) string {
 	return value
 }
 
-func getIntFromEnv(key string, defaultValue int) int {
+func GetIntFromEnv(key string, defaultValue int) int {
 	value := os.Getenv(key)
 	if value == "" {
 		return defaultValue
@@ -26,7 +26,7 @@ func getIntFromEnv(key string, defaultValue int) int {
 	return intValue
 }
 
-func getStringFromEnv(key string, defaultValue string) string {
+func GetStringFromEnv(key string, defaultValue string) string {
 	value := os.Getenv(key)
 	if value == "" {
 		return defaultValue
