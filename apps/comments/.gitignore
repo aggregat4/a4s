@@ -1,0 +1,8 @@
+*.sqlite
+*.sqlite-*
+tmp/
+.vscode/
+.env
+bin/
+coverage.*
+.idea/
