@@ -52,7 +52,6 @@ func CreateSessionBasedOidcDelegate(resolveUsername func(username string) (int, 
 		// to an existing user or create a new one on demand
 		username := idToken.Subject
 		userId, err := resolveUsername(username)
-		// controller.Store.FindOrCreateUser(username)
 		if err != nil {
 			log.Println("Error retrieving or creating user: ", err)
 			return c.Render(http.StatusInternalServerError, "error-internal", nil)
