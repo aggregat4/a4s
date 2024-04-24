@@ -51,17 +51,12 @@ func InitServer(controller Controller) *echo.Echo {
 		controller.Config.OidcClientSecret,
 		controller.Config.OidcRedirectUri,
 		func(c echo.Context) bool {
+			// we only want authentication on admin endpoints
 			return !strings.HasPrefix(c.Path(), "/admin")
 		})
 	e.Use(oidcMiddleware.CreateOidcMiddleware(baseliboidc.IsAuthenticated))
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	// Debug logging
-	//e.Use(middleware.BodyDump(func(c echo.Context, reqBody, resBody []byte) {
-	//	logger.Info("Request: %s %s", "requestmethod", c.Request().Method, "requesturl", c.Request().URL)
-	//	logger.Info("Response: %s", "responsebody", string(resBody))
-	//}))
-	//e.Use(session.Middleware(sessions.NewCookieStore([]byte(uuid.New().String()))))
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
 	// Endpoints
 	e.GET("/oidccallback", oidcMiddleware.CreateOidcCallbackEndpoint(baseliboidc.CreateSessionBasedOidcDelegate(
@@ -69,6 +64,33 @@ func InitServer(controller Controller) *echo.Echo {
 			//return controller.Store.FindOrCreateUser(username)
 			return 0, errors.New("not implemented")
 		}, "/bookmarks")))
+	// We can display all comments for a post
+	e.GET("/services/:serviceId/posts/:postId/comments", GetComments)
+	// One can write a comment for a post
+	e.GET("/services/:serviceId/posts/:postId/commentform", GetCommentForm)
+	// One can add that comment to the post (in state unauthenticated)
+	e.POST("/services/:serviceId/posts/:postId/comments", PostComment)
+	// One can authenticate posts by clicking on an authentication link sent by email
+	e.GET("/userauthentication/:token", GetUserAuthentication)
+	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
+	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
+	e.POST("/userauthentication", RequestAuthenticationLink)
+	// The userauthentication endpoint after successfully validating the token:
+	// 1. sets a cookie with the userId
+	// 2. redirects to a user's comment overview and management page
+	// Calling this page with a special parameter or content-type allows you to export the page as a json document
+	e.GET("/users/:userId/comments", GetCommentsForUser)
+	// Users can delete comments
+	e.DELETE("/users/:userId/comments/:commentId", DeleteComment)
+	// Users can update comments (TODO: add comment edit form here, can we reuse original form?)
+	e.PUT("/users/:userId/comments/:commentId", UpdateComment)
+	// Service administrators can access a service comment dashboard where they can approve or deny comments
+	// They require successful OIDC authentication and they require the "service-admin" claim with the value of the service's ID
+	// We need to store not only the user Id but also the user's claims here so we can always verify he or she has acces
+	// to the particular service
+	e.GET("/services/:serviceId/admin", GetCommentAdminOverview)
+	// Since we collect private data, we need to provide a GDPR compliant privacy policy
+	e.GET("/privacypolicy", PrivacyPolicy)
 	return e
 }
 
