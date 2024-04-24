@@ -31,10 +31,11 @@ Finally it must be possible to set age requirements on comment posting to avoid 
 
 ## Security
 
-### Data
+### Encryption
 
-All personal data (email addresses, optional name, optional website and comment contents) is _encrypted at rest_ using
-AES-GCM-256 and the [Go crypto library](https://golang.org/pkg/crypto/).
+All personal data (email addresses, optional name, optional website and comment contents) is _encrypted at rest_.
+
+The service should be operated over TLS through the use of an appropriate proxy server.
 
 ### Authentication 
 
@@ -46,3 +47,6 @@ User authentication is based on email:
 - Users are sent an email with a time-limited high entropy authentication token
 - Upon token validation a time-limited cookie is set with the user's information
 
+## TODO
+
+- What encryption to use for the data in the sqlite database? AES? What form exactly?
