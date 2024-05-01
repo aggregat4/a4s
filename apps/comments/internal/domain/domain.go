@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"time"
+)
+
 type Config struct {
 	Port                      int    `fig:"port" validate:"required"`
 	DatabaseFilename          string `fig:"database_filename" validate:"required"`
@@ -9,4 +13,36 @@ type Config struct {
 	OidcClientId              string
 	OidcClientSecret          string
 	OidcRedirectUri           string
+	EncryptionKey             string
+}
+
+type User struct {
+	Id                 int
+	EmailEncrypted     string
+	AuthToken          string
+	AuthTokenCreatedAt time.Time
+}
+
+type Service struct {
+	Id         int
+	ServiceKey string
+	Origin     string
+}
+
+type Comment struct {
+	Id        int
+	ServiceId int
+	UserId    int
+	PostKey   string
+	Comment   string
+	Name      string
+	Website   string
+	CreatedAt time.Time
+}
+
+type PostCommentsPage struct {
+	ServiceKey string
+	PostKey    string
+	UserId     int // can be empty, identified by -1
+	Comments   []Comment
 }
