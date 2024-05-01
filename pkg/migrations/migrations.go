@@ -2,6 +2,11 @@ package migrations
 
 import "database/sql"
 
+type Migration struct {
+	SequenceId int
+	Sql        string
+}
+
 func initMigrationTable(db *sql.DB) error {
 	_, err := db.Exec("CREATE TABLE IF NOT EXISTS migrations (sequence_id INTEGER NOT NULL PRIMARY KEY)")
 	return err
@@ -32,11 +37,6 @@ func getAppliedMigrations(db *sql.DB) ([]int, error) {
 		migrations = append(migrations, sequenceId)
 	}
 	return migrations, nil
-}
-
-type Migration struct {
-	SequenceId int
-	Sql        string
 }
 
 func MigrateSchema(db *sql.DB, migrations []Migration) error {
