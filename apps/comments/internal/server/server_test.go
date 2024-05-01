@@ -51,12 +51,26 @@ func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 		panic(err)
 	}
 	controller := Controller{&store, serverConfig}
-	echoServer := InitServer(controller)
+	echoServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback())
 	go func() {
 		_ = echoServer.Start(":" + strconv.Itoa(serverConfig.Port))
 	}()
 	waitForServerStart(t, createServerUrl(serverConfig.Port, "/status"))
 	return echoServer, controller
+}
+
+func createMockOidcCallback() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		return nil
+	}
+}
+
+func createMockOidcMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			return next(c)
+		}
+	}
 }
 
 func waitForServerStart(t *testing.T, url string) {

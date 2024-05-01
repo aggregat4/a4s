@@ -4,6 +4,8 @@ import (
 	"aggregat4/go-commentservice/internal/domain"
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
+	"errors"
+	baseliboidc "github.com/aggregat4/go-baselib-services/oidc"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"html/template"
@@ -12,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -42,7 +45,30 @@ func (t *Template) Render(w io.Writer, name string, data interface{}, _ echo.Con
 }
 
 func InitServer(controller Controller) *echo.Echo {
+	oidcMiddleware := baseliboidc.NewOidcMiddleware(
+		controller.Config.OidcIdpServer,
+		controller.Config.OidcClientId,
+		controller.Config.OidcClientSecret,
+		controller.Config.OidcRedirectUri,
+		func(c echo.Context) bool {
+			// we only want authentication on admin endpoints
+			return !strings.HasPrefix(c.Path(), "/admin")
+		})
+	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(baseliboidc.CreateSessionBasedOidcDelegate(
+		func(username string) (int, error) {
+			//return controller.Store.FindOrCreateUser(username)
+			return 0, errors.New("not implemented")
+		}, "/admin"))
+	return InitServerWithOidcMiddleware(controller, oidcMiddleware.CreateOidcMiddleware(baseliboidc.IsAuthenticated), oidcCallback)
+}
+
+func InitServerWithOidcMiddleware(
+	controller Controller,
+	oidcMiddleware echo.MiddlewareFunc,
+	oidcCallback func(c echo.Context) error,
+) *echo.Echo {
 	e := echo.New()
+
 	// Set server timeouts based on advice from https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/#1687428081
 	e.Server.ReadTimeout = time.Duration(controller.Config.ServerReadTimeoutSeconds) * time.Second
 	e.Server.WriteTimeout = time.Duration(controller.Config.ServerWriteTimeoutSeconds) * time.Second
@@ -50,28 +76,15 @@ func InitServer(controller Controller) *echo.Echo {
 	e.Renderer = &Template{
 		templates: template.Must(template.New("").ParseFS(viewTemplates, "public/views/*.html")),
 	}
+
 	// Set up middleware
-	// TODO: setting up the OIDC middleware fails in tests because there is no IDP. What do we do in tests? Inject a mock Middleware?
-	//oidcMiddleware := baseliboidc.NewOidcMiddleware(
-	//	controller.Config.OidcIdpServer,
-	//	controller.Config.OidcClientId,
-	//	controller.Config.OidcClientSecret,
-	//	controller.Config.OidcRedirectUri,
-	//	func(c echo.Context) bool {
-	//		// we only want authentication on admin endpoints
-	//		return !strings.HasPrefix(c.Path(), "/admin")
-	//	})
-	//e.Use(oidcMiddleware.CreateOidcMiddleware(baseliboidc.IsAuthenticated))
+	e.Use(oidcMiddleware)
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
-	// Endpoints
-	//e.GET("/oidccallback", oidcMiddleware.CreateOidcCallbackEndpoint(baseliboidc.CreateSessionBasedOidcDelegate(
-	//	func(username string) (int, error) {
-	//		//return controller.Store.FindOrCreateUser(username)
-	//		return 0, errors.New("not implemented")
-	//	}, "/admin")))
 
+	// Endpoints
+	e.GET("/oidccallback", oidcCallback)
 	// ---- UNAUTHENTICATED
 	// Status endpoint
 	e.GET("/status", controller.Status)
@@ -120,6 +133,7 @@ func InitServer(controller Controller) *echo.Echo {
 func (controller *Controller) GetComments(c echo.Context) error {
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
+	logger.Info("GetComments called for serviceKey " + serviceKey + " and postKey " + postKey)
 	if serviceKey == "" || postKey == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
@@ -140,5 +154,6 @@ func (controller *Controller) GetComments(c echo.Context) error {
 }
 
 func (controller *Controller) Status(c echo.Context) error {
+	logger.Info("Status endpoint")
 	return c.Render(http.StatusOK, "status", "OK")
 }
