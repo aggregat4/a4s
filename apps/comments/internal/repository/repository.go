@@ -12,7 +12,7 @@ import (
 
 type Store struct {
 	db     *sql.DB
-	aesKey cipher.AEAD
+	Cipher cipher.AEAD
 }
 
 func CreateFileDbUrl(dbName string) string {
@@ -36,10 +36,10 @@ func (store *Store) Close() error {
 	return store.db.Close()
 }
 
-func (store *Store) GetServiceForKey(serviceKey string) (domain.Service, error) {
+func (store *Store) GetServiceForKey(serviceKey string) (*domain.Service, error) {
 	rows, err := store.db.Query("SELECT id, origin FROM services WHERE service_key = ?", serviceKey)
 	if err != nil {
-		return domain.Service{}, err
+		return nil, err
 	}
 	defer rows.Close()
 	if rows.Next() {
@@ -47,11 +47,11 @@ func (store *Store) GetServiceForKey(serviceKey string) (domain.Service, error) 
 		var origin string
 		err = rows.Scan(&serviceId, &origin)
 		if err != nil {
-			return domain.Service{}, err
+			return nil, err
 		}
-		return domain.Service{Id: serviceId, Origin: origin}, nil
+		return &domain.Service{Id: serviceId, Origin: origin}, nil
 	} else {
-		return domain.Service{}, nil
+		return nil, nil
 	}
 }
 
@@ -73,19 +73,80 @@ func (store *Store) GetComments(serviceId int, postKey string) ([]domain.Comment
 		comment.ServiceId = serviceId
 		comment.PostKey = postKey
 		comment.CreatedAt = time.Unix(created, 0)
-		comment.Comment, err = crypto.DecryptAes256(commentEncrypted, store.aesKey)
+		comment.Comment, err = crypto.DecryptAes256(commentEncrypted, store.Cipher)
 		if err != nil {
 			return nil, err
 		}
-		comment.Name, err = crypto.DecryptAes256(nameEncrypted, store.aesKey)
+		comment.Name, err = crypto.DecryptAes256(nameEncrypted, store.Cipher)
 		if err != nil {
 			return nil, err
 		}
-		comment.Website, err = crypto.DecryptAes256(websiteEncrypted, store.aesKey)
+		comment.Website, err = crypto.DecryptAes256(websiteEncrypted, store.Cipher)
 		if err != nil {
 			return nil, err
 		}
 		comments = append(comments, comment)
 	}
 	return comments, nil
+}
+
+func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int, error) {
+	result, err := store.db.Exec("INSERT INTO services (service_key, origin) VALUES (?, ?)", serviceKey, serviceOrigin)
+	if err != nil {
+		return -1, err
+	}
+	lastInsertId, err := result.LastInsertId()
+	if err != nil {
+		return -1, err
+	}
+	return int(lastInsertId), nil
+}
+
+func (store *Store) CreateUser(email string) (int, error) {
+	emailEncrypted, err := crypto.EncryptAes256(email, store.Cipher)
+	if err != nil {
+		return -1, err
+	}
+	result, err := store.db.Exec("INSERT INTO users (email) VALUES (?)", emailEncrypted)
+	if err != nil {
+		return -1, err
+	}
+	lastInsertId, err := result.LastInsertId()
+	if err != nil {
+		return -1, err
+	}
+	return int(lastInsertId), nil
+}
+
+func (store *Store) CreateComment(
+	serviceId int,
+	userId int,
+	postkey string,
+	comment string,
+	author string,
+	website string,
+) (int, error) {
+	commentEncrypted, err := crypto.EncryptAes256(comment, store.Cipher)
+	if err != nil {
+		return -1, err
+	}
+	authorEncrypted, err := crypto.EncryptAes256(author, store.Cipher)
+	if err != nil {
+		return -1, err
+	}
+	websiteEncrypted, err := crypto.EncryptAes256(website, store.Cipher)
+	if err != nil {
+		return -1, err
+	}
+	result, err := store.db.Exec(
+		"INSERT INTO comments (service_id, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted) VALUES (?,?,?,?,?,?)",
+		serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted)
+	if err != nil {
+		return -1, err
+	}
+	lastInsertId, err := result.LastInsertId()
+	if err != nil {
+		return -1, err
+	}
+	return int(lastInsertId), nil
 }

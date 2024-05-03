@@ -139,6 +139,9 @@ func (controller *Controller) GetComments(c echo.Context) error {
 	}
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
+		return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
+	}
+	if service == nil {
 		return c.Render(http.StatusNotFound, "error-notfound", nil)
 	}
 	comments, err := controller.Store.GetComments(service.Id, postKey)

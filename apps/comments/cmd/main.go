@@ -6,6 +6,7 @@ import (
 	"aggregat4/go-commentservice/internal/server"
 	"flag"
 	"fmt"
+	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/kirsle/configdir"
 	"github.com/kkyr/fig"
@@ -25,7 +26,15 @@ func main() {
 	}
 	fmt.Printf("%+v\n", config)
 
-	var store repository.Store
+	// TODO: read encryption key from environment and decode from HEX string (see createencryptionkey.go)
+
+	aesCipher, err := crypto.CreateAes256GcmAead([]byte(config.EncryptionKey))
+	if err != nil {
+		panic(err)
+	}
+	var store = repository.Store{
+		Cipher: aesCipher,
+	}
 	err = store.InitAndVerifyDb(repository.CreateFileDbUrl(config.DatabaseFilename))
 	if err != nil {
 		log.Fatalf("Error initializing database: %s", err)
