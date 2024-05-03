@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
+	"github.com/aggregat4/go-baselib/lang"
 	"io"
 	"os"
 
@@ -77,6 +78,7 @@ func CreateAes256GcmAead(key []byte) (cipher.AEAD, error) {
 }
 
 func EncryptAes256(plaintext string, aead cipher.AEAD) ([]byte, error) {
+	lang.AssertNotNil(aead, "Require a valid non-nil cipher to encrypt")
 	// Generate a random nonce
 	nonce := make([]byte, aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
@@ -88,6 +90,7 @@ func EncryptAes256(plaintext string, aead cipher.AEAD) ([]byte, error) {
 }
 
 func DecryptAes256(ciphertextBytes []byte, aead cipher.AEAD) (string, error) {
+	lang.AssertNotNil(aead, "Require a valid non-nil cipher to decrypt")
 	// Extract the nonce from the ciphertext
 	nonceSize := aead.NonceSize()
 	if len(ciphertextBytes) < nonceSize {

@@ -6,3 +6,9 @@ func IfElse[T any](cond bool, vtrue, vfalse T) T {
 	}
 	return vfalse
 }
+
+func AssertNotNil(value interface{}, message string) {
+	if value == nil {
+		panic(message)
+	}
+}
