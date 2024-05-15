@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/migrations"
-	"time"
 )
 
 type Store struct {
@@ -64,15 +63,13 @@ func (store *Store) GetComments(serviceId int, postKey string) ([]domain.Comment
 	comments := make([]domain.Comment, 0)
 	for rows.Next() {
 		var comment domain.Comment
-		var created int64
 		var commentEncrypted, nameEncrypted, websiteEncrypted []byte
-		err = rows.Scan(&comment.Id, &comment.UserId, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &created)
+		err = rows.Scan(&comment.Id, &comment.UserId, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &comment.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
 		comment.ServiceId = serviceId
 		comment.PostKey = postKey
-		comment.CreatedAt = time.Unix(created, 0)
 		comment.Comment, err = crypto.DecryptAes256(commentEncrypted, store.Cipher)
 		if err != nil {
 			return nil, err
@@ -107,7 +104,7 @@ func (store *Store) CreateUser(email string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	result, err := store.db.Exec("INSERT INTO users (email) VALUES (?)", emailEncrypted)
+	result, err := store.db.Exec("INSERT INTO users (email_encrypted) VALUES (?)", emailEncrypted)
 	if err != nil {
 		return -1, err
 	}
