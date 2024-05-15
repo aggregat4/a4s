@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var TEST_ENCRYPTIONKEY = "TEST_ENCRYPTIONKEY"
+var TEST_ENCRYPTIONKEY = "12345678901234567890123456789012"
 var TEST_SERVICE = "TESTSERVICE"
 
 var TEST_USER1_EMAIL = "johndoe@example.com"
@@ -80,8 +80,8 @@ func TestSingleCommentPostPage(t *testing.T) {
 	body := readBody(res)
 	assert.Contains(t, body, "<h1>Comments</h1>")
 	assert.Contains(t, body, "<dl class=\"comments\">")
-	assert.NotContains(t, body, "<dt>")
-	assert.NotContains(t, body, "<dd>")
+	assert.Contains(t, body, "<dt>")
+	assert.Contains(t, body, "<dd>"+TEST_COMMENT1)
 }
 
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
