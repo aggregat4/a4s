@@ -93,20 +93,24 @@ func InitServerWithOidcMiddleware(
 	//	e.GET("/privacypolicy", controller.PrivacyPolicy)
 	// We can display all comments for a post
 	e.GET("/services/:serviceKey/posts/:postKey/comments", controller.GetComments)
-	// One can write a comment for a post
+	// One can write a comment for a post, the comment form is prefilled if you are authenticated
 	//	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
 	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
 	//	e.POST("/services/:serviceKey/posts/:postKey/comments", controller.PostComment)
-	// One can authenticate posts by clicking on an authentication link sent by email, this has to be
+
+	// ----- User Authentication
+	// One can authenticate posts by clicking on an authentication link sent by email, this has to be GET because we send this via email
 	//	e.GET("/userauthentication/:token", controller.AuthenticateUser)
 	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
 	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
+	//  e.GET("/userauthentication/", controller.GetAuthenticateUserForm)
+	// Users can submit a userauthentication form to get a new token sent
 	//	e.POST("/userauthentication", controller.RequestAuthenticationLink)
 	// The userauthentication endpoint after successfully validating the token:
 	// 1. sets a cookie with the userId
 	// 2. redirects to a user's comment overview and management page
 
-	// ---- AUTHENTICATED WITH TOKEN (i.e. userid in cookie)
+	// ---- AUTHENTICATED WITH AUTH TOKEN via email (i.e. userid in cookie)
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
 	//	e.GET("/users/:userId/comments", controller.GetCommentsForUser)
 	// Allow a user to modify his comment
@@ -139,14 +143,14 @@ func (controller *Controller) GetComments(c echo.Context) error {
 	}
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
-		return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
+		return sendInternalError(c, err)
 	}
 	if service == nil {
 		return c.Render(http.StatusNotFound, "error-notfound", nil)
 	}
 	comments, err := controller.Store.GetComments(service.Id, postKey)
 	if err != nil {
-		return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
+		return sendInternalError(c, err)
 	}
 	c.Response().Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 	return c.Render(http.StatusOK, "postcomments", domain.PostCommentsPage{
@@ -154,6 +158,11 @@ func (controller *Controller) GetComments(c echo.Context) error {
 		PostKey:    postKey,
 		Comments:   comments,
 	})
+}
+
+func sendInternalError(c echo.Context, err error) error {
+	logger.Error("Error processing request: ", err)
+	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
 }
 
 func (controller *Controller) Status(c echo.Context) error {
