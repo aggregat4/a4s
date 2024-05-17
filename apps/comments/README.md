@@ -49,4 +49,4 @@ User authentication is based on email:
 
 ## TODO
 
-- What encryption to use for the data in the sqlite database? AES? What form exactly?
+- Figure out the navigation story: there are a lot of pages and we have embeded pages in other sites and we have the management ui somewhere for users and for admins. How is that accesible? How do you get back to some other ui? 
