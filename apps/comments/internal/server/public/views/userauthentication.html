@@ -1,31 +1,56 @@
 {{define "userauthentication"}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authenticate</title>
-    <!-- <link rel="icon" href="/images/delicious.png"> -->
-    <style>
-        body {
-            font-family: sans-serif;
-            box-sizing: border-box;
-            margin: 0;
-            line-height: 1.5;
-            background-color: white;
-            color: #333;
-        }
-    </style>
-</head>
-<body>
-<header>
-    <h1>Authenticate</h1>
-</header>
-<main>
-    TODO
-
-</main>
-</body>
-</html>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Authenticate</title>
+        <!-- <link rel="icon" href="/images/delicious.png"> -->
+        <style>
+            body {
+                font-family: sans-serif;
+                box-sizing: border-box;
+                margin: 0;
+                line-height: 1.5;
+                background-color: white;
+                color: #333;
+            }
+        </style>
+    </head>
+    <body>
+    <header>
+        <h1>Request Authentication Token</h1>
+    </header>
+    <main>
+        {{if .QueryParams.Get "error"}}
+            <p class="error">
+                {{.QueryParams.Get "error"}}
+            </p>
+        {{end}}
+        {{if .QueryParams.Get "success"}}
+            <p class="success">
+                {{.QueryParams.Get "success"}}
+            </p>
+        {{end}}
+        <form action="/userauthentication/" method="POST">
+            <p class="documentation">
+                In order to manage your comments you need to authenticate.
+            </p>
+            <p class="documentation">
+                If you submit this form with your
+                email address you will be sent an email with a link that will allow you to authenticate to this service.
+            </p>
+            <p class="documentation">
+                These links expire after 15 minutes so make sure to open the link before that time. You can request a
+                new authentication code at any time.
+            </p>
+            <label>Email Address:
+                <input type="email" name="email" autocapitalize="off" required pattern=".+@.+" autofocus/>
+            </label>
+            <button type="submit">Request Authentication Code</button>
+        </form>
+    </main>
+    </body>
+    </html>
 {{end}}

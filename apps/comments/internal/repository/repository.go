@@ -147,3 +147,30 @@ func (store *Store) CreateComment(
 	}
 	return int(lastInsertId), nil
 }
+
+func (store *Store) GetUserByEmail(email string) (domain.User, error) {
+	emailEncrypted, err := crypto.EncryptAes256(email, store.Cipher)
+	if err != nil {
+		return domain.User{}, err
+	}
+	rows, err := store.db.Query("SELECT id, email_encrypted, auth_token, auth_token_created_at, auth_token_sent_to_client FROM users WHERE email_encrypted = ?", emailEncrypted)
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var user domain.User
+		err = rows.Scan(&user.Id, &user.EmailEncrypted, &user.AuthToken, &user.AuthTokenCreatedAt, &user.AuthTokenSentToClient)
+		if err != nil {
+			return domain.User{}, err
+		}
+		return user, nil
+	} else {
+		return domain.User{}, nil
+	}
+}
+
+func (store *Store) UpdateUser(user domain.User) error {
+	_, err := store.db.Exec("UPDATE users SET auth_token =?, auth_token_created_at =?, auth_token_sent_to_client =? WHERE id =?", user.AuthToken, user.AuthTokenCreatedAt, user.AuthTokenSentToClient, user.Id)
+	return err
+}

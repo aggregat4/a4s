@@ -84,6 +84,21 @@ func TestSingleCommentPostPage(t *testing.T) {
 	assert.Contains(t, body, "<dd>"+TEST_COMMENT1)
 }
 
+func TestUserAuthenticationForm(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/userauthentication/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+	assert.Contains(t, body, "<form action=\"/userauthentication/\" method=\"POST\">")
+}
+
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
 	if err != nil {

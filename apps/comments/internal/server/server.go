@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -79,9 +80,14 @@ func InitServerWithOidcMiddleware(
 
 	// Set up middleware
 	e.Use(oidcMiddleware)
+	// user authentication is required for pages related to a user's comments
+	e.Use(CreateUserAuthenticationMiddleware(func(c echo.Context) bool {
+		return !strings.HasPrefix(c.Path(), "/users/")
+	}))
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
+	// TODO: CSRF origin check (on non HEAD or GET requests, check that Origin header matches target origin)
 
 	// Endpoints
 	e.GET("/oidccallback", oidcCallback)
@@ -103,9 +109,9 @@ func InitServerWithOidcMiddleware(
 	//	e.GET("/userauthentication/:token", controller.AuthenticateUser)
 	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
 	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
-	//  e.GET("/userauthentication/", controller.GetAuthenticateUserForm)
+	e.GET("/userauthentication/", controller.GetUserAuthenticationForm)
 	// Users can submit a userauthentication form to get a new token sent
-	//	e.POST("/userauthentication", controller.RequestAuthenticationLink)
+	e.POST("/userauthentication", controller.RequestAuthenticationLink)
 	// The userauthentication endpoint after successfully validating the token:
 	// 1. sets a cookie with the userId
 	// 2. redirects to a user's comment overview and management page
@@ -160,12 +166,86 @@ func (controller *Controller) GetComments(c echo.Context) error {
 	})
 }
 
-func sendInternalError(c echo.Context, err error) error {
-	logger.Error("Error processing request: ", err)
-	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
-}
-
 func (controller *Controller) Status(c echo.Context) error {
 	logger.Info("Status endpoint")
 	return c.Render(http.StatusOK, "status", "OK")
+}
+
+func (controller *Controller) GetUserAuthenticationForm(c echo.Context) error {
+	return c.Render(http.StatusOK, "userauthentication", nil)
+}
+
+var fifteenMinutes = time.Duration(15) * time.Minute
+
+// RequestAuthenticationLink
+// get "email" form field
+// resolve user in database
+// if user not found let them know we have no data from them and do not generate token
+// if user found then do some DoS checking before sending a token
+//
+//	  if we have a valid token already (so younger than 15 minutes) and we have sent it only once, generate a new token and send in 1 minute and reset timer
+//		 if we have a valid token and we have sent it twice already, then generate a new token and send it in 5 minutes
+//		 if we have a valid token and we have sent it thrice already, then let the user know they have to try again in 15 minutes
+func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
+	email := c.FormValue("email")
+	if email == "" {
+		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	}
+	user, err := controller.Store.GetUserByEmail(email)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	if user == (domain.User{}) {
+		params := url.Values{}
+		params.Set("email", email)
+		params.Set("error", "No data was found for the user with email address '"+email+"'")
+		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+	}
+	if user.AuthToken != "" && time.Since(user.AuthTokenCreatedAt) < fifteenMinutes {
+		// we already have a valid token, now check how often we sent it and react accordingly
+		if user.AuthTokenSentToClient < 3 {
+			// update the sent count to make sure future requests can delay even further
+			user.AuthTokenSentToClient++
+			user.AuthTokenCreatedAt = time.Now()
+			err = controller.Store.UpdateUser(user)
+			if err != nil {
+				return sendInternalError(c, err)
+			}
+			var delay = 0 * time.Minute
+			if user.AuthTokenSentToClient == 1 {
+				delay = 1 * time.Minute
+			} else if user.AuthTokenSentToClient == 2 {
+				delay = 5 * time.Minute
+			}
+			params := url.Values{}
+			params.Set("email", email)
+			if delay > 0 {
+				params.Set("success", "An authentication token will be sent in "+delay.String()+".")
+			} else {
+				params.Set("success", "An authentication token is on the way, please check your email.")
+			}
+			// TODO actually submit the code sending to a queue somewhere and make sure people can't spam the queue with fast requests (make sure to block the user from trying again by setting the count high enough when multiple elements in queue)
+			return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+		} else {
+			// let the user know they have to try again in 15 minutes
+			params := url.Values{}
+			params.Set("email", email)
+			params.Set("error", "Too many attempts were made to request authentication tokens for this user. Please try again in 15 minutes.")
+			return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+		}
+	} else {
+		// TODO continue here and write tests as well
+		// we have no valid token, so generate a new one and send it to the user
+	}
+}
+
+//func (controller *Controller) GetNoDataForUserPage(c echo.Context) error {
+//	return c.Render(http.StatusOK, "nodataforuser", domain.NoDataForUserPage{
+//		Email: c.Param("email"),
+//	})
+//}
+
+func sendInternalError(c echo.Context, err error) error {
+	logger.Error("Error processing request: ", err)
+	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
 }

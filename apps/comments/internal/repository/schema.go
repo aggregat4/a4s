@@ -14,7 +14,8 @@ var mymigrations = []migrations.Migration{
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 			email_encrypted LOB NOT NULL,
 			auth_token TEXT,
-			auth_token_created_at TIMESTAMP
+			auth_token_created_at TIMESTAMP,
+			auth_token_sent_to_client INTEGER NOT NULL,
     	);
 
 		CREATE TABLE IF NOT EXISTS services (

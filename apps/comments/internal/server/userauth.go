@@ -50,7 +50,7 @@ func CreateUserAuthenticationMiddleware(skipper middleware.Skipper) echo.Middlew
 			_, err := getUserIdFromSession(c)
 			if !skipper(c) && err != nil {
 				// user is not authenticated, redirect him to the authentication token link generation form
-				// TODO: continue here
+				return c.Redirect(http.StatusFound, "/userauthentication/")
 			} else {
 				return next(c)
 			}

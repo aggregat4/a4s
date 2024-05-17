@@ -17,10 +17,11 @@ type Config struct {
 }
 
 type User struct {
-	Id                 int
-	EmailEncrypted     string
-	AuthToken          string
-	AuthTokenCreatedAt time.Time
+	Id                    int
+	EmailEncrypted        string
+	AuthToken             string
+	AuthTokenCreatedAt    time.Time
+	AuthTokenSentToClient int
 }
 
 type Service struct {
@@ -45,4 +46,8 @@ type PostCommentsPage struct {
 	PostKey    string
 	UserId     int // can be empty, identified by -1
 	Comments   []Comment
+}
+
+type NoDataForUserPage struct {
+	Email string
 }
