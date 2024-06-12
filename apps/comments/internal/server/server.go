@@ -183,15 +183,6 @@ func (controller *Controller) GetUserAuthenticationForm(c echo.Context) error {
 
 var fifteenMinutes = time.Duration(15) * time.Minute
 
-// RequestAuthenticationLink
-// get "email" form field
-// resolve user in database
-// if user not found let them know we have no data from them and do not generate token
-// if user found then do some DoS checking before sending a token
-//
-//	  if we have a valid token already (so younger than 15 minutes) and we have sent it only once, generate a new token and send in 1 minute and reset timer
-//		 if we have a valid token and we have sent it twice already, then generate a new token and send it in 5 minutes
-//		 if we have a valid token and we have sent it thrice already, then let the user know they have to try again in 15 minutes
 func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 	emailAddress := c.FormValue("email")
 	if emailAddress == "" {
