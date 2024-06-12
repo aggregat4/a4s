@@ -2,6 +2,7 @@ package main
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
+	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"aggregat4/go-commentservice/internal/server"
 	"flag"
@@ -35,14 +36,18 @@ func main() {
 	var store = repository.Store{
 		Cipher: aesCipher,
 	}
+	defer store.Close()
 	err = store.InitAndVerifyDb(repository.CreateFileDbUrl(config.DatabaseFilename))
 	if err != nil {
 		log.Fatalf("Error initializing database: %s", err)
 	}
-	defer store.Close()
+	sendGridEmailSender := email.NewSendgridEmailSender()
+	emailSender := email.NewEmailSender(sendGridEmailSender.SendgridEmailSenderStrategy)
 	server.RunServer(
 		server.Controller{
-			Store:  &store,
-			Config: config,
-		})
+			Store:       &store,
+			Config:      config,
+			EmailSender: emailSender,
+		},
+	)
 }

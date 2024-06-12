@@ -2,10 +2,12 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
+	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
 	"errors"
 	baseliboidc "github.com/aggregat4/go-baselib-services/oidc"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"html/template"
@@ -27,8 +29,9 @@ var viewTemplates embed.FS
 const ContentTypeJson = "application/json;charset=UTF-8"
 
 type Controller struct {
-	Store  *repository.Store
-	Config domain.Config
+	Store       *repository.Store
+	Config      domain.Config
+	EmailSender *email.EmailSender
 }
 
 func RunServer(controller Controller) {
@@ -60,7 +63,10 @@ func InitServer(controller Controller) *echo.Echo {
 			//return controller.Store.FindOrCreateUser(username)
 			return 0, errors.New("not implemented")
 		}, "/admin"))
-	return InitServerWithOidcMiddleware(controller, oidcMiddleware.CreateOidcMiddleware(baseliboidc.IsAuthenticated), oidcCallback)
+	return InitServerWithOidcMiddleware(
+		controller,
+		oidcMiddleware.CreateOidcMiddleware(baseliboidc.IsAuthenticated),
+		oidcCallback)
 }
 
 func InitServerWithOidcMiddleware(
@@ -187,55 +193,63 @@ var fifteenMinutes = time.Duration(15) * time.Minute
 //		 if we have a valid token and we have sent it twice already, then generate a new token and send it in 5 minutes
 //		 if we have a valid token and we have sent it thrice already, then let the user know they have to try again in 15 minutes
 func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
-	email := c.FormValue("email")
-	if email == "" {
+	emailAddress := c.FormValue("email")
+	if emailAddress == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
-	user, err := controller.Store.GetUserByEmail(email)
+	user, err := controller.Store.GetUserByEmail(emailAddress)
 	if err != nil {
 		return sendInternalError(c, err)
 	}
 	if user == (domain.User{}) {
 		params := url.Values{}
-		params.Set("email", email)
-		params.Set("error", "No data was found for the user with email address '"+email+"'")
+		params.Set("emailAddress", emailAddress)
+		params.Set("error", "No data was found for the user with email address '"+emailAddress+"'")
 		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	}
-	if user.AuthToken != "" && time.Since(user.AuthTokenCreatedAt) < fifteenMinutes {
-		// we already have a valid token, now check how often we sent it and react accordingly
-		if user.AuthTokenSentToClient < 3 {
-			// update the sent count to make sure future requests can delay even further
-			user.AuthTokenSentToClient++
-			user.AuthTokenCreatedAt = time.Now()
-			err = controller.Store.UpdateUser(user)
-			if err != nil {
-				return sendInternalError(c, err)
-			}
-			var delay = 0 * time.Minute
-			if user.AuthTokenSentToClient == 1 {
-				delay = 1 * time.Minute
-			} else if user.AuthTokenSentToClient == 2 {
-				delay = 5 * time.Minute
-			}
-			params := url.Values{}
-			params.Set("email", email)
+	if user.AuthToken == "" || time.Since(user.AuthTokenCreatedAt) > fifteenMinutes {
+		user.AuthTokenSentToClient = 0
+		user.AuthToken = uuid.New().String()
+		user.AuthTokenCreatedAt = time.Now()
+	}
+	// we already have a valid token, now check how often we sent it and react accordingly
+	if user.AuthTokenSentToClient < 3 {
+		// update the sent count to make sure future requests can delay even further
+		user.AuthTokenSentToClient++
+		user.AuthTokenCreatedAt = time.Now()
+		err = controller.Store.UpdateUser(user)
+		if err != nil {
+			return sendInternalError(c, err)
+		}
+		var delay = 0 * time.Minute
+		if user.AuthTokenSentToClient == 1 {
+			delay = 1 * time.Minute
+		} else if user.AuthTokenSentToClient == 2 {
+			delay = 5 * time.Minute
+		}
+		params := url.Values{}
+		params.Set("email", emailAddress)
+		emailSuccessfullyQueued := controller.EmailSender.SendEmail(email.AuthenticationCodeEmail{
+			EmailAddress: emailAddress,
+			Code:         user.AuthToken,
+		})
+		if emailSuccessfullyQueued {
 			if delay > 0 {
 				params.Set("success", "An authentication token will be sent in "+delay.String()+".")
 			} else {
-				params.Set("success", "An authentication token is on the way, please check your email.")
+				params.Set("success", "An authentication token is on the way, please check your email address.")
 			}
-			// TODO actually submit the code sending to a queue somewhere and make sure people can't spam the queue with fast requests (make sure to block the user from trying again by setting the count high enough when multiple elements in queue)
-			return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 		} else {
-			// let the user know they have to try again in 15 minutes
-			params := url.Values{}
-			params.Set("email", email)
-			params.Set("error", "Too many attempts were made to request authentication tokens for this user. Please try again in 15 minutes.")
-			return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+			// TODO error message too vague?
+			params.Set("error", "Could not send an email at this time, please try again later.")
 		}
+		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	} else {
-		// TODO continue here and write tests as well
-		// we have no valid token, so generate a new one and send it to the user
+		// let the user know they have to try again in 15 minutes
+		params := url.Values{}
+		params.Set("emailAddress", emailAddress)
+		params.Set("error", "Too many attempts were made to request authentication tokens for this user. Please try again in 15 minutes.")
+		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	}
 }
 
