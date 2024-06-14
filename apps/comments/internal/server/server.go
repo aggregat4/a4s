@@ -177,8 +177,18 @@ func (controller *Controller) Status(c echo.Context) error {
 	return c.Render(http.StatusOK, "status", "OK")
 }
 
+type UserAuthenticationForm struct {
+	EmailAddress string
+	Success      string
+	Error        string
+}
+
 func (controller *Controller) GetUserAuthenticationForm(c echo.Context) error {
-	return c.Render(http.StatusOK, "userauthentication", nil)
+	return c.Render(http.StatusOK, "userauthentication", UserAuthenticationForm{
+		EmailAddress: c.QueryParam("emailAddress"),
+		Error:        c.QueryParam("error"),
+		Success:      c.QueryParam("success"),
+	})
 }
 
 var fifteenMinutes = time.Duration(15) * time.Minute

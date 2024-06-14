@@ -104,7 +104,7 @@ func (store *Store) CreateUser(email string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	result, err := store.db.Exec("INSERT INTO users (email_encrypted) VALUES (?)", emailEncrypted)
+	result, err := store.db.Exec("INSERT INTO users (email_encrypted, auth_token_sent_to_client) VALUES (?, 0)", emailEncrypted)
 	if err != nil {
 		return -1, err
 	}

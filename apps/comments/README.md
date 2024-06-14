@@ -49,4 +49,5 @@ User authentication is based on email:
 
 ## TODO
 
+- We currently generate a new nonce for each ecnryption in AES 256: this makes the encrypted text different each time and prevents us from searching for it afterwards. How to fix this? Storing nonce does not help, since we don't know which one to use.
 - Figure out the navigation story: there are a lot of pages and we have embeded pages in other sites and we have the management ui somewhere for users and for admins. How is that accesible? How do you get back to some other ui? 

@@ -2,16 +2,17 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
+	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/labstack/echo/v4"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
-	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"testing"
-	"time"
 )
 
 var TEST_ENCRYPTIONKEY = "12345678901234567890123456789012"
@@ -99,6 +100,62 @@ func TestUserAuthenticationForm(t *testing.T) {
 	assert.Contains(t, body, "<form action=\"/userauthentication/\" method=\"POST\">")
 }
 
+func TestRequestAuthenticationLinkWithNoParams(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	res, err := http.Post(createServerUrl(serverConfig.Port, "/userauthentication"), "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 400, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+}
+
+func TestRequestAuthenticationLinkWithNonExistingEmailParam(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	formParams := url.Values{}
+	formParams.Set("email", "foo@example.com")
+	encodedParams := formParams.Encode()
+	postBody := strings.NewReader(encodedParams)
+	res, err := http.Post(
+		createServerUrl(serverConfig.Port, "/userauthentication"),
+		"application/x-www-form-urlencoded",
+		postBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+	assert.Contains(t, body, "<p class=\"error\">")
+}
+
+func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	formParams := url.Values{}
+	formParams.Set("email", TEST_USER1_EMAIL)
+	encodedParams := formParams.Encode()
+	postBody := strings.NewReader(encodedParams)
+	res, err := http.Post(
+		createServerUrl(serverConfig.Port, "/userauthentication"),
+		"application/x-www-form-urlencoded",
+		postBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+	assert.Contains(t, body, "<p class=\"error\">")
+}
+
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
 	if err != nil {
@@ -112,7 +169,8 @@ func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 		panic(err)
 	}
 	createTestData(t, store)
-	controller := Controller{&store, serverConfig}
+	mockEmailSender := email.NewMockEmailSender()
+	controller := Controller{&store, serverConfig, email.NewEmailSender(mockEmailSender.MockEmailSenderStrategy)}
 	echoServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback())
 	go func() {
 		_ = echoServer.Start(":" + strconv.Itoa(serverConfig.Port))
@@ -134,42 +192,6 @@ func createTestData(t *testing.T, store repository.Store) {
 	if err != nil {
 		t.Fatal("Error creating test comment: " + err.Error())
 	}
-}
-
-func createMockOidcCallback() echo.HandlerFunc {
-	return func(c echo.Context) error {
-		return nil
-	}
-}
-
-func createMockOidcMiddleware() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			return next(c)
-		}
-	}
-}
-
-func waitForServerStart(t *testing.T, url string) {
-	maxRetries := 10
-	for i := 0; i < maxRetries; i++ {
-		resp, err := http.Get(url)
-		if err == nil {
-			resp.Body.Close()
-			return
-		}
-		time.Sleep(time.Second)
-	}
-	t.Fatalf("Server did not start after %d retries", maxRetries)
-}
-
-func readBody(res *http.Response) string {
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		panic(err)
-	}
-	defer res.Body.Close()
-	return string(body)
 }
 
 func createServerUrl(port int, path string) string {

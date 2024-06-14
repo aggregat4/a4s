@@ -23,14 +23,14 @@
         <h1>Request Authentication Token</h1>
     </header>
     <main>
-        {{if .QueryParams.Get "error"}}
+        {{if .Error}}
             <p class="error">
-                {{.QueryParams.Get "error"}}
+                {{.Error}}
             </p>
         {{end}}
-        {{if .QueryParams.Get "success"}}
+        {{if .Success}}
             <p class="success">
-                {{.QueryParams.Get "success"}}
+                {{.Success}}
             </p>
         {{end}}
         <form action="/userauthentication/" method="POST">
@@ -46,7 +46,7 @@
                 new authentication code at any time.
             </p>
             <label>Email Address:
-                <input type="email" name="email" autocapitalize="off" required pattern=".+@.+" autofocus/>
+                <input type="email" name="email" autocapitalize="off" required pattern=".+@.+" autofocus {{if .EmailAddress}}value="{{.EmailAddress}}"{{end}}>
             </label>
             <button type="submit">Request Authentication Code</button>
         </form>

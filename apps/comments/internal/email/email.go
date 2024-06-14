@@ -23,13 +23,13 @@ func NewEmailSender(emailSendingStrategy func(email AuthenticationCodeEmail)) *E
 		emailChannel:       make(chan AuthenticationCodeEmail, 100),
 		numberOfEmailsSent: 0,
 	}
-	emailSender.startWorker(emailSendingStrategy)
+	go emailSender.startWorker(emailSendingStrategy)
 	return &emailSender
 }
 
 func (emailSender *EmailSender) SendEmail(email AuthenticationCodeEmail) bool {
 	if emailSender.numberOfEmailsSent >= maxEmailsToSend {
-		logger.Warn("Reached maximum number of emails to send, ignoring email to %s", email.EmailAddress)
+		logger.Warn("Reached maximum number of emails to send, ignoring email to %s", "emailaddress", email.EmailAddress)
 		return false
 	}
 	emailSender.emailChannel <- email
