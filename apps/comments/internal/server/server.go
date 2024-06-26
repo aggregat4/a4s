@@ -198,7 +198,7 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 	if emailAddress == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
-	user, err := controller.Store.GetUserByEmail(emailAddress)
+	user, err := controller.Store.FindUserByEmail(emailAddress)
 	if err != nil {
 		return sendInternalError(c, err)
 	}

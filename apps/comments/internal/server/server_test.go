@@ -153,7 +153,8 @@ func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
 	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
 	body := readBody(res)
 	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
-	assert.Contains(t, body, "<p class=\"error\">")
+	assert.Contains(t, body, "<p class=\"success\">")
+	assert.Contains(t, body, "An authentication token will be sent")
 }
 
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {

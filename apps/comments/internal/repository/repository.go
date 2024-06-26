@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/migrations"
+	"time"
 )
 
 type Store struct {
@@ -64,12 +65,14 @@ func (store *Store) GetComments(serviceId int, postKey string) ([]domain.Comment
 	for rows.Next() {
 		var comment domain.Comment
 		var commentEncrypted, nameEncrypted, websiteEncrypted []byte
-		err = rows.Scan(&comment.Id, &comment.UserId, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &comment.CreatedAt)
+		var createdAt int64
+		err = rows.Scan(&comment.Id, &comment.UserId, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &createdAt)
 		if err != nil {
 			return nil, err
 		}
 		comment.ServiceId = serviceId
 		comment.PostKey = postKey
+		comment.CreatedAt = time.Unix(createdAt, 0)
 		comment.Comment, err = crypto.DecryptAes256(commentEncrypted, store.Cipher)
 		if err != nil {
 			return nil, err
@@ -100,11 +103,9 @@ func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int,
 }
 
 func (store *Store) CreateUser(email string) (int, error) {
-	emailEncrypted, err := crypto.EncryptAes256(email, store.Cipher)
-	if err != nil {
-		return -1, err
-	}
-	result, err := store.db.Exec("INSERT INTO users (email_encrypted, auth_token_sent_to_client) VALUES (?, 0)", emailEncrypted)
+	result, err := store.db.Exec(
+		"INSERT INTO users (email, auth_token_created_at, auth_token_sent_to_client) VALUES (?, 0, 0)",
+		email)
 	if err != nil {
 		return -1, err
 	}
@@ -148,22 +149,22 @@ func (store *Store) CreateComment(
 	return int(lastInsertId), nil
 }
 
-func (store *Store) GetUserByEmail(email string) (domain.User, error) {
-	emailEncrypted, err := crypto.EncryptAes256(email, store.Cipher)
-	if err != nil {
-		return domain.User{}, err
-	}
-	rows, err := store.db.Query("SELECT id, email_encrypted, auth_token, auth_token_created_at, auth_token_sent_to_client FROM users WHERE email_encrypted = ?", emailEncrypted)
+func (store *Store) FindUserByEmail(email string) (domain.User, error) {
+	rows, err := store.db.Query(
+		"SELECT id, email, COALESCE(auth_token, ''), auth_token_created_at, auth_token_sent_to_client FROM users WHERE email = ?",
+		email)
 	if err != nil {
 		return domain.User{}, err
 	}
 	defer rows.Close()
 	if rows.Next() {
 		var user domain.User
-		err = rows.Scan(&user.Id, &user.EmailEncrypted, &user.AuthToken, &user.AuthTokenCreatedAt, &user.AuthTokenSentToClient)
+		var authTokenCreatedAt int64
+		err = rows.Scan(&user.Id, &user.EmailEncrypted, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
 		if err != nil {
 			return domain.User{}, err
 		}
+		user.AuthTokenCreatedAt = time.Unix(authTokenCreatedAt, 0)
 		return user, nil
 	} else {
 		return domain.User{}, nil
