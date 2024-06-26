@@ -49,5 +49,6 @@ User authentication is based on email:
 
 ## TODO
 
-- We currently generate a new nonce for each ecnryption in AES 256: this makes the encrypted text different each time and prevents us from searching for it afterwards. How to fix this? Storing nonce does not help, since we don't know which one to use.
+1. Store the IV/nonce for all encrypted content in the database so we can decrypt it
+2. Implement authentication using an auth token: successfull authentication should lead to the comment dashboard for that user so he or she can authorize any outstanding comments (we shouldn't tie the login to a particular comment, and we can't _just_ authorize _any_ comment as that would allow strangers to post on your behalf)
 - Figure out the navigation story: there are a lot of pages and we have embeded pages in other sites and we have the management ui somewhere for users and for admins. How is that accesible? How do you get back to some other ui? 
