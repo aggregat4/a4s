@@ -112,7 +112,7 @@ func InitServerWithOidcMiddleware(
 
 	// ----- User Authentication
 	// One can authenticate posts by clicking on an authentication link sent by email, this has to be GET because we send this via email
-	//	e.GET("/userauthentication/:token", controller.AuthenticateUser)
+	e.GET("/userauthentication/:token", controller.AuthenticateUser)
 	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
 	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
 	e.GET("/userauthentication/", controller.GetUserAuthenticationForm)
@@ -193,6 +193,10 @@ func (controller *Controller) GetUserAuthenticationForm(c echo.Context) error {
 
 var fifteenMinutes = time.Duration(15) * time.Minute
 
+func validToken(user domain.User) bool {
+	return user.AuthToken != "" && time.Since(user.AuthTokenCreatedAt) <= fifteenMinutes
+}
+
 func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 	emailAddress := c.FormValue("email")
 	if emailAddress == "" {
@@ -208,12 +212,11 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 		params.Set("error", "No data was found for the user with email address '"+emailAddress+"'")
 		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	}
-	if user.AuthToken == "" || time.Since(user.AuthTokenCreatedAt) > fifteenMinutes {
+	if validToken(user) {
 		user.AuthTokenSentToClient = 0
 		user.AuthToken = uuid.New().String()
 		user.AuthTokenCreatedAt = time.Now()
 	}
-	// we already have a valid token, now check how often we sent it and react accordingly
 	if user.AuthTokenSentToClient < 3 {
 		// update the sent count to make sure future requests can delay even further
 		user.AuthTokenSentToClient++
@@ -252,6 +255,24 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 		params.Set("error", "Too many attempts were made to request authentication tokens for this user. Please try again in 15 minutes.")
 		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	}
+}
+
+func (controller *Controller) AuthenticateUser(c echo.Context) error {
+	token := c.QueryParam("token")
+	if token == "" {
+		return c.Redirect(http.StatusFound, "/userauthentication/")
+	}
+	user, err := controller.Store.FindUserByAuthToken(token)
+	if err != nil || !validToken(user) {
+		params := url.Values{}
+		params.Set("error", "Invalid token")
+		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+	}
+	err = createSessionCookie(c, user.Id)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
 }
 
 //func (controller *Controller) GetNoDataForUserPage(c echo.Context) error {

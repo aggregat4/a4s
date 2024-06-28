@@ -18,7 +18,7 @@ type Config struct {
 
 type User struct {
 	Id                    int
-	EmailEncrypted        string
+	Email                 string
 	AuthToken             string
 	AuthTokenCreatedAt    time.Time
 	AuthTokenSentToClient int

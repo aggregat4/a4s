@@ -160,7 +160,29 @@ func (store *Store) FindUserByEmail(email string) (domain.User, error) {
 	if rows.Next() {
 		var user domain.User
 		var authTokenCreatedAt int64
-		err = rows.Scan(&user.Id, &user.EmailEncrypted, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
+		err = rows.Scan(&user.Id, &user.Email, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
+		if err != nil {
+			return domain.User{}, err
+		}
+		user.AuthTokenCreatedAt = time.Unix(authTokenCreatedAt, 0)
+		return user, nil
+	} else {
+		return domain.User{}, nil
+	}
+}
+
+func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
+	rows, err := store.db.Query(
+		"SELECT id, email, COALESCE(auth_token, ''), auth_token_created_at, auth_token_sent_to_client FROM users WHERE auth_token = ?",
+		token)
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var user domain.User
+		var authTokenCreatedAt int64
+		err = rows.Scan(&user.Id, &user.Email, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
 		if err != nil {
 			return domain.User{}, err
 		}
