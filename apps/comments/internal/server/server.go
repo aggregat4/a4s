@@ -212,7 +212,7 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 		params.Set("error", "No data was found for the user with email address '"+emailAddress+"'")
 		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	}
-	if validToken(user) {
+	if !validToken(user) {
 		user.AuthTokenSentToClient = 0
 		user.AuthToken = uuid.New().String()
 		user.AuthTokenCreatedAt = time.Now()
@@ -258,7 +258,7 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 }
 
 func (controller *Controller) AuthenticateUser(c echo.Context) error {
-	token := c.QueryParam("token")
+	token := c.Param("token")
 	if token == "" {
 		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}

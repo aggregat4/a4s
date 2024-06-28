@@ -15,20 +15,20 @@ type AuthenticationCodeEmail struct {
 
 type EmailSender struct {
 	emailChannel       chan AuthenticationCodeEmail
-	numberOfEmailsSent int
+	NumberOfEmailsSent int
 }
 
 func NewEmailSender(emailSendingStrategy func(email AuthenticationCodeEmail)) *EmailSender {
 	var emailSender = EmailSender{
 		emailChannel:       make(chan AuthenticationCodeEmail, 100),
-		numberOfEmailsSent: 0,
+		NumberOfEmailsSent: 0,
 	}
 	go emailSender.startWorker(emailSendingStrategy)
 	return &emailSender
 }
 
 func (emailSender *EmailSender) SendEmail(email AuthenticationCodeEmail) bool {
-	if emailSender.numberOfEmailsSent >= maxEmailsToSend {
+	if emailSender.NumberOfEmailsSent >= maxEmailsToSend {
 		logger.Warn("Reached maximum number of emails to send, ignoring email to %s", "emailaddress", email.EmailAddress)
 		return false
 	}
@@ -40,6 +40,6 @@ func (emailSender *EmailSender) startWorker(emailSendingStrategy func(email Auth
 	for email := range emailSender.emailChannel {
 		// TODO: send email
 		emailSendingStrategy(email)
-		emailSender.numberOfEmailsSent += 1
+		emailSender.NumberOfEmailsSent += 1
 	}
 }

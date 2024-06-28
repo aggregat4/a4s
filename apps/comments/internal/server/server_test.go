@@ -132,6 +132,7 @@ func TestRequestAuthenticationLinkWithNonExistingEmailParam(t *testing.T) {
 	body := readBody(res)
 	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
 	assert.Contains(t, body, "<p class=\"error\">")
+	assert.Equal(t, 0, controller.EmailSender.NumberOfEmailsSent, "EmailSender should NOT have been called")
 }
 
 func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
@@ -155,6 +156,41 @@ func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
 	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
 	assert.Contains(t, body, "<p class=\"success\">")
 	assert.Contains(t, body, "An authentication token will be sent")
+	assert.Equal(t, 1, controller.EmailSender.NumberOfEmailsSent, "EmailSender should have been called")
+}
+
+func TestUserAuthenticationWithUnknownToken(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/userauthentication/INVALIDTOKEN"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+	assert.Contains(t, body, "<p class=\"error\">")
+	assert.Contains(t, body, "Invalid token")
+}
+
+// TODO: test with expired token
+
+func TestUserAuthenticationValidToken(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/userauthentication/INVALIDTOKEN"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+	assert.Contains(t, body, "<p class=\"error\">")
+	assert.Contains(t, body, "Invalid token")
 }
 
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
@@ -189,6 +225,7 @@ func createTestData(t *testing.T, store repository.Store) {
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}
+
 	_, err = store.CreateComment(serviceId, userId, TEST_POSTKEY1, TEST_COMMENT1, TEST_AUTHOR1, TEST_WEBSITE1)
 	if err != nil {
 		t.Fatal("Error creating test comment: " + err.Error())
