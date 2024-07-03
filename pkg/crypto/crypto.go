@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/aggregat4/go-baselib/lang"
+	"golang.org/x/crypto/argon2"
 	"io"
 	"os"
 
@@ -49,12 +50,21 @@ func ReadRSAPublicKey(filename string) (*rsa.PublicKey, error) {
 	return publicKey, nil
 }
 
-func RandString(nByte int) (string, error) {
-	b := make([]byte, nByte)
-	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+func RandomString(byteCount uint32) (string, error) {
+	b, err := RandomBytes(byteCount)
+	if err != nil {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func RandomBytes(byteCount uint32) ([]byte, error) {
+	b := make([]byte, byteCount)
+	_, err := rand.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func CreateAes256GcmAead(key []byte) (cipher.AEAD, error) {
@@ -105,4 +115,46 @@ func DecryptAes256(ciphertextBytes []byte, aead cipher.AEAD) (string, error) {
 	}
 
 	return string(plaintext), nil
+}
+
+/*
+Password Hashing
+
+According to OWASP (as of June 2024), Argon2ID is state of the art for password hashing:
+see https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+
+This implementation is based off https://www.alexedwards.net/blog/how-to-hash-and-verify-passwords-with-argon2-in-go
+This uses https://pkg.go.dev/golang.org/x/crypto/argon2#IDKey to derive a hash from a password.
+*/
+
+type Argon2IDParams struct {
+	memory      uint32
+	iterations  uint32
+	parallelism uint8
+	saltLength  uint32
+	keyLength   uint32
+}
+
+var passwordHashingArgon2IDParams = Argon2IDParams{
+	memory:      64 * 1024,
+	iterations:  2,
+	parallelism: 4,
+	saltLength:  16,
+	keyLength:   32,
+}
+
+func CreatePasswordHashWithDefaultParams(password string) (encodedHash string, err error) {
+	return CreatePasswordHash(password, &passwordHashingArgon2IDParams)
+}
+
+func CreatePasswordHash(password string, p *Argon2IDParams) (encodedHash string, err error) {
+	salt, err := RandomBytes(p.saltLength)
+	if err != nil {
+		return "", err
+	}
+	hash := argon2.IDKey([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+	encodedHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, p.memory, p.iterations, p.parallelism, b64Salt, b64Hash)
+	return encodedHash, nil
 }
