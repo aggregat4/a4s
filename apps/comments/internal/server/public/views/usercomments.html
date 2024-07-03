@@ -1,31 +1,47 @@
 {{define "usercomments"}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Comments</title>
-    <!-- <link rel="icon" href="/images/delicious.png"> -->
-    <style>
-        body {
-            font-family: sans-serif;
-            box-sizing: border-box;
-            margin: 0;
-            line-height: 1.5;
-            background-color: white;
-            color: #333;
-        }
-    </style>
-</head>
-<body>
-<header>
-    <h1>Your Comments</h1>
-</header>
-<main>
-    TODO
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Comments</title>
+        <!-- <link rel="icon" href="/images/delicious.png"> -->
+        <style>
+            body {
+                font-family: sans-serif;
+                box-sizing: border-box;
+                margin: 0;
+                line-height: 1.5;
+                background-color: white;
+                color: #333;
+            }
+        </style>
+    </head>
+    <body>
+    <header>
+        <h1>Your Comments</h1>
+    </header>
+    <main>
+            <dl class="comments">
+            {{range .Comments}}
+                <dt>
+                    <span class="author">
+                    {{if .Website}}
+                        <a href="{{.Website}}">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
+                    {{else}}
+                        {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
+                    {{end}}
+                    </span>
+                    <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
+                    <a href="/users/{{$.UserId}}/comments/{{.Id}}/edit">Modify</a>
+{{/*                    Add buttons to confirm the comment and delete the comment in a similar vein to the bookmarks buttons*/}}
 
-</main>
-</body>
-</html>
+                </dt>
+                <dd>{{.Comment}}</dd>
+            {{end}}
+        </dl>
+    </main>
+    </body>
+    </html>
 {{end}}

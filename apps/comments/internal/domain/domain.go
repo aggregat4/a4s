@@ -48,6 +48,11 @@ type PostCommentsPage struct {
 	Comments   []Comment
 }
 
+type UserCommentsPage struct {
+	User     User
+	Comments []Comment
+}
+
 type NoDataForUserPage struct {
 	Email string
 }

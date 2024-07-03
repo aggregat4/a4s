@@ -1,7 +1,7 @@
 package server
 
 import (
-	"errors"
+	"github.com/aggregat4/go-baselib/lang"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -19,7 +19,7 @@ func getUserIdFromSession(c echo.Context) (int, error) {
 	if sess.Values["userid"] != nil {
 		return sess.Values["userid"].(int), nil
 	} else {
-		return -1, errors.New("no userid in session")
+		return -1, lang.ErrNotFound
 	}
 }
 

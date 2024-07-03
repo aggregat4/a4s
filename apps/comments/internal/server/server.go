@@ -7,6 +7,7 @@ import (
 	"embed"
 	"errors"
 	baseliboidc "github.com/aggregat4/go-baselib-services/oidc"
+	"github.com/aggregat4/go-baselib/lang"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -111,20 +112,20 @@ func InitServerWithOidcMiddleware(
 	//	e.POST("/services/:serviceKey/posts/:postKey/comments", controller.PostComment)
 
 	// ----- User Authentication
-	// One can authenticate posts by clicking on an authentication link sent by email, this has to be GET because we send this via email
-	e.GET("/userauthentication/:token", controller.AuthenticateUser)
 	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
 	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
 	e.GET("/userauthentication/", controller.GetUserAuthenticationForm)
 	// Users can submit a userauthentication form to get a new token sent
 	e.POST("/userauthentication", controller.RequestAuthenticationLink)
-	// The userauthentication endpoint after successfully validating the token:
+	// Users can authenticate by clicking on an authentication link sent by email, this has to be GET because email
+	e.GET("/userauthentication/:token", controller.AuthenticateUser)
+	// After authenticating the user:
 	// 1. sets a cookie with the userId
 	// 2. redirects to a user's comment overview and management page
 
-	// ---- AUTHENTICATED WITH AUTH TOKEN via email (i.e. userid in cookie)
+	// ---- AUTHENTICATED WITH AUTH TOKEN (normal user)
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
-	//	e.GET("/users/:userId/comments", controller.GetCommentsForUser)
+	e.GET("/users/:userId/comments", controller.GetCommentsForUser)
 	// Allow a user to modify his comment
 	//	e.GET("/users/:userId/comments/:commentId", controller.GetCommentEditForm)
 	// Users can delete comments, this redirects back to the comment overview page
@@ -132,7 +133,7 @@ func InitServerWithOidcMiddleware(
 	// Users can update comments (TODO: add comment edit form here, can we reuse original form?)
 	//	e.PUT("/users/:userId/comments/:commentId", controller.UpdateComment)
 
-	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin
+	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
 	// Service administrators can access a service comment dashboard where they can approve or deny comments
 	// They require successful OIDC authentication and they require the "service-admin" value as part of the values
 	// in the "roles" claim
@@ -149,18 +150,18 @@ func InitServerWithOidcMiddleware(
 func (controller *Controller) GetComments(c echo.Context) error {
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
-	logger.Info("GetComments called for serviceKey " + serviceKey + " and postKey " + postKey)
+	logger.Info("GetCommentsForPost called for serviceKey " + serviceKey + " and postKey " + postKey)
 	if serviceKey == "" || postKey == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			return c.Render(http.StatusNotFound, "error-notfound", nil)
+		}
 		return sendInternalError(c, err)
 	}
-	if service == nil {
-		return c.Render(http.StatusNotFound, "error-notfound", nil)
-	}
-	comments, err := controller.Store.GetComments(service.Id, postKey)
+	comments, err := controller.Store.GetCommentsForPost(service.Id, postKey)
 	if err != nil {
 		return sendInternalError(c, err)
 	}
@@ -204,13 +205,13 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 	}
 	user, err := controller.Store.FindUserByEmail(emailAddress)
 	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			params := url.Values{}
+			params.Set("emailAddress", emailAddress)
+			params.Set("error", "No data was found for the user with email address '"+emailAddress+"'")
+			return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+		}
 		return sendInternalError(c, err)
-	}
-	if user == (domain.User{}) {
-		params := url.Values{}
-		params.Set("emailAddress", emailAddress)
-		params.Set("error", "No data was found for the user with email address '"+emailAddress+"'")
-		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	}
 	if !validToken(user) {
 		user.AuthTokenSentToClient = 0
@@ -273,6 +274,33 @@ func (controller *Controller) AuthenticateUser(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+}
+
+func (controller *Controller) GetCommentsForUser(c echo.Context) error {
+	userId, err := getUserIdFromSession(c)
+	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			return c.Redirect(http.StatusFound, "/userauthentication/")
+		} else {
+			return sendInternalError(c, err)
+		}
+	}
+	user, err := controller.Store.FindUserById(userId)
+	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			return c.Redirect(http.StatusFound, "/userauthentication/")
+		} else {
+			return sendInternalError(c, err)
+		}
+	}
+	comments, err := controller.Store.GetCommentsForUser(userId)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return c.Render(http.StatusOK, "usercomments", domain.UserCommentsPage{
+		User:     user,
+		Comments: comments,
+	})
 }
 
 //func (controller *Controller) GetNoDataForUserPage(c echo.Context) error {

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/go-baselib/lang"
 	"github.com/aggregat4/go-baselib/migrations"
 	"time"
 )
@@ -51,43 +52,54 @@ func (store *Store) GetServiceForKey(serviceKey string) (*domain.Service, error)
 		}
 		return &domain.Service{Id: serviceId, Origin: origin}, nil
 	} else {
-		return nil, nil
+		return nil, lang.ErrNotFound
 	}
 }
 
-func (store *Store) GetComments(serviceId int, postKey string) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, user_id, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE service_id = ? AND post_key = ?", serviceId, postKey)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func mapComments(rows *sql.Rows, cipher cipher.AEAD) ([]domain.Comment, error) {
 	comments := make([]domain.Comment, 0)
 	for rows.Next() {
 		var comment domain.Comment
 		var commentEncrypted, nameEncrypted, websiteEncrypted []byte
 		var createdAt int64
-		err = rows.Scan(&comment.Id, &comment.UserId, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &createdAt)
+		var err = rows.Scan(&comment.Id, &comment.UserId, &comment.ServiceId, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &createdAt)
 		if err != nil {
 			return nil, err
 		}
-		comment.ServiceId = serviceId
-		comment.PostKey = postKey
 		comment.CreatedAt = time.Unix(createdAt, 0)
-		comment.Comment, err = crypto.DecryptAes256(commentEncrypted, store.Cipher)
+		comment.Comment, err = crypto.DecryptAes256(commentEncrypted, cipher)
 		if err != nil {
 			return nil, err
 		}
-		comment.Name, err = crypto.DecryptAes256(nameEncrypted, store.Cipher)
+		comment.Name, err = crypto.DecryptAes256(nameEncrypted, cipher)
 		if err != nil {
 			return nil, err
 		}
-		comment.Website, err = crypto.DecryptAes256(websiteEncrypted, store.Cipher)
+		comment.Website, err = crypto.DecryptAes256(websiteEncrypted, cipher)
 		if err != nil {
 			return nil, err
 		}
 		comments = append(comments, comment)
 	}
 	return comments, nil
+}
+
+func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.Comment, error) {
+	rows, err := store.db.Query("SELECT id, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE service_id = ? AND post_key = ?", serviceId, postKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return mapComments(rows, store.Cipher)
+}
+
+func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
+	rows, err := store.db.Query("SELECT id, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE user_id = ?", userId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return mapComments(rows, store.Cipher)
 }
 
 func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int, error) {
@@ -149,6 +161,21 @@ func (store *Store) CreateComment(
 	return int(lastInsertId), nil
 }
 
+func mapOptionalUser(rows *sql.Rows) (domain.User, error) {
+	if rows.Next() {
+		var user domain.User
+		var authTokenCreatedAt int64
+		err := rows.Scan(&user.Id, &user.Email, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
+		if err != nil {
+			return domain.User{}, err
+		}
+		user.AuthTokenCreatedAt = time.Unix(authTokenCreatedAt, 0)
+		return user, nil
+	} else {
+		return domain.User{}, lang.ErrNotFound
+	}
+}
+
 func (store *Store) FindUserByEmail(email string) (domain.User, error) {
 	rows, err := store.db.Query(
 		"SELECT id, email, COALESCE(auth_token, ''), auth_token_created_at, auth_token_sent_to_client FROM users WHERE email = ?",
@@ -157,18 +184,18 @@ func (store *Store) FindUserByEmail(email string) (domain.User, error) {
 		return domain.User{}, err
 	}
 	defer rows.Close()
-	if rows.Next() {
-		var user domain.User
-		var authTokenCreatedAt int64
-		err = rows.Scan(&user.Id, &user.Email, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
-		if err != nil {
-			return domain.User{}, err
-		}
-		user.AuthTokenCreatedAt = time.Unix(authTokenCreatedAt, 0)
-		return user, nil
-	} else {
-		return domain.User{}, nil
+	return mapOptionalUser(rows)
+}
+
+func (store *Store) FindUserById(userId int) (domain.User, error) {
+	rows, err := store.db.Query(
+		"SELECT id, email, COALESCE(auth_token, ''), auth_token_created_at, auth_token_sent_to_client FROM users WHERE id = ?",
+		userId)
+	if err != nil {
+		return domain.User{}, err
 	}
+	defer rows.Close()
+	return mapOptionalUser(rows)
 }
 
 func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
@@ -179,18 +206,7 @@ func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
 		return domain.User{}, err
 	}
 	defer rows.Close()
-	if rows.Next() {
-		var user domain.User
-		var authTokenCreatedAt int64
-		err = rows.Scan(&user.Id, &user.Email, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
-		if err != nil {
-			return domain.User{}, err
-		}
-		user.AuthTokenCreatedAt = time.Unix(authTokenCreatedAt, 0)
-		return user, nil
-	} else {
-		return domain.User{}, nil
-	}
+	return mapOptionalUser(rows)
 }
 
 func (store *Store) UpdateUser(user domain.User) error {
