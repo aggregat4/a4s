@@ -1,5 +1,7 @@
 package lang
 
+import "errors"
+
 func IfElse[T any](cond bool, vtrue, vfalse T) T {
 	if cond {
 		return vtrue
@@ -12,3 +14,5 @@ func AssertNotNil(value interface{}, message string) {
 		panic(message)
 	}
 }
+
+var ErrNotFound = errors.New("not found")
