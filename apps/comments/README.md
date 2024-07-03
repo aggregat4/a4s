@@ -50,4 +50,4 @@ User authentication is based on email:
 ## TODO
 
 1. Implement authentication using an auth token: successful authentication should lead to the comment dashboard for that user so he or she can authorize any outstanding comments (we shouldn't tie the login to a particular comment, and we can't _just_ authorize _any_ comment as that would allow strangers to post on your behalf)
-- Figure out the navigation story: there are a lot of pages and we have embeded pages in other sites and we have the management ui somewhere for users and for admins. How is that accesible? How do you get back to some other ui? 
+1. Figure out the navigation story: there are a lot of pages and we have embeded pages in other sites and we have the management ui somewhere for users and for admins. How is that accesible? How do you get back to some other ui? 
