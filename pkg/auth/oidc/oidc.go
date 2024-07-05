@@ -50,7 +50,7 @@ func (oidcMiddleware *OidcMiddleware) CreateOidcMiddleware(isAuthenticated func(
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if !oidcMiddleware.Skipper(c) && !isAuthenticated(c) {
-				state, err := crypto.RandString(16)
+				state, err := crypto.RandomString(16)
 				if err != nil {
 					return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 				}
