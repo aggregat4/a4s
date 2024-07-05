@@ -6,7 +6,7 @@ import (
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
 	"errors"
-	baseliboidc "github.com/aggregat4/go-baselib-services/oidc"
+	baseliboidc "github.com/aggregat4/go-baselib-services/v2/oidc"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -26,6 +26,9 @@ var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 //go:embed public/views/*.html
 var viewTemplates embed.FS
+
+//go:embed public/js/*.js
+var javaScript embed.FS
 
 const ContentTypeJson = "application/json;charset=UTF-8"
 
@@ -97,6 +100,8 @@ func InitServerWithOidcMiddleware(
 	// TODO: CSRF origin check (on non HEAD or GET requests, check that Origin header matches target origin)
 
 	// Endpoints
+	javaScriptFS := echo.MustSubFS(javaScript, "public/js")
+	e.StaticFS("/js", javaScriptFS)
 	e.GET("/oidccallback", oidcCallback)
 	// ---- UNAUTHENTICATED
 	// Status endpoint

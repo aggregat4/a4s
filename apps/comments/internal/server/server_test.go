@@ -20,7 +20,10 @@ var TEST_SERVICE = "TESTSERVICE"
 
 var TEST_USER1_EMAIL = "johndoe@example.com"
 var TEST_POSTKEY1 = "TEST_POSTKEY1"
-var TEST_COMMENT1 = "This is comment 1"
+var TEST_COMMENT_PENDING_AUTHENTICATION = "This is an unauthenticated comment"
+var TEST_COMMENT_PENDING_APPROVAL = "This is an authenticated comment waiting for approval"
+var TEST_COMMENT_APPROVED = "This is an approved comment"
+var TEST_COMMENT_REJECTED = "This is a rejected comment"
 var TEST_AUTHOR1 = "John Doe"
 var TEST_WEBSITE1 = "http://example.com"
 
@@ -82,7 +85,7 @@ func TestSingleCommentPostPage(t *testing.T) {
 	assert.Contains(t, body, "<h1>Comments</h1>")
 	assert.Contains(t, body, "<dl class=\"comments\">")
 	assert.Contains(t, body, "<dt>")
-	assert.Contains(t, body, "<dd>"+TEST_COMMENT1)
+	assert.Contains(t, body, "<dd>"+TEST_COMMENT_PENDING_AUTHENTICATION)
 }
 
 func TestUserAuthenticationForm(t *testing.T) {
@@ -225,10 +228,21 @@ func createTestData(t *testing.T, store repository.Store) {
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}
+	comments := []struct {
+		status  domain.CommentStatus
+		comment string
+	}{
+		{domain.PendingAuthentication, TEST_COMMENT_PENDING_AUTHENTICATION},
+		{domain.PendingApproval, TEST_COMMENT_PENDING_APPROVAL},
+		{domain.Approved, TEST_COMMENT_APPROVED},
+		{domain.Rejected, TEST_COMMENT_REJECTED},
+	}
 
-	_, err = store.CreateComment(serviceId, userId, TEST_POSTKEY1, TEST_COMMENT1, TEST_AUTHOR1, TEST_WEBSITE1)
-	if err != nil {
-		t.Fatal("Error creating test comment: " + err.Error())
+	for _, c := range comments {
+		_, err = store.CreateComment(c.status, serviceId, userId, TEST_POSTKEY1, c.comment, TEST_AUTHOR1, TEST_WEBSITE1)
+		if err != nil {
+			t.Fatal("Error creating test comment: " + err.Error())
+		}
 	}
 }
 

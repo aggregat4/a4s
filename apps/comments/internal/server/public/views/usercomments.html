@@ -16,7 +16,13 @@
                 background-color: white;
                 color: #333;
             }
+
+            .actionbar {
+                display: flex;
+                gap: 12px;
+            }
         </style>
+        <script src="js/components.js"></script>
     </head>
     <body>
     <header>
@@ -33,10 +39,31 @@
                         {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
                     {{end}}
                     </span>
-                    <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
-                    <a href="/users/{{$.UserId}}/comments/{{.Id}}/edit">Modify</a>
-{{/*                    TODO: Add buttons to confirm the comment and delete the comment in a similar vein to the bookmarks buttons*/}}
-
+                    {{if eq .Status domain.PendingAuthentication}}
+                        <div class="commentstatuspending">
+                            <p>This comment has not been confirmed by you. If you want this to be seen by the admin for
+                                approval you should confirm the comment.</p>
+                            <p>Alternatively you can also delete your comment.</p>
+                        </div>
+                    {{end}}
+                    {{if eq .Status domain.Approved}}
+                        <div class="commentstatusapproved">
+                            <p>This comment has been approved by the administrator and will be displayed.</p>
+                        </div>
+                    {{end}}
+                    {{if eq .Status domain.Rejected}}
+                        <div class="commentstatusrejected">
+                            <p>This comment has been rejected by the administrator and will not be displayed.</p>
+                        </div>
+                    {{end}}
+                    <div class="actionbar">
+                        <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
+                        <a href="/users/{{$.UserId}}/comments/{{.Id}}/edit">Modify</a>
+                        {{if eq .Status domain.PendingAuthentication}}
+                        <action-confirmation actionName="Confirm" actionUrl="/users/{{$.UserId}}/comments/{{.Id}}/confirm"></action-confirmation>
+                        {{end}}
+                        <action-confirmation actionName="Delete" actionUrl="/users/{{$.UserId}}/comments/{{.Id}}/delete"></action-confirmation>
+                    </div>
                 </dt>
                 <dd>{{.Comment}}</dd>
             {{end}}

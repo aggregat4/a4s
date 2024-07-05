@@ -62,7 +62,7 @@ func mapComments(rows *sql.Rows, cipher cipher.AEAD) ([]domain.Comment, error) {
 		var comment domain.Comment
 		var commentEncrypted, nameEncrypted, websiteEncrypted []byte
 		var createdAt int64
-		var err = rows.Scan(&comment.Id, &comment.UserId, &comment.ServiceId, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &createdAt)
+		var err = rows.Scan(&comment.Id, &comment.Status, &comment.UserId, &comment.ServiceId, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &createdAt)
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +85,7 @@ func mapComments(rows *sql.Rows, cipher cipher.AEAD) ([]domain.Comment, error) {
 }
 
 func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE service_id = ? AND post_key = ?", serviceId, postKey)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE service_id = ? AND post_key = ?", serviceId, postKey)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.
 }
 
 func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE user_id = ?", userId)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE user_id = ?", userId)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +129,7 @@ func (store *Store) CreateUser(email string) (int, error) {
 }
 
 func (store *Store) CreateComment(
+	status domain.CommentStatus,
 	serviceId int,
 	userId int,
 	postkey string,
@@ -149,8 +150,8 @@ func (store *Store) CreateComment(
 		return -1, err
 	}
 	result, err := store.db.Exec(
-		"INSERT INTO comments (service_id, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted) VALUES (?,?,?,?,?,?)",
-		serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted)
+		"INSERT INTO comments (status, service_id, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted) VALUES (?,?,?,?,?,?,?)",
+		int(status), serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted)
 	if err != nil {
 		return -1, err
 	}

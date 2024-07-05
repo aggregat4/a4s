@@ -24,8 +24,11 @@ var mymigrations = []migrations.Migration{
     		origin TEXT NOT NULL
 		);
 
+		-- Status can be:
+		-- 1: pending authentication, 2: authenticated, 3: approved, 4: rejected
 		CREATE TABLE IF NOT EXISTS comments (
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+			status INTEGER NOT NULL DEFAULT 1,
 			service_id INTEGER NOT NULL,
 			user_id INTEGER NOT NULL,
 			post_key TEXT NOT NULL,

@@ -30,8 +30,19 @@ type Service struct {
 	Origin     string
 }
 
+type CommentStatus int
+
+const (
+	_ CommentStatus = iota
+	PendingAuthentication
+	PendingApproval
+	Approved
+	Rejected
+)
+
 type Comment struct {
 	Id        int
+	Status    CommentStatus
 	ServiceId int
 	UserId    int
 	PostKey   string
