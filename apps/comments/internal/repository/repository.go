@@ -128,6 +128,11 @@ func (store *Store) CreateUser(email string) (int, error) {
 	return int(lastInsertId), nil
 }
 
+func (store *Store) UpdateUser(user domain.User) error {
+	_, err := store.db.Exec("UPDATE users SET auth_token =?, auth_token_created_at =?, auth_token_sent_to_client =? WHERE id =?", user.AuthToken, user.AuthTokenCreatedAt.Unix(), user.AuthTokenSentToClient, user.Id)
+	return err
+}
+
 func (store *Store) CreateComment(
 	status domain.CommentStatus,
 	serviceId int,
@@ -208,9 +213,4 @@ func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
 	}
 	defer rows.Close()
 	return mapOptionalUser(rows)
-}
-
-func (store *Store) UpdateUser(user domain.User) error {
-	_, err := store.db.Exec("UPDATE users SET auth_token =?, auth_token_created_at =?, auth_token_sent_to_client =? WHERE id =?", user.AuthToken, user.AuthTokenCreatedAt, user.AuthTokenSentToClient, user.Id)
-	return err
 }

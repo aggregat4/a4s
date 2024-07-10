@@ -14,6 +14,7 @@ type Config struct {
 	OidcClientSecret          string
 	OidcRedirectUri           string
 	EncryptionKey             string
+	SessionCookieSecretKey    string
 }
 
 type User struct {

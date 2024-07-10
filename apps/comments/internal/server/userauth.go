@@ -35,9 +35,12 @@ func clearSessionCookie(c echo.Context) {
 
 func createSessionCookie(c echo.Context, userId int) error {
 	// we have a valid user, we can now create a session and redirect to the original request
-	sess, _ := session.Get(authenticatedUserCookieName, c)
+	sess, err := session.Get(authenticatedUserCookieName, c)
+	if err != nil {
+		return err
+	}
 	sess.Values["userid"] = userId
-	err := sess.Save(c.Request(), c.Response())
+	err = sess.Save(c.Request(), c.Response())
 	if err != nil {
 		return sendInternalError(c, err)
 	}
@@ -47,8 +50,11 @@ func createSessionCookie(c echo.Context, userId int) error {
 func CreateUserAuthenticationMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			if skipper(c) {
+				return next(c)
+			}
 			_, err := getUserIdFromSession(c)
-			if !skipper(c) && err != nil {
+			if err != nil {
 				// user is not authenticated, redirect him to the authentication token link generation form
 				return c.Redirect(http.StatusFound, "/userauthentication/")
 			} else {

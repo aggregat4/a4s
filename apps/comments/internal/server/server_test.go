@@ -13,12 +13,20 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 var TEST_ENCRYPTIONKEY = "12345678901234567890123456789012"
 var TEST_SERVICE = "TESTSERVICE"
 
-var TEST_USER1_EMAIL = "johndoe@example.com"
+var TEST_USER_NO_TOKEN = "notoken@example.com"
+
+var TEST_USER_AUTHTOKEN_EXPIRED = "expired@example.com"
+var TEST_AUTHTOKEN_EXPIRED = "EXPIREDTOKEN"
+
+var TEST_USER_AUTHTOKEN_VALID = "validtoken@example.com"
+var TEST_AUTHTOKEN_VALID = "VALIDTOKEN"
+
 var TEST_POSTKEY1 = "TEST_POSTKEY1"
 var TEST_COMMENT_PENDING_AUTHENTICATION = "This is an unauthenticated comment"
 var TEST_COMMENT_PENDING_APPROVAL = "This is an authenticated comment waiting for approval"
@@ -37,6 +45,7 @@ var serverConfig = domain.Config{
 	OidcClientSecret:          "",
 	OidcRedirectUri:           "",
 	EncryptionKey:             "testencryptionkey",
+	SessionCookieSecretKey:    "testsessioncookiesecretkey",
 }
 
 func TestInvalidService(t *testing.T) {
@@ -143,7 +152,7 @@ func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
 	defer echoServer.Close()
 	defer controller.Store.Close()
 	formParams := url.Values{}
-	formParams.Set("email", TEST_USER1_EMAIL)
+	formParams.Set("email", TEST_USER_NO_TOKEN)
 	encodedParams := formParams.Encode()
 	postBody := strings.NewReader(encodedParams)
 	res, err := http.Post(
@@ -184,17 +193,46 @@ func TestUserAuthenticationValidToken(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/userauthentication/INVALIDTOKEN"))
+	client := createTestHttpClient()
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+TEST_AUTHTOKEN_VALID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, 200, res.StatusCode)
-	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
-	body := readBody(res)
-	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
-	assert.Contains(t, body, "<p class=\"error\">")
-	assert.Contains(t, body, "Invalid token")
+	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 302, res.StatusCode)
+	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
+	//assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	//body := readBody(res)
+	//assert.Contains(t, body, "<h1>Comments</h1>")
+	//assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+	//assert.Contains(t, body, "<p class=\"success\">")
 }
+
+// TODO: test with expired token
+//func TestUserAuthenticationValidToken(t *testing.T) {
+//	echoServer, controller := waitForServer(t)
+//	defer echoServer.Close()
+//	defer controller.Store.Close()
+//	client := createTestHttpClient()
+//	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+TEST_AUTHTOKEN_VALID))
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	assert.Equal(t, 302, res.StatusCode)
+//	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
+//	//assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+//	//body := readBody(res)
+//	//assert.Contains(t, body, "<h1>Comments</h1>")
+//	//assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+//	//assert.Contains(t, body, "<p class=\"success\">")
+//}
 
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
@@ -224,7 +262,37 @@ func createTestData(t *testing.T, store repository.Store) {
 	if err != nil {
 		t.Fatal("Error creating test service: " + err.Error())
 	}
-	userId, err := store.CreateUser(TEST_USER1_EMAIL)
+	userId, err := store.CreateUser(TEST_USER_NO_TOKEN)
+	if err != nil {
+		t.Fatal("Error creating test user: " + err.Error())
+	}
+	testUserExpiredTokenId, err := store.CreateUser(TEST_USER_AUTHTOKEN_EXPIRED)
+	if err != nil {
+		t.Fatal("Error creating test user: " + err.Error())
+	}
+	expiredUser := domain.User{
+		Id:                    testUserExpiredTokenId,
+		Email:                 TEST_USER_AUTHTOKEN_EXPIRED,
+		AuthToken:             TEST_AUTHTOKEN_EXPIRED,
+		AuthTokenCreatedAt:    time.Now().Add(-20 * time.Minute),
+		AuthTokenSentToClient: 0,
+	}
+	err = store.UpdateUser(expiredUser)
+	if err != nil {
+		t.Fatal("Error creating test user: " + err.Error())
+	}
+	testUserValidTokenId, err := store.CreateUser(TEST_USER_AUTHTOKEN_VALID)
+	if err != nil {
+		t.Fatal("Error creating test user: " + err.Error())
+	}
+	validTokenUser := domain.User{
+		Id:                    testUserValidTokenId,
+		Email:                 TEST_USER_AUTHTOKEN_VALID,
+		AuthToken:             TEST_AUTHTOKEN_VALID,
+		AuthTokenCreatedAt:    time.Now().Add(-1 * time.Minute),
+		AuthTokenSentToClient: 0,
+	}
+	err = store.UpdateUser(validTokenUser)
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}

@@ -9,6 +9,8 @@ import (
 	baseliboidc "github.com/aggregat4/go-baselib-services/v2/oidc"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/google/uuid"
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"html/template"
@@ -89,14 +91,16 @@ func InitServerWithOidcMiddleware(
 	}
 
 	// Set up middleware
-	e.Use(oidcMiddleware)
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	sessionCookieSecretKey := controller.Config.SessionCookieSecretKey
+	e.Use(session.Middleware(sessions.NewCookieStore([]byte(sessionCookieSecretKey))))
+	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
 	// user authentication is required for pages related to a user's comments
+	e.Use(oidcMiddleware)
 	e.Use(CreateUserAuthenticationMiddleware(func(c echo.Context) bool {
 		return !strings.HasPrefix(c.Path(), "/users/")
 	}))
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
 	// TODO: CSRF origin check (on non HEAD or GET requests, check that Origin header matches target origin)
 
 	// Endpoints

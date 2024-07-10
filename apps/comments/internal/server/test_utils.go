@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"testing"
 	"time"
 )
@@ -42,4 +43,17 @@ func readBody(res *http.Response) string {
 	}
 	defer res.Body.Close()
 	return string(body)
+}
+
+func createTestHttpClient() *http.Client {
+	jar, _ := cookiejar.New(nil)
+	return &http.Client{
+		Jar: jar,
+		// we need to prevent the client from redirecting automatically since we may need to assert
+		// against the location header
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		//Transport: &http.Transport{DisableKeepAlives: true},
+	}
 }
