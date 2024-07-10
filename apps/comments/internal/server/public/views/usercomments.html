@@ -39,19 +39,19 @@
                         {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
                     {{end}}
                     </span>
-                    {{if eq .Status domain.PendingAuthentication}}
+                    {{if eq .Status 1}}
                         <div class="commentstatuspending">
                             <p>This comment has not been confirmed by you. If you want this to be seen by the admin for
                                 approval you should confirm the comment.</p>
                             <p>Alternatively you can also delete your comment.</p>
                         </div>
                     {{end}}
-                    {{if eq .Status domain.Approved}}
+                    {{if eq .Status 3}}
                         <div class="commentstatusapproved">
                             <p>This comment has been approved by the administrator and will be displayed.</p>
                         </div>
                     {{end}}
-                    {{if eq .Status domain.Rejected}}
+                    {{if eq .Status 4}}
                         <div class="commentstatusrejected">
                             <p>This comment has been rejected by the administrator and will not be displayed.</p>
                         </div>
@@ -59,7 +59,7 @@
                     <div class="actionbar">
                         <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
                         <a href="/users/{{$.UserId}}/comments/{{.Id}}/edit">Modify</a>
-                        {{if eq .Status domain.PendingAuthentication}}
+                        {{if eq .Status 1}}
                         <action-confirmation actionName="Confirm" actionUrl="/users/{{$.UserId}}/comments/{{.Id}}/confirm"></action-confirmation>
                         {{end}}
                         <action-confirmation actionName="Delete" actionUrl="/users/{{$.UserId}}/comments/{{.Id}}/delete"></action-confirmation>
