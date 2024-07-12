@@ -187,8 +187,6 @@ func TestUserAuthenticationWithUnknownToken(t *testing.T) {
 	assert.Contains(t, body, "Invalid token")
 }
 
-// TODO: test with expired token
-
 func TestUserAuthenticationValidToken(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
@@ -204,35 +202,20 @@ func TestUserAuthenticationValidToken(t *testing.T) {
 	}
 	assert.Equal(t, 302, res.StatusCode)
 	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
-	//assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
-	//body := readBody(res)
-	//assert.Contains(t, body, "<h1>Comments</h1>")
-	//assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
-	//assert.Contains(t, body, "<p class=\"success\">")
 }
 
-// TODO: test with expired token
-//func TestUserAuthenticationValidToken(t *testing.T) {
-//	echoServer, controller := waitForServer(t)
-//	defer echoServer.Close()
-//	defer controller.Store.Close()
-//	client := createTestHttpClient()
-//	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+TEST_AUTHTOKEN_VALID))
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//	assert.Equal(t, 302, res.StatusCode)
-//	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
-//	//assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
-//	//body := readBody(res)
-//	//assert.Contains(t, body, "<h1>Comments</h1>")
-//	//assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
-//	//assert.Contains(t, body, "<p class=\"success\">")
-//}
+func TestUserAuthenticationExpiredToken(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+TEST_AUTHTOKEN_EXPIRED))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 302, res.StatusCode)
+	assert.Equal(t, "/userauthentication/?error=Invalid+token", res.Header.Get("Location"))
+}
 
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
