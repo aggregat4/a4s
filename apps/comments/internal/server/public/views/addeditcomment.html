@@ -20,11 +20,26 @@
 </head>
 <body>
 <header>
-    <h1>TODO dynamic title Comment</h1>
+    {{if .CommentFound}}
+        <h1>Edit Comment</h1>
+    {{else}}
+        <h1>New Comment</h1>
+    {{end}}
 </header>
 <main>
-    TODO
+    <form method="POST" action="/services/{{.ServiceKey}}/posts/{{.PostKey}}/comments">
+        {{if .CommentFound}}
+        <input type="hidden" name="commentId" value="{{.Comment.Id}}">
+        {{end}}
+{{/*        email*/}}
+        <label for="email">Email</label>
+        <input type="email" name="email" id="email" value="{{if .UserFound}}{{.User.Email}}" required pattern=".+@.+"
+               autocapitalize="off">
+{{/*        name*/}}
+{{/*        website*/}}
+{{/*        comment*/}}
 
+    </form>
 </main>
 </body>
 </html>

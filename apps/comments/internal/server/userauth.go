@@ -1,6 +1,7 @@
 package server
 
 import (
+	"aggregat4/go-commentservice/internal/domain"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -62,4 +63,16 @@ func CreateUserAuthenticationMiddleware(skipper middleware.Skipper) echo.Middlew
 			}
 		}
 	}
+}
+
+func getUserFromSession(c echo.Context, controller *Controller) (domain.User, error) {
+	userId, err := getUserIdFromSession(c)
+	if err != nil {
+		return domain.User{}, err
+	}
+	user, err := controller.Store.FindUserById(userId)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return user, nil
 }

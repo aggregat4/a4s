@@ -50,6 +50,7 @@ type Comment struct {
 	Comment   string
 	Name      string
 	Website   string
+	Edited    bool
 	CreatedAt time.Time
 }
 
@@ -67,4 +68,13 @@ type UserCommentsPage struct {
 
 type NoDataForUserPage struct {
 	Email string
+}
+
+type AddOrEditCommentPage struct {
+	ServiceKey   string
+	PostKey      string
+	UserFound    bool
+	User         User
+	CommentFound bool
+	Comment      Comment
 }

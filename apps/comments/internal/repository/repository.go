@@ -59,23 +59,7 @@ func (store *Store) GetServiceForKey(serviceKey string) (*domain.Service, error)
 func mapComments(rows *sql.Rows, cipher cipher.AEAD) ([]domain.Comment, error) {
 	comments := make([]domain.Comment, 0)
 	for rows.Next() {
-		var comment domain.Comment
-		var commentEncrypted, nameEncrypted, websiteEncrypted []byte
-		var createdAt int64
-		var err = rows.Scan(&comment.Id, &comment.Status, &comment.UserId, &comment.ServiceId, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &createdAt)
-		if err != nil {
-			return nil, err
-		}
-		comment.CreatedAt = time.Unix(createdAt, 0)
-		comment.Comment, err = crypto.DecryptAes256(commentEncrypted, cipher)
-		if err != nil {
-			return nil, err
-		}
-		comment.Name, err = crypto.DecryptAes256(nameEncrypted, cipher)
-		if err != nil {
-			return nil, err
-		}
-		comment.Website, err = crypto.DecryptAes256(websiteEncrypted, cipher)
+		comment, err := mapComment(rows, cipher)
 		if err != nil {
 			return nil, err
 		}
@@ -84,8 +68,34 @@ func mapComments(rows *sql.Rows, cipher cipher.AEAD) ([]domain.Comment, error) {
 	return comments, nil
 }
 
+func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
+	var comment domain.Comment
+	var commentEncrypted, nameEncrypted, websiteEncrypted []byte
+	var edited int
+	var createdAt int64
+	var err = rows.Scan(&comment.Id, &comment.Status, &comment.UserId, &comment.ServiceId, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &edited, &createdAt)
+	if err != nil {
+		return domain.Comment{}, err
+	}
+	comment.CreatedAt = time.Unix(createdAt, 0)
+	comment.Comment, err = crypto.DecryptAes256(commentEncrypted, cipher)
+	if err != nil {
+		return domain.Comment{}, err
+	}
+	comment.Name, err = crypto.DecryptAes256(nameEncrypted, cipher)
+	if err != nil {
+		return domain.Comment{}, err
+	}
+	comment.Website, err = crypto.DecryptAes256(websiteEncrypted, cipher)
+	if err != nil {
+		return domain.Comment{}, err
+	}
+	comment.Edited = edited == 1
+	return comment, nil
+}
+
 func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE service_id = ? AND post_key = ?", serviceId, postKey)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ?", serviceId, postKey)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +104,7 @@ func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.
 }
 
 func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, created_at FROM comments WHERE user_id = ?", userId)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE user_id = ?", userId)
 	if err != nil {
 		return nil, err
 	}
@@ -213,4 +223,23 @@ func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
 	}
 	defer rows.Close()
 	return mapOptionalUser(rows)
+}
+
+func (store *Store) GetComment(commentId int) (domain.Comment, error) {
+	rows, err := store.db.Query(
+		"SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE id = ?",
+		commentId)
+	if err != nil {
+		return domain.Comment{}, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		comment, err := mapComment(rows, store.Cipher)
+		if err != nil {
+			return domain.Comment{}, err
+		}
+		return comment, nil
+	} else {
+		return domain.Comment{}, lang.ErrNotFound
+	}
 }

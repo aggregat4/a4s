@@ -112,13 +112,13 @@ func InitServerWithOidcMiddleware(
 	e.GET("/status", controller.Status)
 	// Since we collect private data, we need to provide a GDPR compliant privacy policy
 	// This should be configurable as the contents depend on the admin. Can we just serve a file?
-	//	e.GET("/privacypolicy", controller.PrivacyPolicy)
+	// TODO: e.GET("/privacypolicy", controller.PrivacyPolicy)
 	// We can display all comments for a post
 	e.GET("/services/:serviceKey/posts/:postKey/comments", controller.GetComments)
 	// One can write a comment for a post, the comment form is prefilled if you are authenticated
-	//	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
+	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
 	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
-	//	e.POST("/services/:serviceKey/posts/:postKey/comments", controller.PostComment)
+	// TODO: e.POST("/services/:serviceKey/posts/:postKey/comments", controller.PostComment)
 
 	// ----- User Authentication
 	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
@@ -136,11 +136,11 @@ func InitServerWithOidcMiddleware(
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
 	e.GET("/users/:userId/comments", controller.GetCommentsForUser)
 	// Allow a user to modify his comment
-	//	e.GET("/users/:userId/comments/:commentId", controller.GetCommentEditForm)
+	// TODO: e.GET("/users/:userId/comments/:commentId", controller.GetCommentEditForm)
 	// Users can delete comments, this redirects back to the comment overview page
-	//	e.DELETE("/users/:userId/comments/:commentId", controller.DeleteComment)
+	// TODO: e.DELETE("/users/:userId/comments/:commentId", controller.DeleteComment)
 	// Users can update comments (TODO: add comment edit form here, can we reuse original form?)
-	//	e.PUT("/users/:userId/comments/:commentId", controller.UpdateComment)
+	// TODO: e.PUT("/users/:userId/comments/:commentId", controller.UpdateComment)
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
 	// Service administrators can access a service comment dashboard where they can approve or deny comments
@@ -149,17 +149,16 @@ func InitServerWithOidcMiddleware(
 	// We need to store not only the user Id but also the admin's claims in his cookie here so we can always verify he or she has acces
 	// to the particular service
 	// Don't show unauthenticated comments by default
-	//	e.GET("/admin", controller.GetCommentAdminOverview)
+	// TODO: e.GET("/admin", controller.GetCommentAdminOverview)
 
 	return e
 }
 
-// GetComments Renders a page with all the comments for the given post with a CSP policy that restricts embedding in
+// GetComments Renders a page with all the comments for the given post with a CSP policy that restricts embedding to
 // the configured origin for that service.
 func (controller *Controller) GetComments(c echo.Context) error {
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
-	logger.Info("GetCommentsForPost called for serviceKey " + serviceKey + " and postKey " + postKey)
 	if serviceKey == "" || postKey == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
@@ -285,24 +284,20 @@ func (controller *Controller) AuthenticateUser(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
 }
 
+func handleAuthenticationError(c echo.Context, err error) error {
+	if errors.Is(err, lang.ErrNotFound) {
+		return c.Redirect(http.StatusFound, "/userauthentication/")
+	} else {
+		return sendInternalError(c, err)
+	}
+}
+
 func (controller *Controller) GetCommentsForUser(c echo.Context) error {
-	userId, err := getUserIdFromSession(c)
+	user, err := getUserFromSession(c, controller)
 	if err != nil {
-		if errors.Is(err, lang.ErrNotFound) {
-			return c.Redirect(http.StatusFound, "/userauthentication/")
-		} else {
-			return sendInternalError(c, err)
-		}
+		return handleAuthenticationError(c, err)
 	}
-	user, err := controller.Store.FindUserById(userId)
-	if err != nil {
-		if errors.Is(err, lang.ErrNotFound) {
-			return c.Redirect(http.StatusFound, "/userauthentication/")
-		} else {
-			return sendInternalError(c, err)
-		}
-	}
-	comments, err := controller.Store.GetCommentsForUser(userId)
+	comments, err := controller.Store.GetCommentsForUser(user.Id)
 	if err != nil {
 		return sendInternalError(c, err)
 	}
@@ -312,13 +307,40 @@ func (controller *Controller) GetCommentsForUser(c echo.Context) error {
 	})
 }
 
-//func (controller *Controller) GetNoDataForUserPage(c echo.Context) error {
-//	return c.Render(http.StatusOK, "nodataforuser", domain.NoDataForUserPage{
-//		Email: c.Param("email"),
-//	})
-//}
-
-func sendInternalError(c echo.Context, err error) error {
-	logger.Error("Error processing request: ", err)
-	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
+func (controller *Controller) GetCommentForm(c echo.Context) error {
+	serviceKey := c.Param("serviceKey")
+	postKey := c.Param("postKey")
+	if serviceKey == "" || postKey == "" {
+		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	}
+	user, userFoundError := getUserFromSession(c, controller)
+	if userFoundError != nil && !errors.Is(userFoundError, lang.ErrNotFound) {
+		return sendInternalError(c, userFoundError)
+	}
+	commentIdString := c.Param("commentId")
+	commentFound := false
+	comment := domain.Comment{}
+	if commentIdString != "" {
+		commentId, err := strconv.Atoi(commentIdString)
+		if err == nil {
+			comment, err = controller.Store.GetComment(commentId)
+			if err != nil || !errors.Is(err, lang.ErrNotFound) {
+				return sendInternalError(c, err)
+			} else if err == nil {
+				commentFound = true
+			} else {
+				return c.Render(http.StatusNotFound, "error-notfound", nil)
+			}
+		} else {
+			return c.Render(http.StatusNotFound, "error-notfound", nil)
+		}
+	}
+	return c.Render(http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
+		ServiceKey:   serviceKey,
+		PostKey:      postKey,
+		UserFound:    userFoundError == nil,
+		User:         user,
+		CommentFound: commentFound,
+		Comment:      comment,
+	})
 }
