@@ -1,5 +1,7 @@
-/* web components */
-
+/**
+ * This is a custom element that shows an inline confirmation UI before executing an action. Instead of being a modal
+ * dialog it, the action button gets replaced with a cancel and confirm button in the line you are.
+ */
 class ActionConfirmation extends HTMLElement {
   constructor() {
     super();
