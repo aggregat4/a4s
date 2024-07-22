@@ -151,6 +151,7 @@ func (store *Store) CreateComment(
 	comment string,
 	author string,
 	website string,
+	edited bool,
 ) (int, error) {
 	commentEncrypted, err := crypto.EncryptAes256(comment, store.Cipher)
 	if err != nil {
@@ -165,8 +166,8 @@ func (store *Store) CreateComment(
 		return -1, err
 	}
 	result, err := store.db.Exec(
-		"INSERT INTO comments (status, service_id, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted) VALUES (?,?,?,?,?,?,?)",
-		int(status), serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted)
+		"INSERT INTO comments (status, service_id, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited) VALUES (?,?,?,?,?,?,?,?)",
+		int(status), serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted, lang.IfElse(edited, 1, 0))
 	if err != nil {
 		return -1, err
 	}

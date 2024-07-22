@@ -27,11 +27,11 @@ func waitForServerStart(t *testing.T, url string) {
 	maxRetries := 10
 	for i := 0; i < maxRetries; i++ {
 		resp, err := http.Get(url)
-		if err == nil {
+		if err == nil && (resp != nil && resp.StatusCode == 200) {
 			resp.Body.Close()
 			return
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * 500)
 	}
 	t.Fatalf("Server did not start after %d retries", maxRetries)
 }

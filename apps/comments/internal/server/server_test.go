@@ -35,6 +35,8 @@ var TEST_COMMENT_REJECTED = "This is a rejected comment"
 var TEST_AUTHOR1 = "John Doe"
 var TEST_WEBSITE1 = "http://example.com"
 
+var TEST_COMMENTS []domain.Comment
+
 var serverConfig = domain.Config{
 	Port:                      8080,
 	DatabaseFilename:          "",
@@ -46,6 +48,20 @@ var serverConfig = domain.Config{
 	OidcRedirectUri:           "",
 	EncryptionKey:             "testencryptionkey",
 	SessionCookieSecretKey:    "testsessioncookiesecretkey",
+}
+
+func TestStatus(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/status"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/plain; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Equal(t, "OK", body)
 }
 
 func TestInvalidService(t *testing.T) {
@@ -217,6 +233,55 @@ func TestUserAuthenticationExpiredToken(t *testing.T) {
 	assert.Equal(t, "/userauthentication/?error=Invalid+token", res.Header.Get("Location"))
 }
 
+func TestGetCommentForm(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/commentform"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<title>New Comment</title>")
+	assert.Contains(t, body, "<h1>New Comment</h1>")
+	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments\">")
+}
+
+func TestGetCommentFormWithExistingComment(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+TEST_AUTHTOKEN_VALID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	// TODO: figure out why we get a 400 for this request, but we don't actually get to the comment form code
+	res, err = client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/commentform?commentId="+strconv.Itoa(expectedCommentId)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<title>Edit Comment</title>")
+	assert.Contains(t, body, "<h1>Edit Comment</h1>")
+	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments\">")
+	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
+}
+
+func findCommentByContent(comments []domain.Comment, content string) domain.Comment {
+	for _, c := range comments {
+		if c.Comment == content {
+			return c
+		}
+	}
+	return domain.Comment{}
+}
+
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
 	if err != nil {
@@ -290,10 +355,11 @@ func createTestData(t *testing.T, store repository.Store) {
 	}
 
 	for _, c := range comments {
-		_, err = store.CreateComment(c.status, serviceId, userId, TEST_POSTKEY1, c.comment, TEST_AUTHOR1, TEST_WEBSITE1)
+		commentId, err := store.CreateComment(c.status, serviceId, userId, TEST_POSTKEY1, c.comment, TEST_AUTHOR1, TEST_WEBSITE1, false)
 		if err != nil {
 			t.Fatal("Error creating test comment: " + err.Error())
 		}
+		TEST_COMMENTS = append(TEST_COMMENTS, domain.Comment{Id: commentId, Status: c.status, ServiceId: serviceId, UserId: userId, PostKey: TEST_POSTKEY1, Comment: c.comment, Name: TEST_AUTHOR1, Website: TEST_WEBSITE1, Edited: false, CreatedAt: time.Now()})
 	}
 }
 

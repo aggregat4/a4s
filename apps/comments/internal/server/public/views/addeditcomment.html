@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add or Edit a Comment</title>
+    <title>{{if .CommentFound}}Edit Comment{{else}}New Comment{{end}}</title>
     <!-- <link rel="icon" href="/images/delicious.png"> -->
     <style>
         body {
@@ -27,18 +27,42 @@
     {{end}}
 </header>
 <main>
+    <p class="privacy">
+        Users must be 18 years or older to comment.
+    </p>
+    <p>
+        User submitted data is handled as per our <a href="privacypolicy.html">privacy policy</a>.
+    </p>
+    <p>
+        Notes on comments:
+        <ul>
+            <li>Valid comments require at least a valid email address. You will get a message to confirm your email address
+                when you submit the comment.</li>
+            <li>The email address is required as a way to log in to the service and manage your own data.</li>
+            <li>Only authenticated comments will be considered for display.</li>
+            <li>All comments are checked by an administrator
+                before posting and may be rejected.</li>
+        </ul>
+    </p>
     <form method="POST" action="/services/{{.ServiceKey}}/posts/{{.PostKey}}/comments">
         {{if .CommentFound}}
         <input type="hidden" name="commentId" value="{{.Comment.Id}}">
         {{end}}
 {{/*        email*/}}
         <label for="email">Email</label>
-        <input type="email" name="email" id="email" value="{{if .UserFound}}{{.User.Email}}" required pattern=".+@.+"
-               autocapitalize="off">
+        <input type="email" name="email" id="email" value="{{if .UserFound}}{{.User.Email}}{{end}}" required
+               pattern=".+@.+" autocapitalize="off">
 {{/*        name*/}}
+        <label for="name">Name</label>
+        <input type="text" name="name" id="name" value="{{if .CommentFound}}{{.Comment.Name}}{{end}}">
 {{/*        website*/}}
+        <label for="website">Website</label>
+        <input type="url" name="website" id="website" value="{{if .CommentFound}}{{.Comment.Website}}{{end}}">
 {{/*        comment*/}}
+        <label for="comment">Comment</label>
+        <textarea name="comment" id="comment" rows="10" cols="50" required>{{if .CommentFound}}{{.Comment.Comment}}{{end}}</textarea>
 
+        <input type="submit" value="Submit">
     </form>
 </main>
 </body>
