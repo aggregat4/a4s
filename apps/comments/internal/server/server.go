@@ -136,12 +136,10 @@ func InitServerWithOidcMiddleware(
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
 	e.GET("/users/:userId/comments", controller.GetCommentsForUser)
 	// Allow a user to modify his comment
-	// TODO: e.GET("/users/:userId/comments/:commentId", controller.GetCommentEditForm)
-	// TODO: should probably just be thecommentForm endpoint from above
+	e.GET("/users/:userId/comments/:commentId", controller.GetUserCommentForm)
 	// Users can delete comments, this redirects back to the comment overview page
-	// TODO: e.DELETE("/users/:userId/comments/:commentId", controller.DeleteComment)
-	// Users can update comments (TODO: add comment edit form here, can we reuse original form?)
-	// TODO: e.PUT("/users/:userId/comments/:commentId", controller.UpdateComment)
+	e.POST("/users/:userId/comments/:commentId/delete", controller.DeleteUserComment)
+	// Users can update comments
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
 	// Service administrators can access a service comment dashboard where they can approve or deny comments
@@ -336,6 +334,12 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 			return c.Render(http.StatusNotFound, "error-notfound", nil)
 		}
 	}
+	service, err := controller.Store.GetServiceForKey(serviceKey)
+	if err != nil {
+		// TODO: better error to indicate that this service does not exist?
+		return c.Render(http.StatusNotFound, "error-notfound", nil)
+	}
+	c.Response().Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 	return c.Render(http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
 		ServiceKey:   serviceKey,
 		PostKey:      postKey,
@@ -344,6 +348,79 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 		CommentFound: commentFound,
 		Comment:      comment,
 	})
+}
+
+func (controller *Controller) GetUserCommentForm(c echo.Context) error {
+	user, comment, err := controller.extractAndValidateUserAndCommentFromRequest(c)
+	if err != nil {
+		return err
+	}
+	service, err := controller.Store.FindServiceById(comment.ServiceId)
+	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			return c.Render(http.StatusNotFound, "error-notfound", nil)
+		} else {
+			return sendInternalError(c, err)
+		}
+	}
+	// NO CSP header to prevent embedding because this URL presupposes a logged in user and it can be called from
+	// some general dashboard where a user can manage their comments
+	return c.Render(http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
+		ServiceKey:   service.ServiceKey,
+		PostKey:      comment.PostKey,
+		UserFound:    true,
+		User:         user,
+		CommentFound: true,
+		Comment:      comment,
+	})
+}
+
+func (controller *Controller) DeleteUserComment(c echo.Context) error {
+	user, comment, err := controller.extractAndValidateUserAndCommentFromRequest(c)
+	if err != nil {
+		return err
+	}
+	err = controller.Store.DeleteComment(comment.Id)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	// TODO: toast to show that the comment has been deleted
+	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+}
+
+func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo.Context) (domain.User, domain.Comment, error) {
+	// get and validate url parameters
+	userIdString := c.Param("userId")
+	commentIdString := c.Param("commentId")
+	if userIdString == "" || commentIdString == "" {
+		return domain.User{}, domain.Comment{}, c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	}
+	commentId, err := strconv.Atoi(commentIdString)
+	if err != nil {
+		return domain.User{}, domain.Comment{}, c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	}
+	userId, err := strconv.Atoi(userIdString)
+	if err != nil {
+		return domain.User{}, domain.Comment{}, c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	}
+	// validate user
+	user, err := getUserFromSession(c, controller)
+	if err != nil {
+		return domain.User{}, domain.Comment{}, sendInternalError(c, err)
+	}
+	if user.Id != userId {
+		return domain.User{}, domain.Comment{}, c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+	}
+	// retrieve comment
+	comment, err := controller.Store.GetComment(commentId)
+	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			return domain.User{}, domain.Comment{}, c.Render(http.StatusNotFound, "error-notfound", nil)
+		} else {
+			return domain.User{}, domain.Comment{}, sendInternalError(c, err)
+		}
+	}
+	return user, comment, nil
 }
 
 func (controller *Controller) PostComment(c echo.Context) error {
@@ -357,45 +434,54 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		return sendInternalError(c, userFoundError)
 	}
 	commentIdString := c.FormValue("commentId")
-	commentFound := false
-	if commentIdString != "" {
-		commentId, err := strconv.Atoi(commentIdString)
-		if err == nil {
-			_, err = controller.Store.GetComment(commentId)
-			if err != nil || !errors.Is(err, lang.ErrNotFound) {
-				return sendInternalError(c, err)
-			} else if err == nil {
-				commentFound = true
-			} else {
-				return c.Render(http.StatusNotFound, "error-notfound", nil)
-			}
-		} else {
-			return c.Render(http.StatusNotFound, "error-notfound", nil)
-		}
-	}
-	email := c.FormValue("email")
+	emailAddress := c.FormValue("emailAddress")
 	name := c.FormValue("name")
 	website := c.FormValue("website")
 	commentContent := c.FormValue("comment")
 	// TODO: give better error messages
-	if email == "" {
+	if emailAddress == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
 	if commentContent == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
-	status := domain.PendingAuthentication
-	if userFoundError == nil {
-		// this means the user is authenticated
-		status = domain.PendingApproval
+	userFound := lang.IfElse(userFoundError == nil, true, false)
+	if commentIdString != "" {
+		comment := domain.Comment{}
+		commentId, err := strconv.Atoi(commentIdString)
+		if err == nil {
+			comment, err = controller.Store.GetComment(commentId)
+			if err != nil {
+				if errors.Is(err, lang.ErrNotFound) {
+					return c.Render(http.StatusNotFound, "error-notfound", nil)
+				} else {
+					return sendInternalError(c, err)
+				}
+			}
+		} else {
+			return c.Render(http.StatusNotFound, "error-notfound", nil)
+		}
+		// we are editing a comment, verify that the user is allowed to do so
+		if !userFound || comment.UserId != user.Id {
+			return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+		}
+		err = controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website)
+		if err != nil {
+			return sendInternalError(c, err)
+		}
+		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/"+strconv.Itoa(comment.Id))
+
+	} else {
+		service, err := controller.Store.GetServiceForKey(serviceKey)
+		if err != nil {
+			return sendInternalError(c, err)
+		}
+		commentStatus := lang.IfElse(userFound, domain.PendingApproval, domain.PendingAuthentication)
+		commentId, err := controller.Store.CreateComment(
+			commentStatus, service.Id, user.Id, postKey, commentContent, name, website)
+		if err != nil {
+			return sendInternalError(c, err)
+		}
+		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/"+strconv.Itoa(commentId))
 	}
-	service, err := controller.Store.GetServiceForKey(serviceKey)
-	if err != nil {
-		return sendInternalError(c, err)
-	}
-	commentId, err := controller.Store.CreateComment(status, service.Id, user.Id, postKey, commentContent, name, website, commentFound)
-	if err != nil {
-		return sendInternalError(c, err)
-	}
-	return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/"+strconv.Itoa(commentId))
 }

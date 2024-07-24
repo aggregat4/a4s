@@ -48,17 +48,17 @@
         {{if .CommentFound}}
         <input type="hidden" name="commentId" value="{{.Comment.Id}}">
         {{end}}
-{{/*        email*/}}
+
         <label for="email">Email</label>
         <input type="email" name="email" id="email" value="{{if .UserFound}}{{.User.Email}}{{end}}" required
                pattern=".+@.+" autocapitalize="off">
-{{/*        name*/}}
+
         <label for="name">Name</label>
         <input type="text" name="name" id="name" value="{{if .CommentFound}}{{.Comment.Name}}{{end}}">
-{{/*        website*/}}
+
         <label for="website">Website</label>
         <input type="url" name="website" id="website" value="{{if .CommentFound}}{{.Comment.Website}}{{end}}">
-{{/*        comment*/}}
+
         <label for="comment">Comment</label>
         <textarea name="comment" id="comment" rows="10" cols="50" required>{{if .CommentFound}}{{.Comment.Comment}}{{end}}</textarea>
 

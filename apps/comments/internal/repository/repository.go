@@ -56,6 +56,25 @@ func (store *Store) GetServiceForKey(serviceKey string) (*domain.Service, error)
 	}
 }
 
+func (store *Store) FindServiceById(serviceId int) (domain.Service, error) {
+	rows, err := store.db.Query("SELECT service_key, origin FROM services WHERE id = ?", serviceId)
+	if err != nil {
+		return domain.Service{}, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var serviceKey string
+		var origin string
+		err = rows.Scan(&serviceKey, &origin)
+		if err != nil {
+			return domain.Service{}, err
+		}
+		return domain.Service{Id: serviceId, ServiceKey: serviceKey, Origin: origin}, nil
+	} else {
+		return domain.Service{}, lang.ErrNotFound
+	}
+}
+
 func mapComments(rows *sql.Rows, cipher cipher.AEAD) ([]domain.Comment, error) {
 	comments := make([]domain.Comment, 0)
 	for rows.Next() {
@@ -151,7 +170,6 @@ func (store *Store) CreateComment(
 	comment string,
 	author string,
 	website string,
-	edited bool,
 ) (int, error) {
 	commentEncrypted, err := crypto.EncryptAes256(comment, store.Cipher)
 	if err != nil {
@@ -167,7 +185,7 @@ func (store *Store) CreateComment(
 	}
 	result, err := store.db.Exec(
 		"INSERT INTO comments (status, service_id, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited) VALUES (?,?,?,?,?,?,?,?)",
-		int(status), serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted, lang.IfElse(edited, 1, 0))
+		int(status), serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted, 0)
 	if err != nil {
 		return -1, err
 	}
@@ -176,6 +194,35 @@ func (store *Store) CreateComment(
 		return -1, err
 	}
 	return int(lastInsertId), nil
+}
+
+func (store *Store) UpdateComment(
+	commentId int,
+	previousStatus domain.CommentStatus,
+	comment string,
+	author string,
+	website string,
+) error {
+	commentEncrypted, err := crypto.EncryptAes256(comment, store.Cipher)
+	if err != nil {
+		return err
+	}
+	authorEncrypted, err := crypto.EncryptAes256(author, store.Cipher)
+	if err != nil {
+		return err
+	}
+	websiteEncrypted, err := crypto.EncryptAes256(website, store.Cipher)
+	if err != nil {
+		return err
+	}
+	_, err = store.db.Exec(
+		"UPDATE comments SET status = ?, comment_encrypted = ?, name_encrypted = ?, website_encrypted = ?, edited = 1 WHERE id = ?",
+		lang.IfElse(previousStatus == domain.PendingAuthentication, domain.PendingApproval, previousStatus),
+		commentEncrypted,
+		authorEncrypted,
+		websiteEncrypted,
+		commentId)
+	return err
 }
 
 func mapOptionalUser(rows *sql.Rows) (domain.User, error) {
@@ -243,4 +290,9 @@ func (store *Store) GetComment(commentId int) (domain.Comment, error) {
 	} else {
 		return domain.Comment{}, lang.ErrNotFound
 	}
+}
+
+func (store *Store) DeleteComment(commentId int) error {
+	_, err := store.db.Exec("DELETE FROM comments WHERE id = ?", commentId)
+	return err
 }
