@@ -28,6 +28,7 @@ var TEST_USER_AUTHTOKEN_VALID = "validtoken@example.com"
 var TEST_AUTHTOKEN_VALID = "VALIDTOKEN"
 
 var TEST_POSTKEY1 = "TEST_POSTKEY1"
+var TEST_POSTKEY2 = "TEST_POSTKEY2"
 var TEST_COMMENT_PENDING_AUTHENTICATION = "This is an unauthenticated comment"
 var TEST_COMMENT_PENDING_APPROVAL = "This is an authenticated comment waiting for approval"
 var TEST_COMMENT_APPROVED = "This is an approved comment"
@@ -98,7 +99,11 @@ func TestSingleCommentPostPage(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments"))
+	checkWhetherPostHasComment(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION)
+}
+
+func checkWhetherPostHasComment(t *testing.T, postKey string, comment string) {
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +115,7 @@ func TestSingleCommentPostPage(t *testing.T) {
 	assert.Contains(t, body, "<h1>Comments</h1>")
 	assert.Contains(t, body, "<dl class=\"comments\">")
 	assert.Contains(t, body, "<dt>")
-	assert.Contains(t, body, "<dd>"+TEST_COMMENT_PENDING_AUTHENTICATION)
+	assert.Contains(t, body, "<dd>"+comment)
 }
 
 func TestUserAuthenticationForm(t *testing.T) {
@@ -208,6 +213,10 @@ func TestUserAuthenticationValidToken(t *testing.T) {
 	defer echoServer.Close()
 	defer controller.Store.Close()
 	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller)
+}
+
+func authenticateAndValidate(t *testing.T, client *http.Client, controller Controller) {
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+TEST_AUTHTOKEN_VALID))
 	if err != nil {
 		t.Fatal(err)
@@ -273,6 +282,102 @@ func TestGetCommentFormWithExistingComment(t *testing.T) {
 	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
 }
 
+func TestPostNewCommentUnauthenticated(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	formParams := url.Values{}
+	formParams.Set("emailAddress", "foo@example.com")
+	formParams.Set("name", "John Foo")
+	formParams.Set("website", "http://example.com")
+	comment := "This is a comment"
+	formParams.Set("comment", comment)
+	res := postComment(t, client, formParams)
+	assert.Equal(t, 302, res.StatusCode)
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
+	checkWhetherPostHasComment(t, TEST_POSTKEY2, comment)
+}
+
+func postComment(t *testing.T, client *http.Client, formParams url.Values) *http.Response {
+	encodedParams := formParams.Encode()
+	postBody := strings.NewReader(encodedParams)
+	res, err := client.Post(
+		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"),
+		"application/x-www-form-urlencoded",
+		postBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func TestPostNewCommentAuthenticated(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller)
+	formParams := url.Values{}
+	formParams.Set("emailAddress", TEST_USER_AUTHTOKEN_VALID)
+	formParams.Set("name", "John Foo")
+	formParams.Set("website", "http://example.com")
+	comment := "This is a comment"
+	formParams.Set("comment", comment)
+	res := postComment(t, client, formParams)
+	assert.Equal(t, 302, res.StatusCode)
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
+	checkWhetherPostHasComment(t, TEST_POSTKEY2, comment)
+}
+
+func TestPostNewCommentWithMissingEmail(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	formParams := url.Values{}
+	formParams.Set("name", "John Foo")
+	formParams.Set("website", "http://example.com")
+	comment := "This is a comment"
+	formParams.Set("comment", comment)
+	res := postComment(t, client, formParams)
+	assert.Equal(t, 400, res.StatusCode)
+}
+
+func TestPostNewCommentWithMissingComment(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	formParams := url.Values{}
+	formParams.Set("emailAddress", "foo@example.com")
+	formParams.Set("name", "John Foo")
+	formParams.Set("website", "http://example.com")
+	res := postComment(t, client, formParams)
+	assert.Equal(t, 400, res.StatusCode)
+}
+
+func TestPostExistingCommentWithInvalidCommnentId(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller)
+	formParams := url.Values{}
+	formParams.Set("emailAddress", TEST_USER_AUTHTOKEN_VALID)
+	formParams.Set("name", "John Foo")
+	formParams.Set("website", "http://example.com")
+	formParams.Set("commentId", "INVALIDCOMMENTID")
+	comment := "This is a comment"
+	formParams.Set("comment", comment)
+	res := postComment(t, client, formParams)
+	assert.Equal(t, 404, res.StatusCode)
+}
+
+func TestPostExistingCommentWithoutAuthentication(t *testing.T) {
+	// TODO: actually implement this test by first posting a comment and then trying to edit it with a wrong comment id
+}
+
 func findCommentByContent(comments []domain.Comment, content string) domain.Comment {
 	for _, c := range comments {
 		if c.Comment == content {
@@ -310,11 +415,11 @@ func createTestData(t *testing.T, store repository.Store) {
 	if err != nil {
 		t.Fatal("Error creating test service: " + err.Error())
 	}
-	userId, err := store.CreateUser(TEST_USER_NO_TOKEN)
+	userId, err := store.CreateUserByEmail(TEST_USER_NO_TOKEN)
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}
-	testUserExpiredTokenId, err := store.CreateUser(TEST_USER_AUTHTOKEN_EXPIRED)
+	testUserExpiredTokenId, err := store.CreateUserByEmail(TEST_USER_AUTHTOKEN_EXPIRED)
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}
@@ -329,7 +434,7 @@ func createTestData(t *testing.T, store repository.Store) {
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}
-	testUserValidTokenId, err := store.CreateUser(TEST_USER_AUTHTOKEN_VALID)
+	testUserValidTokenId, err := store.CreateUserByEmail(TEST_USER_AUTHTOKEN_VALID)
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}

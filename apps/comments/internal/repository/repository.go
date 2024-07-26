@@ -143,7 +143,7 @@ func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int,
 	return int(lastInsertId), nil
 }
 
-func (store *Store) CreateUser(email string) (int, error) {
+func (store *Store) CreateUserByEmail(email string) (int, error) {
 	result, err := store.db.Exec(
 		"INSERT INTO users (email, auth_token_created_at, auth_token_sent_to_client) VALUES (?, 0, 0)",
 		email)

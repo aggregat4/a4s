@@ -429,9 +429,9 @@ func (controller *Controller) PostComment(c echo.Context) error {
 	if serviceKey == "" || postKey == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
-	user, userFoundError := getUserFromSession(c, controller)
-	if userFoundError != nil && !errors.Is(userFoundError, lang.ErrNotFound) {
-		return sendInternalError(c, userFoundError)
+	user, userSessionError := getUserFromSession(c, controller)
+	if userSessionError != nil && !errors.Is(userSessionError, lang.ErrNotFound) {
+		return sendInternalError(c, userSessionError)
 	}
 	commentIdString := c.FormValue("commentId")
 	emailAddress := c.FormValue("emailAddress")
@@ -445,7 +445,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 	if commentContent == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
-	userFound := lang.IfElse(userFoundError == nil, true, false)
+	userAuthenticated := lang.IfElse(userSessionError == nil, true, false)
 	if commentIdString != "" {
 		comment := domain.Comment{}
 		commentId, err := strconv.Atoi(commentIdString)
@@ -462,7 +462,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 			return c.Render(http.StatusNotFound, "error-notfound", nil)
 		}
 		// we are editing a comment, verify that the user is allowed to do so
-		if !userFound || comment.UserId != user.Id {
+		if !userAuthenticated || comment.UserId != user.Id {
 			return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 		}
 		err = controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website)
@@ -472,13 +472,33 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/"+strconv.Itoa(comment.Id))
 
 	} else {
+		// This is a new comment, if the user is not autenticated we create a new user and store the comment as pending authentication
 		service, err := controller.Store.GetServiceForKey(serviceKey)
 		if err != nil {
 			return sendInternalError(c, err)
 		}
-		commentStatus := lang.IfElse(userFound, domain.PendingApproval, domain.PendingAuthentication)
+		// find or create a user
+		userId := -1
+		if !userAuthenticated {
+			user, err := controller.Store.FindUserByEmail(emailAddress)
+			if err == nil {
+				// we found an existing user
+				userId = user.Id
+			} else if errors.Is(err, lang.ErrNotFound) {
+				// we need to create a new user
+				userId, err = controller.Store.CreateUserByEmail(emailAddress)
+				if err != nil {
+					return sendInternalError(c, err)
+				}
+			} else {
+				return sendInternalError(c, err)
+			}
+		} else {
+			userId = user.Id
+		}
+		commentStatus := lang.IfElse(userAuthenticated, domain.PendingApproval, domain.PendingAuthentication)
 		commentId, err := controller.Store.CreateComment(
-			commentStatus, service.Id, user.Id, postKey, commentContent, name, website)
+			commentStatus, service.Id, userId, postKey, commentContent, name, website)
 		if err != nil {
 			return sendInternalError(c, err)
 		}
