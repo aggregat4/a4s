@@ -92,6 +92,24 @@ func InitServerWithOidcMiddleware(
 
 	// Set up middleware
 	e.Use(middleware.Logger())
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// Call the next handler
+			err := next(c)
+			if err != nil {
+				return err
+			}
+
+			// Log all response headers
+			for key, values := range c.Response().Header() {
+				for _, value := range values {
+					logger.Info("Header: %s = %s", key, value)
+				}
+			}
+
+			return nil
+		}
+	})
 	e.Use(middleware.Recover())
 	sessionCookieSecretKey := controller.Config.SessionCookieSecretKey
 	e.Use(session.Middleware(sessions.NewCookieStore([]byte(sessionCookieSecretKey))))
@@ -326,6 +344,10 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 			if err != nil && !errors.Is(err, lang.ErrNotFound) {
 				return sendInternalError(c, err)
 			} else if err == nil {
+				userAuthenticated := lang.IfElse(userFoundError == nil, true, false)
+				if !userAuthenticated || comment.UserId != user.Id {
+					return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+				}
 				commentFound = true
 			} else {
 				return c.Render(http.StatusNotFound, "error-notfound", nil)
