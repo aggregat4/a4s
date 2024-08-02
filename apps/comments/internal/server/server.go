@@ -157,7 +157,9 @@ func InitServerWithOidcMiddleware(
 	e.GET("/users/:userId/comments/:commentId", controller.GetUserCommentForm)
 	// Users can delete comments, this redirects back to the comment overview page
 	e.POST("/users/:userId/comments/:commentId/delete", controller.DeleteUserComment)
-	// Users can update comments
+	// Users can delete comments, this redirects back to the comment overview page
+	e.POST("/users/:userId/comments/:commentId/confirm", controller.ConfirmUserComment)
+	// Users can update comments: see the PostComment route under /services/:serviceKey/posts/:postKey/comments
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
 	// Service administrators can access a service comment dashboard where they can approve or deny comments
@@ -415,6 +417,27 @@ func (controller *Controller) DeleteUserComment(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
 }
 
+func (controller *Controller) ConfirmUserComment(c echo.Context) error {
+	user, comment, err := controller.extractAndValidateUserAndCommentFromRequest(c)
+	if err != nil {
+		return err
+	}
+	if comment.Status != domain.CommentStatusPendingAuthentication {
+		// TODO: return to original page and show toast to indicate that the comment is not pending authentication
+		return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+	}
+	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusPendingApproval, comment.Comment, comment.Name, comment.Website)
+	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			// TODO: toast to show that the comment could not be found for confirmation
+			return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+		} else {
+			return sendInternalError(c, err)
+		}
+	}
+	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+}
+
 func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo.Context) (domain.User, domain.Comment, error) {
 	// get and validate url parameters
 	userIdString := c.Param("userId")
@@ -526,7 +549,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		} else {
 			userId = user.Id
 		}
-		commentStatus := lang.IfElse(userAuthenticated, domain.PendingApproval, domain.PendingAuthentication)
+		commentStatus := lang.IfElse(userAuthenticated, domain.CommentStatusPendingApproval, domain.CommentStatusPendingAuthentication)
 		commentId, err := controller.Store.CreateComment(
 			commentStatus, service.Id, userId, postKey, commentContent, name, website)
 		if err != nil {

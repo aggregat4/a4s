@@ -476,3 +476,82 @@ func TestDeleteExistingCommentWithoutAuthentication(t *testing.T) {
 	assert.Equal(t, http.StatusFound, res.StatusCode, "Deleting comment without authentication should redirect to the userauthentication page")
 	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/userauthentication/"), "Deleting comment without authentication should redirect to the userauthentication page")
 }
+
+func confirmComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
+	res, err := client.Post(
+		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/confirm"),
+		"application/x-www-form-urlencoded",
+		nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func TestConfirmExistingCommentWithAuthentication(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	comment, err := controller.Store.GetComment(expectedCommentId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, domain.CommentStatusPendingAuthentication, comment.Status, "Comment should be pending authentication")
+	res := confirmComment(t, client, user.Id, expectedCommentId)
+	assert.Equal(t, http.StatusFound, res.StatusCode, "Confirming comment should redirect to the user's comment overview page")
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/users/"), "Confirming comment should redirect to the user's comment overview page")
+	comment, err = controller.Store.GetComment(expectedCommentId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, domain.CommentStatusPendingApproval, comment.Status, "Confirming comment should change the status to pending approval")
+}
+
+func TestConfirmExistingCommentWithoutAuthentication(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := confirmComment(t, client, 1, expectedCommentId)
+	assert.Equal(t, http.StatusFound, res.StatusCode, "Confirming comment without authentication should redirect to the userauthentication page")
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/userauthentication/"), "Confirming comment without authentication should redirect to the userauthentication page")
+}
+
+func TestConfirmExistingCommentWithInvalidCommentId(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := confirmComment(t, client, user.Id, expectedCommentId+1)
+	// TODO update test with toast check when we implement it to see whether we can confirm a comment that does not exist
+	assert.Equal(t, http.StatusFound, res.StatusCode, "Confirming comment with invalid comment id should redirect to the user's comment overview page")
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/users/"), "Confirming comment with invalid comment id should redirect to the user's comment overview page")
+}
+
+func TestConfirmExistingCommentWithInvalidUserId(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := confirmComment(t, client, user.Id+1, expectedCommentId)
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "You can not confirm comments that are not yours")
+}
+
+func TestConfirmExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID2, TEST_AUTHTOKEN_VALID2)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := confirmComment(t, client, user.Id, expectedCommentId)
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Confirming comment with invalid user id should redirect to the user's comment overview page")
+}

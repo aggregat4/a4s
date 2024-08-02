@@ -35,10 +35,10 @@ type CommentStatus int
 
 const (
 	_ CommentStatus = iota
-	PendingAuthentication
-	PendingApproval
-	Approved
-	Rejected
+	CommentStatusPendingAuthentication
+	CommentStatusPendingApproval
+	CommentStatusApproved
+	CommentStatusRejected
 )
 
 type Comment struct {

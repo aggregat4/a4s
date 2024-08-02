@@ -218,7 +218,7 @@ func (store *Store) UpdateComment(
 	}
 	_, err = store.db.Exec(
 		"UPDATE comments SET status = ?, comment_encrypted = ?, name_encrypted = ?, website_encrypted = ?, edited = 1 WHERE id = ?",
-		lang.IfElse(previousStatus == domain.PendingAuthentication, domain.PendingApproval, previousStatus),
+		lang.IfElse(previousStatus == domain.CommentStatusPendingAuthentication, domain.CommentStatusPendingApproval, previousStatus),
 		commentEncrypted,
 		authorEncrypted,
 		websiteEncrypted,

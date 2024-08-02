@@ -142,10 +142,10 @@ func createTestData(t *testing.T, store repository.Store) {
 		status  domain.CommentStatus
 		comment string
 	}{
-		{domain.PendingAuthentication, TEST_COMMENT_PENDING_AUTHENTICATION},
-		{domain.PendingApproval, TEST_COMMENT_PENDING_APPROVAL},
-		{domain.Approved, TEST_COMMENT_APPROVED},
-		{domain.Rejected, TEST_COMMENT_REJECTED},
+		{domain.CommentStatusPendingAuthentication, TEST_COMMENT_PENDING_AUTHENTICATION},
+		{domain.CommentStatusPendingApproval, TEST_COMMENT_PENDING_APPROVAL},
+		{domain.CommentStatusApproved, TEST_COMMENT_APPROVED},
+		{domain.CommentStatusRejected, TEST_COMMENT_REJECTED},
 	}
 
 	for _, c := range comments {
