@@ -67,9 +67,8 @@ User authentication is based on email:
 
 ## TODO
 
-1. Write tests for comment deletion and authentication
-2. Make the server cookie settings configurable
-3. Figure out the navigation story: there are a lot of pages and we have embeded
+1. Make the server cookie settings configurable
+2. Figure out the navigation story: there are a lot of pages and we have embeded
    pages in other sites and we have the management ui somewhere for users and
    for admins. How is that accesible? How do you get back to some other ui? 
-4. Look for todos about toasts to inform users about error states and success states
+3. Look for todos about toasts to inform users about error states and success states
