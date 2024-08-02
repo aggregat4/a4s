@@ -72,3 +72,4 @@ User authentication is based on email:
 3. Figure out the navigation story: there are a lot of pages and we have embeded
    pages in other sites and we have the management ui somewhere for users and
    for admins. How is that accesible? How do you get back to some other ui? 
+4. Look for todos about toasts to inform users about error states and success states
