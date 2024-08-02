@@ -32,8 +32,6 @@ var viewTemplates embed.FS
 //go:embed public/js/*.js
 var javaScript embed.FS
 
-const ContentTypeJson = "application/json;charset=UTF-8"
-
 type Controller struct {
 	Store       *repository.Store
 	Config      domain.Config
@@ -531,7 +529,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 			return sendInternalError(c, err)
 		}
 		// find or create a user
-		userId := -1
+		var userId int
 		if !userAuthenticated {
 			user, err := controller.Store.FindUserByEmail(emailAddress)
 			if err == nil {

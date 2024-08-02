@@ -27,7 +27,7 @@ func main() {
 	}
 	fmt.Printf("%+v\n", config)
 
-	// TODO: read encryption key from environment and decode from HEX string (see createencryptionkey.go)
+	// TODO: read encryption key from environment and decode from HEX string (see main.go)
 
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(config.EncryptionKey))
 	if err != nil {

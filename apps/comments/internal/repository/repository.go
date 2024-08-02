@@ -295,6 +295,9 @@ func (store *Store) GetComment(commentId int) (domain.Comment, error) {
 
 func (store *Store) DeleteComment(commentId int) error {
 	result, err := store.db.Exec("DELETE FROM comments WHERE id = ?", commentId)
+	if err != nil {
+		return err
+	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err

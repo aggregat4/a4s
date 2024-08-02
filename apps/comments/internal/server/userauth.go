@@ -8,7 +8,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"net/http"
-	"time"
 )
 
 var authenticatedUserCookieName = "commentservice-authenticated-user"
@@ -23,16 +22,6 @@ func getUserIdFromSession(c echo.Context) (int, error) {
 	} else {
 		return -1, lang.ErrNotFound
 	}
-}
-
-func clearSessionCookie(c echo.Context) {
-	c.SetCookie(&http.Cookie{
-		Name:     authenticatedUserCookieName,
-		Value:    "",
-		Path:     "/", // TODO: this path is not context path safe
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-	})
 }
 
 func createSessionCookie(c echo.Context, userId int) error {
