@@ -404,7 +404,12 @@ func (controller *Controller) DeleteUserComment(c echo.Context) error {
 	}
 	err = controller.Store.DeleteComment(comment.Id)
 	if err != nil {
-		return sendInternalError(c, err)
+		if errors.Is(err, lang.ErrNotFound) {
+			// TODO: toast to show that the comment has NOT been deleted
+			return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+		} else {
+			return sendInternalError(c, err)
+		}
 	}
 	// TODO: toast to show that the comment has been deleted
 	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
@@ -441,6 +446,9 @@ func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo
 		} else {
 			return domain.User{}, domain.Comment{}, sendInternalError(c, err)
 		}
+	}
+	if comment.UserId != user.Id {
+		return domain.User{}, domain.Comment{}, c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 	}
 	return user, comment, nil
 }

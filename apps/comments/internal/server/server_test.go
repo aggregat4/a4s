@@ -1,6 +1,7 @@
 package server
 
 import (
+	"aggregat4/go-commentservice/internal/domain"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"net/http"
@@ -58,10 +59,10 @@ func TestSingleCommentPostPage(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	checkWhetherPostHasComment(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION)
+	checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION, true)
 }
 
-func checkWhetherPostHasComment(t *testing.T, postKey string, comment string) {
+func checkCommentExistenceForPost(t *testing.T, postKey string, comment string, shouldContain bool) {
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"))
 	if err != nil {
 		t.Fatal(err)
@@ -73,8 +74,11 @@ func checkWhetherPostHasComment(t *testing.T, postKey string, comment string) {
 	body := readBody(res)
 	assert.Contains(t, body, "<h1>Comments</h1>")
 	assert.Contains(t, body, "<dl class=\"comments\">")
-	assert.Contains(t, body, "<dt>")
-	assert.Contains(t, body, "<dd>"+comment)
+	if shouldContain {
+		assert.Contains(t, body, "<dd>"+comment, "Comment should be displayed")
+	} else {
+		assert.NotContains(t, body, "<dd>"+comment, "Comment should not be displayed")
+	}
 }
 
 func TestUserAuthenticationForm(t *testing.T) {
@@ -175,7 +179,7 @@ func TestUserAuthenticationValidToken(t *testing.T) {
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 }
 
-func authenticateAndValidate(t *testing.T, client *http.Client, controller Controller, email string, token string) {
+func authenticateAndValidate(t *testing.T, client *http.Client, controller Controller, email string, token string) domain.User {
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+token))
 	if err != nil {
 		t.Fatal(err)
@@ -186,6 +190,7 @@ func authenticateAndValidate(t *testing.T, client *http.Client, controller Contr
 	}
 	assert.Equal(t, http.StatusFound, res.StatusCode)
 	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
+	return user
 }
 
 func TestUserAuthenticationExpiredToken(t *testing.T) {
@@ -250,7 +255,7 @@ func postComment(t *testing.T, client *http.Client, formParams url.Values, postK
 	return res
 }
 
-func TestPostNewCommentUnauthenticated(t *testing.T) {
+func TestCreateNewCommentUnauthenticated(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -264,10 +269,10 @@ func TestPostNewCommentUnauthenticated(t *testing.T) {
 	res := postComment(t, client, formParams, TEST_POSTKEY2)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
 	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
-	checkWhetherPostHasComment(t, TEST_POSTKEY2, comment)
+	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, true)
 }
 
-func TestPostNewCommentAuthenticated(t *testing.T) {
+func TestCreateNewCommentAuthenticated(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -282,10 +287,10 @@ func TestPostNewCommentAuthenticated(t *testing.T) {
 	res := postComment(t, client, formParams, TEST_POSTKEY2)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
 	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
-	checkWhetherPostHasComment(t, TEST_POSTKEY2, comment)
+	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, true)
 }
 
-func TestPostNewCommentWithMissingEmail(t *testing.T) {
+func TestCreateNewCommentWithMissingEmail(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -299,7 +304,7 @@ func TestPostNewCommentWithMissingEmail(t *testing.T) {
 	assert.Equal(t, 400, res.StatusCode)
 }
 
-func TestPostNewCommentWithMissingComment(t *testing.T) {
+func TestCreateNewCommentWithMissingComment(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -312,7 +317,7 @@ func TestPostNewCommentWithMissingComment(t *testing.T) {
 	assert.Equal(t, 400, res.StatusCode)
 }
 
-func TestPostExistingCommentWithInvalidCommentId(t *testing.T) {
+func TestUpdateExistingCommentWithInvalidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -329,7 +334,7 @@ func TestPostExistingCommentWithInvalidCommentId(t *testing.T) {
 	assert.Equal(t, 404, res.StatusCode)
 }
 
-func TestPostExistingCommentWithValidCommentId(t *testing.T) {
+func TestUpdateExistingCommentWithValidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -345,11 +350,11 @@ func TestPostExistingCommentWithValidCommentId(t *testing.T) {
 	formParams.Set("comment", comment)
 	res := postComment(t, client, formParams, TEST_POSTKEY1)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY+"/comments"))
-	checkWhetherPostHasComment(t, TEST_POSTKEY1, comment)
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments"))
+	checkCommentExistenceForPost(t, TEST_POSTKEY1, comment, true)
 }
 
-func TestPostExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
+func TestUpdateExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -367,7 +372,7 @@ func TestPostExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 }
 
-func TestPostExistingCommentWithoutAuthentication(t *testing.T) {
+func TestUpdateExistingCommentWithoutAuthentication(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -384,7 +389,7 @@ func TestPostExistingCommentWithoutAuthentication(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 }
 
-func TestPostExistingCommentAsTheWrongUser(t *testing.T) {
+func TestUpdateExistingCommentAsTheWrongUser(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
@@ -400,4 +405,74 @@ func TestPostExistingCommentAsTheWrongUser(t *testing.T) {
 	formParams.Set("comment", comment)
 	res := postComment(t, client, formParams, TEST_POSTKEY1)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+}
+
+func TestDeleteExistingCommentWithValidCommentId(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION, true)
+	res := deleteComment(t, client, user.Id, expectedCommentId)
+	assert.Equal(t, http.StatusFound, res.StatusCode, "Deleting comment should redirect to the user's comment overview page")
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/users/"+strconv.Itoa(user.Id)+"/comments"), "Deleting comment should redirect to the user's comment overview page")
+	checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION, false)
+}
+
+func deleteComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
+	res, err := client.Post(
+		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/delete"),
+		"application/x-www-form-urlencoded",
+		nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func TestDeleteExistingCommentWithInvalidCommentId(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := deleteComment(t, client, user.Id, expectedCommentId+1)
+	// TODO update test with toast check when we implement it
+	assert.Equal(t, http.StatusFound, res.StatusCode, "Deleting comment should redirect to the user's comment overview page")
+}
+
+func TestDeleteExistingCommentWithInvalidUserId(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := deleteComment(t, client, user.Id+1, expectedCommentId) // invalid user id
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Deleting another user's comments should fail with unauthorized")
+}
+
+func TestDeleteExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient() // use a different client than the one used to create the comment
+	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID2, TEST_AUTHTOKEN_VALID2)
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := deleteComment(t, client, user.Id, expectedCommentId)
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Deleting another user's comments should fail with unauthorized")
+}
+
+func TestDeleteExistingCommentWithoutAuthentication(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res := deleteComment(t, client, 1, expectedCommentId)
+	assert.Equal(t, http.StatusFound, res.StatusCode, "Deleting comment without authentication should redirect to the userauthentication page")
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/userauthentication/"), "Deleting comment without authentication should redirect to the userauthentication page")
 }

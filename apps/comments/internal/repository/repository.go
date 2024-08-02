@@ -4,6 +4,7 @@ import (
 	"aggregat4/go-commentservice/internal/domain"
 	"crypto/cipher"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/lang"
@@ -293,6 +294,15 @@ func (store *Store) GetComment(commentId int) (domain.Comment, error) {
 }
 
 func (store *Store) DeleteComment(commentId int) error {
-	_, err := store.db.Exec("DELETE FROM comments WHERE id = ?", commentId)
-	return err
+	result, err := store.db.Exec("DELETE FROM comments WHERE id = ?", commentId)
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	} else if rowsAffected == 0 {
+		return lang.ErrNotFound
+	} else if rowsAffected > 1 {
+		return errors.New("More than one row was affected by the delete operation")
+	} else {
+		return nil
+	}
 }
