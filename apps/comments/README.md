@@ -67,8 +67,10 @@ User authentication is based on email:
 
 ## TODO
 
-1. Make the server cookie settings configurable
+1. The authentication flow is wrong: after requesting a token we get redirected to the comments page and that does not work because we are not authenticated
+2. Make the server cookie settings configurable
 2. Figure out the navigation story: there are a lot of pages and we have embeded
    pages in other sites and we have the management ui somewhere for users and
    for admins. How is that accesible? How do you get back to some other ui? 
 3. Look for todos about toasts to inform users about error states and success states
+4. Implement actual mail sending integration
