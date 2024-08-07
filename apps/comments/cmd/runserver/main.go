@@ -5,6 +5,7 @@ import (
 	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"aggregat4/go-commentservice/internal/server"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"github.com/aggregat4/go-baselib/crypto"
@@ -12,24 +13,34 @@ import (
 	"github.com/kirsle/configdir"
 	"github.com/kkyr/fig"
 	"log"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
 	var configFileLocation string
-	flag.StringVar(&configFileLocation, "config", "", "The location of the configuration file if you do not want to default to the standard location")
+	flag.StringVar(&configFileLocation, "configdir", "", "The location of the configuration file if you do not want to default to the standard location, the name of the file is always commentservice.json")
 	flag.Parse()
-	defaultConfigLocation := configdir.LocalConfig("commentservice") + "/commentservice.json"
+	defaultConfigLocation := configdir.LocalConfig("commentservice")
+	defaultConfigFilename := "commentservice.json"
 
 	var config domain.Config
-	err := fig.Load(&config, fig.File(lang.IfElse(configFileLocation == "", defaultConfigLocation, configFileLocation)))
+	err := fig.Load(
+		&config,
+		fig.File(defaultConfigFilename),
+		fig.Dirs(lang.IfElse(configFileLocation == "", defaultConfigLocation, configFileLocation)),
+		fig.UseEnv("COMMENTSERVICE"))
+
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("%+v\n", config)
 
-	// TODO: read encryption key from environment and decode from HEX string (see main.go)
-
-	aesCipher, err := crypto.CreateAes256GcmAead([]byte(config.EncryptionKey))
+	secretKey, err := hex.DecodeString(config.EncryptionKey)
+	if err != nil {
+		panic(err)
+	}
+	aesCipher, err := crypto.CreateAes256GcmAead(secretKey)
 	if err != nil {
 		panic(err)
 	}

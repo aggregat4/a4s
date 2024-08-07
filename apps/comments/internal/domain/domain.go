@@ -7,14 +7,14 @@ import (
 type Config struct {
 	Port                      int    `fig:"port" validate:"required"`
 	DatabaseFilename          string `fig:"database_filename" validate:"required"`
-	ServerReadTimeoutSeconds  int    `fig:"server_read_timeout_seconds" validate:"required"`
-	ServerWriteTimeoutSeconds int    `fig:"server_write_timeout_seconds" validate:"required"`
-	OidcIdpServer             string
-	OidcClientId              string
-	OidcClientSecret          string
-	OidcRedirectUri           string
-	EncryptionKey             string
-	SessionCookieSecretKey    string
+	ServerReadTimeoutSeconds  int    `fig:"server_read_timeout_seconds" default:"5"`
+	ServerWriteTimeoutSeconds int    `fig:"server_write_timeout_seconds" default:"10"`
+	OidcIdpServer             string `fig:"oidc_idp_server" validate:"required"`
+	OidcClientId              string `fig:"oidc_client_id" validate:"required"`
+	OidcClientSecret          string `fig:"oidc_client_secret" validate:"required"`
+	OidcRedirectUri           string `fig:"oidc_redirect_uri" validate:"required"`
+	EncryptionKey             string `fig:"encryption_key" validate:"required"`
+	SessionCookieSecretKey    string `fig:"session_cookie_secret_key" validate:"required"`
 }
 
 type User struct {
