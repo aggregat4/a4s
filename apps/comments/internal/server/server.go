@@ -141,7 +141,7 @@ func InitServerWithOidcMiddleware(
 	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
 	e.GET("/userauthentication/", controller.GetUserAuthenticationForm)
 	// Users can submit a userauthentication form to get a new token sent
-	e.POST("/userauthentication", controller.RequestAuthenticationLink)
+	e.POST("/userauthentication/", controller.RequestAuthenticationLink)
 	// Users can authenticate by clicking on an authentication link sent by email, this has to be GET because email
 	e.GET("/userauthentication/:token", controller.AuthenticateUser)
 	// After authenticating the user:
