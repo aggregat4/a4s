@@ -153,7 +153,7 @@ func InitServerWithOidcMiddleware(
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
 	e.GET("/users/:userId/comments", controller.GetCommentsForUser)
 	// Allow a user to modify his comment
-	e.GET("/users/:userId/comments/:commentId", controller.GetUserCommentForm)
+	e.GET("/users/:userId/comments/:commentId/edit", controller.GetUserCommentForm)
 	// Users can delete comments, this redirects back to the comment overview page
 	e.POST("/users/:userId/comments/:commentId/delete", controller.DeleteUserComment)
 	// Users can delete comments, this redirects back to the comment overview page

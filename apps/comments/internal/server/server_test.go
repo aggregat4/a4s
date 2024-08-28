@@ -243,47 +243,6 @@ func TestGetCommentFormWithExistingComment(t *testing.T) {
 	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
 }
 
-func TestGetUserCommentsPage(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
-	defer controller.Store.Close()
-	client := createTestHttpClient()
-	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
-	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, 200, res.StatusCode)
-	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
-	body := readBody(res)
-	assert.Contains(t, body, "<h1>Your Comments</h1>")
-	assert.Contains(t, body, "<dl class=\"comments\">")
-	assert.Contains(t, body, "<dt>")
-	assert.Contains(t, body, "<dd>")
-	// TODO: more assertions on the comments themselves
-}
-
-func TestGetUserCommentsPageWithWrongUser(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
-	defer controller.Store.Close()
-	client := createTestHttpClient()
-	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
-	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, 401, res.StatusCode)
-}
-
 func postComment(t *testing.T, client *http.Client, formParams url.Values, postKey string) *http.Response {
 	encodedParams := formParams.Encode()
 	postBody := strings.NewReader(encodedParams)
@@ -357,6 +316,71 @@ func TestCreateNewCommentWithMissingComment(t *testing.T) {
 	formParams.Set("website", "http://example.com")
 	res := postComment(t, client, formParams, TEST_POSTKEY2)
 	assert.Equal(t, 400, res.StatusCode)
+}
+
+func TestGetUserCommentsPage(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Your Comments</h1>")
+	assert.Contains(t, body, "<dl class=\"comments\">")
+	assert.Contains(t, body, "<dt>")
+	assert.Contains(t, body, "<dd>")
+	// TODO: more assertions on the comments themselves
+}
+
+func TestGetUserCommentsPageWithWrongUser(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 401, res.StatusCode)
+}
+
+func TestGetUserCommentForm(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments/"+strconv.Itoa(expectedCommentId)+"/edit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<title>Edit Comment</title>")
+	assert.Contains(t, body, "<h1>Edit Comment</h1>")
+	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments\">")
+	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
 }
 
 func TestUpdateExistingCommentWithInvalidCommentId(t *testing.T) {
