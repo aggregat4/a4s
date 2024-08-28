@@ -2,13 +2,14 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStatus(t *testing.T) {
@@ -100,7 +101,7 @@ func TestRequestAuthenticationLinkWithNoParams(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	res, err := http.Post(createServerUrl(serverConfig.Port, "/userauthentication"), "application/x-www-form-urlencoded", nil)
+	res, err := http.Post(createServerUrl(serverConfig.Port, "/userauthentication/"), "application/x-www-form-urlencoded", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +118,7 @@ func TestRequestAuthenticationLinkWithNonExistingEmailParam(t *testing.T) {
 	encodedParams := formParams.Encode()
 	postBody := strings.NewReader(encodedParams)
 	res, err := http.Post(
-		createServerUrl(serverConfig.Port, "/userauthentication"),
+		createServerUrl(serverConfig.Port, "/userauthentication/"),
 		"application/x-www-form-urlencoded",
 		postBody)
 	if err != nil {
@@ -140,7 +141,7 @@ func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
 	encodedParams := formParams.Encode()
 	postBody := strings.NewReader(encodedParams)
 	res, err := http.Post(
-		createServerUrl(serverConfig.Port, "/userauthentication"),
+		createServerUrl(serverConfig.Port, "/userauthentication/"),
 		"application/x-www-form-urlencoded",
 		postBody)
 	if err != nil {
@@ -240,6 +241,47 @@ func TestGetCommentFormWithExistingComment(t *testing.T) {
 	assert.Contains(t, body, "<h1>Edit Comment</h1>")
 	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments\">")
 	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
+}
+
+func TestGetUserCommentsPage(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Your Comments</h1>")
+	assert.Contains(t, body, "<dl class=\"comments\">")
+	assert.Contains(t, body, "<dt>")
+	assert.Contains(t, body, "<dd>")
+	// TODO: more assertions on the comments themselves
+}
+
+func TestGetUserCommentsPageWithWrongUser(t *testing.T) {
+	echoServer, controller := waitForServer(t)
+	defer echoServer.Close()
+	defer controller.Store.Close()
+	client := createTestHttpClient()
+	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
+	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 401, res.StatusCode)
 }
 
 func postComment(t *testing.T, client *http.Client, formParams url.Values, postKey string) *http.Response {

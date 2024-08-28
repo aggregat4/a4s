@@ -25,6 +25,10 @@ type User struct {
 	AuthTokenSentToClient int
 }
 
+func (u User) IsValid() bool {
+	return u.Id != 0
+}
+
 type Service struct {
 	Id         int
 	ServiceKey string

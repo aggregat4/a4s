@@ -6,13 +6,6 @@ import (
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
 	"errors"
-	baseliboidc "github.com/aggregat4/go-baselib-services/v2/oidc"
-	"github.com/aggregat4/go-baselib/lang"
-	"github.com/google/uuid"
-	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"html/template"
 	"io"
 	"log/slog"
@@ -22,6 +15,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	baseliboidc "github.com/aggregat4/go-baselib-services/v2/oidc"
+	"github.com/aggregat4/go-baselib/lang"
+	"github.com/google/uuid"
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -310,9 +311,18 @@ func handleAuthenticationError(c echo.Context, err error) error {
 }
 
 func (controller *Controller) GetCommentsForUser(c echo.Context) error {
+	// validate that the userid in the url is the same as the userid in the session
+	userIdString := c.Param("userId")
+	userId, err := strconv.Atoi(userIdString)
+	if err != nil {
+		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	}
 	user, err := getUserFromSession(c, controller)
 	if err != nil {
 		return handleAuthenticationError(c, err)
+	}
+	if user.Id != userId {
+		return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 	}
 	comments, err := controller.Store.GetCommentsForUser(user.Id)
 	if err != nil {
@@ -374,7 +384,7 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 
 func (controller *Controller) GetUserCommentForm(c echo.Context) error {
 	user, comment, err := controller.extractAndValidateUserAndCommentFromRequest(c)
-	if err != nil {
+	if err != nil || !user.IsValid() {
 		return err
 	}
 	service, err := controller.Store.FindServiceById(comment.ServiceId)
@@ -399,7 +409,7 @@ func (controller *Controller) GetUserCommentForm(c echo.Context) error {
 
 func (controller *Controller) DeleteUserComment(c echo.Context) error {
 	user, comment, err := controller.extractAndValidateUserAndCommentFromRequest(c)
-	if err != nil {
+	if err != nil || !user.IsValid() {
 		return err
 	}
 	err = controller.Store.DeleteComment(comment.Id)
@@ -417,7 +427,7 @@ func (controller *Controller) DeleteUserComment(c echo.Context) error {
 
 func (controller *Controller) ConfirmUserComment(c echo.Context) error {
 	user, comment, err := controller.extractAndValidateUserAndCommentFromRequest(c)
-	if err != nil {
+	if err != nil || !user.IsValid() {
 		return err
 	}
 	if comment.Status != domain.CommentStatusPendingAuthentication {
