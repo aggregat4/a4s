@@ -33,6 +33,9 @@ var viewTemplates embed.FS
 //go:embed public/js/*.js
 var javaScript embed.FS
 
+//go:embed public/css/*.css
+var styleSheets embed.FS
+
 type Controller struct {
 	Store       *repository.Store
 	Config      domain.Config
@@ -121,8 +124,12 @@ func InitServerWithOidcMiddleware(
 	// TODO: CSRF origin check (on non HEAD or GET requests, check that Origin header matches target origin)
 
 	// Endpoints
+	// static assets
 	javaScriptFS := echo.MustSubFS(javaScript, "public/js")
 	e.StaticFS("/js", javaScriptFS)
+	styleSheetsFS := echo.MustSubFS(styleSheets, "public/css")
+	e.StaticFS("/css", styleSheetsFS)
+	// infrastructure
 	e.GET("/oidccallback", oidcCallback)
 	// ---- UNAUTHENTICATED
 	// Status endpoint

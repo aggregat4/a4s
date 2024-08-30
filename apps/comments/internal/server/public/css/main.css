@@ -1,0 +1,43 @@
+:root {
+    --site-bg-color: white;
+    --site-text-color: #333;
+    --error-color: #D32F2F;
+    --error-bg-color: #FFEBEE;
+    --error-border-color: #FFCDD2;
+    --success-color: #4CAF50;
+    --success-bg-color: #E8F5E9;
+    --success-border-color: #C8E6C9;
+}
+
+body {
+    font-family: sans-serif;
+    box-sizing: border-box;
+    font-size: 18px;
+    margin: 0;
+    line-height: 1.5;
+    background-color: var(--site-bg-color);
+    color: var(--site-text-color);
+}
+
+main, header {
+    max-width: 66ch;
+    margin: 0 auto;
+}
+
+.toast {
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.toast.error {
+    color: var(--error-color);
+    background-color: var(--error-bg-color);
+    border: 1px solid var(--error-border-color);
+}
+
+.toast.success {
+    color: var(--success-color);
+    background-color: var(--success-bg-color);
+    border: 1px solid var(--success-border-color);
+}
