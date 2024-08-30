@@ -8,11 +8,12 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"log"
+
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/kirsle/configdir"
 	"github.com/kkyr/fig"
-	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 )
