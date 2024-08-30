@@ -67,6 +67,7 @@ User authentication is based on email:
 
 ## TODO
 
+1. What should be in a `<header>` element and what not? Should the title of the page and any specific actions or links be in the header or not? Tending towards putting them in main and only reserving header for sitewide things?
 1. The authentication flow is wrong: after requesting a token we get redirected to the comments page and that does not work because we are not authenticated
 2. Make the server cookie settings configurable
 2. Figure out the navigation story: there are a lot of pages and we have embeded
