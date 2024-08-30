@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -9,4 +10,54 @@ import (
 func sendInternalError(c echo.Context, err error) error {
 	logger.Error("Error processing request", "error", err)
 	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
+}
+
+func csrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		// CSRF check unnecessary for GET and HEAD requests and the Origin header won't be available anyway
+		if c.Request().Method == "HEAD" || c.Request().Method == "GET" {
+			return next(c)
+		}
+		originHeader := c.Request().Header.Get("Origin")
+		hostHeader := c.Request().Host
+		// parse the target origin from the host header and the X-Forwarded-Host header when present
+		hostParts := strings.Split(hostHeader, ":")
+		hostName := hostParts[0]
+		targetOriginPort := hostParts[1]
+		targetOriginHostname := c.Request().Header.Get("X-Forwarded-Host")
+		if targetOriginHostname == "" {
+			targetOriginHostname = hostName
+		}
+		// parse the hostname and the port from the Origin header
+		originParts := strings.Split(originHeader, ":")
+		originHostname := originParts[1] // the scheme is the first element after splitting
+		originPort := "80"
+		if len(originParts) > 2 {
+			originPort = originParts[2]
+		}
+		if originHostname != targetOriginHostname || originPort != targetOriginPort {
+			logger.Info("CSRF check failed: Origin does not match target origin", "originHostname", originHostname, "targetOriginHostname", targetOriginHostname, "originPort", originPort, "targetOriginPort", targetOriginPort)
+			return echo.NewHTTPError(http.StatusForbidden, "forbidden")
+		}
+		return next(c)
+	}
+}
+
+func httpResponseLogger(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		// Call the next handler
+		err := next(c)
+		if err != nil {
+			return err
+		}
+
+		// Log all response headers
+		for key, values := range c.Response().Header() {
+			for _, value := range values {
+				logger.Info("Header: %s = %s", key, value)
+			}
+		}
+
+		return nil
+	}
 }

@@ -94,24 +94,7 @@ func InitServerWithOidcMiddleware(
 
 	// Set up middleware
 	e.Use(middleware.Logger())
-	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			// Call the next handler
-			err := next(c)
-			if err != nil {
-				return err
-			}
-
-			// Log all response headers
-			for key, values := range c.Response().Header() {
-				for _, value := range values {
-					logger.Info("Header: %s = %s", key, value)
-				}
-			}
-
-			return nil
-		}
-	})
+	e.Use(httpResponseLogger)
 	e.Use(middleware.Recover())
 	sessionCookieSecretKey := controller.Config.SessionCookieSecretKey
 	e.Use(session.Middleware(sessions.NewCookieStore([]byte(sessionCookieSecretKey))))
@@ -121,7 +104,10 @@ func InitServerWithOidcMiddleware(
 	e.Use(CreateUserAuthenticationMiddleware(func(c echo.Context) bool {
 		return !strings.HasPrefix(c.Path(), "/users/")
 	}))
-	// TODO: CSRF origin check (on non HEAD or GET requests, check that Origin header matches target origin)
+	// Set custom error handler
+	e.HTTPErrorHandler = customHTTPErrorHandler
+	// CSRF protection middleware
+	e.Use(csrfMiddleware)
 
 	// Endpoints
 	// static assets
@@ -571,5 +557,25 @@ func (controller *Controller) PostComment(c echo.Context) error {
 			return sendInternalError(c, err)
 		}
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/"+strconv.Itoa(commentId))
+	}
+}
+
+func customHTTPErrorHandler(err error, c echo.Context) {
+	code := http.StatusInternalServerError
+	if he, ok := err.(*echo.HTTPError); ok {
+		code = he.Code
+	}
+	var errorPageTemplate = "error-internalserver"
+	switch code {
+	case http.StatusNotFound:
+		errorPageTemplate = "error-notfound"
+	case http.StatusUnauthorized:
+		errorPageTemplate = "error-unauthorized"
+	case http.StatusBadRequest:
+		errorPageTemplate = "error-badrequest"
+	}
+	err = c.Render(code, errorPageTemplate, nil)
+	if err != nil {
+		c.Logger().Error(err)
 	}
 }
