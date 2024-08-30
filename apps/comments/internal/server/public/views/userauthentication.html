@@ -11,16 +11,16 @@
     </head>
     <body>
     <header>
-        <h1>Request Authentication Token</h1>
     </header>
     <main>
+        <h1>Request Authentication Token</h1>
         {{if .Error}}
-            <p class="error">
+            <p class="toast error">
                 {{.Error}}
             </p>
         {{end}}
         {{if .Success}}
-            <p class="success">
+            <p class="toast success">
                 {{.Success}}
             </p>
         {{end}}
