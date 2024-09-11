@@ -305,7 +305,7 @@ func (store *Store) DeleteComment(commentId int) error {
 	} else if rowsAffected == 0 {
 		return lang.ErrNotFound
 	} else if rowsAffected > 1 {
-		return errors.New("More than one row was affected by the delete operation")
+		return errors.New("more than one row was affected by the delete operation")
 	} else {
 		return nil
 	}
