@@ -488,7 +488,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		return sendInternalError(c, userSessionError)
 	}
 	commentIdString := c.FormValue("commentId")
-	emailAddress := c.FormValue("emailAddress")
+	emailAddress := c.FormValue("email")
 	name := c.FormValue("name")
 	website := c.FormValue("website")
 	commentContent := c.FormValue("comment")
