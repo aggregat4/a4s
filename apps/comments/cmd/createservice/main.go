@@ -9,6 +9,8 @@ import (
 	"os"
 
 	"github.com/aggregat4/go-baselib/crypto"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
