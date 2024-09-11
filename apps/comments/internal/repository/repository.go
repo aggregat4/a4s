@@ -6,10 +6,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/aggregat4/go-baselib/migrations"
-	"time"
 )
 
 type Store struct {
@@ -115,7 +116,7 @@ func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
 }
 
 func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ?", serviceId, postKey)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ? AND status = ?", serviceId, postKey, domain.CommentStatusApproved)
 	if err != nil {
 		return nil, err
 	}
