@@ -1,4 +1,6 @@
 :root {
+    --pico-font-size: 18px;
+
     --site-bg-color: white;
     --site-text-color: #333;
     --error-color: #D32F2F;
@@ -12,16 +14,17 @@
 body {
     font-family: sans-serif;
     box-sizing: border-box;
-    font-size: 18px;
+    /* font-size: 18px; */
     margin: 0;
-    line-height: 1.5;
-    background-color: var(--site-bg-color);
-    color: var(--site-text-color);
+    /* line-height: 1.5; */
+    /* background-color: var(--site-bg-color);
+    color: var(--site-text-color); */
 }
 
 main, header {
     max-width: 66ch;
     margin: 0 auto;
+    padding: 6px;
 }
 
 .toast {
@@ -40,4 +43,9 @@ main, header {
     color: var(--success-color);
     background-color: var(--success-bg-color);
     border: 1px solid var(--success-border-color);
+}
+
+.actionbar {
+    display: flex;
+    gap: 12px;
 }

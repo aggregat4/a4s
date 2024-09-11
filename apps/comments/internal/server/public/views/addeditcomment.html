@@ -7,6 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{if .CommentFound}}Edit Comment{{else}}New Comment{{end}}</title>
     <!-- <link rel="icon" href="/images/delicious.png"> -->
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="/css/pico.classless.min.css">
     <link rel="stylesheet" href="/css/main.css">
 </head>
 <body>
@@ -27,12 +29,11 @@
     <p>
         Notes on comments:
         <ul>
-            <li>Valid comments require at least a valid email address. You will get a message to confirm your email address
+            <li>Comments require at least a <em>valid email address</em>. You will get an e-mail to confirm your email address
                 when you submit the comment.</li>
             <li>The email address is required as a way to log in to the service and manage your own data.</li>
             <li>Only authenticated comments will be considered for display.</li>
-            <li>All comments are checked by an administrator
-                before posting and may be rejected.</li>
+            <li>All comments are checked by before posting and may be rejected.</li>
         </ul>
     </p>
     <form method="POST" action="/services/{{.ServiceKey}}/posts/{{.PostKey}}/comments">
