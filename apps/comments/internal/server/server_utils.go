@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -29,11 +30,14 @@ func csrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			targetOriginHostname = hostName
 		}
 		// parse the hostname and the port from the Origin header
-		originParts := strings.Split(originHeader, ":")
-		originHostname := originParts[1] // the scheme is the first element after splitting
+		parsedURL, err := url.Parse(originHeader)
+		if err != nil {
+			return err
+		}
+		originHostname := parsedURL.Hostname()
 		originPort := "80"
-		if len(originParts) > 2 {
-			originPort = originParts[2]
+		if parsedURL.Port() != "" {
+			originPort = parsedURL.Port()
 		}
 		if originHostname != targetOriginHostname || originPort != targetOriginPort {
 			logger.Info("CSRF check failed: Origin does not match target origin", "originHostname", originHostname, "targetOriginHostname", targetOriginHostname, "originPort", originPort, "targetOriginPort", targetOriginPort)
