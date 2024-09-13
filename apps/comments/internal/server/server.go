@@ -272,7 +272,7 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 		// let the user know they have to try again in 15 minutes
 		params := url.Values{}
 		params.Set("emailAddress", emailAddress)
-		params.Set("error", "Too many attempts were made to request authentication tokens for this user. Please try again in 15 minutes.")
+		params.Set("error", "Too many attempts were made to login for this user. Please try again in 15 minutes.")
 		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
 	}
 }
