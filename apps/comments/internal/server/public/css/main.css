@@ -49,3 +49,8 @@ main, header {
     display: flex;
     gap: 12px;
 }
+
+ul.hanging-indent {
+    list-style-position: outside;
+    padding-left: 0;
+}
