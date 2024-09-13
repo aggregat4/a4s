@@ -2,6 +2,7 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -60,7 +61,7 @@ func TestSingleCommentPostPage(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION, true)
+	checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_APPROVED, true)
 }
 
 func checkCommentExistenceForPost(t *testing.T, postKey string, comment string, shouldContain bool) {
@@ -93,7 +94,7 @@ func TestUserAuthenticationForm(t *testing.T) {
 	assert.Equal(t, 200, res.StatusCode)
 	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
 	body := readBody(res)
-	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
+	assert.Contains(t, body, "<h1>Request Login Link</h1>")
 	assert.Contains(t, body, "<form action=\"/userauthentication/\" method=\"POST\">")
 }
 
@@ -101,10 +102,14 @@ func TestRequestAuthenticationLinkWithNoParams(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	res, err := http.Post(createServerUrl(serverConfig.Port, "/userauthentication/"), "application/x-www-form-urlencoded", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	client := createTestHttpClient()
+	res := postWithOrigin(
+		t,
+		client,
+		createServerUrl(serverConfig.Port, "/userauthentication/"),
+		"application/x-www-form-urlencoded",
+		nil,
+	)
 	assert.Equal(t, 400, res.StatusCode)
 	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
 }
@@ -117,18 +122,15 @@ func TestRequestAuthenticationLinkWithNonExistingEmailParam(t *testing.T) {
 	formParams.Set("email", "foo@example.com")
 	encodedParams := formParams.Encode()
 	postBody := strings.NewReader(encodedParams)
-	res, err := http.Post(
+	client := createTestHttpClient()
+	res := postWithOrigin(
+		t,
+		client,
 		createServerUrl(serverConfig.Port, "/userauthentication/"),
 		"application/x-www-form-urlencoded",
 		postBody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, 200, res.StatusCode)
-	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
-	body := readBody(res)
-	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
-	assert.Contains(t, body, "<p class=\"error\">")
+	assert.Equal(t, 302, res.StatusCode)
+	assert.Contains(t, res.Header.Get("Location"), "error=No+data+was+found+for+the+user+with+email+address")
 	assert.Equal(t, 0, controller.EmailSender.NumberOfEmailsSent, "EmailSender should NOT have been called")
 }
 
@@ -136,23 +138,20 @@ func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
+	client := createTestHttpClient()
 	formParams := url.Values{}
 	formParams.Set("email", TEST_USER_NO_TOKEN)
 	encodedParams := formParams.Encode()
 	postBody := strings.NewReader(encodedParams)
-	res, err := http.Post(
+	res := postWithOrigin(
+		t,
+		client,
 		createServerUrl(serverConfig.Port, "/userauthentication/"),
 		"application/x-www-form-urlencoded",
-		postBody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, 200, res.StatusCode)
-	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
-	body := readBody(res)
-	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
-	assert.Contains(t, body, "<p class=\"success\">")
-	assert.Contains(t, body, "An authentication token will be sent")
+		postBody,
+	)
+	assert.Equal(t, 302, res.StatusCode)
+	assert.Contains(t, res.Header.Get("Location"), "success=An+authentication+token+will+be+sent")
 	assert.Equal(t, 1, controller.EmailSender.NumberOfEmailsSent, "EmailSender should have been called")
 }
 
@@ -167,8 +166,8 @@ func TestUserAuthenticationWithUnknownToken(t *testing.T) {
 	assert.Equal(t, 200, res.StatusCode)
 	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
 	body := readBody(res)
-	assert.Contains(t, body, "<h1>Request Authentication Token</h1>")
-	assert.Contains(t, body, "<p class=\"error\">")
+	assert.Contains(t, body, "<h1>Request Login Link</h1>")
+	assert.Contains(t, body, "<p class=\"toast error\">")
 	assert.Contains(t, body, "Invalid token")
 }
 
@@ -243,17 +242,31 @@ func TestGetCommentFormWithExistingComment(t *testing.T) {
 	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
 }
 
-func postComment(t *testing.T, client *http.Client, formParams url.Values, postKey string) *http.Response {
-	encodedParams := formParams.Encode()
-	postBody := strings.NewReader(encodedParams)
-	res, err := client.Post(
-		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"),
-		"application/x-www-form-urlencoded",
-		postBody)
+func postWithOrigin(t *testing.T, client *http.Client, url string, contentType string, body io.Reader) *http.Response {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Origin", "http://localhost:"+strconv.Itoa(serverConfig.Port))
+
+	res, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return res
+}
+
+func postComment(t *testing.T, client *http.Client, formParams url.Values, postKey string) *http.Response {
+	encodedParams := formParams.Encode()
+	postBody := strings.NewReader(encodedParams)
+	return postWithOrigin(
+		t,
+		client,
+		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"),
+		"application/x-www-form-urlencoded",
+		postBody,
+	)
 }
 
 func TestCreateNewCommentUnauthenticated(t *testing.T) {
@@ -270,7 +283,8 @@ func TestCreateNewCommentUnauthenticated(t *testing.T) {
 	res := postComment(t, client, formParams, TEST_POSTKEY2)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
 	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
-	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, true)
+	// page should not show the comment since it is pending authentication
+	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, false)
 }
 
 func TestCreateNewCommentAuthenticated(t *testing.T) {
@@ -288,6 +302,12 @@ func TestCreateNewCommentAuthenticated(t *testing.T) {
 	res := postComment(t, client, formParams, TEST_POSTKEY2)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
 	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
+	// page should not show the comment since it is pending approval
+	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, false)
+	storedComment, err := controller.Store.FindCommentByContent(comment)
+	assert.NoError(t, err)
+	assert.Equal(t, domain.CommentStatusPendingApproval, storedComment.Status)
+	controller.Store.UpdateComment(storedComment.Id, domain.CommentStatusPendingApproval, storedComment.Comment, storedComment.Name, storedComment.Website)
 	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, true)
 }
 
@@ -488,14 +508,13 @@ func TestDeleteExistingCommentWithValidCommentId(t *testing.T) {
 }
 
 func deleteComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
-	res, err := client.Post(
+	return postWithOrigin(
+		t,
+		client,
 		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/delete"),
 		"application/x-www-form-urlencoded",
-		nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res
+		nil,
+	)
 }
 
 func TestDeleteExistingCommentWithInvalidCommentId(t *testing.T) {
@@ -544,14 +563,13 @@ func TestDeleteExistingCommentWithoutAuthentication(t *testing.T) {
 }
 
 func confirmComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
-	res, err := client.Post(
+	return postWithOrigin(
+		t,
+		client,
 		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/confirm"),
 		"application/x-www-form-urlencoded",
-		nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res
+		nil,
+	)
 }
 
 func TestConfirmExistingCommentWithAuthentication(t *testing.T) {
