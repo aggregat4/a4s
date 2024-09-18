@@ -3,13 +3,15 @@ package oidc
 import (
 	"encoding/base64"
 	"errors"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
+	"github.com/labstack/echo/v4"
 )
 
 var sessionCookieName = "baselib-oidc-session-cookie"
@@ -79,4 +81,40 @@ func CreateSessionBasedOidcDelegate(resolveUsername func(username string) (int, 
 			return c.Redirect(http.StatusFound, fallbackRedirectUrl)
 		}
 	}
+}
+
+// SetFlash sets a flash message with a given key (e.g., "success", "error")
+func SetFlash(c echo.Context, key, message string) error {
+	sess, err := session.Get(sessionCookieName, c)
+	if err != nil {
+		return err
+	}
+
+	sess.AddFlash(message, key)
+	return sess.Save(c.Request(), c.Response())
+}
+
+// GetFlashes retrieves and clears flash messages for the given keys
+func GetFlashes(c echo.Context) ([]string, []string, error) {
+	session, err := session.Get(sessionCookieName, c)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var successFlashes = getFlashes(session, "success")
+	var errorFlashes = getFlashes(session, "error")
+
+	session.Save(c.Request(), c.Response())
+	return successFlashes, errorFlashes, nil
+}
+
+func getFlashes(session *sessions.Session, key string) []string {
+	flashes := session.Flashes(key)
+	var flashesList []string
+	for _, flash := range flashes {
+		if msg, ok := flash.(string); ok {
+			flashesList = append(flashesList, msg)
+		}
+	}
+	return flashesList
 }
