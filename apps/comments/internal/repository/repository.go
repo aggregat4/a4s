@@ -133,19 +133,6 @@ func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
 	return mapComments(rows, store.Cipher)
 }
 
-func (store *Store) FindCommentByContent(comment string) (domain.Comment, error) {
-	commentEncrypted, err := crypto.EncryptAes256(comment, store.Cipher)
-	if err != nil {
-		return domain.Comment{}, err
-	}
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE comment_encrypted = ?", commentEncrypted)
-	if err != nil {
-		return domain.Comment{}, err
-	}
-	defer rows.Close()
-	return mapComment(rows, store.Cipher)
-}
-
 func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int, error) {
 	result, err := store.db.Exec("INSERT INTO services (service_key, origin) VALUES (?, ?)", serviceKey, serviceOrigin)
 	if err != nil {
