@@ -551,12 +551,12 @@ func (controller *Controller) PostComment(c echo.Context) error {
 			userId = user.Id
 		}
 		commentStatus := lang.IfElse(userAuthenticated, domain.CommentStatusPendingApproval, domain.CommentStatusPendingAuthentication)
-		commentId, err := controller.Store.CreateComment(
+		_, err = controller.Store.CreateComment(
 			commentStatus, service.Id, userId, postKey, commentContent, name, website)
 		if err != nil {
 			return sendInternalError(c, err)
 		}
-		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/"+strconv.Itoa(commentId))
+		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 	}
 }
 
