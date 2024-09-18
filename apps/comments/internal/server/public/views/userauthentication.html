@@ -15,15 +15,15 @@
     </header>
     <main>
         <h1>Request Login Link</h1>
-        {{if .Error}}
-            <p class="toast error">
-                {{.Error}}
-            </p>
+        {{range .Error}}
+        <p class="toast error">
+            {{.}}
+        </p>
         {{end}}
-        {{if .Success}}
-            <p class="toast success">
-                {{.Success}}
-            </p>
+        {{range .Success}}
+        <p class="toast success">
+            {{.}}
+        </p>
         {{end}}
         <form action="/userauthentication/" method="POST">
             <p class="documentation">

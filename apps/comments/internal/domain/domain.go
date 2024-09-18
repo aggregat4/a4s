@@ -63,6 +63,8 @@ type PostCommentsPage struct {
 	PostKey    string
 	UserId     int // can be empty, identified by -1
 	Comments   []Comment
+	Success    []string
+	Error      []string
 }
 
 type UserCommentsPage struct {
@@ -81,4 +83,10 @@ type AddOrEditCommentPage struct {
 	User         User
 	CommentFound bool
 	Comment      Comment
+}
+
+type UserAuthenticationPage struct {
+	EmailAddress string
+	Success      []string
+	Error        []string
 }

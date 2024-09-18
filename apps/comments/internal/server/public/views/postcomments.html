@@ -13,9 +13,14 @@
 <body>
 <header>
   <h1>Comments</h1>
+  {{range .Success}}
+  <p class="toast success">
+      {{.}}
+  </p>
+  {{end}}
   <a href="/services/{{.ServiceKey}}/posts/{{.PostKey}}/commentform">Add new Comment</a>
   {{if gt .UserId -1}}
-    <a href="/users/{{.UserId}}/comments">Manage Your Comments</a>
+    <a href="/users/{{.UserId}}/comments/">Manage Your Comments</a>
   {{else}}
     <a href="/userauthentication">Login to Manage Your Comments</a>
   {{end}}

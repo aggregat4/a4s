@@ -30,7 +30,7 @@
             <li>All comments are checked by a human before posting and may be rejected.</li>
         </ul>
     </p>
-    <form method="POST" action="/services/{{.ServiceKey}}/posts/{{.PostKey}}/comments">
+    <form method="POST" action="/services/{{.ServiceKey}}/posts/{{.PostKey}}/comments/">
         {{if .CommentFound}}
         <input type="hidden" name="commentId" value="{{.Comment.Id}}">
         {{end}}

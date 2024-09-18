@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -124,11 +123,11 @@ func InitServerWithOidcMiddleware(
 	// This should be configurable as the contents depend on the admin. Can we just serve a file?
 	// TODO: e.GET("/privacypolicy", controller.PrivacyPolicy)
 	// We can display all comments for a post
-	e.GET("/services/:serviceKey/posts/:postKey/comments", controller.GetComments)
+	e.GET("/services/:serviceKey/posts/:postKey/comments/", controller.GetComments)
 	// One can write a comment for a post, the comment form is prefilled if you are authenticated
 	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
 	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
-	e.POST("/services/:serviceKey/posts/:postKey/comments", controller.PostComment)
+	e.POST("/services/:serviceKey/posts/:postKey/comments/", controller.PostComment)
 
 	// ----- User Authentication
 	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
@@ -144,7 +143,7 @@ func InitServerWithOidcMiddleware(
 
 	// ---- AUTHENTICATED WITH AUTH TOKEN (normal user)
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
-	e.GET("/users/:userId/comments", controller.GetCommentsForUser)
+	e.GET("/users/:userId/comments/", controller.GetCommentsForUser)
 	// Allow a user to modify his comment
 	e.GET("/users/:userId/comments/:commentId/edit", controller.GetUserCommentForm)
 	// Users can delete comments, this redirects back to the comment overview page
@@ -184,11 +183,18 @@ func (controller *Controller) GetComments(c echo.Context) error {
 	if err != nil {
 		return sendInternalError(c, err)
 	}
+	successFlashes, errorFlashes, err := baseliboidc.GetFlashes(c)
+	if err != nil {
+		// TODO: consider not failing on just flash messages having an error, but also just log and ignore them
+		return sendInternalError(c, err)
+	}
 	c.Response().Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 	return c.Render(http.StatusOK, "postcomments", domain.PostCommentsPage{
 		ServiceKey: serviceKey,
 		PostKey:    postKey,
 		Comments:   comments,
+		Error:      errorFlashes,
+		Success:    successFlashes,
 	})
 }
 
@@ -197,17 +203,15 @@ func (controller *Controller) Status(c echo.Context) error {
 	return c.String(http.StatusOK, "OK")
 }
 
-type UserAuthenticationForm struct {
-	EmailAddress string
-	Success      string
-	Error        string
-}
-
 func (controller *Controller) GetUserAuthenticationForm(c echo.Context) error {
-	return c.Render(http.StatusOK, "userauthentication", UserAuthenticationForm{
+	successFlashes, errorFlashes, err := baseliboidc.GetFlashes(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return c.Render(http.StatusOK, "userauthentication", domain.UserAuthenticationPage{
 		EmailAddress: c.QueryParam("emailAddress"),
-		Error:        c.QueryParam("error"),
-		Success:      c.QueryParam("success"),
+		Error:        errorFlashes,
+		Success:      successFlashes,
 	})
 }
 
@@ -225,10 +229,8 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 	user, err := controller.Store.FindUserByEmail(emailAddress)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
-			params := url.Values{}
-			params.Set("emailAddress", emailAddress)
-			params.Set("error", "No data was found for the user with email address '"+emailAddress+"'")
-			return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+			baseliboidc.SetFlash(c, "error", "No data was found for the user with email address '"+emailAddress+"'")
+			return c.Redirect(http.StatusFound, "/userauthentication/")
 		}
 		return sendInternalError(c, err)
 	}
@@ -251,29 +253,25 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 		} else if user.AuthTokenSentToClient == 2 {
 			delay = 5 * time.Minute
 		}
-		params := url.Values{}
-		params.Set("email", emailAddress)
 		emailSuccessfullyQueued := controller.EmailSender.SendEmail(email.AuthenticationCodeEmail{
 			EmailAddress: emailAddress,
 			Code:         user.AuthToken,
 		})
 		if emailSuccessfullyQueued {
 			if delay > 0 {
-				params.Set("success", "An authentication token will be sent in "+delay.String()+".")
+				baseliboidc.SetFlash(c, "success", "An authentication token will be sent in "+delay.String()+".")
 			} else {
-				params.Set("success", "An authentication token is on the way, please check your email address.")
+				baseliboidc.SetFlash(c, "success", "An authentication token is on the way, please check your email address.")
 			}
 		} else {
 			// TODO error message too vague?
-			params.Set("error", "Could not send an email at this time, please try again later.")
+			baseliboidc.SetFlash(c, "error", "Could not send an email at this time, please try again later.")
 		}
-		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+		return c.Redirect(http.StatusFound, "/userauthentication/")
 	} else {
 		// let the user know they have to try again in 15 minutes
-		params := url.Values{}
-		params.Set("emailAddress", emailAddress)
-		params.Set("error", "Too many attempts were made to login for this user. Please try again in 15 minutes.")
-		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+		baseliboidc.SetFlash(c, "error", "Too many attempts were made to login for this user. Please try again in 15 minutes.")
+		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}
 }
 
@@ -284,15 +282,14 @@ func (controller *Controller) AuthenticateUser(c echo.Context) error {
 	}
 	user, err := controller.Store.FindUserByAuthToken(token)
 	if err != nil || !validToken(user) {
-		params := url.Values{}
-		params.Set("error", "Invalid token")
-		return c.Redirect(http.StatusFound, "/userauthentication/?"+params.Encode())
+		baseliboidc.SetFlash(c, "error", "Invalid token")
+		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}
 	err = createSessionCookie(c, user.Id)
 	if err != nil {
 		return sendInternalError(c, err)
 	}
-	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 }
 
 func handleAuthenticationError(c echo.Context, err error) error {
@@ -409,13 +406,13 @@ func (controller *Controller) DeleteUserComment(c echo.Context) error {
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
 			// TODO: toast to show that the comment has NOT been deleted
-			return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+			return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 		} else {
 			return sendInternalError(c, err)
 		}
 	}
 	// TODO: toast to show that the comment has been deleted
-	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 }
 
 func (controller *Controller) ConfirmUserComment(c echo.Context) error {
@@ -425,18 +422,18 @@ func (controller *Controller) ConfirmUserComment(c echo.Context) error {
 	}
 	if comment.Status != domain.CommentStatusPendingAuthentication {
 		// TODO: return to original page and show toast to indicate that the comment is not pending authentication
-		return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+		return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 	}
 	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusPendingApproval, comment.Comment, comment.Name, comment.Website)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
 			// TODO: toast to show that the comment could not be found for confirmation
-			return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+			return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 		} else {
 			return sendInternalError(c, err)
 		}
 	}
-	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments")
+	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 }
 
 func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo.Context) (domain.User, domain.Comment, error) {
@@ -523,7 +520,8 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		if err != nil {
 			return sendInternalError(c, err)
 		}
-		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/"+strconv.Itoa(comment.Id))
+		baseliboidc.SetFlash(c, "success", "Your comment has been updated")
+		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 
 	} else {
 		// This is a new comment, if the user is not autenticated we create a new user and store the comment as pending authentication
@@ -556,6 +554,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		if err != nil {
 			return sendInternalError(c, err)
 		}
+		baseliboidc.SetFlash(c, "success", "Your comment has been added")
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 	}
 }
