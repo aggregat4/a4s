@@ -64,25 +64,6 @@ func TestSingleCommentPostPage(t *testing.T) {
 	checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_APPROVED, true)
 }
 
-func checkCommentExistenceForPost(t *testing.T, postKey string, comment string, shouldContain bool) {
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, 200, res.StatusCode)
-	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
-	//assert.Equal(t, "no-store", res.Header.Get("Cache-Control"))
-	//assert.Contains(t, readBody(res), fmt.Sprintf("value=\"%s\"", TestState))
-	body := readBody(res)
-	assert.Contains(t, body, "<h1>Comments</h1>")
-	assert.Contains(t, body, "<dl class=\"comments\">")
-	if shouldContain {
-		assert.Contains(t, body, "<dd>"+comment, "Comment should be displayed")
-	} else {
-		assert.NotContains(t, body, "<dd>"+comment, "Comment should not be displayed")
-	}
-}
-
 func TestUserAuthenticationForm(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
@@ -179,20 +160,6 @@ func TestUserAuthenticationValidToken(t *testing.T) {
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 }
 
-func authenticateAndValidate(t *testing.T, client *http.Client, controller Controller, email string, token string) domain.User {
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+token))
-	if err != nil {
-		t.Fatal(err)
-	}
-	user, err := controller.Store.FindUserByEmail(email)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
-	return user
-}
-
 func TestUserAuthenticationExpiredToken(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
@@ -242,33 +209,6 @@ func TestGetCommentFormWithExistingComment(t *testing.T) {
 	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
 }
 
-func postWithOrigin(t *testing.T, client *http.Client, url string, contentType string, body io.Reader) *http.Response {
-	req, err := http.NewRequest("POST", url, body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Origin", "http://localhost:"+strconv.Itoa(serverConfig.Port))
-
-	res, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res
-}
-
-func postComment(t *testing.T, client *http.Client, formParams url.Values, postKey string) *http.Response {
-	encodedParams := formParams.Encode()
-	postBody := strings.NewReader(encodedParams)
-	return postWithOrigin(
-		t,
-		client,
-		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"),
-		"application/x-www-form-urlencoded",
-		postBody,
-	)
-}
-
 func TestCreateNewCommentUnauthenticated(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
@@ -305,22 +245,6 @@ func TestCreateNewCommentAuthenticated(t *testing.T) {
 	// page should not show the comment since it is pending approval
 	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, false)
 	checkCommentExistenceForUser(t, client, user.Id, comment, true)
-}
-
-func checkCommentExistenceForUser(t *testing.T, client *http.Client, userId int, comment string, expectedExistence bool) {
-	// get the user's post page and verify the comment is there in the pending approval section
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := readBody(res)
-	assert.Contains(t, body, "<h1>Your Comments</h1>")
-	assert.Contains(t, body, "<dl class=\"comments\">")
-	if expectedExistence {
-		assert.Contains(t, body, "<dd>"+comment)
-	} else {
-		assert.NotContains(t, body, "<dd>"+comment+"</dd>")
-	}
 }
 
 func TestCreateNewCommentWithMissingEmail(t *testing.T) {
@@ -521,16 +445,6 @@ func TestDeleteExistingCommentWithValidCommentId(t *testing.T) {
 	// checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION, false)
 }
 
-func deleteComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
-	return postWithOrigin(
-		t,
-		client,
-		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/delete"),
-		"application/x-www-form-urlencoded",
-		nil,
-	)
-}
-
 func TestDeleteExistingCommentWithInvalidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
@@ -574,16 +488,6 @@ func TestDeleteExistingCommentWithoutAuthentication(t *testing.T) {
 	res := deleteComment(t, client, 1, expectedCommentId)
 	assert.Equal(t, http.StatusFound, res.StatusCode, "Deleting comment without authentication should redirect to the userauthentication page")
 	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/userauthentication/"), "Deleting comment without authentication should redirect to the userauthentication page")
-}
-
-func confirmComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
-	return postWithOrigin(
-		t,
-		client,
-		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/confirm"),
-		"application/x-www-form-urlencoded",
-		nil,
-	)
 }
 
 func TestConfirmExistingCommentWithAuthentication(t *testing.T) {
@@ -652,4 +556,102 @@ func TestConfirmExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := confirmComment(t, client, user.Id, expectedCommentId)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Confirming comment with invalid user id should redirect to the user's comment overview page")
+}
+
+//// HELPER FUNCTIONS
+
+func confirmComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
+	return postWithOrigin(
+		t,
+		client,
+		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/confirm"),
+		"application/x-www-form-urlencoded",
+		nil,
+	)
+}
+
+func deleteComment(t *testing.T, client *http.Client, userId int, commentId int) *http.Response {
+	return postWithOrigin(
+		t,
+		client,
+		createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"+strconv.Itoa(commentId)+"/delete"),
+		"application/x-www-form-urlencoded",
+		nil,
+	)
+}
+
+func postComment(t *testing.T, client *http.Client, formParams url.Values, postKey string) *http.Response {
+	encodedParams := formParams.Encode()
+	postBody := strings.NewReader(encodedParams)
+	return postWithOrigin(
+		t,
+		client,
+		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"),
+		"application/x-www-form-urlencoded",
+		postBody,
+	)
+}
+
+func checkCommentExistenceForUser(t *testing.T, client *http.Client, userId int, comment string, expectedExistence bool) {
+	// get the user's post page and verify the comment is there in the pending approval section
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Your Comments</h1>")
+	assert.Contains(t, body, "<dl class=\"comments\">")
+	if expectedExistence {
+		assert.Contains(t, body, "<dd>"+comment)
+	} else {
+		assert.NotContains(t, body, "<dd>"+comment+"</dd>")
+	}
+}
+
+func checkCommentExistenceForPost(t *testing.T, postKey string, comment string, shouldContain bool) {
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 200, res.StatusCode)
+	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	//assert.Equal(t, "no-store", res.Header.Get("Cache-Control"))
+	//assert.Contains(t, readBody(res), fmt.Sprintf("value=\"%s\"", TestState))
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Comments</h1>")
+	assert.Contains(t, body, "<dl class=\"comments\">")
+	if shouldContain {
+		assert.Contains(t, body, "<dd>"+comment, "Comment should be displayed")
+	} else {
+		assert.NotContains(t, body, "<dd>"+comment, "Comment should not be displayed")
+	}
+}
+
+func authenticateAndValidate(t *testing.T, client *http.Client, controller Controller, email string, token string) domain.User {
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+token))
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := controller.Store.FindUserByEmail(email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, http.StatusFound, res.StatusCode)
+	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
+	return user
+}
+
+func postWithOrigin(t *testing.T, client *http.Client, url string, contentType string, body io.Reader) *http.Response {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Origin", "http://localhost:"+strconv.Itoa(serverConfig.Port))
+
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
 }
