@@ -15,6 +15,7 @@ type Config struct {
 	OidcRedirectUri           string `fig:"oidc_redirect_uri" validate:"required"`
 	EncryptionKey             string `fig:"encryption_key" validate:"required"`
 	SessionCookieSecretKey    string `fig:"session_cookie_secret_key" validate:"required"`
+	SessionCookieSecureFlag   bool   `fig:"session_cookie_secure_flag" default:"true"`
 }
 
 type User struct {

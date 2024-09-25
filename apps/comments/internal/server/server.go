@@ -96,7 +96,10 @@ func InitServerWithOidcMiddleware(
 	e.Use(httpResponseLogger)
 	e.Use(middleware.Recover())
 	sessionCookieSecretKey := controller.Config.SessionCookieSecretKey
-	e.Use(session.Middleware(sessions.NewCookieStore([]byte(sessionCookieSecretKey))))
+	cookieStore := sessions.NewCookieStore([]byte(sessionCookieSecretKey))
+	cookieStore.Options.Secure = controller.Config.SessionCookieSecureFlag
+	e.Use(session.Middleware(cookieStore))
+
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
 	// user authentication is required for pages related to a user's comments
 	e.Use(oidcMiddleware)

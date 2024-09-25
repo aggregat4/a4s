@@ -1,12 +1,13 @@
 package server
 
 import (
-	"github.com/labstack/echo/v4"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"testing"
 	"time"
+
+	"github.com/labstack/echo/v4"
 )
 
 func createMockOidcCallback() echo.HandlerFunc {
@@ -45,15 +46,21 @@ func readBody(res *http.Response) string {
 	return string(body)
 }
 
-func createTestHttpClient() *http.Client {
+func createTestHttpClient(followRedirects bool) *http.Client {
 	jar, _ := cookiejar.New(nil)
-	return &http.Client{
-		Jar: jar,
-		// we need to prevent the client from redirecting automatically since we may need to assert
-		// against the location header
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		//Transport: &http.Transport{DisableKeepAlives: true},
+	if !followRedirects {
+		return &http.Client{
+			Jar: jar,
+			// we need to prevent the client from redirecting automatically since we may need to assert
+			// against the location header
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+			//Transport: &http.Transport{DisableKeepAlives: true},
+		}
+	} else {
+		return &http.Client{
+			Jar: jar,
+		}
 	}
 }

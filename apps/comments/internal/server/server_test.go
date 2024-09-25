@@ -31,7 +31,7 @@ func TestInvalidService(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/foo/posts/bar/comments"))
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/foo/posts/bar/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestEmptyCommentsPage(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/bar/comments"))
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/bar/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestRequestAuthenticationLinkWithNoParams(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	res := postWithOrigin(
 		t,
 		client,
@@ -103,15 +103,16 @@ func TestRequestAuthenticationLinkWithNonExistingEmailParam(t *testing.T) {
 	formParams.Set("email", "foo@example.com")
 	encodedParams := formParams.Encode()
 	postBody := strings.NewReader(encodedParams)
-	client := createTestHttpClient()
+	client := createTestHttpClient(true)
 	res := postWithOrigin(
 		t,
 		client,
 		createServerUrl(serverConfig.Port, "/userauthentication/"),
 		"application/x-www-form-urlencoded",
 		postBody)
-	assert.Equal(t, 302, res.StatusCode)
-	assert.Contains(t, res.Header.Get("Location"), "error=No+data+was+found+for+the+user+with+email+address")
+	assert.Equal(t, 200, res.StatusCode)
+	body := readBody(res)
+	assert.Contains(t, body, "No data was found for the user with email")
 	assert.Equal(t, 0, controller.EmailSender.NumberOfEmailsSent, "EmailSender should NOT have been called")
 }
 
@@ -119,7 +120,7 @@ func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(true)
 	formParams := url.Values{}
 	formParams.Set("email", TEST_USER_NO_TOKEN)
 	encodedParams := formParams.Encode()
@@ -131,8 +132,9 @@ func TestRequestAuthenticationLinkWithExistingEmailParam(t *testing.T) {
 		"application/x-www-form-urlencoded",
 		postBody,
 	)
-	assert.Equal(t, 302, res.StatusCode)
-	assert.Contains(t, res.Header.Get("Location"), "success=An+authentication+token+will+be+sent")
+	assert.Equal(t, 200, res.StatusCode)
+	body := readBody(res)
+	assert.Contains(t, body, "An authentication token will be sent in")
 	assert.Equal(t, 1, controller.EmailSender.NumberOfEmailsSent, "EmailSender should have been called")
 }
 
@@ -140,7 +142,8 @@ func TestUserAuthenticationWithUnknownToken(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/userauthentication/INVALIDTOKEN"))
+	client := createTestHttpClient(true)
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/INVALIDTOKEN"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +159,7 @@ func TestUserAuthenticationValidToken(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 }
 
@@ -164,13 +167,16 @@ func TestUserAuthenticationExpiredToken(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(true)
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/userauthentication/"+TEST_AUTHTOKEN_EXPIRED))
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.Equal(t, "/userauthentication/?error=Invalid+token", res.Header.Get("Location"))
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	body := readBody(res)
+	assert.Contains(t, body, "<h1>Request Login Link</h1>")
+	assert.Contains(t, body, "<p class=\"toast error\">")
+	assert.Contains(t, body, "Invalid token")
 }
 
 func TestGetCommentForm(t *testing.T) {
@@ -186,14 +192,14 @@ func TestGetCommentForm(t *testing.T) {
 	body := readBody(res)
 	assert.Contains(t, body, "<title>New Comment</title>")
 	assert.Contains(t, body, "<h1>New Comment</h1>")
-	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments\">")
+	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/\">")
 }
 
 func TestGetCommentFormWithExistingComment(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/commentform?commentId="+strconv.Itoa(expectedCommentId)))
@@ -205,7 +211,7 @@ func TestGetCommentFormWithExistingComment(t *testing.T) {
 	body := readBody(res)
 	assert.Contains(t, body, "<title>Edit Comment</title>")
 	assert.Contains(t, body, "<h1>Edit Comment</h1>")
-	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments\">")
+	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/\">")
 	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
 }
 
@@ -213,7 +219,7 @@ func TestCreateNewCommentUnauthenticated(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	formParams := url.Values{}
 	formParams.Set("email", "foo@example.com")
 	formParams.Set("name", "John Foo")
@@ -222,7 +228,7 @@ func TestCreateNewCommentUnauthenticated(t *testing.T) {
 	formParams.Set("comment", comment)
 	res := postComment(t, client, formParams, TEST_POSTKEY2)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments/"))
 	// page should not show the comment since it is pending authentication
 	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, false)
 }
@@ -231,7 +237,7 @@ func TestCreateNewCommentAuthenticated(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	formParams := url.Values{}
 	formParams.Set("email", TEST_USER_AUTHTOKEN_VALID)
@@ -241,7 +247,7 @@ func TestCreateNewCommentAuthenticated(t *testing.T) {
 	formParams.Set("comment", comment)
 	res := postComment(t, client, formParams, TEST_POSTKEY2)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments"))
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY2+"/comments/"))
 	// page should not show the comment since it is pending approval
 	checkCommentExistenceForPost(t, TEST_POSTKEY2, comment, false)
 	checkCommentExistenceForUser(t, client, user.Id, comment, true)
@@ -251,7 +257,7 @@ func TestCreateNewCommentWithMissingEmail(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	formParams := url.Values{}
 	formParams.Set("name", "John Foo")
 	formParams.Set("website", "http://example.com")
@@ -265,7 +271,7 @@ func TestCreateNewCommentWithMissingComment(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	formParams := url.Values{}
 	formParams.Set("email", "foo@example.com")
 	formParams.Set("name", "John Foo")
@@ -278,13 +284,13 @@ func TestGetUserCommentsPage(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,13 +308,13 @@ func TestGetUserCommentsPageWithWrongUser(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(user.Id)+"/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +325,7 @@ func TestGetUserCommentForm(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	user, err := controller.Store.FindUserByEmail(TEST_USER_AUTHTOKEN_VALID)
 	if err != nil {
@@ -335,7 +341,7 @@ func TestGetUserCommentForm(t *testing.T) {
 	body := readBody(res)
 	assert.Contains(t, body, "<title>Edit Comment</title>")
 	assert.Contains(t, body, "<h1>Edit Comment</h1>")
-	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments\">")
+	assert.Contains(t, body, "<form method=\"POST\" action=\"/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/\">")
 	assert.Contains(t, body, "<input type=\"hidden\" name=\"commentId\" value=\""+strconv.Itoa(expectedCommentId)+"\">")
 }
 
@@ -343,7 +349,7 @@ func TestUpdateExistingCommentWithInvalidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	formParams := url.Values{}
 	formParams.Set("email", TEST_USER_AUTHTOKEN_VALID)
@@ -360,7 +366,7 @@ func TestUpdateExistingCommentWithValidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	formParams := url.Values{}
@@ -372,7 +378,7 @@ func TestUpdateExistingCommentWithValidCommentId(t *testing.T) {
 	formParams.Set("comment", comment)
 	res := postComment(t, client, formParams, TEST_POSTKEY1)
 	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments"))
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
 	checkCommentExistenceForUser(t, client, user.Id, comment, true)
 }
 
@@ -380,7 +386,7 @@ func TestUpdateExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID2, TEST_AUTHTOKEN_VALID2)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	formParams := url.Values{}
@@ -398,7 +404,7 @@ func TestUpdateExistingCommentWithoutAuthentication(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	formParams := url.Values{}
 	formParams.Set("email", TEST_USER_AUTHTOKEN_VALID)
@@ -415,7 +421,7 @@ func TestUpdateExistingCommentAsTheWrongUser(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID2, TEST_AUTHTOKEN_VALID2)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	formParams := url.Values{}
@@ -434,14 +440,14 @@ func TestDeleteExistingCommentWithValidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	// checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION, true)
 	checkCommentExistenceForUser(t, client, user.Id, TEST_COMMENT_PENDING_AUTHENTICATION, true)
 	res := deleteComment(t, client, user.Id, expectedCommentId)
 	assert.Equal(t, http.StatusFound, res.StatusCode, "Deleting comment should redirect to the user's comment overview page")
-	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/users/"+strconv.Itoa(user.Id)+"/comments"), "Deleting comment should redirect to the user's comment overview page")
+	assert.True(t, strings.HasPrefix(res.Header.Get("Location"), "/users/"+strconv.Itoa(user.Id)+"/comments/"), "Deleting comment should redirect to the user's comment overview page")
 	// checkCommentExistenceForPost(t, TEST_POSTKEY1, TEST_COMMENT_PENDING_AUTHENTICATION, false)
 }
 
@@ -449,7 +455,7 @@ func TestDeleteExistingCommentWithInvalidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := deleteComment(t, client, user.Id, expectedCommentId+1)
@@ -461,7 +467,7 @@ func TestDeleteExistingCommentWithInvalidUserId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := deleteComment(t, client, user.Id+1, expectedCommentId) // invalid user id
@@ -472,7 +478,7 @@ func TestDeleteExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient() // use a different client than the one used to create the comment
+	client := createTestHttpClient(false) // use a different client than the one used to create the comment
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID2, TEST_AUTHTOKEN_VALID2)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := deleteComment(t, client, user.Id, expectedCommentId)
@@ -483,7 +489,7 @@ func TestDeleteExistingCommentWithoutAuthentication(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := deleteComment(t, client, 1, expectedCommentId)
 	assert.Equal(t, http.StatusFound, res.StatusCode, "Deleting comment without authentication should redirect to the userauthentication page")
@@ -494,7 +500,7 @@ func TestConfirmExistingCommentWithAuthentication(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	comment, err := controller.Store.GetComment(expectedCommentId)
@@ -516,7 +522,7 @@ func TestConfirmExistingCommentWithoutAuthentication(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := confirmComment(t, client, 1, expectedCommentId)
 	assert.Equal(t, http.StatusFound, res.StatusCode, "Confirming comment without authentication should redirect to the userauthentication page")
@@ -527,7 +533,7 @@ func TestConfirmExistingCommentWithInvalidCommentId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := confirmComment(t, client, user.Id, expectedCommentId+1)
@@ -540,7 +546,7 @@ func TestConfirmExistingCommentWithInvalidUserId(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID, TEST_AUTHTOKEN_VALID)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := confirmComment(t, client, user.Id+1, expectedCommentId)
@@ -551,7 +557,7 @@ func TestConfirmExistingCommentWithValidCommentIdButWrongUser(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
-	client := createTestHttpClient()
+	client := createTestHttpClient(false)
 	user := authenticateAndValidate(t, client, controller, TEST_USER_AUTHTOKEN_VALID2, TEST_AUTHTOKEN_VALID2)
 	expectedCommentId := findCommentByContent(TEST_COMMENTS, TEST_COMMENT_PENDING_AUTHENTICATION).Id
 	res := confirmComment(t, client, user.Id, expectedCommentId)
@@ -586,7 +592,7 @@ func postComment(t *testing.T, client *http.Client, formParams url.Values, postK
 	return postWithOrigin(
 		t,
 		client,
-		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"),
+		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments/"),
 		"application/x-www-form-urlencoded",
 		postBody,
 	)
@@ -594,7 +600,7 @@ func postComment(t *testing.T, client *http.Client, formParams url.Values, postK
 
 func checkCommentExistenceForUser(t *testing.T, client *http.Client, userId int, comment string, expectedExistence bool) {
 	// get the user's post page and verify the comment is there in the pending approval section
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(userId)+"/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -609,7 +615,7 @@ func checkCommentExistenceForUser(t *testing.T, client *http.Client, userId int,
 }
 
 func checkCommentExistenceForPost(t *testing.T, postKey string, comment string, shouldContain bool) {
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments"))
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+postKey+"/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -637,7 +643,7 @@ func authenticateAndValidate(t *testing.T, client *http.Client, controller Contr
 		t.Fatal(err)
 	}
 	assert.Equal(t, http.StatusFound, res.StatusCode)
-	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments", res.Header.Get("Location"))
+	assert.Equal(t, "/users/"+strconv.Itoa(user.Id)+"/comments/", res.Header.Get("Location"))
 	return user
 }
 

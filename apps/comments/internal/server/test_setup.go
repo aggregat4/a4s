@@ -4,11 +4,12 @@ import (
 	"aggregat4/go-commentservice/internal/domain"
 	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
-	"github.com/aggregat4/go-baselib/crypto"
-	"github.com/labstack/echo/v4"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/labstack/echo/v4"
 )
 
 var TEST_ENCRYPTIONKEY = "12345678901234567890123456789012"
@@ -47,6 +48,7 @@ var serverConfig = domain.Config{
 	OidcRedirectUri:           "",
 	EncryptionKey:             "testencryptionkey",
 	SessionCookieSecretKey:    "testsessioncookiesecretkey",
+	SessionCookieSecureFlag:   false,
 }
 
 func findCommentByContent(comments []domain.Comment, content string) domain.Comment {
