@@ -264,7 +264,7 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 			if delay > 0 {
 				baseliboidc.SetFlash(c, "success", "An authentication token will be sent in "+delay.String()+".")
 			} else {
-				baseliboidc.SetFlash(c, "success", "An authentication token is on the way, please check your email address.")
+				baseliboidc.SetFlash(c, "success", "An authentication token is on the way, please check your email.")
 			}
 		} else {
 			// TODO error message too vague?
