@@ -48,7 +48,11 @@ func IsAuthenticated(c echo.Context) bool {
 	}
 }
 
-func CreateSessionBasedOidcDelegate(resolveUsername func(username string) (int, error), fallbackRedirectUrl string, claims interface{}) func(c echo.Context, idToken *oidc.IDToken, state string) error {
+func CreateSessionBasedOidcDelegate(resolveUsername func(username string) (int, error), fallbackRedirectUrl string) func(c echo.Context, idToken *oidc.IDToken, state string) error {
+	return CreateSessionBasedOidcDelegateWithClaims(resolveUsername, fallbackRedirectUrl, nil)
+}
+
+func CreateSessionBasedOidcDelegateWithClaims(resolveUsername func(username string) (int, error), fallbackRedirectUrl string, claims interface{}) func(c echo.Context, idToken *oidc.IDToken, state string) error {
 	return func(c echo.Context, idToken *oidc.IDToken, state string) error {
 		// we now have a valid ID token, to progress in the application we need to map this
 		// to an existing user or create a new one on demand
@@ -60,12 +64,14 @@ func CreateSessionBasedOidcDelegate(resolveUsername func(username string) (int, 
 		}
 		// we have a valid user, we can now create a session and redirect to the original request
 		sess, _ := session.Get(sessionCookieName, c)
-		if err := idToken.Claims(&claims); err != nil {
-			log.Println("Error retrieving claims: ", err)
-			return c.Render(http.StatusInternalServerError, "error-internal", nil)
-		}
 		sess.Values["userid"] = userId
-		sess.Values["userclaims"] = claims
+		if claims != nil {
+			if err := idToken.Claims(&claims); err != nil {
+				log.Println("Error retrieving claims: ", err)
+				return c.Render(http.StatusInternalServerError, "error-internal", nil)
+			}
+			sess.Values["userclaims"] = claims
+		}
 		err = sess.Save(c.Request(), c.Response())
 		if err != nil {
 			log.Println(err)
