@@ -52,7 +52,7 @@ func CreateSessionBasedOidcDelegate(resolveUsername func(username string) (int, 
 	return CreateSessionBasedOidcDelegateWithClaims(resolveUsername, fallbackRedirectUrl, nil)
 }
 
-func CreateSessionBasedOidcDelegateWithClaims(resolveUsername func(username string) (int, error), fallbackRedirectUrl string, claims interface{}) func(c echo.Context, idToken *oidc.IDToken, state string) error {
+func CreateSessionBasedOidcDelegateWithClaims(resolveUsername func(username string) (int, error), fallbackRedirectUrl string, claimsFactory func() interface{}) func(c echo.Context, idToken *oidc.IDToken, state string) error {
 	return func(c echo.Context, idToken *oidc.IDToken, state string) error {
 		// we now have a valid ID token, to progress in the application we need to map this
 		// to an existing user or create a new one on demand
@@ -65,7 +65,8 @@ func CreateSessionBasedOidcDelegateWithClaims(resolveUsername func(username stri
 		// we have a valid user, we can now create a session and redirect to the original request
 		sess, _ := session.Get(sessionCookieName, c)
 		sess.Values["userid"] = userId
-		if claims != nil {
+		if claimsFactory != nil {
+			claims := claimsFactory()
 			if err := idToken.Claims(&claims); err != nil {
 				log.Println("Error retrieving claims: ", err)
 				return c.Render(http.StatusInternalServerError, "error-internal", nil)
