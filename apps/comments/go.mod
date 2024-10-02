@@ -6,7 +6,7 @@ toolchain go1.23.1
 
 require (
 	github.com/aggregat4/go-baselib v1.4.0
-	github.com/aggregat4/go-baselib-services/v2 v2.2.0
+	github.com/aggregat4/go-baselib-services/v2 v2.3.1
 	github.com/google/uuid v1.6.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/kkyr/fig v0.4.0
@@ -41,3 +41,6 @@ require (
 	golang.org/x/time v0.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// we use a local version of baseliboidc until the changes are merged and a new release is made
+// replace github.com/aggregat4/go-baselib-services/v2 => ../go-baselib-services
