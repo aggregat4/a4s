@@ -1,0 +1,52 @@
+{{define "admin-dashboard"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <!-- <link rel="icon" href="/images/delicious.png"> -->
+  <link rel="stylesheet" href="/css/pico.classless.min.css">
+  <link rel="stylesheet" href="/css/main.css">
+  <script src="js/components.js"></script>
+</head>
+<body>
+<header>
+  <h1>Admin Dashboard</h1>
+  {{range .Success}}
+  <p class="toast success">
+      {{.}}
+  </p>
+  {{end}}
+  {{range .Error}}
+  <p class="toast error">
+      {{.}}
+  </p>
+  {{end}}
+</header>
+<main>
+  <dl class="comments">
+    {{range .Comments}}
+        <dt class="{{if eq .Status 1}}pending{{end}}{{if eq .Status 3}}approved{{end}}{{if eq .Status 4}}rejected{{end}}">
+            <span class="author">
+              {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
+              {{if .Website}}
+                <a href="{{.Website}}">{{.Website}}</a>
+            {{end}}
+            </span>            
+            <div class="actionbar">
+                <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
+                {{if eq .Status 1}}
+                <action-confirmation actionName="Confirm" actionUrl="/users/{{$.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>
+                {{end}}
+                <action-confirmation actionName="Delete" actionUrl="/users/{{$.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
+            </div>
+        </dt>
+        <dd>{{.Comment}}</dd>
+    {{end}}
+</dl>
+</main>
+</body>
+</html>
+{{end}}

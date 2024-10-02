@@ -15,7 +15,7 @@ func sendInternalError(c echo.Context, err error) error {
 
 func csrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		// CSRF check unnecessary for GET and HEAD requests and the Origin header won't be available anyway
+		// CSRF check unnecessary for GET and HEAD requests as they are safe and idempotent and the Origin header won't be available anyway
 		if c.Request().Method == "HEAD" || c.Request().Method == "GET" {
 			return next(c)
 		}

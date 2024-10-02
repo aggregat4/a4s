@@ -19,11 +19,13 @@
   </p>
   {{end}}
   <a href="/services/{{.ServiceKey}}/posts/{{.PostKey}}/commentform">Add new Comment</a>
+  <nav>
   {{if gt .UserId -1}}
     <a href="/users/{{.UserId}}/comments/">Manage Your Comments</a>
   {{else}}
     <a href="/userauthentication">Login to Manage Your Comments</a>
   {{end}}
+  </nav>
 </header>
 <main>
 <dl class="comments">

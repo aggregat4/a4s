@@ -133,6 +133,20 @@ func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
 	return mapComments(rows, store.Cipher)
 }
 
+func (store *Store) GetAllComments(showUnauthenticated bool) ([]domain.Comment, error) {
+	query := "SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments"
+	if !showUnauthenticated {
+		query += " WHERE status != ?"
+	}
+	query += " ORDER BY created_at DESC"
+	rows, err := store.db.Query(query, domain.CommentStatusPendingAuthentication)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return mapComments(rows, store.Cipher)
+}
+
 func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int, error) {
 	result, err := store.db.Exec("INSERT INTO services (service_key, origin) VALUES (?, ?)", serviceKey, serviceOrigin)
 	if err != nil {

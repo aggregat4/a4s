@@ -2,12 +2,13 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
+	"net/http"
+
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"net/http"
 )
 
 var authenticatedUserCookieName = "commentservice-authenticated-user"
@@ -24,7 +25,19 @@ func getUserIdFromSession(c echo.Context) (int, error) {
 	}
 }
 
-func createSessionCookie(c echo.Context, userId int) error {
+func getUserRolesFromSession(c echo.Context) ([]string, error) {
+	sess, err := session.Get(authenticatedUserCookieName, c)
+	if err != nil {
+		return nil, err
+	}
+	if sess.Values["userroles"] != nil {
+		return sess.Values["userroles"].([]string), nil
+	} else {
+		return nil, lang.ErrNotFound
+	}
+}
+
+func createSessionCookie(c echo.Context, userId int, userRoles []string) error {
 	// we have a valid user, we can now create a session and redirect to the original request
 	sess, err := session.Get(authenticatedUserCookieName, c)
 	if err != nil {
@@ -39,6 +52,7 @@ func createSessionCookie(c echo.Context, userId int) error {
 		SameSite: http.SameSiteLaxMode,
 	}
 	sess.Values["userid"] = userId
+	sess.Values["userroles"] = userRoles
 	err = sess.Save(c.Request(), c.Response())
 	if err != nil {
 		return sendInternalError(c, err)

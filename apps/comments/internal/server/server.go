@@ -65,11 +65,15 @@ func InitServer(controller Controller) *echo.Echo {
 			// we only want authentication on admin endpoints
 			return !strings.HasPrefix(c.Path(), "/admin")
 		})
-	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(baseliboidc.CreateSessionBasedOidcDelegate(
-		func(username string) (int, error) {
-			//return controller.Store.FindOrCreateUser(username)
-			return 0, errors.New("not implemented")
-		}, "/admin"))
+	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(
+		baseliboidc.CreateSessionBasedOidcDelegateWithClaims(
+			func(username string) (interface{}, error) {
+				return domain.AdminUser{UserId: username}, nil
+			},
+			"/admin", // TODO: change fallback URI
+			func() interface{} {
+				return domain.AdminClaims{ServiceAdmin: false}
+			}))
 	return InitServerWithOidcMiddleware(
 		controller,
 		oidcMiddleware.CreateOidcMiddleware(baseliboidc.IsAuthenticated),
@@ -99,7 +103,6 @@ func InitServerWithOidcMiddleware(
 	cookieStore := sessions.NewCookieStore([]byte(sessionCookieSecretKey))
 	cookieStore.Options.Secure = controller.Config.SessionCookieSecureFlag
 	e.Use(session.Middleware(cookieStore))
-
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
 	// user authentication is required for pages related to a user's comments
 	e.Use(oidcMiddleware)
@@ -131,7 +134,6 @@ func InitServerWithOidcMiddleware(
 	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
 	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
 	e.POST("/services/:serviceKey/posts/:postKey/comments/", controller.PostComment)
-
 	// ----- User Authentication
 	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
 	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
@@ -143,7 +145,6 @@ func InitServerWithOidcMiddleware(
 	// After authenticating the user:
 	// 1. sets a cookie with the userId
 	// 2. redirects to a user's comment overview and management page
-
 	// ---- AUTHENTICATED WITH AUTH TOKEN (normal user)
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
 	e.GET("/users/:userId/comments/", controller.GetCommentsForUser)
@@ -156,13 +157,7 @@ func InitServerWithOidcMiddleware(
 	// Users can update comments: see the PostComment route under /services/:serviceKey/posts/:postKey/comments
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
-	// Service administrators can access a service comment dashboard where they can approve or deny comments
-	// They require successful OIDC authentication and they require the "service-admin" value as part of the values
-	// in the "roles" claim
-	// We need to store not only the user Id but also the admin's claims in his cookie here so we can always verify he or she has acces
-	// to the particular service
-	// Don't show unauthenticated comments by default
-	// TODO: e.GET("/admin", controller.GetCommentAdminOverview)
+	e.GET("/admin", controller.GetAdminDashboard)
 
 	return e
 }
@@ -288,7 +283,8 @@ func (controller *Controller) AuthenticateUser(c echo.Context) error {
 		baseliboidc.SetFlash(c, "error", "Invalid token")
 		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}
-	err = createSessionCookie(c, user.Id)
+	// This is a normal user, not an admin
+	err = createSessionCookie(c, user.Id, []string{})
 	if err != nil {
 		return sendInternalError(c, err)
 	}
@@ -560,6 +556,54 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		baseliboidc.SetFlash(c, "success", "Your comment has been added")
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 	}
+}
+
+// Service administrators can access a service comment dashboard where they can approve or deny comments
+// They require successful OIDC authentication and they require the "service-admin" value as part of the values
+// in the "roles" claim. In the current model the admin is admin over all services on this server.
+// We need to store not only the user Id but also the admin's claims in his cookie here so we can always verify he or she has acces
+// to the particular service
+// Don't show unauthenticated comments by default
+func (controller *Controller) GetAdminDashboard(c echo.Context) error {
+	user, err := getUserFromSession(c, controller)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	// Verify that the user has the service admin role
+	if !user.Claims.ServiceAdmin {
+		return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+	}
+
+	// // Fetch all services
+	// services, err := controller.Store.GetAllServices()
+	// if err != nil {
+	// 	return sendInternalError(c, err)
+	// }
+
+	// Fetch comments for all services, default to not showing unauthenticated comments
+	showUnauthenticated := c.QueryParam("showUnauthenticated") == "true"
+	comments, err := controller.Store.GetAllComments(showUnauthenticated)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	// Get flash messages
+	successFlashes, errorFlashes, err := baseliboidc.GetFlashes(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	// Prepare data for the dashboard
+	dashboardData := domain.AdminDashboardPage{
+		User: user,
+		// Services:            services,
+		Comments:            comments,
+		ShowUnauthenticated: showUnauthenticated,
+		Success:             successFlashes,
+		Error:               errorFlashes,
+	}
+
+	return c.Render(http.StatusOK, "admin-dashboard", dashboardData)
 }
 
 func customHTTPErrorHandler(err error, c echo.Context) {
