@@ -1,7 +1,8 @@
 
 # TODO
 
-1. Introduced the concept of the admin user that is authenticated through OIDC. This user does not have the same form as a normal user at all. I was originally planning to use the same session cookie for this as for the normal user, but I'm not sure anymore. See `AuthenticateUser` and `createSessionCookie`. How do I model the two user types and their persistent session?
+
+1. Style the admin dashboard
 1. What should be in a `<header>` element and what not? Should the title of the page and any specific actions or links be in the header or not? Tending towards putting them in main and only reserving header for sitewide things?
 2. Make the server cookie settings configurable
 2. Figure out the navigation story: there are a lot of pages and we have embeded
