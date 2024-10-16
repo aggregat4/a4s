@@ -38,9 +38,9 @@
             <div class="actionbar">
                 <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
                 {{if eq .Status 1}}
-                <action-confirmation actionName="Confirm" actionUrl="/users/{{$.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>
+                <action-confirmation actionName="Confirm Comment" actionUrl="/admin/comments/{{.Id}}/confirm"></action-confirmation>
                 {{end}}
-                <action-confirmation actionName="Delete" actionUrl="/users/{{$.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
+                <action-confirmation actionName="Delete Comment" actionUrl="/admin/comments/{{.Id}}/delete"></action-confirmation>
             </div>
         </dt>
         <dd>{{.Comment}}</dd>
