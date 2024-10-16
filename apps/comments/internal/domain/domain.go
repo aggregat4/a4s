@@ -26,16 +26,12 @@ type User struct {
 	AuthTokenSentToClient int
 }
 
-type AdminUser struct {
-	UserId string
-}
-
-type AdminClaims struct {
-	ServiceAdmin bool
-}
-
 func (u User) IsValid() bool {
 	return u.Id != 0
+}
+
+type AdminUser struct {
+	UserId string
 }
 
 type Service struct {
@@ -101,8 +97,7 @@ type UserAuthenticationPage struct {
 }
 
 type AdminDashboardPage struct {
-	User User
-	// Services            []Service
+	AdminUser           AdminUser
 	Comments            []Comment
 	ShowUnauthenticated bool
 	Success             []string

@@ -25,23 +25,22 @@ func getUserIdFromSession(c echo.Context) (int, error) {
 	}
 }
 
-func getUserRolesFromSession(c echo.Context) ([]string, error) {
+func getAdminUserIdFromSession(c echo.Context) (string, error) {
 	sess, err := session.Get(authenticatedUserCookieName, c)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	if sess.Values["userroles"] != nil {
-		return sess.Values["userroles"].([]string), nil
+	if sess.Values["adminuserid"] != nil {
+		return sess.Values["adminuserid"].(string), nil
 	} else {
-		return nil, lang.ErrNotFound
+		return "", lang.ErrNotFound
 	}
 }
 
-func createSessionCookie(c echo.Context, userId int, userRoles []string) error {
-	// we have a valid user, we can now create a session and redirect to the original request
+func createSessionCookie(c echo.Context) (*sessions.Session, error) {
 	sess, err := session.Get(authenticatedUserCookieName, c)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sess.Options = &sessions.Options{
 		Path: "/", // TODO: this path is not context path safe
@@ -51,8 +50,28 @@ func createSessionCookie(c echo.Context, userId int, userRoles []string) error {
 		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 	}
+	return sess, nil
+}
+
+func createUseSessionCookie(c echo.Context, userId int) error {
+	sess, err := createSessionCookie(c)
+	if err != nil {
+		return err
+	}
 	sess.Values["userid"] = userId
-	sess.Values["userroles"] = userRoles
+	err = sess.Save(c.Request(), c.Response())
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return nil
+}
+
+func createAdminSessionCookie(c echo.Context, adminUserId string) error {
+	sess, err := createSessionCookie(c)
+	if err != nil {
+		return err
+	}
+	sess.Values["adminuserid"] = adminUserId
 	err = sess.Save(c.Request(), c.Response())
 	if err != nil {
 		return sendInternalError(c, err)

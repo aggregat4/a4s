@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
-	baseliboidc "github.com/aggregat4/go-baselib-services/v2/oidc"
+	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
 	"github.com/aggregat4/go-baselib/lang"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -66,17 +67,18 @@ func InitServer(controller Controller) *echo.Echo {
 			return !strings.HasPrefix(c.Path(), "/admin")
 		})
 	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(
-		baseliboidc.CreateSessionBasedOidcDelegateWithClaims(
-			func(username string) (interface{}, error) {
-				return domain.AdminUser{UserId: username}, nil
+		baseliboidc.CreateSessionBasedOidcDelegate(
+			func(c echo.Context, idToken *oidc.IDToken) error {
+				return createAdminSessionCookie(c, idToken.Subject)
 			},
 			"/admin", // TODO: change fallback URI
-			func() interface{} {
-				return domain.AdminClaims{ServiceAdmin: false}
-			}))
+		))
 	return InitServerWithOidcMiddleware(
 		controller,
-		oidcMiddleware.CreateOidcMiddleware(baseliboidc.IsAuthenticated),
+		oidcMiddleware.CreateOidcMiddleware(func(c echo.Context) bool {
+			_, err := getAdminUserIdFromSession(c)
+			return err == nil
+		}),
 		oidcCallback)
 }
 
@@ -284,7 +286,7 @@ func (controller *Controller) AuthenticateUser(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}
 	// This is a normal user, not an admin
-	err = createSessionCookie(c, user.Id, []string{})
+	err = createUseSessionCookie(c, user.Id)
 	if err != nil {
 		return sendInternalError(c, err)
 	}
@@ -565,13 +567,11 @@ func (controller *Controller) PostComment(c echo.Context) error {
 // to the particular service
 // Don't show unauthenticated comments by default
 func (controller *Controller) GetAdminDashboard(c echo.Context) error {
-	user, err := getUserFromSession(c, controller)
-	if err != nil {
+	adminUserId, err := getAdminUserIdFromSession(c)
+	if err != nil && !errors.Is(err, lang.ErrNotFound) {
 		return sendInternalError(c, err)
-	}
-	// Verify that the user has the service admin role
-	if !user.Claims.ServiceAdmin {
-		return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+	} else if err != nil {
+		return c.Redirect(http.StatusUnauthorized, "/userauthentication/")
 	}
 
 	// // Fetch all services
@@ -595,8 +595,7 @@ func (controller *Controller) GetAdminDashboard(c echo.Context) error {
 
 	// Prepare data for the dashboard
 	dashboardData := domain.AdminDashboardPage{
-		User: user,
-		// Services:            services,
+		AdminUser:           domain.AdminUser{UserId: adminUserId},
 		Comments:            comments,
 		ShowUnauthenticated: showUnauthenticated,
 		Success:             successFlashes,
