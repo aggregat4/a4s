@@ -1,6 +1,23 @@
 /**
- * This is a custom element that shows an inline confirmation UI before executing an action. Instead of being a modal
+ * ActionConfirmation - This is a custom element that shows an inline confirmation UI before executing an action. Instead of being a modal
  * dialog it, the action button gets replaced with a cancel and confirm button in-place.
+ * 
+ * @attribute {string} actionName - The text to display on the action button.
+ * @attribute {string} actionUrl - The URL to submit the form to when confirmed.
+ * @attribute {string} [payloadName] - The name of the hidden input field for additional data, if specified then payloadContent
+ *                                     must also be specified. The payload is optional.
+ * @attribute {string} [payloadContent] - The value of the hidden payload input field.
+ * @attribute {boolean} [directionLeftRight] - If true or omitted, places the cancel button to the left of the action button.
+ *                                             If false, places the action button to the left.
+ * 
+ * @example
+ * <action-confirmation 
+ *   actionName="Delete" 
+ *   actionUrl="/delete-item" 
+ *   payloadName="itemId" 
+ *   payloadContent="123" 
+ *   directionLeftRight="false">
+ * </action-confirmation>
  */
 class ActionConfirmation extends HTMLElement {
   constructor() {
@@ -22,10 +39,10 @@ class ActionConfirmation extends HTMLElement {
     const payloadContent = this.getAttribute('payloadContent');
     const actionName = this.getAttribute('actionName');
     const actionUrl = this.getAttribute('actionUrl');
+    const directionLeftRight = (this.getAttribute('directionLeftRight') == null || this.getAttribute('directionLeftRight') === 'true');
     // We calculate the minimum width of the action button based on the action name length to make the form layout
     // We need this to make sure that when we click on the confirm button, the cursor is not accidentally over the actual action but always over cancel
-    const actionNameNumChars = actionName.length;
-    
+    const actionNameNumChars = actionName.length;    
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -43,11 +60,12 @@ class ActionConfirmation extends HTMLElement {
         }
       </style>
       <form class="action-form" method="post" action="${actionUrl}">
-        <button class="confirm">${actionName}...</button>
-        <button class="cancel hidden">Cancel</button>` +
+        <button class="confirm">${actionName}...</button>` +
         ((payloadName && payloadContent) ? `<input type="hidden" name="${payloadName}" value="${payloadContent}"/>` : ``) +
-`       <button class="action hidden">${actionName}!</button>
-      </form>`;
+        (directionLeftRight 
+          ? `<button class="cancel hidden">Cancel</button><button class="action hidden">${actionName}!</button>` 
+          : `<button class="action hidden">${actionName}!</button><button class="cancel hidden">Cancel</button>`) +
+`      </form>`;
   }
 
   #confirmListener = null;

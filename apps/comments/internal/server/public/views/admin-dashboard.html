@@ -29,20 +29,21 @@
   <dl class="comments">
     {{range .Comments}}
         <dt class="{{if eq .Status 1}}pending{{end}}{{if eq .Status 3}}approved{{end}}{{if eq .Status 4}}rejected{{end}}">
-            <span class="author">
+            <div>
+              <span class="author">
               {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
               {{if .Website}}
-                <a href="{{.Website}}">{{.Website}}</a>
-            {{end}}
-            </span>            
-            <div class="actionbar">
-                <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
-                {{if eq .Status 1}}
-                <action-confirmation actionName="Confirm Comment" actionUrl="/admin/comments/{{.Id}}/confirm"></action-confirmation>
-                {{end}}
-                <action-confirmation actionName="Delete Comment" actionUrl="/admin/comments/{{.Id}}/delete"></action-confirmation>
+                , <a href="{{.Website}}">{{.Website}}</a>
+              {{end}}
+              </span>, <time datetime="{{.CreatedAt.Format "2024-01-01T00:00:00Z"}}">{{.CreatedAt.Format "Jan 02, 2006"}}</time>
             </div>
-        </dt>
+            <div class="actionbar">
+              {{if eq .Status 1}}
+              <action-confirmation actionName="Confirm" actionUrl="/admin/comments/{{.Id}}/confirm" directionLeftRight="false"></action-confirmation>
+              {{end}}
+              <action-confirmation actionName="Delete" actionUrl="/admin/comments/{{.Id}}/delete" directionLeftRight="false"></action-confirmation>
+          </div>
+      </dt>
         <dd>{{.Comment}}</dd>
     {{end}}
 </dl>

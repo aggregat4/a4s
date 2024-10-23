@@ -54,3 +54,30 @@ ul.hanging-indent {
     list-style-position: outside;
     padding-left: 0;
 }
+
+dl.comments {
+    max-width: 66ch;
+}
+
+dl.comments dt {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+dl.comments dd {
+    margin-bottom: 24px;
+}
+
+.actionbar {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+}
+
+dl.comments dt time {
+    white-space: nowrap;
+    font-weight: italic;
+    font-size: 0.8em;
+    color: #555;
+}
