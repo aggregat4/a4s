@@ -159,7 +159,10 @@ func InitServerWithOidcMiddleware(
 	// Users can update comments: see the PostComment route under /services/:serviceKey/posts/:postKey/comments
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
+	e.GET("/adminlogin", controller.GetAdminLoginForm)
 	e.GET("/admin", controller.GetAdminDashboard)
+	e.POST("/admin/comments/:commentId/approve", controller.AdminApproveComment)
+	e.POST("/admin/comments/:commentId/delete", controller.AdminDeleteComment)
 
 	return e
 }
@@ -437,15 +440,22 @@ func (controller *Controller) ConfirmUserComment(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 }
 
-func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo.Context) (domain.User, domain.Comment, error) {
-	// get and validate url parameters
-	userIdString := c.Param("userId")
+func (controller *Controller) requireCommentAndRetrieve(c echo.Context) (domain.Comment, error) {
 	commentIdString := c.Param("commentId")
-	if userIdString == "" || commentIdString == "" {
-		return domain.User{}, domain.Comment{}, c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	if commentIdString == "" {
+		return domain.Comment{}, ErrIllegalArgument
 	}
 	commentId, err := strconv.Atoi(commentIdString)
 	if err != nil {
+		return domain.Comment{}, ErrIllegalArgument
+	}
+	return controller.Store.GetComment(commentId)
+}
+
+func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo.Context) (domain.User, domain.Comment, error) {
+	// resolve and validate user
+	userIdString := c.Param("userId")
+	if userIdString == "" {
 		return domain.User{}, domain.Comment{}, c.Render(http.StatusBadRequest, "error-badrequest", nil)
 	}
 	userId, err := strconv.Atoi(userIdString)
@@ -461,18 +471,24 @@ func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo
 		return domain.User{}, domain.Comment{}, c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 	}
 	// retrieve comment
-	comment, err := controller.Store.GetComment(commentId)
+	comment, err := controller.requireCommentAndRetrieve(c)
 	if err != nil {
-		if errors.Is(err, lang.ErrNotFound) {
-			return domain.User{}, domain.Comment{}, c.Render(http.StatusNotFound, "error-notfound", nil)
-		} else {
-			return domain.User{}, domain.Comment{}, sendInternalError(c, err)
-		}
+		return domain.User{}, domain.Comment{}, handleCommonErrors(c, err)
 	}
 	if comment.UserId != user.Id {
 		return domain.User{}, domain.Comment{}, c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 	}
 	return user, comment, nil
+}
+
+func handleCommonErrors(c echo.Context, err error) error {
+	if errors.Is(err, lang.ErrNotFound) {
+		return c.Render(http.StatusNotFound, "error-notfound", nil)
+	} else if errors.Is(err, ErrIllegalArgument) {
+		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+	} else {
+		return sendInternalError(c, err)
+	}
 }
 
 func (controller *Controller) PostComment(c echo.Context) error {
@@ -560,6 +576,10 @@ func (controller *Controller) PostComment(c echo.Context) error {
 	}
 }
 
+func (controller *Controller) GetAdminLoginForm(c echo.Context) error {
+	return c.Render(http.StatusOK, "adminlogin", nil)
+}
+
 // Service administrators can access a service comment dashboard where they can approve or deny comments
 // They require successful OIDC authentication and they require the "service-admin" value as part of the values
 // in the "roles" claim. In the current model the admin is admin over all services on this server.
@@ -571,18 +591,22 @@ func (controller *Controller) GetAdminDashboard(c echo.Context) error {
 	if err != nil && !errors.Is(err, lang.ErrNotFound) {
 		return sendInternalError(c, err)
 	} else if err != nil {
-		return c.Redirect(http.StatusUnauthorized, "/userauthentication/")
+		return c.Redirect(http.StatusUnauthorized, "/adminlogin/")
 	}
 
-	// // Fetch all services
-	// services, err := controller.Store.GetAllServices()
-	// if err != nil {
-	// 	return sendInternalError(c, err)
-	// }
-
-	// Fetch comments for all services, default to not showing unauthenticated comments
-	showUnauthenticated := c.QueryParam("showUnauthenticated") == "true"
-	comments, err := controller.Store.GetAllComments(showUnauthenticated)
+	// Fetch comments for all services, depending on the showStatus parameter we filter the comments
+	showStatusParam := c.QueryParam("showStatus")
+	statuses := []domain.CommentStatus{}
+	if showStatusParam != "" {
+		for _, status := range strings.Split(showStatusParam, ",") {
+			parsedStatus, err := domain.ParseCommentStatus(status)
+			if err != nil {
+				return c.Redirect(http.StatusBadRequest, "/admin")
+			}
+			statuses = append(statuses, parsedStatus)
+		}
+	}
+	comments, err := controller.Store.GetCommentsByStatus(statuses)
 	if err != nil {
 		return sendInternalError(c, err)
 	}
@@ -595,14 +619,50 @@ func (controller *Controller) GetAdminDashboard(c echo.Context) error {
 
 	// Prepare data for the dashboard
 	dashboardData := domain.AdminDashboardPage{
-		AdminUser:           domain.AdminUser{UserId: adminUserId},
-		Comments:            comments,
-		ShowUnauthenticated: showUnauthenticated,
-		Success:             successFlashes,
-		Error:               errorFlashes,
+		AdminUser: domain.AdminUser{UserId: adminUserId},
+		Comments:  comments,
+		Statuses:  statuses,
+		Success:   successFlashes,
+		Error:     errorFlashes,
 	}
 
 	return c.Render(http.StatusOK, "admin-dashboard", dashboardData)
+}
+
+func (controller *Controller) AdminApproveComment(c echo.Context) error {
+	_, err := getAdminUserIdFromSession(c)
+	if err != nil && !errors.Is(err, lang.ErrNotFound) {
+		return sendInternalError(c, err)
+	} else if err != nil {
+		return c.Redirect(http.StatusUnauthorized, "/adminlogin/")
+	}
+	comment, err := controller.requireCommentAndRetrieve(c)
+	if err != nil {
+		return handleCommonErrors(c, err)
+	}
+	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusApproved, comment.Comment, comment.Name, comment.Website)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return c.Redirect(http.StatusFound, "/admin")
+}
+
+func (controller *Controller) AdminDeleteComment(c echo.Context) error {
+	_, err := getAdminUserIdFromSession(c)
+	if err != nil && !errors.Is(err, lang.ErrNotFound) {
+		return sendInternalError(c, err)
+	} else if err != nil {
+		return c.Redirect(http.StatusUnauthorized, "/adminlogin/")
+	}
+	comment, err := controller.requireCommentAndRetrieve(c)
+	if err != nil {
+		return handleCommonErrors(c, err)
+	}
+	err = controller.Store.DeleteComment(comment.Id)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return c.Redirect(http.StatusFound, "/admin")
 }
 
 func customHTTPErrorHandler(err error, c echo.Context) {

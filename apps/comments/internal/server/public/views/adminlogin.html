@@ -1,0 +1,28 @@
+{{define "adminlogin"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resource Not Found</title>
+  <!-- <link rel="icon" href="/images/delicious.png"> -->
+  <link rel="stylesheet" href="/css/pico.classless.min.css">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+  <header>
+  </header>
+  <main>
+    <h1>Admin Login</h1>
+    <form action="/admin" method="GET">
+        <p>
+            Logging in as an admin will allow you to approve or delete comments. This login requires an admin account registered with the OIDC provider.
+            When you login you will be redirected to the OIDC provider to authenticate.
+        </p>
+        <button type="submit">Login as Admin with OIDC</button>
+    </form>
+  </main>
+</body>
+</html>
+{{end}}

@@ -133,13 +133,21 @@ func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
 	return mapComments(rows, store.Cipher)
 }
 
-func (store *Store) GetAllComments(showUnauthenticated bool) ([]domain.Comment, error) {
+func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]domain.Comment, error) {
 	query := "SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments"
-	if !showUnauthenticated {
-		query += " WHERE status != ?"
+	if len(statuses) > 0 {
+		query += " WHERE status IN ("
+		for range statuses {
+			query += "?,"
+		}
+		query += ")"
 	}
 	query += " ORDER BY created_at DESC"
-	rows, err := store.db.Query(query, domain.CommentStatusPendingAuthentication)
+	statusInts := make([]interface{}, len(statuses))
+	for i, status := range statuses {
+		statusInts[i] = int(status)
+	}
+	rows, err := store.db.Query(query, statusInts...)
 	if err != nil {
 		return nil, err
 	}

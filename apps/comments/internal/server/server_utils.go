@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -65,3 +66,5 @@ func httpResponseLogger(next echo.HandlerFunc) echo.HandlerFunc {
 		return nil
 	}
 }
+
+var ErrIllegalArgument = errors.New("illegal argumen")

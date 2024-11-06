@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -50,6 +51,21 @@ const (
 	CommentStatusRejected
 )
 
+func ParseCommentStatus(status string) (CommentStatus, error) {
+	switch status {
+	case "pending-authentication":
+		return CommentStatusPendingAuthentication, nil
+	case "pending-approval":
+		return CommentStatusPendingApproval, nil
+	case "approved":
+		return CommentStatusApproved, nil
+	case "rejected":
+		return CommentStatusRejected, nil
+	default:
+		return -1, fmt.Errorf("invalid comment status: %s", status)
+	}
+}
+
 type Comment struct {
 	Id        int
 	Status    CommentStatus
@@ -97,9 +113,9 @@ type UserAuthenticationPage struct {
 }
 
 type AdminDashboardPage struct {
-	AdminUser           AdminUser
-	Comments            []Comment
-	ShowUnauthenticated bool
-	Success             []string
-	Error               []string
+	AdminUser AdminUser
+	Comments  []Comment
+	Statuses  []CommentStatus
+	Success   []string
+	Error     []string
 }

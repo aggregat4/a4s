@@ -22,7 +22,7 @@ body {
 }
 
 main, header {
-    max-width: 66ch;
+    max-width: 76ch;
     margin: 0 auto;
     padding: 6px;
 }
@@ -55,23 +55,32 @@ ul.hanging-indent {
     padding-left: 0;
 }
 
-dl.comments {
-    max-width: 66ch;
-}
-
-dl.comments dt {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-}
-
 dl.comments dd {
     margin-bottom: 24px;
 }
 
+dl.comments dt {
+    display: grid;
+    grid-template-columns: 1fr auto auto;  /* byline expands, badge and actionbar take needed space */
+    gap: 1rem;  /* space between grid items */
+    align-items: center;  /* vertically center items */
+}
+
+.byline {
+    /* if you need to handle overflow */
+    min-width: 0;  /* allows text to truncate if needed */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: center;
+}
 .actionbar {
     display: flex;
-    flex-direction: row;
     gap: 6px;
 }
 
@@ -80,4 +89,48 @@ dl.comments dt time {
     font-weight: italic;
     font-size: 0.8em;
     color: #555;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.5em;
+    border-radius: 4px;
+    font-size: 0.875em;
+    font-weight: 500;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+}
+
+.badge.pending-authentication {
+    background-color: #fff3e0;
+    color: #e65100;
+}
+
+.badge.pending-approval {
+    background-color: #fff3e0;
+    color: #e65100;
+}
+
+.badge.approved {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.badge.rejected {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+@media (max-width: 600px) {
+    dl.comments dt {
+        grid-template-columns: 1fr;  /* stack everything vertically */
+        gap: 0.5rem;
+    }
+    
+    dl.comments .badge-actions {
+        grid-template-columns: auto;
+        justify-content: flex-start;  /* align to left on mobile */
+    }
 }
