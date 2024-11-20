@@ -160,7 +160,8 @@ func InitServerWithOidcMiddleware(
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
 	e.GET("/adminlogin", controller.GetAdminLoginForm)
-	e.GET("/admin", controller.GetAdminDashboard)
+	e.GET("/admin", controller.GetAdminHome)
+	e.GET("/admin/comments", controller.GetAdminDashboard)
 	e.POST("/admin/comments/:commentId/approve", controller.AdminApproveComment)
 	e.POST("/admin/comments/:commentId/delete", controller.AdminDeleteComment)
 
@@ -578,6 +579,10 @@ func (controller *Controller) PostComment(c echo.Context) error {
 
 func (controller *Controller) GetAdminLoginForm(c echo.Context) error {
 	return c.Render(http.StatusOK, "adminlogin", nil)
+}
+
+func (controller *Controller) GetAdminHome(c echo.Context) error {
+	return c.Redirect(http.StatusFound, "/admin/comments")
 }
 
 // Service administrators can access a service comment dashboard where they can approve or deny comments
