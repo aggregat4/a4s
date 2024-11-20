@@ -1,0 +1,3 @@
+{{define "statusToShortString"}}
+    {{if eq . 1}}pending authentication{{else if eq . 2}}pending approval{{else if eq . 3}}approved{{else if eq . 4}}rejected{{end}}
+{{end}}

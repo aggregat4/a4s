@@ -9,7 +9,7 @@
   <!-- <link rel="icon" href="/images/delicious.png"> -->
   <!-- <link rel="stylesheet" href="/css/pico.classless.min.css"> -->
   <link rel="stylesheet" href="/css/main.css">
-  <script src="js/components.js"></script>
+  <script src="/js/components.js"></script>
 </head>
 <body>
 <header>
@@ -36,8 +36,30 @@
 </header>
 <main>
   <dl class="comments">
+    <h2>
+        {{if eq (len .Statuses) 0}}
+            All Comments
+        {{else}}
+            {{range $i, $status := .Statuses}}
+                {{if $i}}, {{end}}
+                {{template "statusToString" $status}}
+            {{end}}
+        {{end}}
+    </h2>
+    {{if eq (len .Comments) 0}}
+    <p class="toast info">
+      There are no 
+      {{if eq (len .Statuses) 0}}comments{{else}}
+        {{range $i, $status := .Statuses}}
+          {{if $i}}, {{end}}
+          {{template "statusToString" $status}}
+        {{end}}
+      {{end}}
+      to display.
+    </p>
+    {{end}}
     {{range .Comments}}
-        <dt class="{{if eq .Status 1}}pending-authentication{{end}}{{if eq .Status 2}}pending-approval{{end}}{{if eq .Status 3}}approved{{end}}{{if eq .Status 4}}rejected{{end}}">
+        <dt class="{{template "statusToCssClass" .Status}}">
             <div class="byline">
               <span class="author">
                 {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
@@ -47,15 +69,7 @@
                 </span>, <time datetime="{{.CreatedAt.Format "2024-01-01T00:00:00Z"}}">{{.CreatedAt.Format "Jan 02, 2006"}}</time>
             </div>
             <div class="badge-actions">
-              {{if eq .Status 1}}
-                <span class="badge pending-authentication" role="status">Pending Authentication</span>
-              {{else if eq .Status 2}}
-                <span class="badge pending-approval" role="status">Pending Approval</span>
-              {{else if eq .Status 3}}
-                <span class="badge approved" role="status">Approved</span>
-              {{else if eq .Status 4}}
-                <span class="badge rejected" role="status">Rejected</span>
-              {{end}}
+              <span class="badge {{template "statusToCssClass" .Status}}" role="status">{{template "statusToShortString" .Status}}</span>
               <div class="actionbar">
                 {{if or (eq .Status 1) (eq .Status 2)}}
                 <action-confirmation actionName="Approve" actionUrl="/admin/comments/{{.Id}}/approve" directionLeftRight="false"></action-confirmation>

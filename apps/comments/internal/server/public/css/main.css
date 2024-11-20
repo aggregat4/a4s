@@ -3,12 +3,15 @@
 
     --site-bg-color: white;
     --site-text-color: #333;
-    --error-color: #D32F2F;
+    --error-color: #9c2424;
     --error-bg-color: #FFEBEE;
     --error-border-color: #FFCDD2;
-    --success-color: #4CAF50;
+    --success-color: #337535;
     --success-bg-color: #E8F5E9;
     --success-border-color: #C8E6C9;
+    --info-color: #026092;
+    --info-bg-color: #E1F5FE;
+    --info-border-color: #B3E5FC;
 }
 
 body {
@@ -27,6 +30,10 @@ main, header {
     padding: 6px;
 }
 
+h2 {
+    text-transform: capitalize;
+}
+
 .toast {
     border-radius: 4px;
     padding: 10px;
@@ -43,6 +50,12 @@ main, header {
     color: var(--success-color);
     background-color: var(--success-bg-color);
     border: 1px solid var(--success-border-color);
+}
+
+.toast.info {
+    color: var(--info-color);
+    background-color: var(--info-bg-color);
+    border: 1px solid var(--info-border-color);
 }
 
 .actionbar {
@@ -101,6 +114,7 @@ dl.comments dt time {
     text-align: center;
     white-space: nowrap;
     vertical-align: baseline;
+    text-transform: capitalize;
 }
 
 .badge.pending-authentication {
