@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aggregat4/go-baselib/crypto"
@@ -137,9 +138,7 @@ func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]doma
 	query := "SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments"
 	if len(statuses) > 0 {
 		query += " WHERE status IN ("
-		for range statuses {
-			query += "?,"
-		}
+		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",")
 		query += ")"
 	}
 	query += " ORDER BY created_at DESC"
