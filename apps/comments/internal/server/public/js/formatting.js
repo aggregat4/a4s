@@ -1,8 +1,6 @@
 function formatDates() {
-    // Get user's locale from browser
     const locale = navigator.language;
     
-    // Find all time elements
     document.querySelectorAll('time').forEach(timeElement => {
         const dateStr = timeElement.getAttribute('datetime');
         const date = new Date(dateStr);
@@ -31,5 +29,4 @@ function formatDates() {
     });
 }
 
-// Run when DOM is loaded
 document.addEventListener('DOMContentLoaded', formatDates);
