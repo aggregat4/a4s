@@ -1,9 +1,7 @@
 # TODO
 
-1. Fix admin dashboard comment filtering
 2. Figure out the routing: comments is own resource, from /admin have a link there or automatically redirect for now?
-3. Style the admin dashboard
-   1. Should I even be using pico CSS? It's kind of annoying as seen in admin dashboard... maybe just have my own approach?
+3. Remove pico.css from the remaining form based pages and restyle them (maybe there is a nice set of form styles that I can use?)
 4. What should be in a `<header>` element and what not? Should the title of the page and any specific actions or links be in the header or not? Tending towards putting them in main and only reserving header for sitewide things?
 5. Make the server cookie settings configurable
 6. Figure out the navigation story: there are a lot of pages and we have embeded
