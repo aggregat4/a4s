@@ -63,7 +63,7 @@ func InitServer(controller Controller) *echo.Echo {
 		controller.Config.OidcClientSecret,
 		controller.Config.OidcRedirectUri,
 		func(c echo.Context) bool {
-			// we only want authentication on admin endpoints
+			// We only want authentication on admin endpoints
 			return !strings.HasPrefix(c.Path(), "/admin")
 		})
 	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(
@@ -542,7 +542,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 
 	} else {
-		// This is a new comment, if the user is not autenticated we create a new user and store the comment as pending authentication
+		// This is a new comment, if the user is not authenticated we create a new user and store the comment as pending authentication
 		service, err := controller.Store.GetServiceForKey(serviceKey)
 		if err != nil {
 			return sendInternalError(c, err)
@@ -588,7 +588,7 @@ func (controller *Controller) GetAdminHome(c echo.Context) error {
 // Service administrators can access a service comment dashboard where they can approve or deny comments
 // They require successful OIDC authentication and they require the "service-admin" value as part of the values
 // in the "roles" claim. In the current model the admin is admin over all services on this server.
-// We need to store not only the user Id but also the admin's claims in his cookie here so we can always verify he or she has acces
+// We need to store not only the user Id but also the admin claims in his cookie here so we can always verify he or she has access
 // to the particular service
 // Don't show unauthenticated comments by default
 func (controller *Controller) GetAdminDashboard(c echo.Context) error {
