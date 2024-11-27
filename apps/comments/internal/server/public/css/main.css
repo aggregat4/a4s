@@ -30,6 +30,11 @@ main, header {
     padding: 6px;
 }
 
+.postcomments nav {
+    display: flex;
+    gap: 1rem;
+}
+
 h2 {
     text-transform: capitalize;
 }
@@ -68,15 +73,27 @@ ul.hanging-indent {
     padding-left: 0;
 }
 
-dl.comments dd {
-    margin-bottom: 24px;
-}
-
-dl.comments dt {
+.admin-dashboard dl.comments dt {
     display: grid;
     grid-template-columns: 1fr auto auto;  /* byline expands, badge and actionbar take needed space */
-    gap: 1rem;  /* space between grid items */
+    gap: 1rem;
     align-items: center;  /* vertically center items */
+    margin-bottom: 6px;
+}
+
+.postcomments dl.comments dt {
+    margin-bottom: 6px;
+}
+
+dl.comments dd {
+    margin: 0 0 24px 0;
+}
+
+dl.comments dt time {
+    white-space: nowrap;
+    font-weight: italic;
+    font-size: 0.8em;
+    color: #555;
 }
 
 .author {
@@ -93,20 +110,14 @@ dl.comments dt {
 .badge-actions {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 6px;
+    gap: 1rem;
     align-items: center;
 }
 .actionbar {
     display: flex;
-    gap: 6px;
+    gap: 1rem;
 }
 
-dl.comments dt time {
-    white-space: nowrap;
-    font-weight: italic;
-    font-size: 0.8em;
-    color: #555;
-}
 
 .badge {
     display: inline-block;
@@ -142,7 +153,7 @@ dl.comments dt time {
 }
 
 @media (max-width: 600px) {
-    dl.comments dt {
+    .admin-dashboard dl.comments dt {
         grid-template-columns: 1fr;  /* stack everything vertically */
         gap: 0.5rem;
     }
@@ -150,5 +161,6 @@ dl.comments dt time {
     dl.comments .badge-actions {
         grid-template-columns: auto;
         justify-content: flex-start;  /* align to left on mobile */
+        gap: 0.5rem;
     }
 }
