@@ -1,5 +1,5 @@
 :root {
-    --pico-font-size: 18px;
+    --font-size: 18px;
 
     --site-bg-color: white;
     --site-text-color: #333;
@@ -17,11 +17,12 @@
 body {
     font-family: sans-serif;
     box-sizing: border-box;
-    /* font-size: 18px; */
+    font-size: var(--font-size);
     margin: 0;
-    /* line-height: 1.5; */
-    /* background-color: var(--site-bg-color);
-    color: var(--site-text-color); */
+    line-height: 1.5;
+    background-color: var(--site-bg-color);
+    color: var(--site-text-color);
+    padding: 0 12px;
 }
 
 main, header {
@@ -152,6 +153,15 @@ dl.comments dt time {
     color: #c62828;
 }
 
+.important, ul.important  {
+    background-color: #fffde7;  /* Very light yellow */
+    border-top: 1px solid #fff9c4;  /* Slightly darker yellow for border */
+    border-bottom: 1px solid #fff9c4;  /* Slightly darker yellow for border */
+    /* border-radius: 4px; */
+    padding: 1rem 24px 1rem 24px;
+    margin: 0 -24px 0 -24px;
+}
+
 @media (max-width: 600px) {
     .admin-dashboard dl.comments dt {
         grid-template-columns: 1fr;  /* stack everything vertically */
@@ -163,4 +173,74 @@ dl.comments dt time {
         justify-content: flex-start;  /* align to left on mobile */
         gap: 0.5rem;
     }
+}
+
+
+/* form styles */
+
+/* Basic form styling */
+form {
+/* max-width: 500px;
+margin: 0 auto; */
+}
+
+/* Input fields */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="url"],
+textarea,
+select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: var(--font-size);
+}
+
+/* Labels */
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+    margin-top: 12px;
+}
+
+/* Submit button */
+button[type="submit"],
+input[type="submit"] {
+    background-color: #3434bb;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: var(--font-size);
+}
+
+button[type="submit"]:hover,
+input[type="submit"]:hover {
+    background-color: #4a4aba;
+}
+
+/* Focus styles */
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: #3434bb;
+    box-shadow: 0 0 5px rgba(30, 41, 161, 0.5);
+}
+
+/* Error state */
+.error input,
+.error textarea,
+.error select {
+    border-color: #ff3860;
+}
+
+form small {
+    font-size: 0.8em;
+    color: #555;
 }
