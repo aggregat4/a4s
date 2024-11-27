@@ -61,12 +61,13 @@
     {{range .Comments}}
         <dt class="{{template "statusToCssClass" .Status}}">
             <div class="byline">
-              <span class="author">
+              <div class="author">
                 {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
                 {{if .Website}}
                   , <a href="{{.Website}}">{{.Website}}</a>
                 {{end}}
-                </span>, <time datetime="{{.CreatedAt.Format "2024-01-01T00:00:00Z"}}">{{.CreatedAt.Format "Jan 02, 2006"}}</time>
+              </div>
+              <time datetime="{{.CreatedAt.Format "2024-01-01T00:00:00Z"}}">{{.CreatedAt.Format "Jan 02, 2006"}}</time>
             </div>
             <div class="badge-actions">
               <span class="badge {{template "statusToCssClass" .Status}}" role="status">{{template "statusToShortString" .Status}}</span>

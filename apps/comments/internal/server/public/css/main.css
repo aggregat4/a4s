@@ -79,6 +79,10 @@ dl.comments dt {
     align-items: center;  /* vertically center items */
 }
 
+.author {
+    font-weight: bold;
+}
+
 .byline {
     /* if you need to handle overflow */
     min-width: 0;  /* allows text to truncate if needed */
