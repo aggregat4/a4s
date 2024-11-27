@@ -7,20 +7,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Comments</title>
   <!-- <link rel="icon" href="/images/delicious.png"> -->
-  <link rel="stylesheet" href="/css/pico.classless.min.css">
+  <!-- link rel="stylesheet" href="/css/pico.classless.min.css" -->
   <link rel="stylesheet" href="/css/main.css">
+  <script src="/js/formatting.js" defer></script>
 </head>
-<body>
+<body class="postcomments">
 <header>
-  <h1>Comments</h1>
   {{range .Success}}
   <p class="toast success">
       {{.}}
   </p>
   {{end}}
-  <a href="/services/{{.ServiceKey}}/posts/{{.PostKey}}/commentform">Add new Comment</a>
   <nav>
-  {{if gt .UserId -1}}
+    <a href="/services/{{.ServiceKey}}/posts/{{.PostKey}}/commentform">Add new Comment</a>
+    {{if gt .UserId -1}}
     <a href="/users/{{.UserId}}/comments/">Manage Your Comments</a>
   {{else}}
     <a href="/userauthentication">Login to Manage Your Comments</a>
@@ -38,10 +38,14 @@
           {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
         {{end}}
       </span>
-      <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
-        {{if eq $.UserId .UserId}}
-          <a href="/users/{{$.UserId}}/comments/{{.Id}}/edit">Modify</a>
-        {{end}}
+      ·
+      <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}">
+        {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
+      </time>
+      {{if eq $.UserId .UserId}}
+        ·
+        <a href="/users/{{$.UserId}}/comments/{{.Id}}/edit">Modify</a>
+      {{end}}
     </dt>
     <dd>{{.Comment}}</dd>
   {{end}}
