@@ -12,6 +12,19 @@
     --info-color: #026092;
     --info-bg-color: #E1F5FE;
     --info-border-color: #B3E5FC;
+
+    --button-primary-color: #08599B;
+    --button-primary-color-hover: #06477c;
+
+    --badge-pending-bg-color: #fff3e0;
+    --badge-approved-bg-color: #e8f5e9;
+    --badge-rejected-bg-color: #ffebee;
+    --badge-pending-color: #8F3200;
+    --badge-approved-color: #235C26;
+    --badge-rejected-color: #981F1F;
+
+    --focus-border-color: #08599B;
+    --focus-shadow-color: #06477c;
 }
 
 body {
@@ -134,30 +147,29 @@ dl.comments dt time {
 }
 
 .badge.pending-authentication {
-    background-color: #fff3e0;
-    color: #e65100;
+    background-color: var(--badge-pending-bg-color);
+    color: var(--badge-pending-color);
 }
 
 .badge.pending-approval {
-    background-color: #fff3e0;
-    color: #e65100;
+    background-color: var(--badge-pending-bg-color);
+    color: var(--badge-pending-color);
 }
 
 .badge.approved {
-    background-color: #e8f5e9;
-    color: #2e7d32;
+    background-color: var(--badge-approved-bg-color);
+    color: var(--badge-approved-color);
 }
 
 .badge.rejected {
-    background-color: #ffebee;
-    color: #c62828;
+    background-color: var(--badge-rejected-bg-color);
+    color: var(--badge-rejected-color);
 }
 
 .important, ul.important  {
     background-color: #fffde7;  /* Very light yellow */
     border-top: 1px solid #fff9c4;  /* Slightly darker yellow for border */
     border-bottom: 1px solid #fff9c4;  /* Slightly darker yellow for border */
-    /* border-radius: 4px; */
     padding: 1rem 24px 1rem 24px;
     margin: 0 -24px 0 -24px;
 }
@@ -210,18 +222,19 @@ label {
 /* Submit button */
 button[type="submit"],
 input[type="submit"] {
-    background-color: #3434bb;
+    background-color: var(--button-primary-color);
     color: white;
     padding: 10px 15px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     font-size: var(--font-size);
+    margin-top: 12px;
 }
 
 button[type="submit"]:hover,
 input[type="submit"]:hover {
-    background-color: #4a4aba;
+    background-color: var(--button-primary-color-hover);
 }
 
 /* Focus styles */
@@ -229,8 +242,8 @@ input:focus,
 textarea:focus,
 select:focus {
     outline: none;
-    border-color: #3434bb;
-    box-shadow: 0 0 5px rgba(30, 41, 161, 0.5);
+    border-color: var(--focus-border-color);
+    box-shadow: 0 0 5px var(--focus-shadow-color);
 }
 
 /* Error state */
