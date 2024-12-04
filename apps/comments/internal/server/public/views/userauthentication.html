@@ -7,7 +7,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Authenticate</title>
         <!-- <link rel="icon" href="/images/delicious.png"> -->
-        <link rel="stylesheet" href="/css/pico.classless.min.css">
         <link rel="stylesheet" href="/css/main.css">
     </head>
     <body>
@@ -36,7 +35,7 @@
                 These links expire after 15 minutes so make sure to open it before that time. You can request a
                 new one at any time.
             </p>
-            <label>Email Address:
+            <label>Email Address <span aria-label="required">*</span>
                 <input type="email" name="email" autocapitalize="off" required pattern=".+@.+" autofocus {{if .EmailAddress}}value="{{.EmailAddress}}"{{end}}>
             </label>
             <button type="submit">Request Authentication Code</button>
