@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/aggregat4/go-baselib/lang"
-	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -37,37 +36,17 @@ func getAdminUserIdFromSession(c echo.Context) (string, error) {
 	}
 }
 
-func createSessionCookie(c echo.Context) (*sessions.Session, error) {
+func createUserSessionCookie(c echo.Context, userId int) error {
 	sess, err := session.Get(authenticatedUserCookieName, c)
-	if err != nil {
-		return nil, err
-	}
-	sess.Options = &sessions.Options{
-		Path: "/", // TODO: this path is not context path safe
-		// 30 days
-		MaxAge:   3600 * 24 * 30,
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	}
-	return sess, nil
-}
-
-func createUseSessionCookie(c echo.Context, userId int) error {
-	sess, err := createSessionCookie(c)
 	if err != nil {
 		return err
 	}
 	sess.Values["userid"] = userId
-	err = sess.Save(c.Request(), c.Response())
-	if err != nil {
-		return sendInternalError(c, err)
-	}
-	return nil
+	return sess.Save(c.Request(), c.Response())
 }
 
 func createAdminSessionCookie(c echo.Context, adminUserId string) error {
-	sess, err := createSessionCookie(c)
+	sess, err := session.Get(authenticatedUserCookieName, c)
 	if err != nil {
 		return err
 	}

@@ -103,7 +103,14 @@ func InitServerWithOidcMiddleware(
 	e.Use(middleware.Recover())
 	sessionCookieSecretKey := controller.Config.SessionCookieSecretKey
 	cookieStore := sessions.NewCookieStore([]byte(sessionCookieSecretKey))
-	cookieStore.Options.Secure = controller.Config.SessionCookieSecureFlag
+	cookieStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   controller.Config.SessionCookieCookieMaxAge,
+		Secure:   controller.Config.SessionCookieSecureFlag,
+		HttpOnly: true,
+		SameSite: domain.SameSiteFromString(controller.Config.SessionCookieCookieSameSite),
+	}
+
 	e.Use(session.Middleware(cookieStore))
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
 	// user authentication is required for pages related to a user's comments
@@ -290,7 +297,7 @@ func (controller *Controller) AuthenticateUser(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}
 	// This is a normal user, not an admin
-	err = createUseSessionCookie(c, user.Id)
+	err = createUserSessionCookie(c, user.Id)
 	if err != nil {
 		return sendInternalError(c, err)
 	}
