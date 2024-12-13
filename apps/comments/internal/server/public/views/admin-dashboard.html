@@ -1,24 +1,16 @@
-{{define "admin-dashboard"}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard</title>
-  <!-- <link rel="icon" href="/images/delicious.png"> -->
-  <link rel="stylesheet" href="/css/main.css">
-  <script src="/js/components.js" defer></script>
-</head>
-<body class="admin-dashboard">
+{{define "title"}}Admin Dashboard{{end}}
+
+{{define "bodyClass"}}admin-dashboard{{end}}
+
+{{define "content"}}
 <header>
   <h1>Admin Dashboard</h1>
-  {{range .Success}}
+  {{range .Data.Success}}
   <p class="toast success">
       {{.}}
   </p>
   {{end}}
-  {{range .Error}}
+  {{range .Data.Error}}
   <p class="toast error">
       {{.}}
   </p>
@@ -36,20 +28,20 @@
 <main>
   <dl class="comments">
     <h2>
-        {{if eq (len .Statuses) 0}}
+        {{if eq (len .Data.Statuses) 0}}
             All Comments
         {{else}}
-            {{range $i, $status := .Statuses}}
+            {{range $i, $status := .Data.Statuses}}
                 {{if $i}}, {{end}}
                 {{template "statusToString" $status}}
             {{end}}
         {{end}}
     </h2>
-    {{if eq (len .Comments) 0}}
+    {{if eq (len .Data.Comments) 0}}
     <p class="toast info">
       There are no 
-      {{if eq (len .Statuses) 0}}comments{{else}}
-        {{range $i, $status := .Statuses}}
+      {{if eq (len .Data.Statuses) 0}}comments{{else}}
+        {{range $i, $status := .Data.Statuses}}
           {{if $i}}, {{end}}
           {{template "statusToString" $status}}
         {{end}}
@@ -57,7 +49,7 @@
       to display.
     </p>
     {{end}}
-    {{range .Comments}}
+    {{range .Data.Comments}}
         <dt class="{{template "statusToCssClass" .Status}}">
             <div class="byline">
               <div class="author">
@@ -84,6 +76,8 @@
     {{end}}
 </dl>
 </main>
-</body>
-</html>
+{{end}}
+
+{{define "admin-dashboard"}}
+{{template "layout" .}}
 {{end}}

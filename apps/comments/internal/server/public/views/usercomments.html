@@ -1,61 +1,54 @@
-{{define "usercomments"}}
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Your Comments</title>
-        <!-- <link rel="icon" href="/images/delicious.png"> -->
-        <link rel="stylesheet" href="/css/pico.classless.min.css">
-        <link rel="stylesheet" href="/css/main.css">
-        <script src="js/components.js"></script>
-    </head>
-    <body>
-    <header>
-        <h1>Your Comments</h1>
-    </header>
-    <main>
-        <dl class="comments">
-            {{range .Comments}}
-                <dt>
-                    <span class="author">
-                    {{if .Website}}
-                        <a href="{{.Website}}">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
-                    {{else}}
-                        {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
-                    {{end}}
-                    </span>
-                    {{if eq .Status 1}}
-                        <div class="commentstatuspending">
-                            <p>This comment has not been confirmed by you. If you want this to be seen by the admin for
-                                approval you should confirm the comment.</p>
-                            <p>Alternatively you can also delete your comment.</p>
-                        </div>
-                    {{end}}
-                    {{if eq .Status 3}}
-                        <div class="commentstatusapproved">
-                            <p>This comment has been approved by the administrator and will be displayed.</p>
-                        </div>
-                    {{end}}
-                    {{if eq .Status 4}}
-                        <div class="commentstatusrejected">
-                            <p>This comment has been rejected by the administrator and will not be displayed.</p>
-                        </div>
-                    {{end}}
-                    <div class="actionbar">
-                        <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
-                        <a href="/users/{{$.User.Id}}/comments/{{.Id}}/edit">Modify</a>
-                        {{if eq .Status 1}}
-                        <action-confirmation actionName="Confirm Comment" actionUrl="/users/{{$.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>
-                        {{end}}
-                        <action-confirmation actionName="Delete Comment" actionUrl="/users/{{$.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
+{{define "title"}}Your Comments{{end}}
+
+{{define "bodyClass"}}usercomments{{end}}
+
+{{define "content"}}
+<header>
+    <h1>Your Comments</h1>
+</header>
+<main>
+    <dl class="comments">
+        {{range .Data.Comments}}
+            <dt>
+                <span class="author">
+                {{if .Website}}
+                    <a href="{{.Website}}">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
+                {{else}}
+                    {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
+                {{end}}
+                </span>
+                {{if eq .Status 1}}
+                    <div class="commentstatuspending">
+                        <p>This comment has not been confirmed by you. If you want this to be seen by the admin for
+                            approval you should confirm the comment.</p>
+                        <p>Alternatively you can also delete your comment.</p>
                     </div>
-                </dt>
-                <dd>{{.Comment}}</dd>
-            {{end}}
-        </dl>
-    </main>
-    </body>
-    </html>
+                {{end}}
+                {{if eq .Status 3}}
+                    <div class="commentstatusapproved">
+                        <p>This comment has been approved by the administrator and will be displayed.</p>
+                    </div>
+                {{end}}
+                {{if eq .Status 4}}
+                    <div class="commentstatusrejected">
+                        <p>This comment has been rejected by the administrator and will not be displayed.</p>
+                    </div>
+                {{end}}
+                <div class="actionbar">
+                    <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
+                    <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
+                    {{if eq .Status 1}}
+                    <action-confirmation actionName="Confirm Comment" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>
+                    {{end}}
+                    <action-confirmation actionName="Delete Comment" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
+                </div>
+            </dt>
+            <dd>{{.Comment}}</dd>
+        {{end}}
+    </dl>
+</main>
+{{end}}
+
+{{define "usercomments"}}
+{{template "layout" .}}
 {{end}}

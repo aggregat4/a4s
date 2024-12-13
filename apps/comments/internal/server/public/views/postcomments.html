@@ -1,26 +1,18 @@
-{{define "postcomments"}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comments</title>
-  <!-- <link rel="icon" href="/images/delicious.png"> -->
-  <link rel="stylesheet" href="/css/main.css">
-  <script src="/js/formatting.js" defer></script>
-</head>
-<body class="postcomments">
+{{define "title"}}Post Comments{{end}}
+
+{{define "bodyClass"}}postcomments{{end}}
+
+{{define "content"}}
 <header>
-  {{range .Success}}
+  {{range .Data.Success}}
   <p class="toast success">
       {{.}}
   </p>
   {{end}}
   <nav>
-    <a href="/services/{{.ServiceKey}}/posts/{{.PostKey}}/commentform">Add new Comment</a>
-    {{if gt .UserId -1}}
-    <a href="/users/{{.UserId}}/comments/">Manage Your Comments</a>
+    <a href="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/commentform">Add new Comment</a>
+    {{if gt .Data.UserId -1}}
+    <a href="/users/{{.Data.UserId}}/comments/">Manage Your Comments</a>
   {{else}}
     <a href="/userauthentication">Login to Manage Your Comments</a>
   {{end}}
@@ -28,7 +20,7 @@
 </header>
 <main>
 <dl class="comments">
-  {{range .Comments}}
+  {{range .Data.Comments}}
     <dt>
       <span class="author">
         {{if .Website}}
@@ -38,18 +30,20 @@
         {{end}}
       </span>
       ·
-      <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}">
+      <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
         {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
       </time>
-      {{if eq $.UserId .UserId}}
+      {{if eq $.Data.UserId .UserId}}
         ·
-        <a href="/users/{{$.UserId}}/comments/{{.Id}}/edit">Modify</a>
+        <a href="/users/{{$.Data.UserId}}/comments/{{.Id}}/edit">Modify</a>
       {{end}}
     </dt>
     <dd>{{.Comment}}</dd>
   {{end}}
 </dl>
 </main>
-</body>
-</html>
+{{end}}
+
+{{define "postcomments"}}
+{{template "layout" .}}
 {{end}}

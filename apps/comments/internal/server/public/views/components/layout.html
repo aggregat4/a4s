@@ -1,0 +1,19 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{template "title" .}}</title>
+    {{range .Data.Stylesheets}}    
+    <link rel="stylesheet" href="{{call $.AssetPath .}}">
+    {{end}}
+    {{range .Data.Scripts}}
+    <script src="{{call $.AssetPath .}}" defer></script>
+    {{end}}
+</head>
+<body class="{{template "bodyClass" .}}">
+    {{template "content" .}}
+</body>
+</html>
+{{end}}

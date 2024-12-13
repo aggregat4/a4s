@@ -7,7 +7,6 @@ import (
 	"embed"
 	"errors"
 	"html/template"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,7 +26,7 @@ import (
 
 var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-//go:embed public/views/*.html
+//go:embed public/views/*.html public/views/components/*.html
 var viewTemplates embed.FS
 
 //go:embed public/js/*.js
@@ -35,6 +34,9 @@ var javaScript embed.FS
 
 //go:embed public/css/*.css
 var styleSheets embed.FS
+
+var templateStylesheets = []string{"css/main.css"}
+var templateScripts = []string{"js/components.js", "js/formatting.js"}
 
 type Controller struct {
 	Store       *repository.Store
@@ -48,15 +50,15 @@ func RunServer(controller Controller) {
 	// NO MORE CODE HERE, IT WILL NOT BE EXECUTED
 }
 
-type Template struct {
-	templates *template.Template
-}
-
-func (t *Template) Render(w io.Writer, name string, data interface{}, _ echo.Context) error {
-	return t.templates.ExecuteTemplate(w, name, data)
-}
-
 func InitServer(controller Controller) *echo.Echo {
+	// Initialize static assets
+	if err := initializeStaticAssets(javaScript, "js"); err != nil {
+		logger.Error("Failed to initialize JavaScript assets", "error", err)
+	}
+	if err := initializeStaticAssets(styleSheets, "css"); err != nil {
+		logger.Error("Failed to initialize CSS assets", "error", err)
+	}
+
 	oidcMiddleware := baseliboidc.NewOidcMiddleware(
 		controller.Config.OidcIdpServer,
 		controller.Config.OidcClientId,
@@ -93,8 +95,21 @@ func InitServerWithOidcMiddleware(
 	e.Server.ReadTimeout = time.Duration(controller.Config.ServerReadTimeoutSeconds) * time.Second
 	e.Server.WriteTimeout = time.Duration(controller.Config.ServerWriteTimeoutSeconds) * time.Second
 
-	e.Renderer = &Template{
-		templates: template.Must(template.New("").ParseFS(viewTemplates, "public/views/*.html")),
+	var templateMap = map[string]*template.Template{
+		"addeditcomment":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/addeditcomment.html", "public/views/components/*.html")),
+		"usercomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/usercomments.html", "public/views/components/*.html")),
+		"postcomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/postcomments.html", "public/views/components/*.html")),
+		"userauthentication":   template.Must(template.New("").ParseFS(viewTemplates, "public/views/userauthentication.html", "public/views/components/*.html")),
+		"adminlogin":           template.Must(template.New("").ParseFS(viewTemplates, "public/views/adminlogin.html", "public/views/components/*.html")),
+		"admin-dashboard":      template.Must(template.New("").ParseFS(viewTemplates, "public/views/admin-dashboard.html", "public/views/components/*.html")),
+		"error-internalserver": template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-internalserver.html", "public/views/components/*.html")),
+		"error-notfound":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-notfound.html", "public/views/components/*.html")),
+		"error-unauthorized":   template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-unauthorized.html", "public/views/components/*.html")),
+		"error-badrequest":     template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-badrequest.html", "public/views/components/*.html")),
+	}
+
+	e.Renderer = &EchoTemplateRenderer{
+		templates: templateMap,
 	}
 
 	// Set up middleware
@@ -125,10 +140,9 @@ func InitServerWithOidcMiddleware(
 
 	// Endpoints
 	// static assets
-	javaScriptFS := echo.MustSubFS(javaScript, "public/js")
-	e.StaticFS("/js", javaScriptFS)
-	styleSheetsFS := echo.MustSubFS(styleSheets, "public/css")
-	e.StaticFS("/css", styleSheetsFS)
+	e.GET("/js/*", hashedStaticHandler(javaScript, "js"))
+	e.GET("/css/*", hashedStaticHandler(styleSheets, "css"))
+
 	// infrastructure
 	e.GET("/oidccallback", oidcCallback)
 	// ---- UNAUTHENTICATED
@@ -175,8 +189,33 @@ func InitServerWithOidcMiddleware(
 	return e
 }
 
-// GetComments Renders a page with all the comments for the given post with a CSP policy that restricts embedding to
-// the configured origin for that service.
+// Update the error handlers to use templateData and include CSS
+func customHTTPErrorHandler(err error, c echo.Context) {
+	code := http.StatusInternalServerError
+	if he, ok := err.(*echo.HTTPError); ok {
+		code = he.Code
+	}
+	var errorPageTemplate = "error-internalserver"
+	switch code {
+	case http.StatusNotFound:
+		errorPageTemplate = "error-notfound"
+	case http.StatusUnauthorized:
+		errorPageTemplate = "error-unauthorized"
+	case http.StatusBadRequest:
+		errorPageTemplate = "error-badrequest"
+	}
+	err = c.Render(code, errorPageTemplate, domain.ErrorPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
+	})
+	if err != nil {
+		c.Logger().Error(err)
+	}
+}
+
+// Update the GetComments handler
 func (controller *Controller) GetComments(c echo.Context) error {
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
@@ -200,12 +239,17 @@ func (controller *Controller) GetComments(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	c.Response().Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
+	c.Response().Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300") // Cache for 1 minute, allow stale content for 5 minutes while revalidating
 	return c.Render(http.StatusOK, "postcomments", domain.PostCommentsPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+			Error:       errorFlashes,
+			Success:     successFlashes,
+		},
 		ServiceKey: serviceKey,
 		PostKey:    postKey,
 		Comments:   comments,
-		Error:      errorFlashes,
-		Success:    successFlashes,
 	})
 }
 
@@ -220,9 +264,13 @@ func (controller *Controller) GetUserAuthenticationForm(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	return c.Render(http.StatusOK, "userauthentication", domain.UserAuthenticationPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+			Error:       errorFlashes,
+			Success:     successFlashes,
+		},
 		EmailAddress: c.QueryParam("emailAddress"),
-		Error:        errorFlashes,
-		Success:      successFlashes,
 	})
 }
 
@@ -331,6 +379,10 @@ func (controller *Controller) GetCommentsForUser(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	return c.Render(http.StatusOK, "usercomments", domain.UserCommentsPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
 		User:     user,
 		Comments: comments,
 	})
@@ -375,6 +427,10 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 	}
 	c.Response().Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 	return c.Render(http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
 		ServiceKey:   serviceKey,
 		PostKey:      postKey,
 		UserFound:    userFoundError == nil,
@@ -400,6 +456,10 @@ func (controller *Controller) GetUserCommentForm(c echo.Context) error {
 	// NO CSP header to prevent embedding because this URL presupposes a logged in user and it can be called from
 	// some general dashboard where a user can manage their comments
 	return c.Render(http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
 		ServiceKey:   service.ServiceKey,
 		PostKey:      comment.PostKey,
 		UserFound:    true,
@@ -585,7 +645,9 @@ func (controller *Controller) PostComment(c echo.Context) error {
 }
 
 func (controller *Controller) GetAdminLoginForm(c echo.Context) error {
-	return c.Render(http.StatusOK, "adminlogin", nil)
+	return c.Render(http.StatusOK, "adminlogin", templateData{
+		Data: domain.BasePage{},
+	})
 }
 
 func (controller *Controller) GetAdminHome(c echo.Context) error {
@@ -629,16 +691,19 @@ func (controller *Controller) GetAdminDashboard(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 
-	// Prepare data for the dashboard
-	dashboardData := domain.AdminDashboardPage{
+	var templateData = domain.AdminDashboardPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+			Error:       errorFlashes,
+			Success:     successFlashes,
+		},
 		AdminUser: domain.AdminUser{UserId: adminUserId},
 		Comments:  comments,
 		Statuses:  statuses,
-		Success:   successFlashes,
-		Error:     errorFlashes,
 	}
-
-	return c.Render(http.StatusOK, "admin-dashboard", dashboardData)
+	// Prepare data for the dashboard
+	return c.Render(http.StatusOK, "admin-dashboard", templateData)
 }
 
 func (controller *Controller) AdminApproveComment(c echo.Context) error {
@@ -675,24 +740,4 @@ func (controller *Controller) AdminDeleteComment(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	return c.Redirect(http.StatusFound, "/admin")
-}
-
-func customHTTPErrorHandler(err error, c echo.Context) {
-	code := http.StatusInternalServerError
-	if he, ok := err.(*echo.HTTPError); ok {
-		code = he.Code
-	}
-	var errorPageTemplate = "error-internalserver"
-	switch code {
-	case http.StatusNotFound:
-		errorPageTemplate = "error-notfound"
-	case http.StatusUnauthorized:
-		errorPageTemplate = "error-unauthorized"
-	case http.StatusBadRequest:
-		errorPageTemplate = "error-badrequest"
-	}
-	err = c.Render(code, errorPageTemplate, nil)
-	if err != nil {
-		c.Logger().Error(err)
-	}
 }

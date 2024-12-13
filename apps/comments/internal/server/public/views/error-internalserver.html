@@ -1,16 +1,14 @@
+{{define "title"}}Internal Server Error{{end}}
+
+{{define "bodyClass"}}error{{end}}
+
+{{define "content"}}
+<main>
+    <h1>Internal Server Error</h1>
+    <p>Something went wrong. Please try again later.</p>
+</main>
+{{end}}
+
 {{define "error-internalserver"}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Internal Server Error</title>
-  <!-- <link rel="icon" href="/images/delicious.png"> -->
-  <link rel="stylesheet" href="/css/main.css">
-</head>
-<body>
-  <h1>Internal Server Error</h1>
-</body>
-</html>
+{{template "layout" .}}
 {{end}}

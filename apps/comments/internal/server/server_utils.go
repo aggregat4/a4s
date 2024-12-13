@@ -50,19 +50,15 @@ func csrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 func httpResponseLogger(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		// Call the next handler
 		err := next(c)
 		if err != nil {
 			return err
 		}
-
-		// Log all response headers
 		for key, values := range c.Response().Header() {
 			for _, value := range values {
 				logger.Info("Header: %s = %s", key, value)
 			}
 		}
-
 		return nil
 	}
 }

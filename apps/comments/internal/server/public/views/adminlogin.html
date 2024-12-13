@@ -1,18 +1,9 @@
-{{define "adminlogin"}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Resource Not Found</title>
-  <!-- <link rel="icon" href="/images/delicious.png"> -->
-  <link rel="stylesheet" href="/css/main.css">
-</head>
-<body>
-  <header>
-  </header>
-  <main>
+{{define "title"}}Admin Login{{end}}
+
+{{define "bodyClass"}}adminlogin{{end}}
+
+{{define "content"}}
+<main>
     <h1>Admin Login</h1>
     <form action="/admin" method="GET">
         <p>
@@ -21,7 +12,9 @@
         </p>
         <button type="submit">Login as Admin with OIDC</button>
     </form>
-  </main>
-</body>
-</html>
+</main>
+{{end}}
+    
+{{define "adminlogin"}}
+{{template "layout" .}}
 {{end}}

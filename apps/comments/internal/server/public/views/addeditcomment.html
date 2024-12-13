@@ -1,16 +1,8 @@
-{{define "addeditcomment"}}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{if .CommentFound}}Edit Comment{{else}}New Comment{{end}}</title>
-    <!-- <link rel="icon" href="/images/delicious.png"> -->
-    <meta name="color-scheme" content="light dark">
-    <link rel="stylesheet" href="/css/main.css">
-</head>
-<body>
+{{define "title"}}{{if .Data.CommentFound}}Edit Comment{{else}}Add Comment{{end}}{{end}}
+
+{{define "bodyClass"}}addeditcomment{{end}}
+
+{{define "content"}}
 <header>
     {{if .CommentFound}}
         <h1>Edit Comment</h1>
@@ -28,36 +20,38 @@
         <li>Only comments with confirmed email addresses will be considered for display.</li>
         <li>All comments are checked by a human before posting and may be rejected.</li>
     </ul>
-    <form method="POST" action="/services/{{.ServiceKey}}/posts/{{.PostKey}}/comments/">
-        {{if .CommentFound}}
-        <input type="hidden" name="commentId" value="{{.Comment.Id}}">
+    <form method="POST" action="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/comments/">
+        {{if .Data.CommentFound}}
+        <input type="hidden" name="commentId" value="{{.Data.Comment.Id}}">
         {{end}}
 
         <label for="email">Email <span aria-label="required">*</span></label>           
-        <input type="email" name="email" id="email" value="{{if .UserFound}}{{.User.Email}}{{end}}" required
+        <input type="email" name="email" id="email" value="{{if .Data.UserFound}}{{.Data.User.Email}}{{end}}" required
                pattern=".+@.+" autocapitalize="off" aria-describedby="email-helper">
         <small id="email-helper">
             A login link will be sent to this email address to authenticate your comment.
         </small>
 
         <label for="name">Name</label>
-        <input type="text" name="name" id="name" value="{{if .CommentFound}}{{.Comment.Name}}{{end}}" aria-describedby="name-helper">
+        <input type="text" name="name" id="name" value="{{if .Data.CommentFound}}{{.Data.Comment.Name}}{{end}}" aria-describedby="name-helper">
         <small id="name-helper">
             Your name or alias is optional, if you provide one it will be displayed next to your comment.
         </small>
 
         <label for="website">Website</label>
-        <input type="url" name="website" id="website" value="{{if .CommentFound}}{{.Comment.Website}}{{end}}" aria-describedby="website-helper">
+        <input type="url" name="website" id="website" value="{{if .Data.CommentFound}}{{.Data.Comment.Website}}{{end}}" aria-describedby="website-helper">
         <small id="website-helper">
             The website is optional, if you provide one it will be displayed and linked next to your comment.
         </small>
 
         <label for="comment">Comment <span aria-label="required">*</span></label>
-        <textarea name="comment" id="comment" rows="10" cols="50" required>{{if .CommentFound}}{{.Comment.Comment}}{{end}}</textarea>
+        <textarea name="comment" id="comment" rows="10" cols="50" required>{{if .Data.CommentFound}}{{.Data.Comment.Comment}}{{end}}</textarea>
 
         <input type="submit" value="Submit">
     </form>
 </main>
-</body>
-</html>
+{{end}}
+
+{{define "addeditcomment"}}
+{{template "layout" .}}
 {{end}}
