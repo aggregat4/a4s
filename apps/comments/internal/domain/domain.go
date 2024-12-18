@@ -84,14 +84,15 @@ func ParseCommentStatus(status string) (CommentStatus, error) {
 }
 
 type Comment struct {
-	Id        int
-	Status    CommentStatus
-	ServiceId int
-	UserId    int
-	PostKey   string
-	Comment   string
-	Name      string
-	Website   string
-	Edited    bool
-	CreatedAt time.Time
+	Id         int
+	Status     CommentStatus
+	ServiceId  int
+	ServiceKey string
+	UserId     int
+	PostKey    string
+	Comment    string
+	Name       string
+	Website    string
+	Edited     bool
+	CreatedAt  time.Time
 }

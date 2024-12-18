@@ -5,7 +5,7 @@ import (
 	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
-	"errors"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -22,9 +22,21 @@ import (
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/pkg/errors"
 )
 
-var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+		// Format error attributes specially
+		if a.Key == "stack" {
+			return slog.Attr{
+				Key:   a.Key,
+				Value: slog.StringValue(fmt.Sprintf("\n%v", a.Value.String())),
+			}
+		}
+		return a
+	},
+}))
 
 //go:embed public/views/*.html public/views/components/*.html
 var viewTemplates embed.FS
@@ -195,6 +207,7 @@ func customHTTPErrorHandler(err error, c echo.Context) {
 	if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
 	}
+
 	var errorPageTemplate = "error-internalserver"
 	switch code {
 	case http.StatusNotFound:
@@ -217,6 +230,11 @@ func customHTTPErrorHandler(err error, c echo.Context) {
 
 // Update the GetComments handler
 func (controller *Controller) GetComments(c echo.Context) error {
+	user, err := getUserFromSession(c, controller)
+	if err != nil && !errors.Is(err, lang.ErrNotFound) {
+		return sendInternalError(c, err)
+	}
+
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
 	if serviceKey == "" || postKey == "" {
@@ -247,6 +265,7 @@ func (controller *Controller) GetComments(c echo.Context) error {
 			Error:       errorFlashes,
 			Success:     successFlashes,
 		},
+		User:       user,
 		ServiceKey: serviceKey,
 		PostKey:    postKey,
 		Comments:   comments,
@@ -635,7 +654,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		}
 		commentStatus := lang.IfElse(userAuthenticated, domain.CommentStatusPendingApproval, domain.CommentStatusPendingAuthentication)
 		_, err = controller.Store.CreateComment(
-			commentStatus, service.Id, userId, postKey, commentContent, name, website)
+			commentStatus, service.Id, service.ServiceKey, userId, postKey, commentContent, name, website)
 		if err != nil {
 			return sendInternalError(c, err)
 		}

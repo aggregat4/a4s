@@ -1,16 +1,22 @@
 package server
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/labstack/echo/v4"
+	"github.com/pkg/errors"
 )
 
 func sendInternalError(c echo.Context, err error) error {
-	logger.Error("Error processing request", "error", err)
+	// Wrap the error to capture the stack trace
+	wrappedErr := errors.WithStack(err)
+	// Log the full error with stack trace
+	logger.Error("Internal server error",
+		"error", wrappedErr,
+		"stack", fmt.Sprintf("%+v", wrappedErr))
 	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
 }
 

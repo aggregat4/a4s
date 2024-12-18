@@ -115,7 +115,8 @@ dl.comments dt time {
 }
 
 .byline {
-    /* if you need to handle overflow */
+    display: flex;
+    flex-direction: column;
     min-width: 0;  /* allows text to truncate if needed */
     overflow: hidden;
     text-overflow: ellipsis;

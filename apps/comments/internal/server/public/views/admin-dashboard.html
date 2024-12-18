@@ -51,18 +51,21 @@
     {{end}}
     {{range .Data.Comments}}
         <dt class="{{template "statusToCssClass" .Status}}">
-            <div class="byline">
-              <div class="author">
-                {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
-                {{if .Website}}
-                  , <a href="{{.Website}}">{{.Website}}</a>
-                {{end}}
-              </div>
-              <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
-                {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
-              </time>
+          <div class="byline">
+            <div class="author">
+              {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
+              {{if .Website}}
+                , <a href="{{.Website}}">{{.Website}}</a>
+              {{end}}
             </div>
-            <div class="badge-actions">
+            <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
+              {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
+            </time>
+            <span class="post-link">
+              post: <a href="/services/{{.ServiceKey}}/posts/{{.PostKey}}/comments/">{{.PostKey}}</a> on service {{.ServiceKey}}
+            </span>
+          </div>
+          <div class="badge-actions">
               <span class="badge {{template "statusToCssClass" .Status}}" role="status">{{template "statusToShortString" .Status}}</span>
               <div class="actionbar">
                 {{if or (eq .Status 1) (eq .Status 2)}}

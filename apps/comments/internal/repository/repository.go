@@ -53,7 +53,7 @@ func (store *Store) GetServiceForKey(serviceKey string) (*domain.Service, error)
 		if err != nil {
 			return nil, err
 		}
-		return &domain.Service{Id: serviceId, Origin: origin}, nil
+		return &domain.Service{Id: serviceId, ServiceKey: serviceKey, Origin: origin}, nil
 	} else {
 		return nil, lang.ErrNotFound
 	}
@@ -95,7 +95,7 @@ func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
 	var commentEncrypted, nameEncrypted, websiteEncrypted []byte
 	var edited int
 	var createdAt int64
-	var err = rows.Scan(&comment.Id, &comment.Status, &comment.UserId, &comment.ServiceId, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &edited, &createdAt)
+	var err = rows.Scan(&comment.Id, &comment.Status, &comment.UserId, &comment.ServiceId, &comment.ServiceKey, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &edited, &createdAt)
 	if err != nil {
 		return domain.Comment{}, err
 	}
@@ -117,7 +117,7 @@ func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
 }
 
 func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ? AND status = ?", serviceId, postKey, domain.CommentStatusApproved)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ? AND status = ?", serviceId, postKey, domain.CommentStatusApproved)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.
 }
 
 func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE user_id = ?", userId)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE user_id = ?", userId)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
 }
 
 func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]domain.Comment, error) {
-	query := "SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments"
+	query := "SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments"
 	if len(statuses) > 0 {
 		query += " WHERE status IN ("
 		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",")
@@ -188,6 +188,7 @@ func (store *Store) UpdateUser(user domain.User) error {
 func (store *Store) CreateComment(
 	status domain.CommentStatus,
 	serviceId int,
+	serviceKey string,
 	userId int,
 	postkey string,
 	comment string,
@@ -207,8 +208,8 @@ func (store *Store) CreateComment(
 		return -1, err
 	}
 	result, err := store.db.Exec(
-		"INSERT INTO comments (status, service_id, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited) VALUES (?,?,?,?,?,?,?,?)",
-		int(status), serviceId, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted, 0)
+		"INSERT INTO comments (status, service_id, service_key, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited) VALUES (?,?,?,?,?,?,?,?,?)",
+		int(status), serviceId, serviceKey, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted, 0)
 	if err != nil {
 		return -1, err
 	}
@@ -298,7 +299,7 @@ func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
 
 func (store *Store) GetComment(commentId int) (domain.Comment, error) {
 	rows, err := store.db.Query(
-		"SELECT id, status, user_id, service_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE id = ?",
+		"SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE id = ?",
 		commentId)
 	if err != nil {
 		return domain.Comment{}, err

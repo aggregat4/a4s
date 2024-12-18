@@ -11,9 +11,9 @@
   {{end}}
   <nav>
     <a href="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/commentform">Add new Comment</a>
-    {{if gt .Data.UserId -1}}
-    <a href="/users/{{.Data.UserId}}/comments/">Manage Your Comments</a>
-  {{else}}
+    {{if gt .Data.User.Id -1}}
+    <a href="/users/{{.Data.User.Id}}/comments/">Manage Your Comments</a>
+    {{else}}
     <a href="/userauthentication">Login to Manage Your Comments</a>
   {{end}}
   </nav>
@@ -33,7 +33,7 @@
       <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
         {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
       </time>
-      {{if eq $.Data.UserId .UserId}}
+      {{if eq $.Data.User.Id .UserId}}
         ·
         <a href="/users/{{$.Data.UserId}}/comments/{{.Id}}/edit">Modify</a>
       {{end}}

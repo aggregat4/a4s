@@ -151,7 +151,7 @@ func createTestData(t *testing.T, store repository.Store) {
 	}
 
 	for _, c := range comments {
-		commentId, err := store.CreateComment(c.status, serviceId, testUserValidTokenId, TEST_POSTKEY1, c.comment, TEST_AUTHOR1, TEST_WEBSITE1)
+		commentId, err := store.CreateComment(c.status, serviceId, TEST_SERVICE, testUserValidTokenId, TEST_POSTKEY1, c.comment, TEST_AUTHOR1, TEST_WEBSITE1)
 		if err != nil {
 			t.Fatal("Error creating test comment: " + err.Error())
 		}
