@@ -43,4 +43,10 @@ var mymigrations = []migrations.Migration{
 		);
 		`,
 	},
+	{
+		SequenceId: 2,
+		Sql: `
+		ALTER TABLE comments ADD COLUMN parent_url_encrypted BLOB;
+		`,
+	},
 }

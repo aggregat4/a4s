@@ -92,10 +92,10 @@ func mapComments(rows *sql.Rows, cipher cipher.AEAD) ([]domain.Comment, error) {
 
 func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
 	var comment domain.Comment
-	var commentEncrypted, nameEncrypted, websiteEncrypted []byte
+	var commentEncrypted, nameEncrypted, websiteEncrypted, parentUrlEncrypted []byte
 	var edited int
 	var createdAt int64
-	var err = rows.Scan(&comment.Id, &comment.Status, &comment.UserId, &comment.ServiceId, &comment.ServiceKey, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &edited, &createdAt)
+	var err = rows.Scan(&comment.Id, &comment.Status, &comment.UserId, &comment.ServiceId, &comment.ServiceKey, &comment.PostKey, &commentEncrypted, &nameEncrypted, &websiteEncrypted, &parentUrlEncrypted, &edited, &createdAt)
 	if err != nil {
 		return domain.Comment{}, err
 	}
@@ -112,6 +112,14 @@ func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
 	if err != nil {
 		return domain.Comment{}, err
 	}
+	if len(parentUrlEncrypted) > 0 {
+		comment.ParentUrl, err = crypto.DecryptAes256(parentUrlEncrypted, cipher)
+		if err != nil {
+			return domain.Comment{}, err
+		}
+	} else {
+		comment.ParentUrl = ""
+	}
 	comment.Edited = edited == 1
 	return comment, nil
 }
@@ -126,7 +134,7 @@ func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.
 }
 
 func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE user_id = ?", userId)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments WHERE user_id = ?", userId)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +143,7 @@ func (store *Store) GetCommentsForUser(userId int) ([]domain.Comment, error) {
 }
 
 func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]domain.Comment, error) {
-	query := "SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments"
+	query := "SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments"
 	if len(statuses) > 0 {
 		query += " WHERE status IN ("
 		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",")
@@ -194,6 +202,7 @@ func (store *Store) CreateComment(
 	comment string,
 	author string,
 	website string,
+	parentUrl string,
 ) (int, error) {
 	commentEncrypted, err := crypto.EncryptAes256(comment, store.Cipher)
 	if err != nil {
@@ -207,9 +216,20 @@ func (store *Store) CreateComment(
 	if err != nil {
 		return -1, err
 	}
+	parentUrlEncrypted, err := crypto.EncryptAes256(parentUrl, store.Cipher)
+	if err != nil {
+		return -1, err
+	}
+
 	result, err := store.db.Exec(
-		"INSERT INTO comments (status, service_id, service_key, user_id, post_key, comment_encrypted, name_encrypted, website_encrypted, edited) VALUES (?,?,?,?,?,?,?,?,?)",
-		int(status), serviceId, serviceKey, userId, postkey, commentEncrypted, authorEncrypted, websiteEncrypted, 0)
+		`INSERT INTO comments (
+			status, service_id, service_key, user_id, post_key, 
+			comment_encrypted, name_encrypted, website_encrypted, 
+			parent_url_encrypted, edited
+		) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		int(status), serviceId, serviceKey, userId, postkey,
+		commentEncrypted, authorEncrypted, websiteEncrypted,
+		parentUrlEncrypted, 0)
 	if err != nil {
 		return -1, err
 	}
@@ -226,6 +246,7 @@ func (store *Store) UpdateComment(
 	comment string,
 	author string,
 	website string,
+	parentUrl string,
 ) error {
 	commentEncrypted, err := crypto.EncryptAes256(comment, store.Cipher)
 	if err != nil {
@@ -239,12 +260,26 @@ func (store *Store) UpdateComment(
 	if err != nil {
 		return err
 	}
+	parentUrlEncrypted, err := crypto.EncryptAes256(parentUrl, store.Cipher)
+	if err != nil {
+		return err
+	}
+
 	_, err = store.db.Exec(
-		"UPDATE comments SET status = ?, comment_encrypted = ?, name_encrypted = ?, website_encrypted = ?, edited = 1 WHERE id = ?",
-		lang.IfElse(previousStatus == domain.CommentStatusPendingAuthentication, domain.CommentStatusPendingApproval, previousStatus),
+		`UPDATE comments SET 
+			status = ?, 
+			comment_encrypted = ?, 
+			name_encrypted = ?, 
+			website_encrypted = ?,
+			parent_url_encrypted = ?,
+			edited = 1 
+		WHERE id = ?`,
+		lang.IfElse(previousStatus == domain.CommentStatusPendingAuthentication,
+			domain.CommentStatusPendingApproval, previousStatus),
 		commentEncrypted,
 		authorEncrypted,
 		websiteEncrypted,
+		parentUrlEncrypted,
 		commentId)
 	return err
 }

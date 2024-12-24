@@ -515,7 +515,7 @@ func (controller *Controller) ConfirmUserComment(c echo.Context) error {
 		// TODO: return to original page and show toast to indicate that the comment is not pending authentication
 		return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 	}
-	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusPendingApproval, comment.Comment, comment.Name, comment.Website)
+	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusPendingApproval, comment.Comment, comment.Name, comment.Website, comment.ParentUrl)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
 			// TODO: toast to show that the comment could not be found for confirmation
@@ -593,6 +593,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 	name := c.FormValue("name")
 	website := c.FormValue("website")
 	commentContent := c.FormValue("comment")
+	parentUrl := c.FormValue("parentUrl")
 	// TODO: give better error messages
 	if emailAddress == "" {
 		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
@@ -620,7 +621,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		if !userAuthenticated || comment.UserId != user.Id {
 			return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 		}
-		err = controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website)
+		err = controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website, parentUrl)
 		if err != nil {
 			return sendInternalError(c, err)
 		}
@@ -654,7 +655,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		}
 		commentStatus := lang.IfElse(userAuthenticated, domain.CommentStatusPendingApproval, domain.CommentStatusPendingAuthentication)
 		_, err = controller.Store.CreateComment(
-			commentStatus, service.Id, service.ServiceKey, userId, postKey, commentContent, name, website)
+			commentStatus, service.Id, service.ServiceKey, userId, postKey, commentContent, name, website, parentUrl)
 		if err != nil {
 			return sendInternalError(c, err)
 		}
@@ -736,7 +737,7 @@ func (controller *Controller) AdminApproveComment(c echo.Context) error {
 	if err != nil {
 		return handleCommonErrors(c, err)
 	}
-	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusApproved, comment.Comment, comment.Name, comment.Website)
+	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusApproved, comment.Comment, comment.Name, comment.Website, comment.ParentUrl)
 	if err != nil {
 		return sendInternalError(c, err)
 	}

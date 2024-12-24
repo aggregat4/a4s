@@ -24,6 +24,7 @@
         {{if .Data.CommentFound}}
         <input type="hidden" name="commentId" value="{{.Data.Comment.Id}}">
         {{end}}
+        <input type="hidden" name="parentUrl" id="parentUrl">
 
         <label for="email">Email <span aria-label="required">*</span></label>           
         <input type="email" name="email" id="email" value="{{if .Data.UserFound}}{{.Data.User.Email}}{{end}}" required
@@ -50,6 +51,9 @@
         <input type="submit" value="Submit">
     </form>
 </main>
+<script>
+    document.getElementById('parentUrl').value = document.referrer || window.parent.location.href;
+</script>
 {{end}}
 
 {{define "addeditcomment"}}

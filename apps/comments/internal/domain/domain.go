@@ -95,4 +95,5 @@ type Comment struct {
 	Website    string
 	Edited     bool
 	CreatedAt  time.Time
+	ParentUrl  string
 }
