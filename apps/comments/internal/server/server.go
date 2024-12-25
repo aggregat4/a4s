@@ -260,7 +260,7 @@ func (controller *Controller) GetComments(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	c.Response().Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
-	c.Response().Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300") // Cache for 1 minute, allow stale content for 5 minutes while revalidating
+	// c.Response().Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300") // Cache for 1 minute, allow stale content for 5 minutes while revalidating
 	return c.Render(http.StatusOK, "postcomments", domain.PostCommentsPage{
 		BasePage: domain.BasePage{
 			Stylesheets: templateStylesheets,
