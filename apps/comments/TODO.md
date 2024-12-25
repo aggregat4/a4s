@@ -1,10 +1,7 @@
 # TODO
 
-* postcomments page caching is fucked
-* We link to the comments page from each comment on the admin dashboard, but not the original post. Can we even solve that? How do we get the origin url?
-* The post comments page persists the success flash message ( /services/foobar/posts/blub/comments/ )
-* Add a link to the post that a comment is made on to the admin dashboard (or a way to preview it?)
-* add UserId to PostCommentsPage , we depend on it in the template (do it like in usercomments)
+* need a way for service owners to specify custom css for the comments page
+* consider real caching of the postcomments page: we need to make sure that the comments are always up to date, but we also need to make sure that the page is not too slow to load
 * Look for todos about toasts to inform users about error states and success states
 * Implement actual mail sending integration
 * Consider storing comments in localstorage as well: this may let us allow people recover text that they have submitted with the wrong email address? On the other hand privacy? Problem on a public computer? It may also serve as a backup generally?
