@@ -1,5 +1,6 @@
 # TODO
 
+* postcomments page caching is fucked
 * We link to the comments page from each comment on the admin dashboard, but not the original post. Can we even solve that? How do we get the origin url?
 * The post comments page persists the success flash message ( /services/foobar/posts/blub/comments/ )
 * Add a link to the post that a comment is made on to the admin dashboard (or a way to preview it?)
@@ -9,3 +10,4 @@
 * Consider storing comments in localstorage as well: this may let us allow people recover text that they have submitted with the wrong email address? On the other hand privacy? Problem on a public computer? It may also serve as a backup generally?
 * Set caching headers on responses where it makes sense
 * Redirect from collection pages without a trailing slash to the one with the slash
+ 
