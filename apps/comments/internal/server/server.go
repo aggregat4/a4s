@@ -118,6 +118,7 @@ func InitServerWithOidcMiddleware(
 		"error-notfound":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-notfound.html", "public/views/components/*.html")),
 		"error-unauthorized":   template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-unauthorized.html", "public/views/components/*.html")),
 		"error-badrequest":     template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-badrequest.html", "public/views/components/*.html")),
+		"demo":                 template.Must(template.New("").ParseFS(viewTemplates, "public/views/demo.html", "public/views/components/*.html")),
 	}
 
 	e.Renderer = &EchoTemplateRenderer{
@@ -197,6 +198,8 @@ func InitServerWithOidcMiddleware(
 	e.GET("/admin/comments", controller.GetAdminDashboard)
 	e.POST("/admin/comments/:commentId/approve", controller.AdminApproveComment)
 	e.POST("/admin/comments/:commentId/delete", controller.AdminDeleteComment)
+
+	e.GET("/demo", controller.GetDemo)
 
 	return e
 }
@@ -760,4 +763,11 @@ func (controller *Controller) AdminDeleteComment(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	return c.Redirect(http.StatusFound, "/admin")
+}
+
+func (controller *Controller) GetDemo(c echo.Context) error {
+	return c.Render(http.StatusOK, "demo", domain.BasePage{
+		Stylesheets: templateStylesheets,
+		Scripts:     templateScripts,
+	})
 }

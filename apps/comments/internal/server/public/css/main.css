@@ -35,18 +35,27 @@ body {
     line-height: 1.5;
     background-color: var(--site-bg-color);
     color: var(--site-text-color);
-    padding: 0 12px;
+    padding: 0;
+}
+
+body.admin-dashboard, body.demo {
+    padding: 0 24px;
 }
 
 main, header {
     max-width: 76ch;
-    margin: 0 auto;
-    padding: 6px;
+    /* margin: 0 auto; */
+    /* padding: 6px; */
 }
 
 .postcomments nav {
     display: flex;
     gap: 1rem;
+}
+
+h1 {
+    /* this is a hack to make the header not overlap with the iframe , apparently the top margin of the h1 extends above the body of the embedded document*/
+    margin-top: 0;
 }
 
 h2 {
@@ -80,11 +89,6 @@ h2 {
 .actionbar {
     display: flex;
     gap: 12px;
-}
-
-ul.hanging-indent {
-    list-style-position: outside;
-    padding-left: 0;
 }
 
 .admin-dashboard dl.comments dt {
@@ -172,7 +176,7 @@ dl.comments dt time {
     border-top: 1px solid #fff9c4;  /* Slightly darker yellow for border */
     border-bottom: 1px solid #fff9c4;  /* Slightly darker yellow for border */
     padding: 1rem 24px 1rem 24px;
-    margin: 0 -24px 0 -24px;
+    margin: 0;
 }
 
 @media (max-width: 600px) {

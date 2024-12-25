@@ -125,7 +125,7 @@ func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
 }
 
 func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ? AND status = ?", serviceId, postKey, domain.CommentStatusApproved)
+	rows, err := store.db.Query("SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ? AND status = ?", serviceId, postKey, domain.CommentStatusApproved)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +334,7 @@ func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
 
 func (store *Store) GetComment(commentId int) (domain.Comment, error) {
 	rows, err := store.db.Query(
-		"SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, edited, created_at FROM comments WHERE id = ?",
+		"SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments WHERE id = ?",
 		commentId)
 	if err != nil {
 		return domain.Comment{}, err

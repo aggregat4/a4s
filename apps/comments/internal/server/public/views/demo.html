@@ -1,0 +1,40 @@
+{{define "title"}}Comment Service Demo{{end}}
+
+{{define "bodyClass"}}demo{{end}}
+
+{{define "content"}}
+<header>
+    <h1>Comment Service Demo</h1>
+</header>
+<main>
+    <article class="article-content">
+        <h2>Understanding Web Components</h2>
+        <p>Web Components is a suite of different technologies allowing you to create reusable custom elements — with their functionality encapsulated away from the rest of your code — and utilize them in your web apps.</p>
+        <p>These technologies work together to create versatile custom elements that can be used anywhere.</p>
+    </article>
+
+    <section class="comment-section">
+        <h3>Comments</h3>
+        <iframe 
+            class="comment-frame"
+            src="http://localhost:8080/services/demoservice/posts/demopost/comments/"
+            title="Comments"
+            scrolling="no"
+            style="width: 100%; border: none; overflow: hidden;">
+        </iframe>
+        <script>
+            // Auto-resize iframe based on content
+            window.addEventListener('message', function(e) {
+                const iframe = document.querySelector('.comment-frame');
+                if (iframe && e.data.type === 'resize') {
+                    iframe.style.height = e.data.height + 'px';
+                }
+            });
+        </script>
+    </section>
+</main>
+{{end}}
+
+{{define "demo"}}
+{{template "layout" .}}
+{{end}}

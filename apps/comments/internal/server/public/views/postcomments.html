@@ -11,10 +11,10 @@
   {{end}}
   <nav>
     <a href="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/commentform">Add new Comment</a>
-    {{if gt .Data.User.Id -1}}
+    {{if gt .Data.User.Id 0}}
     <a href="/users/{{.Data.User.Id}}/comments/">Manage Your Comments</a>
     {{else}}
-    <a href="/userauthentication">Login to Manage Your Comments</a>
+    <a href="/userauthentication/">Login to Manage Your Comments</a>
   {{end}}
   </nav>
 </header>
@@ -24,7 +24,7 @@
     <dt>
       <span class="author">
         {{if .Website}}
-          <a href="{{.Website}}">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
+          <a href="{{.Website}}" target="_blank">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
         {{else}}
           {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
         {{end}}
