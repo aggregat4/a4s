@@ -310,6 +310,7 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 	user, err := controller.Store.FindUserByEmail(emailAddress)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
+			//nolint:errcheck
 			baseliboidc.SetFlash(c, "error", "No data was found for the user with email address '"+emailAddress+"'")
 			return c.Redirect(http.StatusFound, "/userauthentication/")
 		}
@@ -340,17 +341,21 @@ func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
 		})
 		if emailSuccessfullyQueued {
 			if delay > 0 {
+				//nolint:errcheck
 				baseliboidc.SetFlash(c, "success", "An authentication token will be sent in "+delay.String()+".")
 			} else {
+				//nolint:errcheck
 				baseliboidc.SetFlash(c, "success", "An authentication token is on the way, please check your email.")
 			}
 		} else {
 			// TODO error message too vague?
+			//nolint:errcheck
 			baseliboidc.SetFlash(c, "error", "Could not send an email at this time, please try again later.")
 		}
 		return c.Redirect(http.StatusFound, "/userauthentication/")
 	} else {
 		// let the user know they have to try again in 15 minutes
+		//nolint:errcheck
 		baseliboidc.SetFlash(c, "error", "Too many attempts were made to login for this user. Please try again in 15 minutes.")
 		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}
@@ -363,6 +368,7 @@ func (controller *Controller) AuthenticateUser(c echo.Context) error {
 	}
 	user, err := controller.Store.FindUserByAuthToken(token)
 	if err != nil || !validToken(user) {
+		//nolint:errcheck
 		baseliboidc.SetFlash(c, "error", "Invalid token")
 		return c.Redirect(http.StatusFound, "/userauthentication/")
 	}
@@ -628,6 +634,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		if err != nil {
 			return sendInternalError(c, err)
 		}
+		//nolint:errcheck
 		baseliboidc.SetFlash(c, "success", "Your comment has been updated")
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 
@@ -662,6 +669,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		if err != nil {
 			return sendInternalError(c, err)
 		}
+		//nolint:errcheck
 		baseliboidc.SetFlash(c, "success", "Your comment has been added")
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 	}
