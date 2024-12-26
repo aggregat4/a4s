@@ -37,7 +37,7 @@
             // Auto-resize iframe based on content
             window.addEventListener('message', function(e) {
                 const iframe = document.querySelector('.comment-frame');
-                if (iframe && e.data.type === 'resize') {
+                if (iframe && e.data.type === 'comment-height') {
                     iframe.style.height = e.data.height + 'px';
                 }
             });

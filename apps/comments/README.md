@@ -18,6 +18,54 @@ Users can see, export, edit and delete their comments.
 Admins for a particular website can screen, approve or deny comments. Only
 authenticated comments are considered.
 
+
+## Embedding the Comments Page
+
+To embed comments on your website, you'll need to:
+
+1. Register your website with the comment service to get a service ID
+2. Add an iframe element to your page where you want the comments to appear
+3. Implement the iframe resizing listener for a seamless experience
+
+### Basic Implementation
+
+Add an iframe to your page using the following format:
+
+```html
+<iframe
+  src="https://your-comment-service.com/servicces/{serviceId}/posts/{postKey}/comments"
+  width="100%"
+  style="border: none;"
+  id="comments-iframe"
+></iframe>
+```
+
+Replace:
+- `your-comment-service.com` with your actual comment service domain
+- `{serviceId}` with your registered service ID
+- `{postKey}` with a unique identifier for the current page/post
+
+### Automatic Height Adjustment
+
+To ensure the iframe resizes automatically to fit its content without scrollbars, add this JavaScript to your page:
+
+```javascript
+window.addEventListener('message', function(e) {
+    // Verify the message origin for security
+    if (e.origin !== 'https://your-comment-service.com') return;
+    // Check if it's a height update message
+    if (e.data && e.data.type === 'comment-height') {
+        const iframe = document.querySelector('.comment-frame');
+        if (iframe) {
+            iframe.style.height = e.data.height + 'px';
+        }
+    }
+});
+```
+
+The comment service will automatically send height update messages whenever the content size changes, ensuring a seamless integration without iframe scrollbars.
+
+
 ## Privacy Laws, GDPR and this Project
 
 It is impossible to satisfy privacy law requirements on a technical level alone.

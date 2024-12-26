@@ -19,7 +19,7 @@
         function updateParentHeight() {
             const height = document.body.scrollHeight;
             window.parent.postMessage({
-                type: 'resize',
+                type: 'comment-height',
                 height: height
             }, '*');
         }
