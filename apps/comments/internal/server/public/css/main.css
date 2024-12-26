@@ -13,6 +13,8 @@
     --info-bg-color: #E1F5FE;
     --info-border-color: #B3E5FC;
 
+    --button-color: #545964;
+    --button-color-hover: #3F424A;
     --button-primary-color: #08599B;
     --button-primary-color-hover: #06477c;
 
@@ -40,6 +42,10 @@ body {
 
 body.admin-dashboard, body.demo {
     padding: 0 24px;
+}
+
+body.demo main, body.demo header {
+    margin: auto;
 }
 
 main, header {
@@ -210,7 +216,6 @@ select {
     font-size: var(--font-size);
 }
 
-/* Labels */
 label {
     display: block;
     margin-bottom: 6px;
@@ -218,10 +223,10 @@ label {
     margin-top: 12px;
 }
 
-/* Submit button */
 button[type="submit"],
-input[type="submit"] {
-    background-color: var(--button-primary-color);
+input[type="submit"],
+a.button {
+    background-color: var(--button-color);
     color: white;
     padding: 10px 15px;
     border: none;
@@ -229,14 +234,30 @@ input[type="submit"] {
     cursor: pointer;
     font-size: var(--font-size);
     margin-top: 12px;
+    text-decoration: none;
 }
 
 button[type="submit"]:hover,
-input[type="submit"]:hover {
+input[type="submit"]:hover,
+a.button:hover {
+    background-color: var(--button-color-hover);
+}
+
+button[type="submit"].primary-button,
+input[type="submit"].primary-button,
+a.button.primary-button {
+    background-color: var(--button-primary-color);
+}
+
+
+button[type="submit"].primary-button:hover,
+input[type="submit"].primary-button:hover,
+a.button.primary-button:hover {
     background-color: var(--button-primary-color-hover);
 }
 
-/* Focus styles */
+
+
 input:focus,
 textarea:focus,
 select:focus {
@@ -245,7 +266,6 @@ select:focus {
     box-shadow: 0 0 5px var(--focus-shadow-color);
 }
 
-/* Error state */
 .error input,
 .error textarea,
 .error select {
@@ -255,4 +275,10 @@ select:focus {
 form small {
     font-size: 0.8em;
     color: #555;
+}
+
+.button-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
 }

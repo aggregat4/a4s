@@ -48,7 +48,10 @@
         <label for="comment">Comment <span aria-label="required">*</span></label>
         <textarea name="comment" id="comment" rows="10" cols="50" required>{{if .Data.CommentFound}}{{.Data.Comment.Comment}}{{end}}</textarea>
 
-        <input type="submit" value="Submit">
+        <div class="button-group">
+            <input type="submit" value="Submit" class="primary-button">
+            <a href="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/comments/" class="button">Cancel</a>
+        </div>
     </form>
 </main>
 <script>
