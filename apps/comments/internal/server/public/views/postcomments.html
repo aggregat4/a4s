@@ -11,11 +11,6 @@
   {{end}}
   <nav>
     <a href="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/commentform">Add new comment</a>
-    {{if gt .Data.User.Id 0}}
-    <a href="/users/{{.Data.User.Id}}/comments/">Manage your comments</a>
-    {{else}}
-    <a href="/userauthentication/">Login to manage your comments</a>
-  {{end}}
   </nav>
 </header>
 <main>

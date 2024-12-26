@@ -774,8 +774,15 @@ func (controller *Controller) AdminDeleteComment(c echo.Context) error {
 }
 
 func (controller *Controller) GetDemo(c echo.Context) error {
-	return c.Render(http.StatusOK, "demo", domain.BasePage{
-		Stylesheets: templateStylesheets,
-		Scripts:     templateScripts,
+	user, err := getUserFromSession(c, controller)
+	if err != nil && !errors.Is(err, lang.ErrNotFound) {
+		return sendInternalError(c, err)
+	}
+	return c.Render(http.StatusOK, "demo", domain.DemoPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
+		User: user,
 	})
 }

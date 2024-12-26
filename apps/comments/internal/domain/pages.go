@@ -51,3 +51,8 @@ type AddOrEditCommentPage struct {
 type AdminLoginPage struct {
 	BasePage
 }
+
+type DemoPage struct {
+	BasePage
+	User User
+}
