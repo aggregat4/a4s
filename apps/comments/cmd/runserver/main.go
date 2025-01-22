@@ -53,7 +53,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error initializing database: %s", err)
 	}
-	sendGridEmailSender := email.NewSendgridEmailSender()
+	sendGridEmailSender := email.NewSendgridEmailSender(
+		config.EmailFromName,
+		config.EmailFromAddress,
+		config.EmailSubject,
+		config.SendgridApiKey,
+	)
 	emailSender := email.NewEmailSender(sendGridEmailSender.SendgridEmailSenderStrategy)
 	server.RunServer(
 		server.Controller{
