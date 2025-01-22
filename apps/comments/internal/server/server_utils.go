@@ -1,6 +1,7 @@
 package server
 
 import (
+	"aggregat4/go-commentservice/internal/domain"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,7 +18,12 @@ func sendInternalError(c echo.Context, err error) error {
 	logger.Error("Internal server error",
 		"error", wrappedErr,
 		"stack", fmt.Sprintf("%+v", wrappedErr))
-	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
+	return c.Render(http.StatusInternalServerError, "error-internalserver", domain.ErrorPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
+	})
 }
 
 func csrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
@@ -67,6 +73,27 @@ func httpResponseLogger(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 		return nil
 	}
+}
+
+func renderErrorPage(c echo.Context, status int, template string) error {
+	return c.Render(status, template, domain.ErrorPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
+	})
+}
+
+func renderBadRequest(c echo.Context) error {
+	return renderErrorPage(c, http.StatusBadRequest, "error-badrequest")
+}
+
+func renderUnauthorized(c echo.Context) error {
+	return renderErrorPage(c, http.StatusUnauthorized, "error-unauthorized")
+}
+
+func renderNotFound(c echo.Context) error {
+	return renderErrorPage(c, http.StatusNotFound, "error-notfound")
 }
 
 var ErrIllegalArgument = errors.New("illegal argumen")

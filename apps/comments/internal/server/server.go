@@ -241,12 +241,12 @@ func (controller *Controller) GetComments(c echo.Context) error {
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
 	if serviceKey == "" || postKey == "" {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return renderBadRequest(c)
 	}
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
-			return c.Render(http.StatusNotFound, "error-notfound", nil)
+			return renderNotFound(c)
 		}
 		return sendInternalError(c, err)
 	}
@@ -420,7 +420,7 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
 	if serviceKey == "" || postKey == "" {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return renderBadRequest(c)
 	}
 	user, userFoundError := getUserFromSession(c, controller)
 	if userFoundError != nil && !errors.Is(userFoundError, lang.ErrNotFound) {
@@ -552,11 +552,11 @@ func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo
 	// resolve and validate user
 	userIdString := c.Param("userId")
 	if userIdString == "" {
-		return domain.User{}, domain.Comment{}, c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return domain.User{}, domain.Comment{}, renderBadRequest(c)
 	}
 	userId, err := strconv.Atoi(userIdString)
 	if err != nil {
-		return domain.User{}, domain.Comment{}, c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return domain.User{}, domain.Comment{}, renderBadRequest(c)
 	}
 	// validate user
 	user, err := getUserFromSession(c, controller)
@@ -564,7 +564,7 @@ func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo
 		return domain.User{}, domain.Comment{}, sendInternalError(c, err)
 	}
 	if user.Id != userId {
-		return domain.User{}, domain.Comment{}, c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+		return domain.User{}, domain.Comment{}, renderUnauthorized(c)
 	}
 	// retrieve comment
 	comment, err := controller.requireCommentAndRetrieve(c)
@@ -572,16 +572,16 @@ func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo
 		return domain.User{}, domain.Comment{}, handleCommonErrors(c, err)
 	}
 	if comment.UserId != user.Id {
-		return domain.User{}, domain.Comment{}, c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+		return domain.User{}, domain.Comment{}, renderUnauthorized(c)
 	}
 	return user, comment, nil
 }
 
 func handleCommonErrors(c echo.Context, err error) error {
 	if errors.Is(err, lang.ErrNotFound) {
-		return c.Render(http.StatusNotFound, "error-notfound", nil)
+		return renderNotFound(c)
 	} else if errors.Is(err, ErrIllegalArgument) {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return renderBadRequest(c)
 	} else {
 		return sendInternalError(c, err)
 	}
@@ -591,7 +591,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
 	if serviceKey == "" || postKey == "" {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return renderBadRequest(c)
 	}
 	user, userSessionError := getUserFromSession(c, controller)
 	if userSessionError != nil && !errors.Is(userSessionError, lang.ErrNotFound) {
@@ -605,10 +605,10 @@ func (controller *Controller) PostComment(c echo.Context) error {
 	parentUrl := c.FormValue("parentUrl")
 	// TODO: give better error messages
 	if emailAddress == "" {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return renderBadRequest(c)
 	}
 	if commentContent == "" {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return renderBadRequest(c)
 	}
 	userAuthenticated := lang.IfElse(userSessionError == nil, true, false)
 	if commentIdString != "" {
@@ -628,7 +628,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		}
 		// we are editing a comment, verify that the user is allowed to do so
 		if !userAuthenticated || comment.UserId != user.Id {
-			return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+			return renderUnauthorized(c)
 		}
 		err = controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website, parentUrl)
 		if err != nil {
