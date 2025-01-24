@@ -41,7 +41,9 @@
                     </div>
                 {{end}}
                 <div class="actionbar">
+                    {{if ne .Status 3}}
                     <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
+                    {{end}}
                     {{if eq .Status 1}}
                     <action-confirmation actionName="Confirm Comment" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>
                     {{end}}

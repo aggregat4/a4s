@@ -630,6 +630,10 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		if !userAuthenticated || comment.UserId != user.Id {
 			return renderUnauthorized(c)
 		}
+		// prevent editing approved comments
+		if comment.Status == domain.CommentStatusApproved {
+			return renderUnauthorized(c)
+		}
 		err = controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website, parentUrl)
 		if err != nil {
 			return sendInternalError(c, err)
