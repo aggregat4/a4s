@@ -1,6 +1,6 @@
 # TODO
 
-* fix user dashboard: The layout of the user dashboard has no padding (as the userauthentication page), there is a weird sentence in the comment list and there is not link to the original post
+* align the user comment styling with the admin dashboard styling
 * after confirming the comment and then rendering the original post, there is an error in the console
 * after confirming the comment and then rendering the original post, there is an error in the console: `
 * need a way for service owners to specify custom css for the comments page
