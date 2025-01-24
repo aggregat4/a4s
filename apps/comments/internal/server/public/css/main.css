@@ -27,6 +27,23 @@
 
     --focus-border-color: #08599B;
     --focus-shadow-color: #06477c;
+
+    /* Status Colors */
+    --status-pending-user-color: #856404;
+    --status-pending-user-bg: #fff3cd;
+    --status-pending-user-border: #ffeeba;
+    
+    --status-pending-admin-color: #004085;
+    --status-pending-admin-bg: #cce5ff;
+    --status-pending-admin-border: #b8daff;
+    
+    --status-approved-color: #155724;
+    --status-approved-bg: #d4edda;
+    --status-approved-border: #c3e6cb;
+    
+    --status-rejected-color: #721c24;
+    --status-rejected-bg: #f8d7da;
+    --status-rejected-border: #f5c6cb;
 }
 
 body {
@@ -284,27 +301,73 @@ form small {
 }
 
 .comment-status {
-    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25em 0.5em;
     border-radius: 4px;
-    margin: 8px 0;
+    margin: 0.25rem 0;
+    position: relative;
+    font-size: 0.875em;
+    line-height: 1;
+    white-space: nowrap;
 
-    p {
-        margin: 4px 0;
+    .status-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        font-size: 12px;
     }
 
-    &.pending {
-        background-color: var(--badge-pending-bg-color);
-        color: var(--badge-pending-color);
+    span:not(.status-icon) {
+        position: relative;
+        top: 1px;
+    }
+
+    &.pending-user {
+        background-color: var(--status-pending-user-bg);
+        color: var(--status-pending-user-color);
+        border: 1px solid var(--status-pending-user-border);
+
+        .status-icon::before {
+            content: "⚠";
+            font-size: 11px;
+        }
+    }
+
+    &.pending-admin {
+        background-color: var(--status-pending-admin-bg);
+        color: var(--status-pending-admin-color);
+        border: 1px solid var(--status-pending-admin-border);
+
+        .status-icon::before {
+            content: "⌛";
+            font-size: 11px;
+        }
     }
 
     &.approved {
-        background-color: var(--badge-approved-bg-color);
-        color: var(--badge-approved-color);
+        background-color: var(--status-approved-bg);
+        color: var(--status-approved-color);
+        border: 1px solid var(--status-approved-border);
+
+        .status-icon::before {
+            content: "✓";
+            font-weight: bold;
+        }
     }
 
     &.rejected {
-        background-color: var(--badge-rejected-bg-color);
-        color: var(--badge-rejected-color);
+        background-color: var(--status-rejected-bg);
+        color: var(--status-rejected-color);
+        border: 1px solid var(--status-rejected-border);
+
+        .status-icon::before {
+            content: "×";
+            font-weight: bold;
+        }
     }
 }
 

@@ -19,25 +19,27 @@
                 </span>
                 <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
                 {{if eq .Status 1}}
-                    <div class="comment-status pending">
-                        <p>This comment has not been confirmed by you. If you want this to be seen by the admin for
-                            approval you should confirm the comment.</p>
-                        <p>Alternatively you can also delete your comment.</p>
+                    <div class="comment-status pending-user" title="This comment has not been confirmed by you. If you want this to be seen by the admin for approval you should confirm the comment. Alternatively you can also delete your comment.">
+                        <span class="status-icon"></span>
+                        <span>Awaiting Your Confirmation</span>
                     </div>
                 {{end}}
                 {{if eq .Status 2}}
-                    <div class="comment-status pending">
-                        <p>This comment is awaiting administrator approval.</p>
+                    <div class="comment-status pending-admin" title="This comment is awaiting administrator approval.">
+                        <span class="status-icon"></span>
+                        <span>Awaiting Admin Review</span>
                     </div>
                 {{end}}
                 {{if eq .Status 3}}
-                    <div class="comment-status approved">
-                        <p>This comment has been approved by the administrator and will be displayed.</p>
+                    <div class="comment-status approved" title="This comment has been approved by the administrator and will be displayed.">
+                        <span class="status-icon"></span>
+                        <span>Approved</span>
                     </div>
                 {{end}}
                 {{if eq .Status 4}}
-                    <div class="comment-status rejected">
-                        <p>This comment has been rejected by the administrator and will not be displayed.</p>
+                    <div class="comment-status rejected" title="This comment has been rejected by the administrator and will not be displayed.">
+                        <span class="status-icon"></span>
+                        <span>Rejected</span>
                     </div>
                 {{end}}
                 <div class="actionbar">
