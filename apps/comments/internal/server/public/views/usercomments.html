@@ -19,37 +19,33 @@
                 </span>
                 <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
                 {{if eq .Status 1}}
-                    <div class="comment-status pending-user" title="This comment has not been confirmed by you. If you want this to be seen by the admin for approval you should confirm the comment. Alternatively you can also delete your comment.">
-                        <span class="status-icon"></span>
-                        <span>Awaiting Your Confirmation</span>
-                    </div>
+                    <span class="badge pending-authentication" title="This comment has not been confirmed by you. If you want this to be seen by the admin for approval you should confirm the comment. Alternatively you can also delete your comment.">
+                        Awaiting Your Confirmation
+                    </span>
                 {{end}}
                 {{if eq .Status 2}}
-                    <div class="comment-status pending-admin" title="This comment is awaiting administrator approval.">
-                        <span class="status-icon"></span>
-                        <span>Awaiting Admin Review</span>
-                    </div>
+                    <span class="badge pending-approval" title="This comment is awaiting administrator approval.">
+                        Awaiting Admin Review
+                    </span>
                 {{end}}
                 {{if eq .Status 3}}
-                    <div class="comment-status approved" title="This comment has been approved by the administrator and will be displayed.">
-                        <span class="status-icon"></span>
-                        <span>Approved</span>
-                    </div>
+                    <span class="badge approved" title="This comment has been approved by the administrator and will be displayed.">
+                        Approved
+                    </span>
                 {{end}}
                 {{if eq .Status 4}}
-                    <div class="comment-status rejected" title="This comment has been rejected by the administrator and will not be displayed.">
-                        <span class="status-icon"></span>
-                        <span>Rejected</span>
-                    </div>
+                    <span class="badge rejected" title="This comment has been rejected by the administrator and will not be displayed.">
+                        Rejected
+                    </span>
                 {{end}}
                 <div class="actionbar">
                     {{if ne .Status 3}}
                     <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
                     {{end}}
                     {{if eq .Status 1}}
-                    <action-confirmation actionName="Confirm Comment" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>
+                    <action-confirmation actionName="Confirm" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>
                     {{end}}
-                    <action-confirmation actionName="Delete Comment" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
+                    <action-confirmation actionName="Delete" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
                 </div>
             </dt>
             <dd>{{.Comment}}</dd>

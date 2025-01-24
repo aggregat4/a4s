@@ -295,77 +295,6 @@ form small {
     margin-top: 12px;
 }
 
-.comment-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25em 0.5em;
-    border-radius: 4px;
-    margin: 0.25rem 0;
-    position: relative;
-    font-size: 0.875em;
-    line-height: 1;
-    white-space: nowrap;
-
-    & .status-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 16px;
-        height: 16px;
-        font-size: 12px;
-    }
-
-    & span:not(.status-icon) {
-        position: relative;
-        top: 1px;
-    }
-
-    &.pending-user {
-        background-color: var(--status-pending-user-bg);
-        color: var(--status-pending-user-color);
-        border: 1px solid var(--status-pending-user-border);
-
-        & .status-icon::before {
-            content: "⚠";
-            font-size: 11px;
-        }
-    }
-
-    &.pending-admin {
-        background-color: var(--status-pending-admin-bg);
-        color: var(--status-pending-admin-color);
-        border: 1px solid var(--status-pending-admin-border);
-
-        & .status-icon::before {
-            content: "⌛";
-            font-size: 11px;
-        }
-    }
-
-    &.approved {
-        background-color: var(--status-approved-bg);
-        color: var(--status-approved-color);
-        border: 1px solid var(--status-approved-border);
-
-        & .status-icon::before {
-            content: "✓";
-            font-weight: bold;
-        }
-    }
-
-    &.rejected {
-        background-color: var(--status-rejected-bg);
-        color: var(--status-rejected-color);
-        border: 1px solid var(--status-rejected-border);
-
-        & .status-icon::before {
-            content: "×";
-            font-weight: bold;
-        }
-    }
-}
-
 .usercomments {
     & main,
     & header {
@@ -376,6 +305,10 @@ form small {
     & dl.comments {
         & dt {
             margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            gap: 1rem;
+            align-items: center;
 
             & time {
                 white-space: nowrap;
@@ -383,6 +316,10 @@ form small {
                 font-size: 0.8em;
                 color: #555;
                 margin-left: 8px;
+            }
+
+            & .badge {
+                justify-self: start;
             }
         }
 
