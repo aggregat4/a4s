@@ -17,25 +17,30 @@
                     {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
                 {{end}}
                 </span>
+                <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
                 {{if eq .Status 1}}
-                    <div class="commentstatuspending">
+                    <div class="comment-status pending">
                         <p>This comment has not been confirmed by you. If you want this to be seen by the admin for
                             approval you should confirm the comment.</p>
                         <p>Alternatively you can also delete your comment.</p>
                     </div>
                 {{end}}
+                {{if eq .Status 2}}
+                    <div class="comment-status pending">
+                        <p>This comment is awaiting administrator approval.</p>
+                    </div>
+                {{end}}
                 {{if eq .Status 3}}
-                    <div class="commentstatusapproved">
+                    <div class="comment-status approved">
                         <p>This comment has been approved by the administrator and will be displayed.</p>
                     </div>
                 {{end}}
                 {{if eq .Status 4}}
-                    <div class="commentstatusrejected">
+                    <div class="comment-status rejected">
                         <p>This comment has been rejected by the administrator and will not be displayed.</p>
                     </div>
                 {{end}}
                 <div class="actionbar">
-                    <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
                     <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
                     {{if eq .Status 1}}
                     <action-confirmation actionName="Confirm Comment" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/confirm"></action-confirmation>

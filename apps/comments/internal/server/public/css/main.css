@@ -40,7 +40,7 @@ body {
     padding: 0;
 }
 
-body.admin-dashboard, body.demo {
+body.admin-dashboard, body.demo, body.usercomments {
     padding: 0 24px;
 }
 
@@ -281,4 +281,61 @@ form small {
     display: flex;
     gap: 12px;
     margin-top: 12px;
+}
+
+.comment-status {
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin: 8px 0;
+
+    p {
+        margin: 4px 0;
+    }
+
+    &.pending {
+        background-color: var(--badge-pending-bg-color);
+        color: var(--badge-pending-color);
+    }
+
+    &.approved {
+        background-color: var(--badge-approved-bg-color);
+        color: var(--badge-approved-color);
+    }
+
+    &.rejected {
+        background-color: var(--badge-rejected-bg-color);
+        color: var(--badge-rejected-color);
+    }
+}
+
+.usercomments {
+    main, header {
+        max-width: 76ch;
+        margin: 0 auto;
+    }
+
+    dl.comments {
+        dt {
+            margin-bottom: 12px;
+
+            time {
+                white-space: nowrap;
+                font-weight: normal;
+                font-size: 0.8em;
+                color: #555;
+                margin-left: 8px;
+            }
+        }
+
+        dd {
+            margin: 0 0 36px 0;
+        }
+    }
+
+    .actionbar {
+        margin-top: 10px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
 }
