@@ -30,7 +30,7 @@
       </time>
       {{if eq $.Data.User.Id .UserId}}
         ·
-        <a href="/users/{{$.Data.UserId}}/comments/{{.Id}}/edit">Modify</a>
+        <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
       {{end}}
     </dt>
     <dd>{{.Comment}}</dd>
