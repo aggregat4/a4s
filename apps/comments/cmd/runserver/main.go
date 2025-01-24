@@ -58,6 +58,7 @@ func main() {
 		config.EmailFromAddress,
 		config.EmailSubject,
 		config.SendgridApiKey,
+		config.BaseURL,
 	)
 	emailSender := email.NewEmailSender(sendGridEmailSender.SendgridEmailSenderStrategy)
 	server.RunServer(

@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseFilename            string `fig:"database_filename" validate:"required"`
 	ServerReadTimeoutSeconds    int    `fig:"server_read_timeout_seconds" default:"5"`
 	ServerWriteTimeoutSeconds   int    `fig:"server_write_timeout_seconds" default:"10"`
+	BaseURL                     string `fig:"base_url" validate:"required"` // Base URL where the service is hosted (e.g. https://comments.example.com)
 	OidcIdpServer               string `fig:"oidc_idp_server" validate:"required"`
 	OidcClientId                string `fig:"oidc_client_id" validate:"required"`
 	OidcClientSecret            string `fig:"oidc_client_secret" validate:"required"`
