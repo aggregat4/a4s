@@ -18,13 +18,6 @@
     --button-primary-color: #08599B;
     --button-primary-color-hover: #06477c;
 
-    --badge-pending-bg-color: #fff3e0;
-    --badge-approved-bg-color: #e8f5e9;
-    --badge-rejected-bg-color: #ffebee;
-    --badge-pending-color: #8F3200;
-    --badge-approved-color: #235C26;
-    --badge-rejected-color: #981F1F;
-
     --focus-border-color: #08599B;
     --focus-shadow-color: #06477c;
 
@@ -55,25 +48,30 @@ body {
     background-color: var(--site-bg-color);
     color: var(--site-text-color);
     padding: 0;
+
+    &.admin-dashboard,
+    &.demo,
+    &.usercomments {
+        padding: 0 24px;
+    }
 }
 
-body.admin-dashboard, body.demo, body.usercomments {
-    padding: 0 24px;
-}
-
-body.demo main, body.demo header {
-    margin: auto;
+body.demo {
+    & main,
+    & header {
+        margin: auto;
+    }
 }
 
 main, header {
     max-width: 76ch;
-    /* margin: 0 auto; */
-    /* padding: 6px; */
 }
 
-.postcomments nav {
-    display: flex;
-    gap: 1rem;
+.postcomments {
+    & nav {
+        display: flex;
+        gap: 1rem;
+    }
 }
 
 h1 {
@@ -89,24 +87,24 @@ h2 {
     border-radius: 4px;
     padding: 10px;
     margin: 0 0 15px 0;
-}
 
-.toast.error {
-    color: var(--error-color);
-    background-color: var(--error-bg-color);
-    border: 1px solid var(--error-border-color);
-}
+    &.error {
+        color: var(--error-color);
+        background-color: var(--error-bg-color);
+        border: 1px solid var(--error-border-color);
+    }
 
-.toast.success {
-    color: var(--success-color);
-    background-color: var(--success-bg-color);
-    border: 1px solid var(--success-border-color);
-}
+    &.success {
+        color: var(--success-color);
+        background-color: var(--success-bg-color);
+        border: 1px solid var(--success-border-color);
+    }
 
-.toast.info {
-    color: var(--info-color);
-    background-color: var(--info-bg-color);
-    border: 1px solid var(--info-border-color);
+    &.info {
+        color: var(--info-color);
+        background-color: var(--info-bg-color);
+        border: 1px solid var(--info-border-color);
+    }
 }
 
 .actionbar {
@@ -114,27 +112,31 @@ h2 {
     gap: 12px;
 }
 
-.admin-dashboard dl.comments dt {
-    display: grid;
-    grid-template-columns: 1fr auto auto;  /* byline expands, badge and actionbar take needed space */
-    gap: 1rem;
-    align-items: center;  /* vertically center items */
-    margin-bottom: 6px;
+dl.comments {
+    & dt {
+        margin-bottom: 6px;
+
+        & time {
+            white-space: nowrap;
+            font-weight: italic;
+            font-size: 0.8em;
+            color: #555;
+        }
+    }
+
+    & dd {
+        margin: 0 0 24px 0;
+    }
 }
 
-.postcomments dl.comments dt {
-    margin-bottom: 6px;
-}
-
-dl.comments dd {
-    margin: 0 0 24px 0;
-}
-
-dl.comments dt time {
-    white-space: nowrap;
-    font-weight: italic;
-    font-size: 0.8em;
-    color: #555;
+.admin-dashboard {
+    & dl.comments dt {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 1rem;
+        align-items: center;
+        margin-bottom: 6px;
+    }
 }
 
 .author {
@@ -144,7 +146,7 @@ dl.comments dt time {
 .byline {
     display: flex;
     flex-direction: column;
-    min-width: 0;  /* allows text to truncate if needed */
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -155,11 +157,6 @@ dl.comments dt time {
     gap: 1rem;
     align-items: center;
 }
-.actionbar {
-    display: flex;
-    gap: 1rem;
-}
-
 
 .badge {
     display: inline-block;
@@ -172,53 +169,60 @@ dl.comments dt time {
     white-space: nowrap;
     vertical-align: baseline;
     text-transform: capitalize;
+
+    &.pending-authentication {
+        background-color: var(--status-pending-user-bg);
+        color: var(--status-pending-user-color);
+        border: 1px solid var(--status-pending-user-border);
+    }
+
+    &.pending-approval {
+        background-color: var(--status-pending-admin-bg);
+        color: var(--status-pending-admin-color);
+        border: 1px solid var(--status-pending-admin-border);
+    }
+
+    &.approved {
+        background-color: var(--status-approved-bg);
+        color: var(--status-approved-color);
+        border: 1px solid var(--status-approved-border);
+    }
+
+    &.rejected {
+        background-color: var(--status-rejected-bg);
+        color: var(--status-rejected-color);
+        border: 1px solid var(--status-rejected-border);
+    }
 }
 
-.badge.pending-authentication {
-    background-color: var(--badge-pending-bg-color);
-    color: var(--badge-pending-color);
-}
-
-.badge.pending-approval {
-    background-color: var(--badge-pending-bg-color);
-    color: var(--badge-pending-color);
-}
-
-.badge.approved {
-    background-color: var(--badge-approved-bg-color);
-    color: var(--badge-approved-color);
-}
-
-.badge.rejected {
-    background-color: var(--badge-rejected-bg-color);
-    color: var(--badge-rejected-color);
-}
-
-.important, ul.important  {
-    background-color: #fffde7;  /* Very light yellow */
-    border-top: 1px solid #fff9c4;  /* Slightly darker yellow for border */
-    border-bottom: 1px solid #fff9c4;  /* Slightly darker yellow for border */
+.important {
+    background-color: #fffde7;
+    border-top: 1px solid #fff9c4;
+    border-bottom: 1px solid #fff9c4;
     padding: 1rem 24px 1rem 24px;
     margin: 0;
 }
 
+ul.important {
+    @extend .important;
+}
+
 @media (max-width: 600px) {
-    .admin-dashboard dl.comments dt {
-        grid-template-columns: 1fr;  /* stack everything vertically */
-        gap: 0.5rem;
+    .admin-dashboard {
+        & dl.comments dt {
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+        }
     }
     
     dl.comments .badge-actions {
         grid-template-columns: auto;
-        justify-content: flex-start;  /* align to left on mobile */
+        justify-content: flex-start;
         gap: 0.5rem;
     }
 }
 
-
-/* form styles */
-
-/* Input fields */
+/* Form styles */
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -231,6 +235,12 @@ select {
     border-radius: 4px;
     box-sizing: border-box;
     font-size: var(--font-size);
+
+    &:focus {
+        outline: none;
+        border-color: var(--focus-border-color);
+        box-shadow: 0 0 5px var(--focus-shadow-color);
+    }
 }
 
 label {
@@ -252,41 +262,26 @@ a.button {
     font-size: var(--font-size);
     margin-top: 12px;
     text-decoration: none;
+
+    &:hover {
+        background-color: var(--button-color-hover);
+    }
+
+    &.primary-button {
+        background-color: var(--button-primary-color);
+
+        &:hover {
+            background-color: var(--button-primary-color-hover);
+        }
+    }
 }
 
-button[type="submit"]:hover,
-input[type="submit"]:hover,
-a.button:hover {
-    background-color: var(--button-color-hover);
-}
-
-button[type="submit"].primary-button,
-input[type="submit"].primary-button,
-a.button.primary-button {
-    background-color: var(--button-primary-color);
-}
-
-
-button[type="submit"].primary-button:hover,
-input[type="submit"].primary-button:hover,
-a.button.primary-button:hover {
-    background-color: var(--button-primary-color-hover);
-}
-
-
-
-input:focus,
-textarea:focus,
-select:focus {
-    outline: none;
-    border-color: var(--focus-border-color);
-    box-shadow: 0 0 5px var(--focus-shadow-color);
-}
-
-.error input,
-.error textarea,
-.error select {
-    border-color: #ff3860;
+.error {
+    & input,
+    & textarea,
+    & select {
+        border-color: #ff3860;
+    }
 }
 
 form small {
@@ -312,7 +307,7 @@ form small {
     line-height: 1;
     white-space: nowrap;
 
-    .status-icon {
+    & .status-icon {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -321,7 +316,7 @@ form small {
         font-size: 12px;
     }
 
-    span:not(.status-icon) {
+    & span:not(.status-icon) {
         position: relative;
         top: 1px;
     }
@@ -331,7 +326,7 @@ form small {
         color: var(--status-pending-user-color);
         border: 1px solid var(--status-pending-user-border);
 
-        .status-icon::before {
+        & .status-icon::before {
             content: "⚠";
             font-size: 11px;
         }
@@ -342,7 +337,7 @@ form small {
         color: var(--status-pending-admin-color);
         border: 1px solid var(--status-pending-admin-border);
 
-        .status-icon::before {
+        & .status-icon::before {
             content: "⌛";
             font-size: 11px;
         }
@@ -353,7 +348,7 @@ form small {
         color: var(--status-approved-color);
         border: 1px solid var(--status-approved-border);
 
-        .status-icon::before {
+        & .status-icon::before {
             content: "✓";
             font-weight: bold;
         }
@@ -364,7 +359,7 @@ form small {
         color: var(--status-rejected-color);
         border: 1px solid var(--status-rejected-border);
 
-        .status-icon::before {
+        & .status-icon::before {
             content: "×";
             font-weight: bold;
         }
@@ -372,16 +367,17 @@ form small {
 }
 
 .usercomments {
-    main, header {
+    & main,
+    & header {
         max-width: 76ch;
         margin: 0 auto;
     }
 
-    dl.comments {
-        dt {
+    & dl.comments {
+        & dt {
             margin-bottom: 12px;
 
-            time {
+            & time {
                 white-space: nowrap;
                 font-weight: normal;
                 font-size: 0.8em;
@@ -390,12 +386,12 @@ form small {
             }
         }
 
-        dd {
+        & dd {
             margin: 0 0 36px 0;
         }
     }
 
-    .actionbar {
+    & .actionbar {
         margin-top: 10px;
         display: flex;
         gap: 12px;
