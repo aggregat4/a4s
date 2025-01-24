@@ -1,0 +1,5 @@
+This is a go web application that has a vanilla js frontend where we use modern baseline css, html and javascript features.
+Reusable components are written as web components.
+HTML should be accessible and semantic.
+CSS should use custom-properties for reusable design tokens, style selectors should use nesting where appropriate and colors should take into account contrast and accessibility.
+JavaScript is targeting modern baseline browsers.
