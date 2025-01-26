@@ -195,16 +195,12 @@ dl.comments {
     }
 }
 
-.important {
+.important, ul.important {
     background-color: #fffde7;
     border-top: 1px solid #fff9c4;
     border-bottom: 1px solid #fff9c4;
     padding: 1rem 24px 1rem 24px;
     margin: 0;
-}
-
-ul.important {
-    @extend .important;
 }
 
 @media (max-width: 600px) {
