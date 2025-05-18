@@ -6,12 +6,20 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func CsrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return CsrfMiddlewareWithSkipper(next, nil)
+}
+
+func CsrfMiddlewareWithSkipper(next echo.HandlerFunc, skipper middleware.Skipper) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// CSRF check unnecessary for GET and HEAD requests as they are safe and idempotent and the Origin header won't be available anyway
 		if c.Request().Method == "HEAD" || c.Request().Method == "GET" {
+			return next(c)
+		}
+		if skipper != nil && skipper(c) {
 			return next(c)
 		}
 		originHeader := c.Request().Header.Get("Origin")
