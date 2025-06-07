@@ -14,68 +14,12 @@ import (
 
 var SessionCookieName = "baselib-oidc-session-cookie"
 
-// func GetUserIdFromSession(c echo.Context) (int, error) {
-// 	sess, err := session.Get(sessionCookieName, c)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-// 	if sess.Values["userid"] != nil {
-// 		return sess.Values["userid"].(int), nil
-// 	} else {
-// 		return 0, errors.New("no userid in session")
-// 	}
-// }
-
-// func clearSessionCookie(c echo.Context) {
-// 	c.SetCookie(&http.Cookie{
-// 		Name:     sessionCookieName,
-// 		Value:    "",
-// 		Path:     "/", // TODO: this path is not context path safe
-// 		Expires:  time.Unix(0, 0),
-// 		HttpOnly: true,
-// 	})
-// }
-
-// func IsAuthenticated(c echo.Context) bool {
-// 	userId, err := GetUserIdFromSession(c)
-// 	if err != nil && userId != 0 {
-// 		return true
-// 	} else {
-// 		clearSessionCookie(c)
-// 		return false
-// 	}
-// }
-
 func CreateSessionBasedOidcDelegate(handleIdToken func(c echo.Context, idToken *oidc.IDToken) error, fallbackRedirectUrl string) func(c echo.Context, idToken *oidc.IDToken, state string) error {
 	return func(c echo.Context, idToken *oidc.IDToken, state string) error {
 		err := handleIdToken(c, idToken)
 		if err != nil {
 			return c.Render(http.StatusInternalServerError, "error-internal", nil)
 		}
-		// // we now have a valid ID token, to progress in the application we need to map this
-		// // to an existing user or create a new one on demand
-		// username := idToken.Subject
-		// user, err := resolveUsername(username)
-		// if err != nil {
-		// 	log.Println("Error retrieving or creating user: ", err)
-		// 	return c.Render(http.StatusInternalServerError, "error-internal", nil)
-		// }
-		// // we have a valid user, we can now create a session and redirect to the original request
-		// sess, _ := session.Get(sessionCookieName, c)
-		// sess.Values["user"] = user
-		// if claimsFactory != nil {
-		// 	claims := claimsFactory()
-		// 	if err := idToken.Claims(&claims); err != nil {
-		// 		log.Println("Error retrieving claims: ", err)
-		// 		return c.Render(http.StatusInternalServerError, "error-internal", nil)
-		// 	}
-		// 	sess.Values["userclaims"] = claims
-		// }
-		// err = sess.Save(c.Request(), c.Response())
-		// if err != nil {
-		// 	log.Println(err)
-		// 	return c.Render(http.StatusInternalServerError, "error-internal", nil)
-		// }
 		stateParts := strings.Split(state, "|")
 		if len(stateParts) > 1 {
 			originalRequestUrlBase64 := stateParts[1]
