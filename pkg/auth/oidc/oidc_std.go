@@ -12,8 +12,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// OidcMiddlewareStd represents the OIDC middleware using standard net/http
-type OidcMiddlewareStd struct {
+// OidcConfiguration represents the OIDC middleware using standard net/http
+type OidcConfiguration struct {
 	IdpServerUrl string
 	ClientId     string
 	ClientSecret string
@@ -23,20 +23,19 @@ type OidcMiddlewareStd struct {
 	oidcConfig   oauth2.Config
 }
 
-// NewOidcMiddlewareStd creates a new OIDC middleware instance using standard net/http
-func NewOidcMiddlewareStd(idpServerUrl string, clientId string, clientSecret string, redirectUrl string, skipper func(r *http.Request) bool) *OidcMiddlewareStd {
+// CreateOidcConfiguration creates a new OIDC middleware instance using standard net/http
+func CreateOidcConfiguration(idpServerUrl string, clientId string, clientSecret string, redirectUrl string) *OidcConfiguration {
 	ctx := context.Background()
 	createdOidcProvider, err := oidc.NewProvider(ctx, idpServerUrl)
 	if err != nil {
 		panic(err)
 	}
-	return &OidcMiddlewareStd{
+	return &OidcConfiguration{
 		IdpServerUrl: idpServerUrl,
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
 		RedirectUrl:  redirectUrl,
 		oidcProvider: createdOidcProvider,
-		Skipper:      skipper,
 		oidcConfig: oauth2.Config{
 			ClientID:     clientId,
 			ClientSecret: clientSecret,
@@ -47,11 +46,11 @@ func NewOidcMiddlewareStd(idpServerUrl string, clientId string, clientSecret str
 	}
 }
 
-// CreateOidcMiddleware returns a middleware function that handles OIDC authentication
-func (oidcMiddleware *OidcMiddlewareStd) CreateOidcMiddleware(isAuthenticated func(r *http.Request) bool) func(http.Handler) http.Handler {
+// CreateOidcAuthenticationMiddleware returns a middleware function that handles OIDC authentication
+func (oidcMiddleware *OidcConfiguration) CreateOidcAuthenticationMiddleware(isAuthenticated func(r *http.Request) bool, skipper func(r *http.Request) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !oidcMiddleware.Skipper(r) && !isAuthenticated(r) {
+			if !skipper(r) && !isAuthenticated(r) {
 				state, err := crypto.RandomString(16)
 				if err != nil {
 					http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -75,7 +74,7 @@ func (oidcMiddleware *OidcMiddlewareStd) CreateOidcMiddleware(isAuthenticated fu
 }
 
 // CreateOidcCallbackHandler creates a handler for the OIDC callback endpoint
-func (oidcMiddleware *OidcMiddlewareStd) CreateOidcCallbackHandler(delegate func(w http.ResponseWriter, r *http.Request, idToken *oidc.IDToken, state string) error) http.Handler {
+func (oidcMiddleware *OidcConfiguration) CreateOidcCallbackHandler(delegate func(w http.ResponseWriter, r *http.Request, idToken *oidc.IDToken, state string) error) http.HandlerFunc {
 	verifier := oidcMiddleware.oidcProvider.Verifier(&oidc.Config{ClientID: oidcMiddleware.oidcConfig.ClientID})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check state vs cookie
