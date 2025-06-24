@@ -12,24 +12,22 @@ func CsrfMiddlewareStd(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// CSRF check unnecessary for GET and HEAD requests as they are safe and idempotent
 		// and the Origin header won't be available anyway
-		if r.Method == "HEAD" || r.Method == "GET" {
+		if r.Method == "HEAD" || r.Method == "GET" || r.Method == "OPTIONS" || r.Method == "TRACE" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		originHeader := r.Header.Get("Origin")
-		hostHeader := r.Host
-
 		// parse the target origin from the host header and the X-Forwarded-Host header when present
+		hostHeader := r.Host
 		hostParts := strings.Split(hostHeader, ":")
 		hostName := hostParts[0]
-		targetOriginPort := hostParts[1]
 		targetOriginHostname := r.Header.Get("X-Forwarded-Host")
 		if targetOriginHostname == "" {
 			targetOriginHostname = hostName
 		}
 
 		// parse the hostname and the port from the Origin header
+		originHeader := r.Header.Get("Origin")
 		parsedURL, err := url.Parse(originHeader)
 		if err != nil {
 			log.Printf("CSRF check failed: Invalid Origin header: %v", err)
@@ -37,15 +35,11 @@ func CsrfMiddlewareStd(next http.Handler) http.Handler {
 			return
 		}
 
-		originHostname := parsedURL.Hostname()
-		originPort := "80"
-		if parsedURL.Port() != "" {
-			originPort = parsedURL.Port()
-		}
+		sourceOriginHostname := parsedURL.Hostname()
 
-		if originHostname != targetOriginHostname || originPort != targetOriginPort {
-			log.Printf("CSRF check failed: Origin does not match target origin (originHostname=%s, targetOriginHostname=%s, originPort=%s, targetOriginPort=%s)",
-				originHostname, targetOriginHostname, originPort, targetOriginPort)
+		if sourceOriginHostname != targetOriginHostname {
+			log.Printf("CSRF check failed: Origin does not match target origin (sourceOriginHostname=%s, targetOriginHostname=%s)",
+				sourceOriginHostname, targetOriginHostname)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
