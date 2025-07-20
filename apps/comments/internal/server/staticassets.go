@@ -16,7 +16,7 @@ import (
 )
 
 type templateData struct {
-	Data      interface{}
+	Data      any
 	AssetPath func(string) string
 }
 
@@ -24,7 +24,7 @@ type EchoTemplateRenderer struct {
 	templates map[string]*template.Template
 }
 
-func (t *EchoTemplateRenderer) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+func (t *EchoTemplateRenderer) Render(w io.Writer, name string, data any, c echo.Context) error {
 	var tmplData = templateData{
 		Data:      data,
 		AssetPath: getHashedAssetPath,
