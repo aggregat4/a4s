@@ -7,18 +7,12 @@ toolchain go1.24.5
 require (
 	github.com/aggregat4/go-baselib v1.4.0
 	github.com/aggregat4/go-baselib-services/v3 v3.4.2
-	github.com/google/uuid v1.6.0
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/kkyr/fig v0.5.0
 	github.com/labstack/echo-contrib v0.17.4
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/stretchr/testify v1.10.0
-)
-
-require (
-	github.com/sendgrid/rest v2.6.9+incompatible // indirect
-	github.com/sendgrid/sendgrid-go v3.16.1+incompatible
 )
 
 require (
