@@ -19,9 +19,9 @@ type Config struct {
 	OidcRedirectUri             string `fig:"oidc_redirect_uri" validate:"required"`
 	EncryptionKey               string `fig:"encryption_key" validate:"required"`
 	SessionCookieSecretKey      string `fig:"session_cookie_secret_key" validate:"required"`
-	SessionCookieSecureFlag     bool   `fig:"session_cookie_secure_flag" validate:"required"`   // sadly fig can not set default values for booleans, see https://github.com/kkyr/fig/issues/13
-	SessionCookieCookieMaxAge   int    `fig:"session_cookie_max_age" default:"2592000"`         // Max age in seconds, 0 = session cookie, default 2592000 is 30 days
-	SessionCookieCookieSameSite string `fig:"session_cookie_same_site" default:"none"`          // SameSite policy
+	SessionCookieSecureFlag     bool   `fig:"session_cookie_secure_flag" validate:"required"` // sadly fig can not set default values for booleans, see https://github.com/kkyr/fig/issues/13
+	SessionCookieCookieMaxAge   int    `fig:"session_cookie_max_age" default:"2592000"`       // Max age in seconds, 0 = session cookie, default 2592000 is 30 days
+	SessionCookieCookieSameSite string `fig:"session_cookie_same_site" default:"none"`        // SameSite policy
 }
 
 func SameSiteFromString(sameSite string) http.SameSite {
