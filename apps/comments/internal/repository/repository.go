@@ -232,6 +232,52 @@ func (store *Store) CreateUser() (int, error) {
 	return int(lastInsertId), nil
 }
 
+func (store *Store) CreateUserWithExternalId(externalUserId string) (int, error) {
+	result, err := store.db.Exec("INSERT INTO users (external_user_id) VALUES (?)", externalUserId)
+	if err != nil {
+		return -1, err
+	}
+	lastInsertId, err := result.LastInsertId()
+	if err != nil {
+		return -1, err
+	}
+	return int(lastInsertId), nil
+}
+
+func (store *Store) FindUserByExternalId(externalUserId string) (domain.User, error) {
+	rows, err := store.db.Query(
+		"SELECT id, external_user_id FROM users WHERE external_user_id = ?",
+		externalUserId)
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer rows.Close()
+	return mapOptionalUser(rows)
+}
+
+func (store *Store) FindOrCreateUserByExternalId(externalUserId string) (domain.User, error) {
+	// First try to find existing user
+	user, err := store.FindUserByExternalId(externalUserId)
+	if err == nil {
+		return user, nil
+	}
+	
+	// If not found, create new user
+	if errors.Is(err, lang.ErrNotFound) {
+		userId, err := store.CreateUserWithExternalId(externalUserId)
+		if err != nil {
+			return domain.User{}, err
+		}
+		return domain.User{
+			Id:             userId,
+			ExternalUserId: externalUserId,
+		}, nil
+	}
+	
+	// Return other errors as-is
+	return domain.User{}, err
+}
+
 func (store *Store) CreateComment(
 	status domain.CommentStatus,
 	serviceId int,
@@ -325,9 +371,13 @@ func (store *Store) UpdateComment(
 func mapOptionalUser(rows *sql.Rows) (domain.User, error) {
 	if rows.Next() {
 		var user domain.User
-		err := rows.Scan(&user.Id)
+		var externalUserId sql.NullString
+		err := rows.Scan(&user.Id, &externalUserId)
 		if err != nil {
 			return domain.User{}, err
+		}
+		if externalUserId.Valid {
+			user.ExternalUserId = externalUserId.String
 		}
 		return user, nil
 	} else {
@@ -338,7 +388,7 @@ func mapOptionalUser(rows *sql.Rows) (domain.User, error) {
 
 func (store *Store) FindUserById(userId int) (domain.User, error) {
 	rows, err := store.db.Query(
-		"SELECT id FROM users WHERE id = ?",
+		"SELECT id, external_user_id FROM users WHERE id = ?",
 		userId)
 	if err != nil {
 		return domain.User{}, err

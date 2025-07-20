@@ -157,7 +157,7 @@ func CreateSuperAdminAuthMiddleware() echo.MiddlewareFunc {
 	}
 }
 
-func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken) error {
+func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken, controller *Controller) error {
 	var claims struct {
 		Subject string   `json:"sub"`
 		Roles   []string `json:"roles"`
@@ -180,8 +180,11 @@ func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken) error {
 		// Create admin session with roles
 		return createAdminSessionCookie(c, claims.Subject, claims.Roles)
 	} else {
-		// TODO: Implement regular user session creation
-		// For now, return error since regular users aren't fully implemented
-		return c.Render(http.StatusForbidden, "error-forbidden", nil)
+		// Create regular user session
+		user, err := controller.Store.FindOrCreateUserByExternalId(claims.Subject)
+		if err != nil {
+			return sendInternalError(c, err)
+		}
+		return createUserSessionCookie(c, user.Id)
 	}
 }

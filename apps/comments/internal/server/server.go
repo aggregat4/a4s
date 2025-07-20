@@ -63,21 +63,26 @@ func InitServer(controller Controller) *echo.Echo {
 		controller.Config.OidcClientSecret,
 		controller.Config.OidcRedirectUri,
 		func(c echo.Context) bool {
-			// We only want authentication on admin endpoints
-			return !strings.HasPrefix(c.Path(), "/admin")
+			// We want authentication on admin and user endpoints
+			return !strings.HasPrefix(c.Path(), "/admin") && !strings.HasPrefix(c.Path(), "/users/")
 		})
 	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(
 		baseliboidc.CreateSessionBasedOidcDelegate(
 			func(c echo.Context, idToken *oidc.IDToken) error {
-				return createSessionFromIDToken(c, idToken)
+				return createSessionFromIDToken(c, idToken, &controller)
 			},
 			"/",
 		))
 	return InitServerWithOidcMiddleware(
 		controller,
 		oidcMiddleware.CreateOidcMiddleware(func(c echo.Context) bool {
-			_, err := getAdminUserIdFromSession(c)
-			return err == nil
+			// Skip OIDC if user already has either admin or regular user session
+			_, adminErr := getAdminUserIdFromSession(c)
+			if adminErr == nil {
+				return true
+			}
+			_, userErr := getUserIdFromSession(c)
+			return userErr == nil
 		}),
 		oidcCallback)
 }
@@ -130,9 +135,7 @@ func InitServerWithOidcMiddleware(
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
 	// user authentication is required for pages related to a user's comments
 	e.Use(oidcMiddleware)
-	e.Use(CreateUserAuthenticationMiddleware(func(c echo.Context) bool {
-		return !strings.HasPrefix(c.Path(), "/users/")
-	}))
+	// User authentication is now handled by OIDC middleware
 	// Set custom error handler
 	e.HTTPErrorHandler = customHTTPErrorHandler
 	// CSRF protection middleware
