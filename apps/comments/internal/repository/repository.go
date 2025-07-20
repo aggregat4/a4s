@@ -174,10 +174,8 @@ func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int,
 	return int(lastInsertId), nil
 }
 
-func (store *Store) CreateUserByEmail(email string) (int, error) {
-	result, err := store.db.Exec(
-		"INSERT INTO users (email, auth_token_created_at, auth_token_sent_to_client) VALUES (?, 0, 0)",
-		email)
+func (store *Store) CreateUser() (int, error) {
+	result, err := store.db.Exec("INSERT INTO users DEFAULT VALUES")
 	if err != nil {
 		return -1, err
 	}
@@ -186,11 +184,6 @@ func (store *Store) CreateUserByEmail(email string) (int, error) {
 		return -1, err
 	}
 	return int(lastInsertId), nil
-}
-
-func (store *Store) UpdateUser(user domain.User) error {
-	_, err := store.db.Exec("UPDATE users SET auth_token =?, auth_token_created_at =?, auth_token_sent_to_client =? WHERE id =?", user.AuthToken, user.AuthTokenCreatedAt.Unix(), user.AuthTokenSentToClient, user.Id)
-	return err
 }
 
 func (store *Store) CreateComment(
@@ -242,7 +235,7 @@ func (store *Store) CreateComment(
 
 func (store *Store) UpdateComment(
 	commentId int,
-	previousStatus domain.CommentStatus,
+	newStatus domain.CommentStatus,
 	comment string,
 	author string,
 	website string,
@@ -274,8 +267,7 @@ func (store *Store) UpdateComment(
 			parent_url_encrypted = ?,
 			edited = 1 
 		WHERE id = ?`,
-		lang.IfElse(previousStatus == domain.CommentStatusPendingAuthentication,
-			domain.CommentStatusPendingApproval, previousStatus),
+		newStatus,
 		commentEncrypted,
 		authorEncrypted,
 		websiteEncrypted,
@@ -287,32 +279,20 @@ func (store *Store) UpdateComment(
 func mapOptionalUser(rows *sql.Rows) (domain.User, error) {
 	if rows.Next() {
 		var user domain.User
-		var authTokenCreatedAt int64
-		err := rows.Scan(&user.Id, &user.Email, &user.AuthToken, &authTokenCreatedAt, &user.AuthTokenSentToClient)
+		err := rows.Scan(&user.Id)
 		if err != nil {
 			return domain.User{}, err
 		}
-		user.AuthTokenCreatedAt = time.Unix(authTokenCreatedAt, 0)
 		return user, nil
 	} else {
 		return domain.User{}, lang.ErrNotFound
 	}
 }
 
-func (store *Store) FindUserByEmail(email string) (domain.User, error) {
-	rows, err := store.db.Query(
-		"SELECT id, email, COALESCE(auth_token, ''), auth_token_created_at, auth_token_sent_to_client FROM users WHERE email = ?",
-		email)
-	if err != nil {
-		return domain.User{}, err
-	}
-	defer rows.Close()
-	return mapOptionalUser(rows)
-}
 
 func (store *Store) FindUserById(userId int) (domain.User, error) {
 	rows, err := store.db.Query(
-		"SELECT id, email, COALESCE(auth_token, ''), auth_token_created_at, auth_token_sent_to_client FROM users WHERE id = ?",
+		"SELECT id FROM users WHERE id = ?",
 		userId)
 	if err != nil {
 		return domain.User{}, err
@@ -321,16 +301,6 @@ func (store *Store) FindUserById(userId int) (domain.User, error) {
 	return mapOptionalUser(rows)
 }
 
-func (store *Store) FindUserByAuthToken(token string) (domain.User, error) {
-	rows, err := store.db.Query(
-		"SELECT id, email, COALESCE(auth_token, ''), auth_token_created_at, auth_token_sent_to_client FROM users WHERE auth_token = ?",
-		token)
-	if err != nil {
-		return domain.User{}, err
-	}
-	defer rows.Close()
-	return mapOptionalUser(rows)
-}
 
 func (store *Store) GetComment(commentId int) (domain.Comment, error) {
 	rows, err := store.db.Query(

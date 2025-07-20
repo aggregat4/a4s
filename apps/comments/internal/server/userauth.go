@@ -66,8 +66,8 @@ func CreateUserAuthenticationMiddleware(skipper middleware.Skipper) echo.Middlew
 			}
 			_, err := getUserIdFromSession(c)
 			if err != nil {
-				// user is not authenticated, redirect him to the authentication token link generation form
-				return c.Redirect(http.StatusFound, "/userauthentication/")
+				// user is not authenticated, return unauthorized error
+				return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 			} else {
 				return next(c)
 			}

@@ -2,7 +2,6 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
-	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
 	"fmt"
@@ -14,10 +13,10 @@ import (
 	"strings"
 	"time"
 
+	baselibmiddleware "github.com/aggregat4/go-baselib-services/v3/middleware"
 	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -51,9 +50,8 @@ var templateStylesheets = []string{"css/main.css"}
 var templateScripts = []string{"js/components.js", "js/formatting.js"}
 
 type Controller struct {
-	Store       *repository.Store
-	Config      domain.Config
-	EmailSender *email.EmailSender
+	Store  *repository.Store
+	Config domain.Config
 }
 
 func RunServer(controller Controller) {
@@ -111,7 +109,6 @@ func InitServerWithOidcMiddleware(
 		"addeditcomment":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/addeditcomment.html", "public/views/components/*.html")),
 		"usercomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/usercomments.html", "public/views/components/*.html")),
 		"postcomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/postcomments.html", "public/views/components/*.html")),
-		"userauthentication":   template.Must(template.New("").ParseFS(viewTemplates, "public/views/userauthentication.html", "public/views/components/*.html")),
 		"adminlogin":           template.Must(template.New("").ParseFS(viewTemplates, "public/views/adminlogin.html", "public/views/components/*.html")),
 		"admin-dashboard":      template.Must(template.New("").ParseFS(viewTemplates, "public/views/admin-dashboard.html", "public/views/components/*.html")),
 		"error-internalserver": template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-internalserver.html", "public/views/components/*.html")),
@@ -149,8 +146,7 @@ func InitServerWithOidcMiddleware(
 	// Set custom error handler
 	e.HTTPErrorHandler = customHTTPErrorHandler
 	// CSRF protection middleware
-	e.Use(csrfMiddleware)
-
+	e.Use(baselibmiddleware.CsrfMiddleware)
 	// Endpoints
 	// static assets
 	e.GET("/js/*", hashedStaticHandler(javaScript, "js"))
@@ -158,6 +154,7 @@ func InitServerWithOidcMiddleware(
 
 	// infrastructure
 	e.GET("/oidccallback", oidcCallback)
+
 	// ---- UNAUTHENTICATED
 	// Status endpoint
 	e.GET("/status", controller.Status)
@@ -170,17 +167,8 @@ func InitServerWithOidcMiddleware(
 	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
 	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
 	e.POST("/services/:serviceKey/posts/:postKey/comments/", controller.PostComment)
-	// ----- User Authentication
-	// If users are not authenticated (we check a cookie) then we redirect them to a page where they can request an authentication link
-	// This is just the "userauthentication" endpoint without a token, it has a form where you can enter your email address
-	e.GET("/userauthentication/", controller.GetUserAuthenticationForm)
-	// Users can submit a userauthentication form to get a new token sent
-	e.POST("/userauthentication/", controller.RequestAuthenticationLink)
-	// Users can authenticate by clicking on an authentication link sent by email, this has to be GET because email
-	e.GET("/userauthentication/:token", controller.AuthenticateUser)
-	// After authenticating the user:
-	// 1. sets a cookie with the userId
-	// 2. redirects to a user's comment overview and management page
+
+
 	// ---- AUTHENTICATED WITH AUTH TOKEN (normal user)
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
 	e.GET("/users/:userId/comments/", controller.GetCommentsForUser)
@@ -189,7 +177,6 @@ func InitServerWithOidcMiddleware(
 	// Users can delete comments, this redirects back to the comment overview page
 	e.POST("/users/:userId/comments/:commentId/delete", controller.DeleteUserComment)
 	// Users can delete comments, this redirects back to the comment overview page
-	e.POST("/users/:userId/comments/:commentId/confirm", controller.ConfirmUserComment)
 	// Users can update comments: see the PostComment route under /services/:serviceKey/posts/:postKey/comments
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
@@ -280,109 +267,10 @@ func (controller *Controller) Status(c echo.Context) error {
 	return c.String(http.StatusOK, "OK")
 }
 
-func (controller *Controller) GetUserAuthenticationForm(c echo.Context) error {
-	successFlashes, errorFlashes, err := baseliboidc.GetFlashes(c)
-	if err != nil {
-		return sendInternalError(c, err)
-	}
-	return c.Render(http.StatusOK, "userauthentication", domain.UserAuthenticationPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-			Error:       errorFlashes,
-			Success:     successFlashes,
-		},
-		EmailAddress: c.QueryParam("emailAddress"),
-	})
-}
-
-var fifteenMinutes = time.Duration(15) * time.Minute
-
-func validToken(user domain.User) bool {
-	return user.AuthToken != "" && time.Since(user.AuthTokenCreatedAt) <= fifteenMinutes
-}
-
-func (controller *Controller) RequestAuthenticationLink(c echo.Context) error {
-	emailAddress := c.FormValue("email")
-	if emailAddress == "" {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
-	}
-	user, err := controller.Store.FindUserByEmail(emailAddress)
-	if err != nil {
-		if errors.Is(err, lang.ErrNotFound) {
-			//nolint:errcheck
-			baseliboidc.SetFlash(c, "error", "No data was found for the user with email address '"+emailAddress+"'")
-			return c.Redirect(http.StatusFound, "/userauthentication/")
-		}
-		return sendInternalError(c, err)
-	}
-	if !validToken(user) {
-		user.AuthTokenSentToClient = 0
-		user.AuthToken = uuid.New().String()
-		user.AuthTokenCreatedAt = time.Now()
-	}
-	if user.AuthTokenSentToClient < 3 {
-		// update the sent count to make sure future requests can delay even further
-		user.AuthTokenSentToClient++
-		user.AuthTokenCreatedAt = time.Now()
-		err = controller.Store.UpdateUser(user)
-		if err != nil {
-			return sendInternalError(c, err)
-		}
-		var delay = 0 * time.Minute
-		if user.AuthTokenSentToClient == 1 {
-			delay = 1 * time.Minute
-		} else if user.AuthTokenSentToClient == 2 {
-			delay = 5 * time.Minute
-		}
-		emailSuccessfullyQueued := controller.EmailSender.SendEmail(email.AuthenticationCodeEmail{
-			EmailAddress: emailAddress,
-			Code:         user.AuthToken,
-		})
-		if emailSuccessfullyQueued {
-			if delay > 0 {
-				//nolint:errcheck
-				baseliboidc.SetFlash(c, "success", "An authentication token will be sent in "+delay.String()+".")
-			} else {
-				//nolint:errcheck
-				baseliboidc.SetFlash(c, "success", "An authentication token is on the way, please check your email.")
-			}
-		} else {
-			// TODO error message too vague?
-			//nolint:errcheck
-			baseliboidc.SetFlash(c, "error", "Could not send an email at this time, please try again later.")
-		}
-		return c.Redirect(http.StatusFound, "/userauthentication/")
-	} else {
-		// let the user know they have to try again in 15 minutes
-		//nolint:errcheck
-		baseliboidc.SetFlash(c, "error", "Too many attempts were made to login for this user. Please try again in 15 minutes.")
-		return c.Redirect(http.StatusFound, "/userauthentication/")
-	}
-}
-
-func (controller *Controller) AuthenticateUser(c echo.Context) error {
-	token := c.Param("token")
-	if token == "" {
-		return c.Redirect(http.StatusFound, "/userauthentication/")
-	}
-	user, err := controller.Store.FindUserByAuthToken(token)
-	if err != nil || !validToken(user) {
-		//nolint:errcheck
-		baseliboidc.SetFlash(c, "error", "Invalid token")
-		return c.Redirect(http.StatusFound, "/userauthentication/")
-	}
-	// This is a normal user, not an admin
-	err = createUserSessionCookie(c, user.Id)
-	if err != nil {
-		return sendInternalError(c, err)
-	}
-	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
-}
 
 func handleAuthenticationError(c echo.Context, err error) error {
 	if errors.Is(err, lang.ErrNotFound) {
-		return c.Redirect(http.StatusFound, "/userauthentication/")
+		return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
 	} else {
 		return sendInternalError(c, err)
 	}
@@ -515,26 +403,6 @@ func (controller *Controller) DeleteUserComment(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 }
 
-func (controller *Controller) ConfirmUserComment(c echo.Context) error {
-	user, comment, err := controller.extractAndValidateUserAndCommentFromRequest(c)
-	if err != nil || !user.IsValid() {
-		return err
-	}
-	if comment.Status != domain.CommentStatusPendingAuthentication {
-		// TODO: return to original page and show toast to indicate that the comment is not pending authentication
-		return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
-	}
-	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusPendingApproval, comment.Comment, comment.Name, comment.Website, comment.ParentUrl)
-	if err != nil {
-		if errors.Is(err, lang.ErrNotFound) {
-			// TODO: toast to show that the comment could not be found for confirmation
-			return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
-		} else {
-			return sendInternalError(c, err)
-		}
-	}
-	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
-}
 
 func (controller *Controller) requireCommentAndRetrieve(c echo.Context) (domain.Comment, error) {
 	commentIdString := c.Param("commentId")
@@ -588,30 +456,34 @@ func handleCommonErrors(c echo.Context, err error) error {
 }
 
 func (controller *Controller) PostComment(c echo.Context) error {
+	// Validation
 	serviceKey := c.Param("serviceKey")
 	postKey := c.Param("postKey")
 	if serviceKey == "" || postKey == "" {
 		return renderBadRequest(c)
 	}
+	service, err := controller.Store.GetServiceForKey(serviceKey)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	// Get user session if available
 	user, userSessionError := getUserFromSession(c, controller)
 	if userSessionError != nil && !errors.Is(userSessionError, lang.ErrNotFound) {
 		return sendInternalError(c, userSessionError)
 	}
+	userAuthenticated := lang.IfElse(userSessionError == nil, true, false)
+	// Get form data
 	commentIdString := c.FormValue("commentId")
-	emailAddress := c.FormValue("email")
 	name := c.FormValue("name")
 	website := c.FormValue("website")
 	commentContent := c.FormValue("comment")
 	parentUrl := c.FormValue("parentUrl")
 	// TODO: give better error messages
-	if emailAddress == "" {
-		return renderBadRequest(c)
-	}
 	if commentContent == "" {
 		return renderBadRequest(c)
 	}
-	userAuthenticated := lang.IfElse(userSessionError == nil, true, false)
 	if commentIdString != "" {
+		// EDITING a comment
 		comment := domain.Comment{}
 		commentId, err := strconv.Atoi(commentIdString)
 		if err == nil {
@@ -643,33 +515,11 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 
 	} else {
-		// This is a new comment, if the user is not authenticated we create a new user and store the comment as pending authentication
-		service, err := controller.Store.GetServiceForKey(serviceKey)
-		if err != nil {
-			return sendInternalError(c, err)
-		}
-		// find or create a user
-		var userId int
+		// NEW comment: require user authentication
 		if !userAuthenticated {
-			user, err := controller.Store.FindUserByEmail(emailAddress)
-			if err == nil {
-				// we found an existing user
-				userId = user.Id
-			} else if errors.Is(err, lang.ErrNotFound) {
-				// we need to create a new user
-				userId, err = controller.Store.CreateUserByEmail(emailAddress)
-				if err != nil {
-					return sendInternalError(c, err)
-				}
-			} else {
-				return sendInternalError(c, err)
-			}
-		} else {
-			userId = user.Id
+			return renderUnauthorized(c)
 		}
-		commentStatus := lang.IfElse(userAuthenticated, domain.CommentStatusPendingApproval, domain.CommentStatusPendingAuthentication)
-		_, err = controller.Store.CreateComment(
-			commentStatus, service.Id, service.ServiceKey, userId, postKey, commentContent, name, website, parentUrl)
+		_, err = controller.Store.CreateComment(domain.CommentStatusPendingApproval, service.Id, service.ServiceKey, user.Id, postKey, commentContent, name, website, parentUrl)
 		if err != nil {
 			return sendInternalError(c, err)
 		}

@@ -2,7 +2,6 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
-	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"strconv"
 	"testing"
@@ -15,20 +14,12 @@ import (
 var TEST_ENCRYPTIONKEY = "12345678901234567890123456789012"
 var TEST_SERVICE = "TESTSERVICE"
 
-var TEST_USER_NO_TOKEN = "notoken@example.com"
-
-var TEST_USER_AUTHTOKEN_EXPIRED = "expired@example.com"
-var TEST_AUTHTOKEN_EXPIRED = "EXPIREDTOKEN"
-
-var TEST_USER_AUTHTOKEN_VALID = "validtoken@example.com"
-var TEST_AUTHTOKEN_VALID = "VALIDTOKEN"
-
-var TEST_USER_AUTHTOKEN_VALID2 = "validtoken2@example.com"
-var TEST_AUTHTOKEN_VALID2 = "VALIDTOKEN2"
+var TEST_USER_ID_1 = 1
+var TEST_USER_ID_2 = 2
+var TEST_USER_ID_3 = 3
 
 var TEST_POSTKEY1 = "TEST_POSTKEY1"
 var TEST_POSTKEY2 = "TEST_POSTKEY2"
-var TEST_COMMENT_PENDING_AUTHENTICATION = "This is an unauthenticated comment"
 var TEST_COMMENT_PENDING_APPROVAL = "This is an authenticated comment waiting for approval"
 var TEST_COMMENT_APPROVED = "This is an approved comment"
 var TEST_COMMENT_REJECTED = "This is a rejected comment"
@@ -73,8 +64,7 @@ func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 		panic(err)
 	}
 	createTestData(t, store)
-	mockEmailSender := email.NewMockEmailSender()
-	controller := Controller{&store, serverConfig, email.NewEmailSender(mockEmailSender.MockEmailSenderStrategy)}
+	controller := Controller{&store, serverConfig}
 	echoServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback())
 	go func() {
 		_ = echoServer.Start(":" + strconv.Itoa(serverConfig.Port))
@@ -88,74 +78,29 @@ func createTestData(t *testing.T, store repository.Store) {
 	if err != nil {
 		t.Fatal("Error creating test service: " + err.Error())
 	}
-	_, err = store.CreateUserByEmail(TEST_USER_NO_TOKEN)
+	
+	// Create test users
+	testUserId1, err := store.CreateUser()
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}
-	testUserExpiredTokenId, err := store.CreateUserByEmail(TEST_USER_AUTHTOKEN_EXPIRED)
-	if err != nil {
-		t.Fatal("Error creating test user: " + err.Error())
-	}
-	expiredUser := domain.User{
-		Id:                    testUserExpiredTokenId,
-		Email:                 TEST_USER_AUTHTOKEN_EXPIRED,
-		AuthToken:             TEST_AUTHTOKEN_EXPIRED,
-		AuthTokenCreatedAt:    time.Now().Add(-20 * time.Minute),
-		AuthTokenSentToClient: 0,
-	}
-	err = store.UpdateUser(expiredUser)
-	if err != nil {
-		t.Fatal("Error creating test user: " + err.Error())
-	}
-	// create first user with a valid token
-	testUserValidTokenId, err := store.CreateUserByEmail(TEST_USER_AUTHTOKEN_VALID)
-	if err != nil {
-		t.Fatal("Error creating test user: " + err.Error())
-	}
-	validTokenUser := domain.User{
-		Id:                    testUserValidTokenId,
-		Email:                 TEST_USER_AUTHTOKEN_VALID,
-		AuthToken:             TEST_AUTHTOKEN_VALID,
-		AuthTokenCreatedAt:    time.Now().Add(-1 * time.Minute),
-		AuthTokenSentToClient: 0,
-	}
-	err = store.UpdateUser(validTokenUser)
-	if err != nil {
-		t.Fatal("Error creating test user: " + err.Error())
-	}
-	// create second user with a valid token
-	testUserValidTokenId2, err := store.CreateUserByEmail(TEST_USER_AUTHTOKEN_VALID2)
-	if err != nil {
-		t.Fatal("Error creating test user: " + err.Error())
-	}
-	validTokenUser2 := domain.User{
-		Id:                    testUserValidTokenId2,
-		Email:                 TEST_USER_AUTHTOKEN_VALID2,
-		AuthToken:             TEST_AUTHTOKEN_VALID2,
-		AuthTokenCreatedAt:    time.Now().Add(-1 * time.Minute),
-		AuthTokenSentToClient: 0,
-	}
-	err = store.UpdateUser(validTokenUser2)
-	if err != nil {
-		t.Fatal("Error creating test user: " + err.Error())
-	}
+	
 	// create comments
 	comments := []struct {
 		status  domain.CommentStatus
 		comment string
 	}{
-		{domain.CommentStatusPendingAuthentication, TEST_COMMENT_PENDING_AUTHENTICATION},
 		{domain.CommentStatusPendingApproval, TEST_COMMENT_PENDING_APPROVAL},
 		{domain.CommentStatusApproved, TEST_COMMENT_APPROVED},
 		{domain.CommentStatusRejected, TEST_COMMENT_REJECTED},
 	}
 
 	for _, c := range comments {
-		commentId, err := store.CreateComment(c.status, serviceId, TEST_SERVICE, testUserValidTokenId, TEST_POSTKEY1, c.comment, TEST_AUTHOR1, TEST_WEBSITE1, "https://example.com")
+		commentId, err := store.CreateComment(c.status, serviceId, TEST_SERVICE, testUserId1, TEST_POSTKEY1, c.comment, TEST_AUTHOR1, TEST_WEBSITE1, "https://example.com")
 		if err != nil {
 			t.Fatal("Error creating test comment: " + err.Error())
 		}
-		TEST_COMMENTS = append(TEST_COMMENTS, domain.Comment{Id: commentId, Status: c.status, ServiceId: serviceId, UserId: testUserValidTokenId, PostKey: TEST_POSTKEY1, Comment: c.comment, Name: TEST_AUTHOR1, Website: TEST_WEBSITE1, Edited: false, CreatedAt: time.Now()})
+		TEST_COMMENTS = append(TEST_COMMENTS, domain.Comment{Id: commentId, Status: c.status, ServiceId: serviceId, UserId: testUserId1, PostKey: TEST_POSTKEY1, Comment: c.comment, Name: TEST_AUTHOR1, Website: TEST_WEBSITE1, Edited: false, CreatedAt: time.Now()})
 	}
 }
 

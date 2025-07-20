@@ -22,10 +22,6 @@ type Config struct {
 	SessionCookieSecureFlag     bool   `fig:"session_cookie_secure_flag" validate:"required"`   // sadly fig can not set default values for booleans, see https://github.com/kkyr/fig/issues/13
 	SessionCookieCookieMaxAge   int    `fig:"session_cookie_max_age" default:"2592000"`         // Max age in seconds, 0 = session cookie, default 2592000 is 30 days
 	SessionCookieCookieSameSite string `fig:"session_cookie_same_site" default:"none"`          // SameSite policy
-	EmailFromName               string `fig:"email_from_name" default:"Go Comments"`            // Name to use as the sender of emails
-	EmailFromAddress            string `fig:"email_from_address" validate:"required"`           // Email address to use as the sender
-	EmailSubject                string `fig:"email_subject" default:"Your Authentication Code"` // Subject line for authentication emails
-	SendgridApiKey              string `fig:"sendgrid_api_key" validate:"required"`             // Sendgrid API key for sending emails
 }
 
 func SameSiteFromString(sameSite string) http.SameSite {
@@ -42,11 +38,7 @@ func SameSiteFromString(sameSite string) http.SameSite {
 }
 
 type User struct {
-	Id                    int
-	Email                 string
-	AuthToken             string
-	AuthTokenCreatedAt    time.Time
-	AuthTokenSentToClient int
+	Id int
 }
 
 func (u User) IsValid() bool {
@@ -67,7 +59,6 @@ type CommentStatus int
 
 const (
 	_ CommentStatus = iota
-	CommentStatusPendingAuthentication
 	CommentStatusPendingApproval
 	CommentStatusApproved
 	CommentStatusRejected
@@ -75,8 +66,6 @@ const (
 
 func ParseCommentStatus(status string) (CommentStatus, error) {
 	switch status {
-	case "pending-authentication":
-		return CommentStatusPendingAuthentication, nil
 	case "pending-approval":
 		return CommentStatusPendingApproval, nil
 	case "approved":

@@ -26,10 +26,6 @@ type UserCommentsPage struct {
 	Comments []Comment
 }
 
-type UserAuthenticationPage struct {
-	BasePage
-	EmailAddress string
-}
 
 type AdminDashboardPage struct {
 	BasePage

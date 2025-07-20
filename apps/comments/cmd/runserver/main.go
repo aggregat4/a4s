@@ -2,7 +2,6 @@ package main
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
-	"aggregat4/go-commentservice/internal/email"
 	"aggregat4/go-commentservice/internal/repository"
 	"aggregat4/go-commentservice/internal/server"
 	"encoding/hex"
@@ -53,19 +52,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error initializing database: %s", err)
 	}
-	sendGridEmailSender := email.NewSendgridEmailSender(
-		config.EmailFromName,
-		config.EmailFromAddress,
-		config.EmailSubject,
-		config.SendgridApiKey,
-		config.BaseURL,
-	)
-	emailSender := email.NewEmailSender(sendGridEmailSender.SendgridEmailSenderStrategy)
 	server.RunServer(
 		server.Controller{
-			Store:       &store,
-			Config:      config,
-			EmailSender: emailSender,
+			Store:  &store,
+			Config: config,
 		},
 	)
 }

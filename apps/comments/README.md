@@ -7,8 +7,7 @@ statically generated website like a blog.
 You can configure a website that you want to add comments to. This service can
 render those comments in an iframe under its posts.
 
-The service allows users to submit comments and uses email based authentication
-to validate the email address.
+The service allows users to submit comments and uses OpenID Connect for authentication.
 
 Comments need to be authenticated to be considered for approval as this service
 is built to be operated in a GDPR-compliant fashion.
@@ -108,7 +107,5 @@ admin claim.
 Super admins authenticate via OIDC and require a "superadmin" claim to manage
 the site configurations.
 
-User authentication is based on email:
+Users (commenters) also authenticate via OIDC but require no special rights.
 
-- Users are sent an email with a time-limited high entropy authentication token
-- Upon token validation a time-limited cookie is set with the user's information

@@ -11,21 +11,17 @@ var mymigrations = []migrations.Migration{
 		PRAGMA foreign_keys=ON;
 		
 		CREATE TABLE IF NOT EXISTS users (
-			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-			email TEXT NOT NULL,
-			auth_token TEXT,
-			auth_token_created_at INTEGER NOT NULL,
-			auth_token_sent_to_client INTEGER NOT NULL
-    	);
+			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT
+		);
 
 		CREATE TABLE IF NOT EXISTS services (
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 			service_key TEXT NOT NULL,
-    		origin TEXT NOT NULL
+			origin TEXT NOT NULL
 		);
 
 		-- Status can be:
-		-- 1: pending authentication, 2: authenticated, 3: approved, 4: rejected
+		-- 1: pending approval, 2: approved, 3: rejected
 		CREATE TABLE IF NOT EXISTS comments (
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 			status INTEGER NOT NULL DEFAULT 1,
@@ -36,17 +32,12 @@ var mymigrations = []migrations.Migration{
 			comment_encrypted BLOB NOT NULL,
 			name_encrypted BLOB,
 			website_encrypted BLOB,
+			parent_url_encrypted BLOB,
 			edited INTEGER NOT NULL DEFAULT 0,
 			created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-    		FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE,
-    		FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+			FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 		);
-		`,
-	},
-	{
-		SequenceId: 2,
-		Sql: `
-		ALTER TABLE comments ADD COLUMN parent_url_encrypted BLOB;
 		`,
 	},
 }
