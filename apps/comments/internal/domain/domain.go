@@ -38,7 +38,8 @@ func SameSiteFromString(sameSite string) http.SameSite {
 }
 
 type User struct {
-	Id int
+	Id             int
+	ExternalUserId string
 }
 
 func (u User) IsValid() bool {
@@ -47,6 +48,39 @@ func (u User) IsValid() bool {
 
 type AdminUser struct {
 	UserId string
+	Roles  []string
+}
+
+type AuthContext struct {
+	User        *User
+	AdminUser   *AdminUser
+	IsAdmin     bool
+	IsSuperAdmin bool
+}
+
+func (a *AdminUser) HasServiceAdminRole(serviceKey string) bool {
+	if a == nil {
+		return false
+	}
+	targetRole := "admin-" + serviceKey
+	for _, role := range a.Roles {
+		if role == targetRole || role == "superadmin" {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *AdminUser) IsSuperAdmin() bool {
+	if a == nil {
+		return false
+	}
+	for _, role := range a.Roles {
+		if role == "superadmin" {
+			return true
+		}
+	}
+	return false
 }
 
 type Service struct {

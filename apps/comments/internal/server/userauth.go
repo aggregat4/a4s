@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/aggregat4/go-baselib/lang"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -36,6 +37,35 @@ func getAdminUserIdFromSession(c echo.Context) (string, error) {
 	}
 }
 
+func getAdminRolesFromSession(c echo.Context) ([]string, error) {
+	sess, err := session.Get(authenticatedUserCookieName, c)
+	if err != nil {
+		return nil, err
+	}
+	if sess.Values["adminroles"] != nil {
+		return sess.Values["adminroles"].([]string), nil
+	} else {
+		return nil, lang.ErrNotFound
+	}
+}
+
+func getAdminUserFromSession(c echo.Context) (domain.AdminUser, error) {
+	adminUserId, err := getAdminUserIdFromSession(c)
+	if err != nil {
+		return domain.AdminUser{}, err
+	}
+	
+	roles, err := getAdminRolesFromSession(c)
+	if err != nil {
+		return domain.AdminUser{}, err
+	}
+	
+	return domain.AdminUser{
+		UserId: adminUserId,
+		Roles:  roles,
+	}, nil
+}
+
 func createUserSessionCookie(c echo.Context, userId int) error {
 	sess, err := session.Get(authenticatedUserCookieName, c)
 	if err != nil {
@@ -45,12 +75,13 @@ func createUserSessionCookie(c echo.Context, userId int) error {
 	return sess.Save(c.Request(), c.Response())
 }
 
-func createAdminSessionCookie(c echo.Context, adminUserId string) error {
+func createAdminSessionCookie(c echo.Context, adminUserId string, roles []string) error {
 	sess, err := session.Get(authenticatedUserCookieName, c)
 	if err != nil {
 		return err
 	}
 	sess.Values["adminuserid"] = adminUserId
+	sess.Values["adminroles"] = roles
 	err = sess.Save(c.Request(), c.Response())
 	if err != nil {
 		return sendInternalError(c, err)
@@ -85,4 +116,72 @@ func getUserFromSession(c echo.Context, controller *Controller) (domain.User, er
 		return domain.User{}, err
 	}
 	return user, nil
+}
+
+func CreateServiceAdminAuthMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			adminUser, err := getAdminUserFromSession(c)
+			if err != nil {
+				return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+			}
+			
+			serviceKey := c.Param("servicekey")
+			if serviceKey == "" {
+				return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+			}
+			
+			if !adminUser.HasServiceAdminRole(serviceKey) {
+				return c.Render(http.StatusForbidden, "error-forbidden", nil)
+			}
+			
+			return next(c)
+		}
+	}
+}
+
+func CreateSuperAdminAuthMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			adminUser, err := getAdminUserFromSession(c)
+			if err != nil {
+				return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+			}
+			
+			if !adminUser.IsSuperAdmin() {
+				return c.Render(http.StatusForbidden, "error-forbidden", nil)
+			}
+			
+			return next(c)
+		}
+	}
+}
+
+func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken) error {
+	var claims struct {
+		Subject string   `json:"sub"`
+		Roles   []string `json:"roles"`
+	}
+	
+	if err := idToken.Claims(&claims); err != nil {
+		return err
+	}
+	
+	// Check if user has any admin roles
+	hasAdminRole := false
+	for _, role := range claims.Roles {
+		if role == "superadmin" || (len(role) > 6 && role[:6] == "admin-") {
+			hasAdminRole = true
+			break
+		}
+	}
+	
+	if hasAdminRole {
+		// Create admin session with roles
+		return createAdminSessionCookie(c, claims.Subject, claims.Roles)
+	} else {
+		// TODO: Implement regular user session creation
+		// For now, return error since regular users aren't fully implemented
+		return c.Render(http.StatusForbidden, "error-forbidden", nil)
+	}
 }

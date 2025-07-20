@@ -40,4 +40,12 @@ var mymigrations = []migrations.Migration{
 		);
 		`,
 	},
+	{
+		SequenceId: 2,
+		Sql: `
+		-- Add external_user_id to users table to store OIDC subject identifier
+		ALTER TABLE users ADD COLUMN external_user_id TEXT;
+		CREATE UNIQUE INDEX idx_users_external_user_id ON users(external_user_id) WHERE external_user_id IS NOT NULL;
+		`,
+	},
 }

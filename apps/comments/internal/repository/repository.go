@@ -162,6 +162,52 @@ func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]doma
 	return mapComments(rows, store.Cipher)
 }
 
+func (store *Store) GetCommentsByServiceAndStatus(serviceKey string, statuses []domain.CommentStatus) ([]domain.Comment, error) {
+	query := "SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments WHERE service_key = ?"
+	args := []interface{}{serviceKey}
+	
+	if len(statuses) > 0 {
+		query += " AND status IN ("
+		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",")
+		query += ")"
+		for _, status := range statuses {
+			args = append(args, int(status))
+		}
+	}
+	query += " ORDER BY created_at DESC"
+	
+	rows, err := store.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return mapComments(rows, store.Cipher)
+}
+
+func (store *Store) GetAllServices() ([]domain.Service, error) {
+	rows, err := store.db.Query("SELECT id, service_key, origin FROM services ORDER BY service_key")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var services []domain.Service
+	for rows.Next() {
+		var service domain.Service
+		err := rows.Scan(&service.Id, &service.ServiceKey, &service.Origin)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, service)
+	}
+	
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	
+	return services, nil
+}
+
 func (store *Store) CreateService(serviceKey string, serviceOrigin string) (int, error) {
 	result, err := store.db.Exec("INSERT INTO services (service_key, origin) VALUES (?, ?)", serviceKey, serviceOrigin)
 	if err != nil {

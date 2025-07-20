@@ -69,7 +69,7 @@ func InitServer(controller Controller) *echo.Echo {
 	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(
 		baseliboidc.CreateSessionBasedOidcDelegate(
 			func(c echo.Context, idToken *oidc.IDToken) error {
-				return createAdminSessionCookie(c, idToken.Subject)
+				return createSessionFromIDToken(c, idToken)
 			},
 			"/",
 		))
@@ -103,6 +103,8 @@ func InitServerWithOidcMiddleware(
 		"error-notfound":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-notfound.html", "public/views/components/*.html")),
 		"error-unauthorized":   template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-unauthorized.html", "public/views/components/*.html")),
 		"error-badrequest":     template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-badrequest.html", "public/views/components/*.html")),
+		"error-forbidden":      template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-forbidden.html", "public/views/components/*.html")),
+		"superadmin-services":  template.Must(template.New("").ParseFS(viewTemplates, "public/views/superadmin-services.html", "public/views/components/*.html")),
 		"demo":                 template.Must(template.New("").ParseFS(viewTemplates, "public/views/demo.html", "public/views/components/*.html")),
 	}
 
@@ -166,12 +168,22 @@ func InitServerWithOidcMiddleware(
 	// Users can delete comments, this redirects back to the comment overview page
 	// Users can update comments: see the PostComment route under /services/:serviceKey/posts/:postKey/comments
 
-	// ---- AUTHENTICATED WITH OIDC AND ROLE service-admin (admimistrator)
+	// ---- AUTHENTICATED WITH OIDC AND ROLE admin-<servicekey> (service administrator)
 	e.GET("/adminlogin", controller.GetAdminLoginForm)
 	e.GET("/admin", controller.GetAdminHome)
-	e.GET("/admin/comments", controller.GetAdminDashboard)
-	e.POST("/admin/comments/:commentId/approve", controller.AdminApproveComment)
-	e.POST("/admin/comments/:commentId/delete", controller.AdminDeleteComment)
+	
+	// Service admin routes with middleware
+	serviceAdmin := e.Group("/admin/:servicekey")
+	serviceAdmin.Use(CreateServiceAdminAuthMiddleware())
+	serviceAdmin.GET("/comments", controller.GetServiceAdminDashboard)
+	serviceAdmin.POST("/comments/:commentId/approve", controller.ServiceAdminApproveComment)
+	serviceAdmin.POST("/comments/:commentId/delete", controller.ServiceAdminDeleteComment)
+	
+	// ---- AUTHENTICATED WITH OIDC AND ROLE superadmin (super administrator)
+	superAdmin := e.Group("/superadmin")
+	superAdmin.Use(CreateSuperAdminAuthMiddleware())
+	superAdmin.GET("/services", controller.GetSuperAdminServices)
+	superAdmin.GET("/comments", controller.GetSuperAdminDashboard)
 
 	e.GET("/demo", controller.GetDemo)
 
@@ -193,6 +205,8 @@ func customHTTPErrorHandler(err error, c echo.Context) {
 		errorPageTemplate = "error-unauthorized"
 	case http.StatusBadRequest:
 		errorPageTemplate = "error-badrequest"
+	case http.StatusForbidden:
+		errorPageTemplate = "error-forbidden"
 	}
 	err = c.Render(code, errorPageTemplate, domain.ErrorPage{
 		BasePage: domain.BasePage{
@@ -610,6 +624,176 @@ func (controller *Controller) AdminDeleteComment(c echo.Context) error {
 		return sendInternalError(c, err)
 	}
 	return c.Redirect(http.StatusFound, "/admin")
+}
+
+func (controller *Controller) GetServiceAdminDashboard(c echo.Context) error {
+	adminUser, err := getAdminUserFromSession(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	serviceKey := c.Param("servicekey")
+	
+	// Fetch comments for specific service, depending on the showStatus parameter we filter the comments
+	showStatusParam := c.QueryParam("showStatus")
+	statuses := []domain.CommentStatus{}
+	if showStatusParam != "" {
+		for _, status := range strings.Split(showStatusParam, ",") {
+			parsedStatus, err := domain.ParseCommentStatus(status)
+			if err != nil {
+				return c.Redirect(http.StatusBadRequest, "/admin/"+serviceKey+"/comments")
+			}
+			statuses = append(statuses, parsedStatus)
+		}
+	}
+	comments, err := controller.Store.GetCommentsByServiceAndStatus(serviceKey, statuses)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	// Get flash messages
+	successFlashes, errorFlashes, err := baseliboidc.GetFlashes(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	var templateData = domain.AdminDashboardPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+			Error:       errorFlashes,
+			Success:     successFlashes,
+		},
+		AdminUser: adminUser,
+		Comments:  comments,
+		Statuses:  statuses,
+	}
+	return c.Render(http.StatusOK, "admin-dashboard", templateData)
+}
+
+func (controller *Controller) ServiceAdminApproveComment(c echo.Context) error {
+	_, err := getAdminUserFromSession(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	
+	serviceKey := c.Param("servicekey")
+	comment, err := controller.requireCommentAndRetrieve(c)
+	if err != nil {
+		return handleCommonErrors(c, err)
+	}
+	
+	// Verify comment belongs to the service
+	if comment.ServiceKey != serviceKey {
+		return c.Render(http.StatusForbidden, "error-forbidden", nil)
+	}
+	
+	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusApproved, comment.Comment, comment.Name, comment.Website, comment.ParentUrl)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return c.Redirect(http.StatusFound, "/admin/"+serviceKey+"/comments")
+}
+
+func (controller *Controller) ServiceAdminDeleteComment(c echo.Context) error {
+	_, err := getAdminUserFromSession(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	
+	serviceKey := c.Param("servicekey")
+	comment, err := controller.requireCommentAndRetrieve(c)
+	if err != nil {
+		return handleCommonErrors(c, err)
+	}
+	
+	// Verify comment belongs to the service
+	if comment.ServiceKey != serviceKey {
+		return c.Render(http.StatusForbidden, "error-forbidden", nil)
+	}
+	
+	err = controller.Store.DeleteComment(comment.Id)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+	return c.Redirect(http.StatusFound, "/admin/"+serviceKey+"/comments")
+}
+
+func (controller *Controller) GetSuperAdminServices(c echo.Context) error {
+	adminUser, err := getAdminUserFromSession(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	services, err := controller.Store.GetAllServices()
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	// Get flash messages
+	successFlashes, errorFlashes, err := baseliboidc.GetFlashes(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	var templateData = struct {
+		domain.BasePage
+		AdminUser domain.AdminUser
+		Services  []domain.Service
+	}{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+			Error:       errorFlashes,
+			Success:     successFlashes,
+		},
+		AdminUser: adminUser,
+		Services:  services,
+	}
+	return c.Render(http.StatusOK, "superadmin-services", templateData)
+}
+
+func (controller *Controller) GetSuperAdminDashboard(c echo.Context) error {
+	adminUser, err := getAdminUserFromSession(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	// Fetch comments for all services, depending on the showStatus parameter we filter the comments
+	showStatusParam := c.QueryParam("showStatus")
+	statuses := []domain.CommentStatus{}
+	if showStatusParam != "" {
+		for _, status := range strings.Split(showStatusParam, ",") {
+			parsedStatus, err := domain.ParseCommentStatus(status)
+			if err != nil {
+				return c.Redirect(http.StatusBadRequest, "/superadmin/comments")
+			}
+			statuses = append(statuses, parsedStatus)
+		}
+	}
+	comments, err := controller.Store.GetCommentsByStatus(statuses)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	// Get flash messages
+	successFlashes, errorFlashes, err := baseliboidc.GetFlashes(c)
+	if err != nil {
+		return sendInternalError(c, err)
+	}
+
+	var templateData = domain.AdminDashboardPage{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+			Error:       errorFlashes,
+			Success:     successFlashes,
+		},
+		AdminUser: adminUser,
+		Comments:  comments,
+		Statuses:  statuses,
+	}
+	return c.Render(http.StatusOK, "admin-dashboard", templateData)
 }
 
 func (controller *Controller) GetDemo(c echo.Context) error {
