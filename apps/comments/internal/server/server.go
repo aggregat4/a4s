@@ -4,7 +4,6 @@ import (
 	"aggregat4/go-commentservice/internal/domain"
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
-	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -24,18 +23,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-	ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-		// Format error attributes specially
-		if a.Key == "stack" {
-			return slog.Attr{
-				Key:   a.Key,
-				Value: slog.StringValue(fmt.Sprintf("\n%v", a.Value.String())),
-			}
-		}
-		return a
-	},
-}))
+var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 //go:embed public/views/*.html public/views/components/*.html
 var viewTemplates embed.FS
@@ -83,7 +71,7 @@ func InitServer(controller Controller) *echo.Echo {
 			func(c echo.Context, idToken *oidc.IDToken) error {
 				return createAdminSessionCookie(c, idToken.Subject)
 			},
-			"/admin", // TODO: change fallback URI
+			"/",
 		))
 	return InitServerWithOidcMiddleware(
 		controller,
@@ -167,7 +155,6 @@ func InitServerWithOidcMiddleware(
 	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
 	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
 	e.POST("/services/:serviceKey/posts/:postKey/comments/", controller.PostComment)
-
 
 	// ---- AUTHENTICATED WITH AUTH TOKEN (normal user)
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
@@ -266,7 +253,6 @@ func (controller *Controller) Status(c echo.Context) error {
 	logger.Info("Status endpoint")
 	return c.String(http.StatusOK, "OK")
 }
-
 
 func handleAuthenticationError(c echo.Context, err error) error {
 	if errors.Is(err, lang.ErrNotFound) {
@@ -402,7 +388,6 @@ func (controller *Controller) DeleteUserComment(c echo.Context) error {
 	// TODO: toast to show that the comment has been deleted
 	return c.Redirect(http.StatusFound, "/users/"+strconv.Itoa(user.Id)+"/comments/")
 }
-
 
 func (controller *Controller) requireCommentAndRetrieve(c echo.Context) (domain.Comment, error) {
 	commentIdString := c.Param("commentId")
