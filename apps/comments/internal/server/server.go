@@ -84,13 +84,16 @@ func InitServer(controller Controller) *echo.Echo {
 			_, userErr := getUserIdFromSession(c)
 			return userErr == nil
 		}),
-		oidcCallback)
+		oidcCallback,
+		true, // Enable CSRF for production
+	)
 }
 
 func InitServerWithOidcMiddleware(
 	controller Controller,
 	oidcMiddleware echo.MiddlewareFunc,
 	oidcCallback func(c echo.Context) error,
+	enableCsrf bool,
 ) *echo.Echo {
 	e := echo.New()
 
@@ -138,8 +141,10 @@ func InitServerWithOidcMiddleware(
 	// User authentication is now handled by OIDC middleware
 	// Set custom error handler
 	e.HTTPErrorHandler = customHTTPErrorHandler
-	// CSRF protection middleware
-	e.Use(baselibmiddleware.CsrfMiddleware)
+	// CSRF protection middleware (conditional)
+	if enableCsrf {
+		e.Use(baselibmiddleware.CsrfMiddleware)
+	}
 	// Endpoints
 	// static assets
 	e.GET("/js/*", hashedStaticHandler(javaScript, "js"))
@@ -174,14 +179,14 @@ func InitServerWithOidcMiddleware(
 	// ---- AUTHENTICATED WITH OIDC AND ROLE admin-<servicekey> (service administrator)
 	e.GET("/adminlogin", controller.GetAdminLoginForm)
 	e.GET("/admin", controller.GetAdminHome)
-	
+
 	// Service admin routes with middleware
 	serviceAdmin := e.Group("/admin/:servicekey")
 	serviceAdmin.Use(CreateServiceAdminAuthMiddleware())
 	serviceAdmin.GET("/comments", controller.GetServiceAdminDashboard)
 	serviceAdmin.POST("/comments/:commentId/approve", controller.ServiceAdminApproveComment)
 	serviceAdmin.POST("/comments/:commentId/delete", controller.ServiceAdminDeleteComment)
-	
+
 	// ---- AUTHENTICATED WITH OIDC AND ROLE superadmin (super administrator)
 	superAdmin := e.Group("/superadmin")
 	superAdmin.Use(CreateSuperAdminAuthMiddleware())
@@ -273,7 +278,7 @@ func (controller *Controller) Status(c echo.Context) error {
 
 func handleAuthenticationError(c echo.Context, err error) error {
 	if errors.Is(err, lang.ErrNotFound) {
-		return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+		return renderUnauthorized(c)
 	} else {
 		return sendInternalError(c, err)
 	}
@@ -284,14 +289,14 @@ func (controller *Controller) GetCommentsForUser(c echo.Context) error {
 	userIdString := c.Param("userId")
 	userId, err := strconv.Atoi(userIdString)
 	if err != nil {
-		return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+		return renderBadRequest(c)
 	}
 	user, err := getUserFromSession(c, controller)
 	if err != nil {
 		return handleAuthenticationError(c, err)
 	}
 	if user.Id != userId {
-		return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+		return renderUnauthorized(c)
 	}
 	comments, err := controller.Store.GetCommentsForUser(user.Id)
 	if err != nil {
@@ -329,20 +334,20 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 			} else if err == nil {
 				userAuthenticated := lang.IfElse(userFoundError == nil, true, false)
 				if !userAuthenticated || comment.UserId != user.Id {
-					return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+					return renderUnauthorized(c)
 				}
 				commentFound = true
 			} else {
-				return c.Render(http.StatusNotFound, "error-notfound", nil)
+				return renderNotFound(c)
 			}
 		} else {
-			return c.Render(http.StatusNotFound, "error-notfound", nil)
+			return renderNotFound(c)
 		}
 	}
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
 		// TODO: better error to indicate that this service does not exist?
-		return c.Render(http.StatusNotFound, "error-notfound", nil)
+		return renderNotFound(c)
 	}
 	c.Response().Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 	return c.Render(http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
@@ -367,7 +372,7 @@ func (controller *Controller) GetUserCommentForm(c echo.Context) error {
 	service, err := controller.Store.FindServiceById(comment.ServiceId)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
-			return c.Render(http.StatusNotFound, "error-notfound", nil)
+			return renderNotFound(c)
 		} else {
 			return sendInternalError(c, err)
 		}
@@ -431,6 +436,9 @@ func (controller *Controller) extractAndValidateUserAndCommentFromRequest(c echo
 	// validate user
 	user, err := getUserFromSession(c, controller)
 	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			return domain.User{}, domain.Comment{}, renderUnauthorized(c)
+		}
 		return domain.User{}, domain.Comment{}, sendInternalError(c, err)
 	}
 	if user.Id != userId {
@@ -492,13 +500,13 @@ func (controller *Controller) PostComment(c echo.Context) error {
 			comment, err = controller.Store.GetComment(commentId)
 			if err != nil {
 				if errors.Is(err, lang.ErrNotFound) {
-					return c.Render(http.StatusNotFound, "error-notfound", nil)
+					return renderNotFound(c)
 				} else {
 					return sendInternalError(c, err)
 				}
 			}
 		} else {
-			return c.Render(http.StatusNotFound, "error-notfound", nil)
+			return renderNotFound(c)
 		}
 		// we are editing a comment, verify that the user is allowed to do so
 		if !userAuthenticated || comment.UserId != user.Id {
@@ -532,8 +540,9 @@ func (controller *Controller) PostComment(c echo.Context) error {
 }
 
 func (controller *Controller) GetAdminLoginForm(c echo.Context) error {
-	return c.Render(http.StatusOK, "adminlogin", templateData{
-		Data: domain.BasePage{},
+	return c.Render(http.StatusOK, "adminlogin", domain.BasePage{
+		Stylesheets: templateStylesheets,
+		Scripts:     templateScripts,
 	})
 }
 
@@ -559,7 +568,7 @@ func (controller *Controller) GetAdminDashboard(c echo.Context) error {
 	showStatusParam := c.QueryParam("showStatus")
 	statuses := []domain.CommentStatus{}
 	if showStatusParam != "" {
-		for _, status := range strings.Split(showStatusParam, ",") {
+		for status := range strings.SplitSeq(showStatusParam, ",") {
 			parsedStatus, err := domain.ParseCommentStatus(status)
 			if err != nil {
 				return c.Redirect(http.StatusBadRequest, "/admin")
@@ -636,12 +645,12 @@ func (controller *Controller) GetServiceAdminDashboard(c echo.Context) error {
 	}
 
 	serviceKey := c.Param("servicekey")
-	
+
 	// Fetch comments for specific service, depending on the showStatus parameter we filter the comments
 	showStatusParam := c.QueryParam("showStatus")
 	statuses := []domain.CommentStatus{}
 	if showStatusParam != "" {
-		for _, status := range strings.Split(showStatusParam, ",") {
+		for status := range strings.SplitSeq(showStatusParam, ",") {
 			parsedStatus, err := domain.ParseCommentStatus(status)
 			if err != nil {
 				return c.Redirect(http.StatusBadRequest, "/admin/"+serviceKey+"/comments")
@@ -679,18 +688,18 @@ func (controller *Controller) ServiceAdminApproveComment(c echo.Context) error {
 	if err != nil {
 		return sendInternalError(c, err)
 	}
-	
+
 	serviceKey := c.Param("servicekey")
 	comment, err := controller.requireCommentAndRetrieve(c)
 	if err != nil {
 		return handleCommonErrors(c, err)
 	}
-	
+
 	// Verify comment belongs to the service
 	if comment.ServiceKey != serviceKey {
-		return c.Render(http.StatusForbidden, "error-forbidden", nil)
+		return renderForbidden(c)
 	}
-	
+
 	err = controller.Store.UpdateComment(comment.Id, domain.CommentStatusApproved, comment.Comment, comment.Name, comment.Website, comment.ParentUrl)
 	if err != nil {
 		return sendInternalError(c, err)
@@ -703,18 +712,18 @@ func (controller *Controller) ServiceAdminDeleteComment(c echo.Context) error {
 	if err != nil {
 		return sendInternalError(c, err)
 	}
-	
+
 	serviceKey := c.Param("servicekey")
 	comment, err := controller.requireCommentAndRetrieve(c)
 	if err != nil {
 		return handleCommonErrors(c, err)
 	}
-	
+
 	// Verify comment belongs to the service
 	if comment.ServiceKey != serviceKey {
-		return c.Render(http.StatusForbidden, "error-forbidden", nil)
+		return renderForbidden(c)
 	}
-	
+
 	err = controller.Store.DeleteComment(comment.Id)
 	if err != nil {
 		return sendInternalError(c, err)
@@ -766,7 +775,7 @@ func (controller *Controller) GetSuperAdminDashboard(c echo.Context) error {
 	showStatusParam := c.QueryParam("showStatus")
 	statuses := []domain.CommentStatus{}
 	if showStatusParam != "" {
-		for _, status := range strings.Split(showStatusParam, ",") {
+		for status := range strings.SplitSeq(showStatusParam, ",") {
 			parsedStatus, err := domain.ParseCommentStatus(status)
 			if err != nil {
 				return c.Redirect(http.StatusBadRequest, "/superadmin/comments")

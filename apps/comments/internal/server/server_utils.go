@@ -60,4 +60,8 @@ func renderNotFound(c echo.Context) error {
 	return renderErrorPage(c, http.StatusNotFound, "error-notfound")
 }
 
+func renderForbidden(c echo.Context) error {
+	return renderErrorPage(c, http.StatusForbidden, "error-forbidden")
+}
+
 var ErrIllegalArgument = errors.New("illegal argumen")

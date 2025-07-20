@@ -65,7 +65,7 @@ func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	}
 	createTestData(t, store)
 	controller := Controller{&store, serverConfig}
-	echoServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback())
+	echoServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback(), false)
 	go func() {
 		_ = echoServer.Start(":" + strconv.Itoa(serverConfig.Port))
 	}()
@@ -74,17 +74,17 @@ func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 }
 
 func createTestData(t *testing.T, store repository.Store) {
-	serviceId, err := store.CreateService(TEST_SERVICE, "example.com")
+	serviceId, err := store.CreateService(TEST_SERVICE, "https://example.com")
 	if err != nil {
 		t.Fatal("Error creating test service: " + err.Error())
 	}
-	
+
 	// Create test users
 	testUserId1, err := store.CreateUser()
 	if err != nil {
 		t.Fatal("Error creating test user: " + err.Error())
 	}
-	
+
 	// create comments
 	comments := []struct {
 		status  domain.CommentStatus

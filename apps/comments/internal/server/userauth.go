@@ -2,7 +2,6 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
-	"net/http"
 
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -54,12 +53,12 @@ func getAdminUserFromSession(c echo.Context) (domain.AdminUser, error) {
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
-	
+
 	roles, err := getAdminRolesFromSession(c)
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
-	
+
 	return domain.AdminUser{
 		UserId: adminUserId,
 		Roles:  roles,
@@ -98,7 +97,7 @@ func CreateUserAuthenticationMiddleware(skipper middleware.Skipper) echo.Middlew
 			_, err := getUserIdFromSession(c)
 			if err != nil {
 				// user is not authenticated, return unauthorized error
-				return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+				return renderUnauthorized(c)
 			} else {
 				return next(c)
 			}
@@ -123,18 +122,18 @@ func CreateServiceAdminAuthMiddleware() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			adminUser, err := getAdminUserFromSession(c)
 			if err != nil {
-				return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+				return renderUnauthorized(c)
 			}
-			
+
 			serviceKey := c.Param("servicekey")
 			if serviceKey == "" {
-				return c.Render(http.StatusBadRequest, "error-badrequest", nil)
+				return renderBadRequest(c)
 			}
-			
+
 			if !adminUser.HasServiceAdminRole(serviceKey) {
-				return c.Render(http.StatusForbidden, "error-forbidden", nil)
+				return renderForbidden(c)
 			}
-			
+
 			return next(c)
 		}
 	}
@@ -145,13 +144,13 @@ func CreateSuperAdminAuthMiddleware() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			adminUser, err := getAdminUserFromSession(c)
 			if err != nil {
-				return c.Render(http.StatusUnauthorized, "error-unauthorized", nil)
+				return renderUnauthorized(c)
 			}
-			
+
 			if !adminUser.IsSuperAdmin() {
-				return c.Render(http.StatusForbidden, "error-forbidden", nil)
+				return renderForbidden(c)
 			}
-			
+
 			return next(c)
 		}
 	}
@@ -162,11 +161,11 @@ func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken, controller 
 		Subject string   `json:"sub"`
 		Roles   []string `json:"roles"`
 	}
-	
+
 	if err := idToken.Claims(&claims); err != nil {
 		return err
 	}
-	
+
 	// Check if user has any admin roles
 	hasAdminRole := false
 	for _, role := range claims.Roles {
@@ -175,7 +174,7 @@ func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken, controller 
 			break
 		}
 	}
-	
+
 	if hasAdminRole {
 		// Create admin session with roles
 		return createAdminSessionCookie(c, claims.Subject, claims.Roles)
