@@ -26,8 +26,8 @@ func createMockOidcMiddleware() echo.MiddlewareFunc {
 
 func waitForServerStart(t *testing.T, url string) {
 	maxRetries := 10
-	for i := 0; i < maxRetries; i++ {
-		//nolint:gosec
+	//nolint:gosec
+	for range maxRetries {
 		resp, err := http.Get(url)
 		if err == nil && (resp != nil && resp.StatusCode == 200) {
 			resp.Body.Close()
