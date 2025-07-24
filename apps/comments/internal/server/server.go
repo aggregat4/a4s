@@ -152,21 +152,20 @@ func InitServerWithOidcMiddleware(
 
 	// infrastructure
 	e.GET("/oidccallback", oidcCallback)
+	e.GET("/status", controller.Status)
 
 	// ---- UNAUTHENTICATED
-	// Status endpoint
-	e.GET("/status", controller.Status)
 	// Since we collect private data, we need to provide a GDPR compliant privacy policy
 	// This should be configurable as the contents depend on the admin. Can we just serve a file?
 	// TODO: e.GET("/privacypolicy", controller.PrivacyPolicy)
 	// We can display all comments for a post
 	e.GET("/services/:serviceKey/posts/:postKey/comments/", controller.GetComments)
-	// One can write a comment for a post, the comment form is prefilled if you are authenticated
-	e.GET("/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
-	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
-	e.POST("/services/:serviceKey/posts/:postKey/comments/", controller.PostComment)
 
-	// ---- AUTHENTICATED WITH AUTH TOKEN (normal user)
+	// ---- AUTHENTICATED WITH OIDC (normal user)
+	// One can write a comment for a post, the comment form is prefilled if you are authenticated
+	e.GET("/users/:userId/services/:serviceKey/posts/:postKey/commentform", controller.GetCommentForm)
+	// One can add that comment to the post (in state unauthenticated, assuming we have all the info we need (at least email and content))
+	e.POST("/users/:userId/services/:serviceKey/posts/:postKey/comments/", controller.PostComment)
 	// Calling this page with a special parameter or content-type allows you to export the page as a json document
 	e.GET("/users/:userId/comments/", controller.GetCommentsForUser)
 	// Allow a user to modify his comment
@@ -179,7 +178,6 @@ func InitServerWithOidcMiddleware(
 	// ---- AUTHENTICATED WITH OIDC AND ROLE admin-<servicekey> (service administrator)
 	e.GET("/adminlogin", controller.GetAdminLoginForm)
 	e.GET("/admin", controller.GetAdminHome)
-
 	// Service admin routes with middleware
 	serviceAdmin := e.Group("/admin/:servicekey")
 	serviceAdmin.Use(CreateServiceAdminAuthMiddleware())
@@ -193,6 +191,7 @@ func InitServerWithOidcMiddleware(
 	superAdmin.GET("/services", controller.GetSuperAdminServices)
 	superAdmin.GET("/comments", controller.GetSuperAdminDashboard)
 
+	// ---- DEMO ROUTES
 	e.GET("/demo", controller.GetDemo)
 
 	return e
@@ -321,6 +320,8 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 	user, userFoundError := getUserFromSession(c, controller)
 	if userFoundError != nil && !errors.Is(userFoundError, lang.ErrNotFound) {
 		return sendInternalError(c, userFoundError)
+	} else if userFoundError != nil {
+		return renderUnauthorized(c)
 	}
 	commentIdString := c.QueryParam("commentId")
 	commentFound := false
@@ -332,8 +333,7 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 			if err != nil && !errors.Is(err, lang.ErrNotFound) {
 				return sendInternalError(c, err)
 			} else if err == nil {
-				userAuthenticated := lang.IfElse(userFoundError == nil, true, false)
-				if !userAuthenticated || comment.UserId != user.Id {
+				if comment.UserId != user.Id {
 					return renderUnauthorized(c)
 				}
 				commentFound = true
@@ -482,6 +482,9 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		return sendInternalError(c, userSessionError)
 	}
 	userAuthenticated := lang.IfElse(userSessionError == nil, true, false)
+	if !userAuthenticated {
+		return renderUnauthorized(c)
+	}
 	// Get form data
 	commentIdString := c.FormValue("commentId")
 	name := c.FormValue("name")
@@ -509,7 +512,7 @@ func (controller *Controller) PostComment(c echo.Context) error {
 			return renderNotFound(c)
 		}
 		// we are editing a comment, verify that the user is allowed to do so
-		if !userAuthenticated || comment.UserId != user.Id {
+		if comment.UserId != user.Id {
 			return renderUnauthorized(c)
 		}
 		// prevent editing approved comments
@@ -525,10 +528,6 @@ func (controller *Controller) PostComment(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/services/"+serviceKey+"/posts/"+postKey+"/comments/")
 
 	} else {
-		// NEW comment: require user authentication
-		if !userAuthenticated {
-			return renderUnauthorized(c)
-		}
 		_, err = controller.Store.CreateComment(domain.CommentStatusPendingApproval, service.Id, service.ServiceKey, user.Id, postKey, commentContent, name, website, parentUrl)
 		if err != nil {
 			return sendInternalError(c, err)
