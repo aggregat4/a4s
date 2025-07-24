@@ -46,12 +46,12 @@ func TestFullUserWorkflowUnauthenticated(t *testing.T) {
 	// 4. User cannot access protected user routes (should redirect to auth)
 	res, err = client.Get(createServerUrl(serverConfig.Port, "/users/1/comments/"))
 	assert.NoError(t, err)
-	assert.True(t, res.StatusCode == 302 || res.StatusCode == 401, "Should be redirected or unauthorized")
+	assert.True(t, res.StatusCode == 401, "Should be redirected or unauthorized")
 
 	// 5. User cannot access admin routes
 	res, err = client.Get(createServerUrl(serverConfig.Port, "/admin"))
 	assert.NoError(t, err)
-	assert.True(t, res.StatusCode == 302 || res.StatusCode == 401, "Should be redirected or unauthorized")
+	assert.True(t, res.StatusCode == 302, "Should be redirected")
 }
 
 // TestRegularUserWorkflowWithSession tests a regular authenticated user's workflow
@@ -87,12 +87,6 @@ func TestRegularUserWorkflowWithSession(t *testing.T) {
 
 	// Should be redirected to auth or get unauthorized
 	assert.True(t, res.StatusCode == 302 || res.StatusCode == 401, "Should require authentication")
-
-	// Note: In a full integration test with OIDC, we would:
-	// 1. Go through the OIDC flow to get a session
-	// 2. Make authenticated requests to verify access
-	// 3. Test that users can only access their own comments
-	// For now, we verify that authentication is required
 }
 
 // TestServiceAdminWorkflowWithSession tests a service admin's workflow
