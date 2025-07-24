@@ -87,6 +87,12 @@ func TestRegularUserWorkflowWithSession(t *testing.T) {
 
 	// Should be redirected to auth or get unauthorized
 	assert.True(t, res.StatusCode == 302 || res.StatusCode == 401, "Should require authentication")
+
+	// Note: In a full integration test with OIDC, we would:
+	// 1. Go through the OIDC flow to get a session
+	// 2. Make authenticated requests to verify access
+	// 3. Test that users can only access their own comments
+	// For now, we verify that authentication is required
 }
 
 // TestServiceAdminWorkflowWithSession tests a service admin's workflow
