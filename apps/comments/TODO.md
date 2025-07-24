@@ -1,5 +1,6 @@
 # TODO
 
+* everything is now authenticated aside from the infrastructure endpoints and the comment list for a post itself. Figure out what the login flow looks like for unauthenticated users and what sort of "add comment" link I add to the comment page and where I add the admin links ...
 * align the user comment styling with the admin dashboard styling
 * retain some minimal formatting from comments. At least paragraphs.
 * when logged in as a user and seeing your comments on a post and being able to modify them, we should highlight the comment somehow
