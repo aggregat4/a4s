@@ -1,0 +1,20 @@
+{{define "title"}}User Login{{end}}
+
+{{define "bodyClass"}}userlogin{{end}}
+
+{{define "content"}}
+<main>
+    <h1>User Login</h1>
+    <form action="/login" method="GET">
+        <p>
+            Please log in to access the comment system. This login requires an account registered with the OIDC provider.
+            When you login you will be redirected to the OIDC provider to authenticate.
+        </p>
+        <button type="submit">Login with OIDC</button>
+    </form>
+</main>
+{{end}}
+    
+{{define "userlogin"}}
+{{template "layout" .}}
+{{end}} 

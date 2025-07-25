@@ -105,7 +105,7 @@ func InitServerWithOidcMiddleware(
 		"addeditcomment":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/addeditcomment.html", "public/views/components/*.html")),
 		"usercomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/usercomments.html", "public/views/components/*.html")),
 		"postcomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/postcomments.html", "public/views/components/*.html")),
-		"adminlogin":           template.Must(template.New("").ParseFS(viewTemplates, "public/views/adminlogin.html", "public/views/components/*.html")),
+		"userlogin":            template.Must(template.New("").ParseFS(viewTemplates, "public/views/userlogin.html", "public/views/components/*.html")),
 		"admin-dashboard":      template.Must(template.New("").ParseFS(viewTemplates, "public/views/admin-dashboard.html", "public/views/components/*.html")),
 		"error-internalserver": template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-internalserver.html", "public/views/components/*.html")),
 		"error-notfound":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-notfound.html", "public/views/components/*.html")),
@@ -176,7 +176,7 @@ func InitServerWithOidcMiddleware(
 	// Users can update comments: see the PostComment route under /services/:serviceKey/posts/:postKey/comments
 
 	// ---- AUTHENTICATED WITH OIDC AND ROLE admin-<servicekey> (service administrator)
-	e.GET("/adminlogin", controller.GetAdminLoginForm)
+	e.GET("/login", controller.GetUserLoginForm)
 	e.GET("/admin", controller.GetAdminHome)
 	// Service admin routes with middleware
 	serviceAdmin := e.Group("/admin/:servicekey")
@@ -538,8 +538,8 @@ func (controller *Controller) PostComment(c echo.Context) error {
 	}
 }
 
-func (controller *Controller) GetAdminLoginForm(c echo.Context) error {
-	return c.Render(http.StatusOK, "adminlogin", domain.BasePage{
+func (controller *Controller) GetUserLoginForm(c echo.Context) error {
+	return c.Render(http.StatusOK, "userlogin", domain.BasePage{
 		Stylesheets: templateStylesheets,
 		Scripts:     templateScripts,
 	})
@@ -560,7 +560,7 @@ func (controller *Controller) GetAdminDashboard(c echo.Context) error {
 	if err != nil && !errors.Is(err, lang.ErrNotFound) {
 		return sendInternalError(c, err)
 	} else if err != nil {
-		return c.Redirect(http.StatusUnauthorized, "/adminlogin/")
+		return c.Redirect(http.StatusUnauthorized, "/login/")
 	}
 
 	// Fetch comments for all services, depending on the showStatus parameter we filter the comments
@@ -606,7 +606,7 @@ func (controller *Controller) AdminApproveComment(c echo.Context) error {
 	if err != nil && !errors.Is(err, lang.ErrNotFound) {
 		return sendInternalError(c, err)
 	} else if err != nil {
-		return c.Redirect(http.StatusUnauthorized, "/adminlogin/")
+		return c.Redirect(http.StatusUnauthorized, "/login/")
 	}
 	comment, err := controller.requireCommentAndRetrieve(c)
 	if err != nil {
@@ -624,7 +624,7 @@ func (controller *Controller) AdminDeleteComment(c echo.Context) error {
 	if err != nil && !errors.Is(err, lang.ErrNotFound) {
 		return sendInternalError(c, err)
 	} else if err != nil {
-		return c.Redirect(http.StatusUnauthorized, "/adminlogin/")
+		return c.Redirect(http.StatusUnauthorized, "/login/")
 	}
 	comment, err := controller.requireCommentAndRetrieve(c)
 	if err != nil {

@@ -396,8 +396,8 @@ func TestStatusAndUtilityEndpoints(t *testing.T) {
 	body = readBody(res)
 	assert.Contains(t, body, "<!DOCTYPE html>")
 
-	// Test admin login page
-	res, err = client.Get(createServerUrl(serverConfig.Port, "/adminlogin"))
+	// Test user login page
+	res, err = client.Get(createServerUrl(serverConfig.Port, "/login"))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode)
 	body = readBody(res)

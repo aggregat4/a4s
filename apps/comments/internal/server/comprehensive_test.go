@@ -360,12 +360,12 @@ func TestOIDCCallbackRoute(t *testing.T) {
 	assert.True(t, res.StatusCode >= 200 && res.StatusCode < 500)
 }
 
-func TestAdminLoginRoute(t *testing.T) {
+func TestUserLoginRoute(t *testing.T) {
 	echoServer, controller := waitForServer(t)
 	defer echoServer.Close()
 	defer controller.Store.Close()
 
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/adminlogin"))
+	res, err := http.Get(createServerUrl(serverConfig.Port, "/login"))
 	if err != nil {
 		t.Fatal(err)
 	}

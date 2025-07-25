@@ -26,7 +26,6 @@ type UserCommentsPage struct {
 	Comments []Comment
 }
 
-
 type AdminDashboardPage struct {
 	BasePage
 	AdminUser AdminUser
@@ -44,7 +43,7 @@ type AddOrEditCommentPage struct {
 	Comment      Comment
 }
 
-type AdminLoginPage struct {
+type UserLoginPage struct {
 	BasePage
 }
 
