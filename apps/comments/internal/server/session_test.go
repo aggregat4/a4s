@@ -11,32 +11,32 @@ import (
 )
 
 // Create a mock server with specific user session
-func createServerWithUserSession(t *testing.T, userId int) (*echo.Echo, Controller, func()) {
+func createServerWithUserSession(t *testing.T) (*echo.Echo, Controller, func()) {
 	echoServer, controller := waitForServer(t)
-	
+
 	cleanup := func() {
 		echoServer.Close()
 		controller.Store.Close()
 	}
-	
+
 	return echoServer, controller, cleanup
 }
 
 // Create a mock server with admin session
-func createServerWithAdminSession(t *testing.T, adminId string, roles []string) (*echo.Echo, Controller, func()) {
+func createServerWithAdminSession(t *testing.T) (*echo.Echo, Controller, func()) {
 	echoServer, controller := waitForServer(t)
-	
+
 	cleanup := func() {
 		echoServer.Close()
 		controller.Store.Close()
 	}
-	
+
 	return echoServer, controller, cleanup
 }
 
 // Test that session functions don't crash when no session exists
 func TestUserSessionWithoutSession(t *testing.T) {
-	_, _, cleanup := createServerWithUserSession(t, 1)
+	_, _, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
 	// Create echo context for session testing
@@ -52,7 +52,7 @@ func TestUserSessionWithoutSession(t *testing.T) {
 
 // Test that admin session functions don't crash when no session exists
 func TestAdminSessionWithoutSession(t *testing.T) {
-	_, _, cleanup := createServerWithAdminSession(t, "admin123", []string{"admin-testservice"})
+	_, _, cleanup := createServerWithAdminSession(t)
 	defer cleanup()
 
 	// Create echo context for session testing
@@ -108,7 +108,7 @@ func TestAdminUserRoleValidation(t *testing.T) {
 
 // Test repository methods for user management
 func TestFindOrCreateUserByExternalId(t *testing.T) {
-	_, controller, cleanup := createServerWithUserSession(t, 1)
+	_, controller, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
 	// Test creating new user
@@ -125,7 +125,7 @@ func TestFindOrCreateUserByExternalId(t *testing.T) {
 }
 
 func TestGetCommentsByServiceAndStatus(t *testing.T) {
-	_, controller, cleanup := createServerWithUserSession(t, 1)
+	_, controller, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
 	// Create additional test services and comments
@@ -164,7 +164,7 @@ func TestGetCommentsByServiceAndStatus(t *testing.T) {
 }
 
 func TestGetAllServices(t *testing.T) {
-	_, controller, cleanup := createServerWithUserSession(t, 1)
+	_, controller, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
 	// Create additional services
@@ -180,7 +180,7 @@ func TestGetAllServices(t *testing.T) {
 	for _, service := range services {
 		serviceKeys[service.ServiceKey] = true
 	}
-	
+
 	assert.True(t, serviceKeys[TEST_SERVICE_KEY_1], "Service 1 should be in results")
 	assert.True(t, serviceKeys[TEST_SERVICE_KEY_2], "Service 2 should be in results")
 }
@@ -231,7 +231,7 @@ func (t *TestResponseRecorder) WriteHeader(code int) {
 // Test middleware functions
 func TestServiceAdminAuthMiddleware(t *testing.T) {
 	middleware := CreateServiceAdminAuthMiddleware()
-	
+
 	e := echo.New()
 	req, _ := http.NewRequest("GET", "/admin/blog1/comments", nil)
 	rec := &TestResponseRecorder{ResponseRecorder: &MockResponseRecorder{}}
@@ -251,13 +251,13 @@ func TestServiceAdminAuthMiddleware(t *testing.T) {
 
 func TestSuperAdminAuthMiddleware(t *testing.T) {
 	middleware := CreateSuperAdminAuthMiddleware()
-	
+
 	e := echo.New()
 	req, _ := http.NewRequest("GET", "/superadmin/services", nil)
 	rec := &TestResponseRecorder{ResponseRecorder: &MockResponseRecorder{}}
 	c := e.NewContext(req, rec)
 
-	// Test without session - should get unauthorized  
+	// Test without session - should get unauthorized
 	handler := middleware(func(c echo.Context) error {
 		return c.String(200, "OK")
 	})
