@@ -195,11 +195,11 @@ dl.comments {
     }
 }
 
-.important, ul.important {
+.important {
     background-color: #fffde7;
     border-top: 1px solid #fff9c4;
     border-bottom: 1px solid #fff9c4;
-    padding: 1rem 24px 1rem 24px;
+    padding: 0 24px 0 24px;
     margin: 0;
 }
 
