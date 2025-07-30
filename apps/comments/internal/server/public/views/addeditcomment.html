@@ -5,21 +5,20 @@
 {{define "content"}}
 <header>
     {{if .Data.CommentFound}}
-        <h1>Edit Comment</h1>
+        <h2>Edit Comment</h2>
     {{else}}
-        <h1>New Comment</h1>
+        <h2>New Comment</h2>
     {{end}}
 </header>
 <main>
-    <p>
-        Important:
-    </p>
-    <ul class="hanging-indent important">
-        <li>You must be 18 years or older to comment. User submitted data is handled as per our <a href="privacypolicy.html">privacy policy</a>.</li>
-        <li>You must be authenticated to comment.</li>
-        <li>All comments are checked by a human before posting and may be rejected.</li>
-    </ul>
-    <form method="POST" action="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/comments/">
+    <div class="important">
+        <p>Important:</p>
+        <ul class="hanging-indent">
+            <li>You must be 18 years or older to comment. User submitted data is handled as per our <a href="privacypolicy.html">privacy policy</a>.</li>
+            <li>All comments are checked by a human before posting and may be rejected.</li>
+        </ul>
+    </div>
+    <form method="POST" action="/users/{{.Data.User.Id}}/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/comments/">
         {{if .Data.CommentFound}}
         <input type="hidden" name="commentId" value="{{.Data.Comment.Id}}">
         {{end}}

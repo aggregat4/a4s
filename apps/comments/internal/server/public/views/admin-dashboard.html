@@ -73,9 +73,9 @@
               <span class="badge {{template "statusToCssClass" .Status}}" role="status">{{template "statusToShortString" .Status}}</span>
               <div class="actionbar">
                 {{if or (eq .Status 1) (eq .Status 2)}}
-                <action-confirmation actionName="Approve" actionUrl="/admin/comments/{{.Id}}/approve" directionLeftRight="false"></action-confirmation>
+                <action-confirmation actionName="Approve" actionUrl="/admin/{{.ServiceKey}}/comments/{{.Id}}/approve" directionLeftRight="false"></action-confirmation>
                 {{end}}
-                <action-confirmation actionName="Delete" actionUrl="/admin/comments/{{.Id}}/delete" directionLeftRight="false"></action-confirmation>
+                <action-confirmation actionName="Delete" actionUrl="/admin/{{.ServiceKey}}/comments/{{.Id}}/delete" directionLeftRight="false"></action-confirmation>
               </div>
             </div>
         </dt>
