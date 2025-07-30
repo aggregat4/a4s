@@ -38,7 +38,7 @@ func TestFullUserWorkflowUnauthenticated(t *testing.T) {
 	formData.Set("website", "https://example.com")
 
 	res, err = client.PostForm(
-		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"),
+		createServerUrl(serverConfig.Port, "/users/1/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"),
 		formData)
 	assert.NoError(t, err)
 	assert.True(t, res.StatusCode == 401 || res.StatusCode == 403, "Should require authentication for posting comments")

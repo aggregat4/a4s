@@ -118,7 +118,7 @@ func TestUnauthenticatedUserCannotPostComments(t *testing.T) {
 	formData.Set("website", "https://example.org")
 
 	req, err := http.NewRequest("POST",
-		createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"),
+		createServerUrl(serverConfig.Port, "/users/1/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"),
 		strings.NewReader(formData.Encode()))
 	if err != nil {
 		t.Fatal(err)
@@ -464,7 +464,7 @@ func TestUnauthenticatedCommentSubmissionIsRejected(t *testing.T) {
 		expected int
 	}{
 		{"Valid comment", "This is a test comment", "Test User", "https://test.com", 401}, // Unauthorized without auth
-		{"Empty comment", "", "Test User", "https://test.com", 400},                       // Bad request (validation happens first)
+		{"Empty comment", "", "Test User", "https://test.com", 401},                       // Unauthorized without auth
 		{"Long comment", strings.Repeat("a", 1000), "Test User", "https://test.com", 401}, // Unauthorized without auth
 		{"No author", "Test comment", "", "https://test.com", 401},                        // Unauthorized without auth
 		{"No website", "Test comment", "Test User", "", 401},                              // Unauthorized without auth
@@ -479,7 +479,7 @@ func TestUnauthenticatedCommentSubmissionIsRejected(t *testing.T) {
 			formData.Set("website", tc.website)
 
 			req, err := http.NewRequest("POST",
-				createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/test/comments/"),
+				createServerUrl(serverConfig.Port, "/users/1/services/"+TEST_SERVICE+"/posts/test/comments/"),
 				strings.NewReader(formData.Encode()))
 			if err != nil {
 				t.Fatal(err)
