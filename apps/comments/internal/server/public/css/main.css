@@ -22,10 +22,6 @@
     --focus-shadow-color: #06477c;
 
     /* Status Colors */
-    --status-pending-user-color: #856404;
-    --status-pending-user-bg: #fff3cd;
-    --status-pending-user-border: #ffeeba;
-    
     --status-pending-admin-color: #004085;
     --status-pending-admin-bg: #cce5ff;
     --status-pending-admin-border: #b8daff;
@@ -169,12 +165,6 @@ dl.comments {
     white-space: nowrap;
     vertical-align: baseline;
     text-transform: capitalize;
-
-    &.pending-authentication {
-        background-color: var(--status-pending-user-bg);
-        color: var(--status-pending-user-color);
-        border: 1px solid var(--status-pending-user-border);
-    }
 
     &.pending-approval {
         background-color: var(--status-pending-admin-bg);

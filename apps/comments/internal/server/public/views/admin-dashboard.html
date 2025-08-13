@@ -18,7 +18,6 @@
   <nav>
     <ol>
       <li><a href="/admin/comments">Show All Comments</a></li>
-      <li><a href="/admin/comments?showStatus=pending-authentication">Show Comments Pending Authentication</a></li>
       <li><a href="/admin/comments?showStatus=pending-approval">Show Comments Pending Approval</a></li>
       <li><a href="/admin/comments?showStatus=approved">Show Approved Comments</a></li>
       <li><a href="/admin/comments?showStatus=rejected">Show Rejected Comments</a></li>
@@ -72,7 +71,7 @@
           <div class="badge-actions">
               <span class="badge {{template "statusToCssClass" .Status}}" role="status">{{template "statusToShortString" .Status}}</span>
               <div class="actionbar">
-                {{if or (eq .Status 1) (eq .Status 2)}}
+                {{if eq .Status 1}}
                 <action-confirmation actionName="Approve" actionUrl="/admin/{{.ServiceKey}}/comments/{{.Id}}/approve" directionLeftRight="false"></action-confirmation>
                 {{end}}
                 <action-confirmation actionName="Delete" actionUrl="/admin/{{.ServiceKey}}/comments/{{.Id}}/delete" directionLeftRight="false"></action-confirmation>
