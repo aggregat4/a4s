@@ -64,7 +64,9 @@ func InitServer(controller Controller) *echo.Echo {
 		controller.Config.OidcRedirectUri,
 		func(c echo.Context) bool {
 			// We want authentication on admin and user endpoints
-			return !strings.HasPrefix(c.Path(), "/admin") && !strings.HasPrefix(c.Path(), "/users/")
+			return !strings.HasPrefix(c.Path(), "/admin")
+			// I don't think we need to protect the users endpoint since then the authentication using a popup is not possible
+			// && !strings.HasPrefix(c.Path(), "/users/")
 		})
 	oidcCallback := oidcMiddleware.CreateOidcCallbackEndpoint(
 		baseliboidc.CreateSessionBasedOidcDelegate(

@@ -52,11 +52,12 @@
         </form>
     {{end}}
 </main>
+{# {{if .Data.UserFound}}
 <script>
-    {{if .Data.UserFound}}
     document.getElementById('parentUrl').value = window.parent.location.href;
-    {{end}}
 </script>
+{{end}} #}
+
 {{end}}
 
 {{define "addeditcomment"}}
