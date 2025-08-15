@@ -51,3 +51,8 @@ type DemoPage struct {
 	BasePage
 	User User
 }
+
+type LoginPageData struct {
+	BasePage
+	IsAuthenticated bool
+}

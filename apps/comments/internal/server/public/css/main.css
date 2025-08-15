@@ -103,6 +103,46 @@ h2 {
     }
 }
 
+.auth-required {
+    text-align: center;
+    padding: 2rem;
+    background-color: var(--info-bg-color);
+    border: 1px solid var(--info-border-color);
+    border-radius: 8px;
+    margin: 1rem 0;
+
+    & p {
+        margin: 0 0 1rem 0;
+        font-size: 1.1em;
+        color: var(--info-color);
+    }
+
+    & .primary-button {
+        font-size: 1.1em;
+        padding: 0.75rem 1.5rem;
+    }
+}
+
+.auth-success {
+    text-align: center;
+    padding: 2rem;
+    background-color: var(--success-bg-color);
+    border: 1px solid var(--success-border-color);
+    border-radius: 8px;
+    margin: 1rem 0;
+
+    & h1 {
+        color: var(--success-color);
+        margin-top: 0;
+    }
+
+    & p {
+        margin: 0 0 1rem 0;
+        font-size: 1.1em;
+        color: var(--success-color);
+    }
+}
+
 .actionbar {
     display: flex;
     gap: 12px;

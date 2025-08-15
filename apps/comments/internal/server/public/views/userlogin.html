@@ -4,14 +4,39 @@
 
 {{define "content"}}
 <main>
-    <h1>User Login</h1>
-    <form action="/login" method="GET">
-        <p>
-            Please log in to access the comment system. This login requires an account registered with the OIDC provider.
-            When you login you will be redirected to the OIDC provider to authenticate.
-        </p>
-        <button type="submit">Login with OIDC</button>
-    </form>
+    {{if .Data.IsAuthenticated}}
+        <div class="auth-success">
+            <h1>Already Authenticated</h1>
+            <p>You are already logged in!</p>
+            <p>This window will close automatically.</p>
+        </div>
+        
+        <script>
+            // Check if this page is opened in a popup
+            if (window.opener && !window.opener.closed) {
+                var authDiv = document.querySelector('.auth-success');
+                var userData = {
+                    type: 'auth-success',
+                    message: 'Authentication successful',
+                };                
+                // Send success message to parent window
+                window.opener.postMessage(userData, '*');
+                // Close the popup after a short delay
+                setTimeout(function() {
+                    window.close();
+                }, 2000);
+            }
+        </script>
+    {{else}}
+        <h1>User Login</h1>
+        <form action="/login" method="GET">
+            <p>
+                Please log in to access the comment system. This login requires an account registered with the OIDC provider.
+                When you login you will be redirected to the OIDC provider to authenticate.
+            </p>
+            <button type="submit">Login with OIDC</button>
+        </form>       
+    {{end}}
 </main>
 {{end}}
     

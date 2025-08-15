@@ -6,14 +6,14 @@
 <header>
     <h1>Comment Service Demo</h1>
     <p>This is a demo of the comment service. It is a simple example of how to integrate the comment service into your website.</p>
-    <p>In addition to the comments themselves there is a management ui for the user's own comments that is accessible after login using an email link:
+    <p>In addition to the comments themselves there is a management ui for the user's own comments that is accessible after logging in:
         {{if gt .Data.User.Id 0}}
         <a href="/users/{{.Data.User.Id}}/comments/">Manage your comments</a>
         {{else}}
         <a href="/userauthentication/">Login to manage your comments</a>
         {{end}}
     </p>
-    <p>Finally there is an admin dashboard that allows an admin to manage all comments. Authentication using OIDC is required for this:
+    <p>Finally there is an admin dashboard that allows an admin to manage all comments:
         <a href="http://localhost:8080/admin">Admin Dashboard</a>
     </p>
 </header>
@@ -34,10 +34,11 @@
             style="width: 100%; border: none; overflow: hidden;">
         </iframe>
         <script>
-            // Auto-resize iframe based on content
+            const iframe = document.querySelector('.comment-frame');
+            
+            // Handle messages from the comment iframe
             window.addEventListener('message', function(e) {
-                const iframe = document.querySelector('.comment-frame');
-                if (iframe && e.data.type === 'comment-height') {
+                if (e.data && e.data.type === 'comment-height') {
                     iframe.style.height = e.data.height + 'px';
                 }
             });

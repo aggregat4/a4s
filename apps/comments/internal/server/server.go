@@ -317,16 +317,19 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 	if serviceKey == "" || postKey == "" {
 		return renderBadRequest(c)
 	}
+
+	// Try to get user from session, but don't require authentication
 	user, userFoundError := getUserFromSession(c, controller)
 	if userFoundError != nil && !errors.Is(userFoundError, lang.ErrNotFound) {
 		return sendInternalError(c, userFoundError)
-	} else if userFoundError != nil {
-		return renderUnauthorized(c)
 	}
+
 	commentIdString := c.QueryParam("commentId")
 	commentFound := false
 	comment := domain.Comment{}
-	if commentIdString != "" {
+
+	// Only allow editing if user is authenticated and owns the comment
+	if commentIdString != "" && userFoundError == nil {
 		commentId, err := strconv.Atoi(commentIdString)
 		if err == nil {
 			comment, err = controller.Store.GetComment(commentId)
@@ -344,6 +347,7 @@ func (controller *Controller) GetCommentForm(c echo.Context) error {
 			return renderNotFound(c)
 		}
 	}
+
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
 		// TODO: better error to indicate that this service does not exist?
@@ -539,10 +543,19 @@ func (controller *Controller) PostComment(c echo.Context) error {
 }
 
 func (controller *Controller) GetUserLoginForm(c echo.Context) error {
-	return c.Render(http.StatusOK, "userlogin", domain.BasePage{
-		Stylesheets: templateStylesheets,
-		Scripts:     templateScripts,
-	})
+	// Check if user is already authenticated
+	_, userFoundError := getUserFromSession(c, controller)
+	_, adminFoundError := getAdminUserIdFromSession(c)
+
+	loginData := domain.LoginPageData{
+		BasePage: domain.BasePage{
+			Stylesheets: templateStylesheets,
+			Scripts:     templateScripts,
+		},
+		IsAuthenticated: userFoundError == nil || adminFoundError == nil,
+	}
+
+	return c.Render(http.StatusOK, "userlogin", loginData)
 }
 
 func (controller *Controller) GetAdminHome(c echo.Context) error {
