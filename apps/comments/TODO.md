@@ -1,6 +1,5 @@
 # TODO
 
-* fix the users's comment dashboard view: remove the comment needs to be confirmed state
 * Show a logged in user's own comments when they are not yet approved but with some marker: this confirms that the comment arrived
 * everything is now authenticated aside from the infrastructure endpoints and the comment list for a post itself. Figure out what the login flow looks like for unauthenticated users and what sort of "add comment" link I add to the comment page and where I add the admin links ...
 * align the user comment styling with the admin dashboard styling
