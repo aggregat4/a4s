@@ -42,15 +42,6 @@ var serverConfig = domain.Config{
 	SessionCookieSecureFlag:   false,
 }
 
-func findCommentByContent(comments []domain.Comment, content string) domain.Comment {
-	for _, c := range comments {
-		if c.Comment == content {
-			return c
-		}
-	}
-	return domain.Comment{}
-}
-
 func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
 	if err != nil {
