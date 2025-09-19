@@ -2,7 +2,6 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
-	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -10,12 +9,10 @@ import (
 )
 
 func sendInternalError(c echo.Context, err error) error {
-	// Wrap the error to capture the stack trace
-	wrappedErr := errors.WithStack(err)
+	// // Wrap the error to capture the stack trace
+	// wrappedErr := errors.WithStack(err)
 	// Log the full error with stack trace
-	logger.Error("Internal server error",
-		"error", wrappedErr,
-		"stack", fmt.Sprintf("%+v", wrappedErr))
+	logger.Error("Internal server error: {error}")
 	return c.Render(http.StatusInternalServerError, "error-internalserver", domain.ErrorPage{
 		BasePage: domain.BasePage{
 			Stylesheets: templateStylesheets,
@@ -32,7 +29,7 @@ func httpResponseLogger(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 		for key, values := range c.Response().Header() {
 			for _, value := range values {
-				logger.Info("Header: %s = %s", key, value)
+				logger.Info("Header {HeaderKey} = {HeaderValue}", key, value)
 			}
 		}
 		return nil

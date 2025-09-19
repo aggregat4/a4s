@@ -5,12 +5,18 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/aggregat4/go-baselib/crypto"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/willibrandon/mtlog"
+	"github.com/willibrandon/mtlog/core"
+)
+
+var logger = mtlog.New(
+	mtlog.WithConsole(),
+	mtlog.WithMinimumLevel(core.InformationLevel),
 )
 
 func main() {
@@ -53,14 +59,16 @@ func main() {
 	dbUrl := repository.CreateFileDbUrl(*dbPath)
 	err = store.InitAndVerifyDb(dbUrl)
 	if err != nil {
-		log.Fatalf("Error initializing database: %v", err)
+		logger.With("error", err).Fatal("Error initializing database")
+		os.Exit(1)
 	}
 	defer store.Close()
 
 	// Create new service
 	serviceId, err := store.CreateService(*serviceKey, *serviceOrigin)
 	if err != nil {
-		log.Fatalf("Error creating service: %v", err)
+		logger.With("error", err).Fatal("Error creating service")
+		os.Exit(1)
 	}
 
 	fmt.Printf("Service created successfully with ID: %d\n", serviceId)

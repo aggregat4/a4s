@@ -5,9 +5,7 @@ import (
 	"aggregat4/go-commentservice/internal/repository"
 	"embed"
 	"html/template"
-	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -21,9 +19,14 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/pkg/errors"
+	"github.com/willibrandon/mtlog"
+	"github.com/willibrandon/mtlog/core"
 )
 
-var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+var logger = mtlog.New(
+	mtlog.WithConsole(),
+	mtlog.WithMinimumLevel(core.InformationLevel),
+)
 
 //go:embed public/views/*.html public/views/components/*.html
 var viewTemplates embed.FS
@@ -51,10 +54,10 @@ func RunServer(controller Controller) {
 func InitServer(controller Controller) *echo.Echo {
 	// Initialize static assets
 	if err := initializeStaticAssets(javaScript, "js"); err != nil {
-		logger.Error("Failed to initialize JavaScript assets", "error", err)
+		logger.Error("Failed to initialize JavaScript assets: {err}")
 	}
 	if err := initializeStaticAssets(styleSheets, "css"); err != nil {
-		logger.Error("Failed to initialize CSS assets", "error", err)
+		logger.Error("Failed to initialize CSS assets: {err}")
 	}
 
 	oidcMiddleware := baseliboidc.NewOidcMiddleware(

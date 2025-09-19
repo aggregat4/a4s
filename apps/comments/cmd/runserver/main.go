@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"log"
+	"os"
 
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/lang"
@@ -15,6 +15,13 @@ import (
 	"github.com/kkyr/fig"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/willibrandon/mtlog"
+	"github.com/willibrandon/mtlog/core"
+)
+
+var logger = mtlog.New(
+	mtlog.WithConsole(),
+	mtlog.WithMinimumLevel(core.InformationLevel),
 )
 
 func main() {
@@ -50,7 +57,8 @@ func main() {
 	defer store.Close()
 	err = store.InitAndVerifyDb(repository.CreateFileDbUrl(config.DatabaseFilename))
 	if err != nil {
-		log.Fatalf("Error initializing database: %s", err)
+		logger.With("error", err).Fatal("Error initializing database")
+		os.Exit(1)
 	}
 	server.RunServer(
 		server.Controller{
