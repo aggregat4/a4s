@@ -31,3 +31,7 @@ Sensitive keys come from environment variables; never hardcode secrets. Document
 * HTML should be accessible and semantic.
 * CSS should use custom-properties for reusable design tokens, style selectors should use nesting where appropriate and colors should take into account contrast and accessibility.
 * JavaScript is targeting modern baseline browsers.
+
+## Logging
+
+Use [mtlog](https://github.com/willibrandon/mtlog) for logging. Use mtlog's native curly brace based interpolation. Avoid using the `.With` construct to send metadata in the log statement, rather prefer to log the elements as interpolated variables.
