@@ -233,7 +233,7 @@ func (controller *Controller) GetComments(w http.ResponseWriter, r *http.Request
 
 func (controller *Controller) Status(w http.ResponseWriter, r *http.Request) {
 	logger.Info("Status endpoint")
-	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
 }

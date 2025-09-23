@@ -384,7 +384,7 @@ func TestStatusAndUtilityEndpoints(t *testing.T) {
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/status"))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode)
-	assert.Equal(t, "text/plain; charset=UTF-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
 	body := readBody(res)
 	assert.Equal(t, "OK", body)
 
@@ -392,7 +392,7 @@ func TestStatusAndUtilityEndpoints(t *testing.T) {
 	res, err = client.Get(createServerUrl(serverConfig.Port, "/demo"))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode)
-	assert.Equal(t, "text/html; charset=UTF-8", res.Header.Get("Content-Type"))
+	assert.Equal(t, "text/html; charset=utf-8", res.Header.Get("Content-Type"))
 	body = readBody(res)
 	assert.Contains(t, body, "<!DOCTYPE html>")
 
