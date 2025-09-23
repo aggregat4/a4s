@@ -42,7 +42,13 @@ var serverConfig = domain.Config{
 	SessionCookieSecureFlag:   false,
 }
 
-func waitForServer(t *testing.T) (*http.Server, *Controller) {
+type testServer struct {
+	handler http.Handler
+}
+
+func (s *testServer) Close() error { return nil }
+
+func waitForServer(t *testing.T) (*testServer, *Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
 	if err != nil {
 		panic(err)
@@ -57,11 +63,7 @@ func waitForServer(t *testing.T) (*http.Server, *Controller) {
 	createTestData(t, &store)
 	controller := &Controller{Store: &store, Config: serverConfig}
 	httpServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback(), false)
-	go func() {
-		_ = httpServer.ListenAndServe()
-	}()
-	waitForServerStart(t, createServerUrl(serverConfig.Port, "/status"))
-	return httpServer, controller
+	return &testServer{handler: httpServer.Handler}, controller
 }
 
 func createTestData(t *testing.T, store *repository.Store) {

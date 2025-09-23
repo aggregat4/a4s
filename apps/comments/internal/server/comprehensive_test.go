@@ -66,9 +66,10 @@ func TestUnauthenticatedUserCanViewComments(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
 	// Can view comments for a service/post
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,8 +83,9 @@ func TestUnauthenticatedUserCanAccessStatus(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/status"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/status"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,8 +96,9 @@ func TestUnauthenticatedUserCanAccessDemo(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/demo"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/demo"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +112,7 @@ func TestUnauthenticatedUserCannotPostComments(t *testing.T) {
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	// Try to post a comment without authentication
 	formData := url.Values{}
@@ -140,6 +143,7 @@ func TestUnauthenticatedUserCannotAccessUserRoutes(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
 	testCases := []string{
 		"/users/1/comments/",
@@ -147,7 +151,7 @@ func TestUnauthenticatedUserCannotAccessUserRoutes(t *testing.T) {
 	}
 
 	for _, path := range testCases {
-		res, err := http.Get(createServerUrl(serverConfig.Port, path))
+		res, err := client.Get(createServerUrl(serverConfig.Port, path))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,6 +164,7 @@ func TestUnauthenticatedUserCannotAccessAdminRoutes(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
 	testCases := []string{
 		"/admin",
@@ -169,7 +174,7 @@ func TestUnauthenticatedUserCannotAccessAdminRoutes(t *testing.T) {
 	}
 
 	for _, path := range testCases {
-		res, err := http.Get(createServerUrl(serverConfig.Port, path))
+		res, err := client.Get(createServerUrl(serverConfig.Port, path))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -188,7 +193,7 @@ func TestRegularUserCanAccessTheirCommentPages(t *testing.T) {
 	regularUserId, _, _ := createTestUsersWithExternalIds(t, controller.Store)
 
 	// Create HTTP client with cookies
-	client := createTestHttpClient(true)
+	client := createTestHttpClient(srv.handler, true)
 
 	// Mock user session by directly calling the server with session context
 	// In real implementation, this would come from OIDC callback
@@ -213,7 +218,7 @@ func TestRegularUserCannotAccessOtherUsersPages(t *testing.T) {
 	regularUserId, _, _ := createTestUsersWithExternalIds(t, controller.Store)
 	otherUserId := regularUserId + 999 // Different user ID
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	// Try to access another user's comments
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(otherUserId)+"/comments/"))
@@ -237,7 +242,7 @@ func TestRegularUserCannotAccessAdminRoutes(t *testing.T) {
 		"/superadmin/comments",
 	}
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	for _, path := range adminPaths {
 		res, err := client.Get(createServerUrl(serverConfig.Port, path))
@@ -262,7 +267,7 @@ func TestServiceAdminCanAccessTheirServiceComments(t *testing.T) {
 
 	// This test would need proper session mocking which is complex
 	// For now, testing the route exists and returns appropriate response
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/admin/"+TEST_SERVICE_KEY_1+"/comments"))
 	if err != nil {
@@ -280,7 +285,7 @@ func TestServiceAdminCannotAccessOtherServices(t *testing.T) {
 
 	createTestServices(t, controller.Store)
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	// Try to access different service admin page
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/admin/"+TEST_SERVICE_KEY_2+"/comments"))
@@ -302,7 +307,7 @@ func TestServiceAdminCannotAccessSuperAdminRoutes(t *testing.T) {
 		"/superadmin/comments",
 	}
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	for _, path := range superAdminPaths {
 		res, err := client.Get(createServerUrl(serverConfig.Port, path))
@@ -330,7 +335,7 @@ func TestSuperAdminCanAccessAllRoutes(t *testing.T) {
 		"/superadmin/comments",
 	}
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	for _, path := range superAdminPaths {
 		res, err := client.Get(createServerUrl(serverConfig.Port, path))
@@ -349,9 +354,10 @@ func TestOIDCCallbackRoute(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
 	// Test OIDC callback endpoint exists
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/oidccallback"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/oidccallback"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,8 +370,9 @@ func TestUserLoginRoute(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/login"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/login"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,8 +388,9 @@ func TestInvalidServiceKeyReturns404(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/nonexistent/posts/test/comments/"))
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/nonexistent/posts/test/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +403,7 @@ func TestInvalidUserIdHandledGracefully(t *testing.T) {
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	invalidUserPaths := []string{
 		"/users/99999/comments/",
@@ -419,7 +427,7 @@ func TestInvalidCommentIdHandledGracefully(t *testing.T) {
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	// Try to access non-existent comment operations
 	invalidPaths := []string{
@@ -454,7 +462,7 @@ func TestUnauthenticatedCommentSubmissionIsRejected(t *testing.T) {
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	testCases := []struct {
 		name     string
@@ -504,6 +512,7 @@ func TestStaticAssetAccess(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
+	client := createTestHttpClient(srv.handler, true)
 
 	staticPaths := []string{
 		"/css/main.css",
@@ -511,7 +520,7 @@ func TestStaticAssetAccess(t *testing.T) {
 	}
 
 	for _, path := range staticPaths {
-		res, err := http.Get(createServerUrl(serverConfig.Port, path))
+		res, err := client.Get(createServerUrl(serverConfig.Port, path))
 		if err != nil {
 			t.Fatal(err)
 		}

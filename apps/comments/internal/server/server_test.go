@@ -1,7 +1,6 @@
 package server
 
 import (
-	"net/http"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -12,7 +11,8 @@ func TestStatus(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/status"))
+	client := createTestHttpClient(srv.handler, true)
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/status"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,8 @@ func TestInvalidService(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/foo/posts/bar/comments/"))
+	client := createTestHttpClient(srv.handler, true)
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/foo/posts/bar/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,8 @@ func TestEmptyCommentsPage(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/bar/comments/"))
+	client := createTestHttpClient(srv.handler, true)
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/bar/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +53,8 @@ func TestSingleCommentPostPage(t *testing.T) {
 	srv, controller := waitForServer(t)
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
-	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
+	client := createTestHttpClient(srv.handler, true)
+	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}

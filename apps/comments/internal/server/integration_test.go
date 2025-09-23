@@ -17,7 +17,7 @@ func TestFullUserWorkflowUnauthenticated(t *testing.T) {
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 
 	// 1. User can view public comment page
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
@@ -81,7 +81,7 @@ func TestRegularUserWorkflowWithSession(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test that without authentication, user cannot access their comments
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/users/"+strconv.Itoa(regularUserId)+"/comments/"))
 	assert.NoError(t, err)
 
@@ -117,7 +117,7 @@ func TestServiceAdminWorkflowWithSession(t *testing.T) {
 	assert.False(t, adminUser.IsSuperAdmin())
 
 	// Test that without authentication, admin routes are not accessible
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/admin/"+TEST_SERVICE+"/comments"))
 	assert.NoError(t, err)
 
@@ -152,7 +152,7 @@ func TestSuperAdminWorkflowWithSession(t *testing.T) {
 	assert.True(t, adminUser.HasServiceAdminRole(TEST_SERVICE))
 
 	// Test that without authentication, super admin routes are not accessible
-	client := createTestHttpClient(false)
+	client := createTestHttpClient(srv.handler, false)
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/superadmin/services"))
 	assert.NoError(t, err)
 
@@ -378,7 +378,7 @@ func TestStatusAndUtilityEndpoints(t *testing.T) {
 	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
-	client := createTestHttpClient(true)
+	client := createTestHttpClient(srv.handler, true)
 
 	// Test status endpoint
 	res, err := client.Get(createServerUrl(serverConfig.Port, "/status"))

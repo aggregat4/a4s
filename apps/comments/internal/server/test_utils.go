@@ -1,11 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
-	"testing"
-	"time"
+	"net/http/httptest"
 )
 
 func createMockOidcCallback() http.HandlerFunc {
@@ -22,17 +22,42 @@ func createMockOidcMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-func waitForServerStart(t *testing.T, url string) {
-	const maxRetries = 10
-	for i := 0; i < maxRetries; i++ {
-		resp, err := http.Get(url)
-		if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
-			_ = resp.Body.Close()
-			return
+type handlerRoundTripper struct {
+	handler http.Handler
+}
+
+func (rt handlerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var bodyCopy []byte
+	if req.Body != nil {
+		var err error
+		bodyCopy, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
 		}
-		time.Sleep(500 * time.Millisecond)
+		_ = req.Body.Close()
 	}
-	t.Fatalf("Server did not start after %d retries", maxRetries)
+
+	reqClone := req.Clone(req.Context())
+	if bodyCopy != nil {
+		reqClone.Body = io.NopCloser(bytes.NewReader(bodyCopy))
+		reqClone.ContentLength = int64(len(bodyCopy))
+	} else {
+		reqClone.Body = nil
+		reqClone.ContentLength = 0
+	}
+	reqClone.RequestURI = req.URL.RequestURI()
+	reqClone.Host = req.URL.Host
+
+	recorder := httptest.NewRecorder()
+	rt.handler.ServeHTTP(recorder, reqClone)
+	resp := recorder.Result()
+	resp.Request = req
+
+	if bodyCopy != nil {
+		req.Body = io.NopCloser(bytes.NewReader(bodyCopy))
+	}
+
+	return resp, nil
 }
 
 func readBody(res *http.Response) string {
@@ -44,21 +69,16 @@ func readBody(res *http.Response) string {
 	return string(body)
 }
 
-func createTestHttpClient(followRedirects bool) *http.Client {
+func createTestHttpClient(handler http.Handler, followRedirects bool) *http.Client {
 	jar, _ := cookiejar.New(nil)
+	client := &http.Client{
+		Jar:       jar,
+		Transport: handlerRoundTripper{handler: handler},
+	}
 	if !followRedirects {
-		return &http.Client{
-			Jar: jar,
-			// we need to prevent the client from redirecting automatically since we may need to assert
-			// against the location header
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-			//Transport: &http.Transport{DisableKeepAlives: true},
-		}
-	} else {
-		return &http.Client{
-			Jar: jar,
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
 		}
 	}
+	return client
 }

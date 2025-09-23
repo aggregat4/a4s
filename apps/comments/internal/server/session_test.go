@@ -12,7 +12,7 @@ import (
 )
 
 // Create a mock server with specific user session
-func createServerWithUserSession(t *testing.T) (*http.Server, *Controller, func()) {
+func createServerWithUserSession(t *testing.T) (*testServer, *Controller, func()) {
 	srv, controller := waitForServer(t)
 
 	cleanup := func() {
@@ -24,7 +24,7 @@ func createServerWithUserSession(t *testing.T) (*http.Server, *Controller, func(
 }
 
 // Create a mock server with admin session
-func createServerWithAdminSession(t *testing.T) (*http.Server, *Controller, func()) {
+func createServerWithAdminSession(t *testing.T) (*testServer, *Controller, func()) {
 	srv, controller := waitForServer(t)
 
 	cleanup := func() {
