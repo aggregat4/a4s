@@ -1,74 +1,63 @@
 package server
 
 import (
-	"aggregat4/go-commentservice/internal/domain"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"aggregat4/go-commentservice/internal/domain"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 // Create a mock server with specific user session
-func createServerWithUserSession(t *testing.T) (*echo.Echo, Controller, func()) {
-	echoServer, controller := waitForServer(t)
+func createServerWithUserSession(t *testing.T) (*http.Server, *Controller, func()) {
+	srv, controller := waitForServer(t)
 
 	cleanup := func() {
-		echoServer.Close()
+		_ = srv.Close()
 		controller.Store.Close()
 	}
 
-	return echoServer, controller, cleanup
+	return srv, controller, cleanup
 }
 
 // Create a mock server with admin session
-func createServerWithAdminSession(t *testing.T) (*echo.Echo, Controller, func()) {
-	echoServer, controller := waitForServer(t)
+func createServerWithAdminSession(t *testing.T) (*http.Server, *Controller, func()) {
+	srv, controller := waitForServer(t)
 
 	cleanup := func() {
-		echoServer.Close()
+		_ = srv.Close()
 		controller.Store.Close()
 	}
 
-	return echoServer, controller, cleanup
+	return srv, controller, cleanup
 }
 
 // Test that session functions don't crash when no session exists
 func TestUserSessionWithoutSession(t *testing.T) {
-	_, _, cleanup := createServerWithUserSession(t)
+	_, controller, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
-	// Create echo context for session testing
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	// Test retrieving user ID from empty session - should return error
-	_, err := getUserIdFromSession(c)
+	_, err := controller.getUserIdFromSession(req)
 	assert.Error(t, err, "Should return error when no session exists")
 }
 
 // Test that admin session functions don't crash when no session exists
 func TestAdminSessionWithoutSession(t *testing.T) {
-	_, _, cleanup := createServerWithAdminSession(t)
+	_, controller, cleanup := createServerWithAdminSession(t)
 	defer cleanup()
 
-	// Create echo context for session testing
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	// Test retrieving admin user from empty session - should return error
-	_, err := getAdminUserFromSession(c)
+	_, err := controller.getAdminUserFromSession(req)
 	assert.Error(t, err, "Should return error when no admin session exists")
 
-	_, err = getAdminUserIdFromSession(c)
+	_, err = controller.getAdminUserIdFromSession(req)
 	assert.Error(t, err, "Should return error when no admin session exists")
 
-	_, err = getAdminRolesFromSession(c)
+	_, err = controller.getAdminRolesFromSession(req)
 	assert.Error(t, err, "Should return error when no admin roles exist")
 }
 
@@ -106,21 +95,52 @@ func TestAdminUserRoleValidation(t *testing.T) {
 	}
 }
 
-// Test repository methods for user management
+func TestServiceAdminAuthMiddleware(t *testing.T) {
+	_, controller, cleanup := createServerWithAdminSession(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/blog1/comments", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("servicekey", "blog1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rec := httptest.NewRecorder()
+
+	handler := controller.serviceAdminAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	handler.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestSuperAdminAuthMiddleware(t *testing.T) {
+	_, controller, cleanup := createServerWithAdminSession(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/superadmin/services", nil)
+	rec := httptest.NewRecorder()
+
+	handler := controller.superAdminAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	handler.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
 func TestFindOrCreateUserByExternalId(t *testing.T) {
 	_, controller, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
-	// Test creating new user
 	user1, err := controller.Store.FindOrCreateUserByExternalId("new_user_123")
 	assert.NoError(t, err)
 	assert.Equal(t, "new_user_123", user1.ExternalUserId)
 	assert.True(t, user1.Id > 0)
 
-	// Test finding existing user
 	user2, err := controller.Store.FindOrCreateUserByExternalId("new_user_123")
 	assert.NoError(t, err)
-	assert.Equal(t, user1.Id, user2.Id) // Should be same user
+	assert.Equal(t, user1.Id, user2.Id)
 	assert.Equal(t, "new_user_123", user2.ExternalUserId)
 }
 
@@ -128,11 +148,9 @@ func TestGetCommentsByServiceAndStatus(t *testing.T) {
 	_, controller, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
-	// Create additional test services and comments
 	service1Id, _ := createTestServices(t, controller.Store)
 	regularUserId, _, _ := createTestUsersWithExternalIds(t, controller.Store)
 
-	// Create comments for specific service
 	commentId1, err := controller.Store.CreateComment(
 		domain.CommentStatusApproved,
 		service1Id,
@@ -145,12 +163,10 @@ func TestGetCommentsByServiceAndStatus(t *testing.T) {
 		"https://example.com/post")
 	assert.NoError(t, err)
 
-	// Test getting comments by service and status
 	comments, err := controller.Store.GetCommentsByServiceAndStatus(TEST_SERVICE_KEY_1, []domain.CommentStatus{domain.CommentStatusApproved})
 	assert.NoError(t, err)
 	assert.True(t, len(comments) > 0)
 
-	// Verify comment is in results
 	found := false
 	for _, comment := range comments {
 		if comment.Id == commentId1 {
@@ -167,15 +183,12 @@ func TestGetAllServices(t *testing.T) {
 	_, controller, cleanup := createServerWithUserSession(t)
 	defer cleanup()
 
-	// Create additional services
 	createTestServices(t, controller.Store)
 
-	// Test getting all services
 	services, err := controller.Store.GetAllServices()
 	assert.NoError(t, err)
-	assert.True(t, len(services) >= 2) // At least the test services we created
+	assert.True(t, len(services) >= 2)
 
-	// Check that our test services are included
 	serviceKeys := make(map[string]bool)
 	for _, service := range services {
 		serviceKeys[service.ServiceKey] = true
@@ -183,86 +196,4 @@ func TestGetAllServices(t *testing.T) {
 
 	assert.True(t, serviceKeys[TEST_SERVICE_KEY_1], "Service 1 should be in results")
 	assert.True(t, serviceKeys[TEST_SERVICE_KEY_2], "Service 2 should be in results")
-}
-
-// Mock response recorder for testing
-type MockResponseRecorder struct {
-	StatusCode int
-	Headers    map[string]string
-	Body       []byte
-}
-
-func (m *MockResponseRecorder) Header() http.Header {
-	if m.Headers == nil {
-		m.Headers = make(map[string]string)
-	}
-	header := make(http.Header)
-	for k, v := range m.Headers {
-		header.Set(k, v)
-	}
-	return header
-}
-
-func (m *MockResponseRecorder) Write(data []byte) (int, error) {
-	m.Body = append(m.Body, data...)
-	return len(data), nil
-}
-
-func (m *MockResponseRecorder) WriteHeader(code int) {
-	m.StatusCode = code
-}
-
-type TestResponseRecorder struct {
-	ResponseRecorder *MockResponseRecorder
-}
-
-func (t *TestResponseRecorder) Header() http.Header {
-	return t.ResponseRecorder.Header()
-}
-
-func (t *TestResponseRecorder) Write(data []byte) (int, error) {
-	return t.ResponseRecorder.Write(data)
-}
-
-func (t *TestResponseRecorder) WriteHeader(code int) {
-	t.ResponseRecorder.WriteHeader(code)
-}
-
-// Test middleware functions
-func TestServiceAdminAuthMiddleware(t *testing.T) {
-	middleware := CreateServiceAdminAuthMiddleware()
-
-	e := echo.New()
-	req, _ := http.NewRequest("GET", "/admin/blog1/comments", nil)
-	rec := &TestResponseRecorder{ResponseRecorder: &MockResponseRecorder{}}
-	c := e.NewContext(req, rec)
-	c.SetParamNames("servicekey")
-	c.SetParamValues("blog1")
-
-	// Test without session - should get unauthorized
-	handler := middleware(func(c echo.Context) error {
-		return c.String(200, "OK")
-	})
-
-	err := handler(c)
-	// Should return error or render unauthorized page
-	assert.Error(t, err)
-}
-
-func TestSuperAdminAuthMiddleware(t *testing.T) {
-	middleware := CreateSuperAdminAuthMiddleware()
-
-	e := echo.New()
-	req, _ := http.NewRequest("GET", "/superadmin/services", nil)
-	rec := &TestResponseRecorder{ResponseRecorder: &MockResponseRecorder{}}
-	c := e.NewContext(req, rec)
-
-	// Test without session - should get unauthorized
-	handler := middleware(func(c echo.Context) error {
-		return c.String(200, "OK")
-	})
-
-	err := handler(c)
-	// Should return error or render unauthorized page
-	assert.Error(t, err)
 }

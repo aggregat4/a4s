@@ -1,60 +1,104 @@
 package server
 
 import (
+	"errors"
+	"net/http"
+
 	"aggregat4/go-commentservice/internal/domain"
 
+	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/sessions"
 )
 
-var authenticatedUserCookieName = "commentservice-authenticated-user"
+var (
+	authenticatedUserCookieName = "commentservice-authenticated-user"
+	flashCookieName             = baseliboidc.SessionCookieName
+)
 
-func getUserIdFromSession(c echo.Context) (int, error) {
-	sess, err := session.Get(authenticatedUserCookieName, c)
+func (controller *Controller) initializeSessionStores() {
+	if controller.sessionStore != nil && controller.flashStore != nil {
+		return
+	}
+
+	sessionCookieSecretKey := []byte(controller.Config.SessionCookieSecretKey)
+	options := &sessions.Options{
+		Path:     "/",
+		MaxAge:   controller.Config.SessionCookieCookieMaxAge,
+		Secure:   controller.Config.SessionCookieSecureFlag,
+		HttpOnly: true,
+		SameSite: domain.SameSiteFromString(controller.Config.SessionCookieCookieSameSite),
+	}
+
+	controller.sessionStore = sessions.NewCookieStore(sessionCookieSecretKey)
+	controller.sessionStore.Options = options
+
+	controller.flashStore = sessions.NewCookieStore(sessionCookieSecretKey)
+	controller.flashStore.Options = &sessions.Options{
+		Path:     options.Path,
+		MaxAge:   options.MaxAge,
+		Secure:   options.Secure,
+		HttpOnly: options.HttpOnly,
+		SameSite: options.SameSite,
+	}
+}
+
+func (controller *Controller) getSession(r *http.Request) (*sessions.Session, error) {
+	if controller.sessionStore == nil {
+		return nil, errors.New("session store not initialized")
+	}
+	return controller.sessionStore.Get(r, authenticatedUserCookieName)
+}
+
+func (controller *Controller) getFlashSession(r *http.Request) (*sessions.Session, error) {
+	if controller.flashStore == nil {
+		return nil, errors.New("flash store not initialized")
+	}
+	return controller.flashStore.Get(r, flashCookieName)
+}
+
+func (controller *Controller) getUserIdFromSession(r *http.Request) (int, error) {
+	sess, err := controller.getSession(r)
 	if err != nil {
 		return -1, err
 	}
-	if sess.Values["userid"] != nil {
-		return sess.Values["userid"].(int), nil
-	} else {
-		return -1, lang.ErrNotFound
+	if value, ok := sess.Values["userid"].(int); ok {
+		return value, nil
 	}
+	return -1, lang.ErrNotFound
 }
 
-func getAdminUserIdFromSession(c echo.Context) (string, error) {
-	sess, err := session.Get(authenticatedUserCookieName, c)
+func (controller *Controller) getAdminUserIdFromSession(r *http.Request) (string, error) {
+	sess, err := controller.getSession(r)
 	if err != nil {
 		return "", err
 	}
-	if sess.Values["adminuserid"] != nil {
-		return sess.Values["adminuserid"].(string), nil
-	} else {
-		return "", lang.ErrNotFound
+	if value, ok := sess.Values["adminuserid"].(string); ok {
+		return value, nil
 	}
+	return "", lang.ErrNotFound
 }
 
-func getAdminRolesFromSession(c echo.Context) ([]string, error) {
-	sess, err := session.Get(authenticatedUserCookieName, c)
+func (controller *Controller) getAdminRolesFromSession(r *http.Request) ([]string, error) {
+	sess, err := controller.getSession(r)
 	if err != nil {
 		return nil, err
 	}
-	if sess.Values["adminroles"] != nil {
-		return sess.Values["adminroles"].([]string), nil
-	} else {
-		return nil, lang.ErrNotFound
+	if value, ok := sess.Values["adminroles"].([]string); ok {
+		return value, nil
 	}
+	return nil, lang.ErrNotFound
 }
 
-func getAdminUserFromSession(c echo.Context) (domain.AdminUser, error) {
-	adminUserId, err := getAdminUserIdFromSession(c)
+func (controller *Controller) getAdminUserFromSession(r *http.Request) (domain.AdminUser, error) {
+	adminUserId, err := controller.getAdminUserIdFromSession(r)
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
 
-	roles, err := getAdminRolesFromSession(c)
+	roles, err := controller.getAdminRolesFromSession(r)
 	if err != nil {
 		return domain.AdminUser{}, err
 	}
@@ -65,48 +109,27 @@ func getAdminUserFromSession(c echo.Context) (domain.AdminUser, error) {
 	}, nil
 }
 
-func createUserSessionCookie(c echo.Context, userId int) error {
-	sess, err := session.Get(authenticatedUserCookieName, c)
+func (controller *Controller) createUserSessionCookie(w http.ResponseWriter, r *http.Request, userId int) error {
+	sess, err := controller.getSession(r)
 	if err != nil {
 		return err
 	}
 	sess.Values["userid"] = userId
-	return sess.Save(c.Request(), c.Response())
+	return sess.Save(r, w)
 }
 
-func createAdminSessionCookie(c echo.Context, adminUserId string, roles []string) error {
-	sess, err := session.Get(authenticatedUserCookieName, c)
+func (controller *Controller) createAdminSessionCookie(w http.ResponseWriter, r *http.Request, adminUserId string, roles []string) error {
+	sess, err := controller.getSession(r)
 	if err != nil {
 		return err
 	}
 	sess.Values["adminuserid"] = adminUserId
 	sess.Values["adminroles"] = roles
-	err = sess.Save(c.Request(), c.Response())
-	if err != nil {
-		return sendInternalError(c, err)
-	}
-	return nil
+	return sess.Save(r, w)
 }
 
-func CreateUserAuthenticationMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			if skipper(c) {
-				return next(c)
-			}
-			_, err := getUserIdFromSession(c)
-			if err != nil {
-				// user is not authenticated, return unauthorized error
-				return renderUnauthorized(c)
-			} else {
-				return next(c)
-			}
-		}
-	}
-}
-
-func getUserFromSession(c echo.Context, controller *Controller) (domain.User, error) {
-	userId, err := getUserIdFromSession(c)
+func (controller *Controller) getUserFromSession(r *http.Request) (domain.User, error) {
+	userId, err := controller.getUserIdFromSession(r)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -117,46 +140,83 @@ func getUserFromSession(c echo.Context, controller *Controller) (domain.User, er
 	return user, nil
 }
 
-func CreateServiceAdminAuthMiddleware() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			adminUser, err := getAdminUserFromSession(c)
-			if err != nil {
-				return renderUnauthorized(c)
-			}
-
-			serviceKey := c.Param("servicekey")
-			if serviceKey == "" {
-				return renderBadRequest(c)
-			}
-
-			if !adminUser.HasServiceAdminRole(serviceKey) {
-				return renderForbidden(c)
-			}
-
-			return next(c)
+func (controller *Controller) serviceAdminAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		adminUser, err := controller.getAdminUserFromSession(r)
+		if err != nil {
+			controller.renderUnauthorized(w)
+			return
 		}
-	}
+
+		serviceKey := chi.URLParam(r, "servicekey")
+		if serviceKey == "" {
+			controller.renderBadRequest(w)
+			return
+		}
+
+		if !adminUser.HasServiceAdminRole(serviceKey) {
+			controller.renderForbidden(w)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
-func CreateSuperAdminAuthMiddleware() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			adminUser, err := getAdminUserFromSession(c)
-			if err != nil {
-				return renderUnauthorized(c)
-			}
-
-			if !adminUser.IsSuperAdmin() {
-				return renderForbidden(c)
-			}
-
-			return next(c)
+func (controller *Controller) superAdminAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		adminUser, err := controller.getAdminUserFromSession(r)
+		if err != nil {
+			controller.renderUnauthorized(w)
+			return
 		}
-	}
+
+		if !adminUser.IsSuperAdmin() {
+			controller.renderForbidden(w)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
-func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken, controller *Controller) error {
+func (controller *Controller) setFlash(w http.ResponseWriter, r *http.Request, key, message string) error {
+	sess, err := controller.getFlashSession(r)
+	if err != nil {
+		return err
+	}
+	sess.AddFlash(message, key)
+	return sess.Save(r, w)
+}
+
+func (controller *Controller) getFlashes(w http.ResponseWriter, r *http.Request) ([]string, []string, error) {
+	sess, err := controller.getFlashSession(r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var successFlashes []string
+	for _, flash := range sess.Flashes("success") {
+		if msg, ok := flash.(string); ok {
+			successFlashes = append(successFlashes, msg)
+		}
+	}
+
+	var errorFlashes []string
+	for _, flash := range sess.Flashes("error") {
+		if msg, ok := flash.(string); ok {
+			errorFlashes = append(errorFlashes, msg)
+		}
+	}
+
+	if err := sess.Save(r, w); err != nil {
+		return nil, nil, err
+	}
+
+	return successFlashes, errorFlashes, nil
+}
+
+func createSessionFromIDToken(w http.ResponseWriter, r *http.Request, controller *Controller, idToken *oidc.IDToken) error {
 	var claims struct {
 		Subject string   `json:"sub"`
 		Roles   []string `json:"roles"`
@@ -166,7 +226,6 @@ func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken, controller 
 		return err
 	}
 
-	// Check if user has any admin roles
 	hasAdminRole := false
 	for _, role := range claims.Roles {
 		if role == "superadmin" || (len(role) > 6 && role[:6] == "admin-") {
@@ -176,14 +235,12 @@ func createSessionFromIDToken(c echo.Context, idToken *oidc.IDToken, controller 
 	}
 
 	if hasAdminRole {
-		// Create admin session with roles
-		return createAdminSessionCookie(c, claims.Subject, claims.Roles)
-	} else {
-		// Create regular user session
-		user, err := controller.Store.FindOrCreateUserByExternalId(claims.Subject)
-		if err != nil {
-			return sendInternalError(c, err)
-		}
-		return createUserSessionCookie(c, user.Id)
+		return controller.createAdminSessionCookie(w, r, claims.Subject, claims.Roles)
 	}
+
+	user, err := controller.Store.FindOrCreateUserByExternalId(claims.Subject)
+	if err != nil {
+		return err
+	}
+	return controller.createUserSessionCookie(w, r, user.Id)
 }

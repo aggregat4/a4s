@@ -9,8 +9,8 @@ import (
 )
 
 func TestStatus(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/status"))
 	if err != nil {
@@ -23,8 +23,8 @@ func TestStatus(t *testing.T) {
 }
 
 func TestInvalidService(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/foo/posts/bar/comments/"))
 	if err != nil {
@@ -34,8 +34,8 @@ func TestInvalidService(t *testing.T) {
 }
 
 func TestEmptyCommentsPage(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/bar/comments/"))
 	if err != nil {
@@ -48,8 +48,8 @@ func TestEmptyCommentsPage(t *testing.T) {
 }
 
 func TestSingleCommentPostPage(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
 	if err != nil {
@@ -62,4 +62,3 @@ func TestSingleCommentPostPage(t *testing.T) {
 	assert.NotContains(t, body, TEST_COMMENT_PENDING_APPROVAL)
 	assert.NotContains(t, body, TEST_COMMENT_REJECTED)
 }
-

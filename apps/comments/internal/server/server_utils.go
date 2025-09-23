@@ -2,18 +2,16 @@ package server
 
 import (
 	"aggregat4/go-commentservice/internal/domain"
+	"bytes"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/aggregat4/go-baselib/lang"
 	"github.com/pkg/errors"
 )
 
-func sendInternalError(c echo.Context, err error) error {
-	// // Wrap the error to capture the stack trace
-	// wrappedErr := errors.WithStack(err)
-	// Log the full error with stack trace
-	logger.Error("Internal server error: {error}")
-	return c.Render(http.StatusInternalServerError, "error-internalserver", domain.ErrorPage{
+func (controller *Controller) sendInternalError(w http.ResponseWriter, err error) {
+	logger.Error("Internal server error: {err}", err)
+	controller.renderTemplate(w, http.StatusInternalServerError, "error-internalserver", domain.ErrorPage{
 		BasePage: domain.BasePage{
 			Stylesheets: templateStylesheets,
 			Scripts:     templateScripts,
@@ -21,23 +19,38 @@ func sendInternalError(c echo.Context, err error) error {
 	})
 }
 
-func httpResponseLogger(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		err := next(c)
-		if err != nil {
-			return err
-		}
-		for key, values := range c.Response().Header() {
+func httpResponseLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		for key, values := range w.Header() {
 			for _, value := range values {
 				logger.Info("Header {HeaderKey} = {HeaderValue}", key, value)
 			}
 		}
-		return nil
+	})
+}
+
+func (controller *Controller) renderTemplate(w http.ResponseWriter, status int, template string, data any) {
+	if controller.renderer == nil {
+		logger.Error("Template renderer not configured")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	var buffer bytes.Buffer
+	if err := controller.renderer.Render(&buffer, template, data); err != nil {
+		logger.Error("Failed to render template {template}: {err}", template, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if _, err := buffer.WriteTo(w); err != nil {
+		logger.Error("Failed to write response for template {template}: {err}", template, err)
 	}
 }
 
-func renderErrorPage(c echo.Context, status int, template string) error {
-	return c.Render(status, template, domain.ErrorPage{
+func (controller *Controller) renderErrorPage(w http.ResponseWriter, status int, template string) {
+	controller.renderTemplate(w, status, template, domain.ErrorPage{
 		BasePage: domain.BasePage{
 			Stylesheets: templateStylesheets,
 			Scripts:     templateScripts,
@@ -45,20 +58,32 @@ func renderErrorPage(c echo.Context, status int, template string) error {
 	})
 }
 
-func renderBadRequest(c echo.Context) error {
-	return renderErrorPage(c, http.StatusBadRequest, "error-badrequest")
+func (controller *Controller) renderBadRequest(w http.ResponseWriter) {
+	controller.renderErrorPage(w, http.StatusBadRequest, "error-badrequest")
 }
 
-func renderUnauthorized(c echo.Context) error {
-	return renderErrorPage(c, http.StatusUnauthorized, "error-unauthorized")
+func (controller *Controller) renderUnauthorized(w http.ResponseWriter) {
+	controller.renderErrorPage(w, http.StatusUnauthorized, "error-unauthorized")
 }
 
-func renderNotFound(c echo.Context) error {
-	return renderErrorPage(c, http.StatusNotFound, "error-notfound")
+func (controller *Controller) renderNotFound(w http.ResponseWriter) {
+	controller.renderErrorPage(w, http.StatusNotFound, "error-notfound")
 }
 
-func renderForbidden(c echo.Context) error {
-	return renderErrorPage(c, http.StatusForbidden, "error-forbidden")
+func (controller *Controller) renderForbidden(w http.ResponseWriter) {
+	controller.renderErrorPage(w, http.StatusForbidden, "error-forbidden")
 }
 
-var ErrIllegalArgument = errors.New("illegal argumen")
+func (controller *Controller) handleCommonErrors(w http.ResponseWriter, err error) {
+	if errors.Is(err, lang.ErrNotFound) {
+		controller.renderNotFound(w)
+		return
+	}
+	if errors.Is(err, ErrIllegalArgument) {
+		controller.renderBadRequest(w)
+		return
+	}
+	controller.sendInternalError(w, err)
+}
+
+var ErrIllegalArgument = errors.New("illegal argument")

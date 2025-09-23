@@ -63,8 +63,8 @@ func createTestServices(t *testing.T, store *repository.Store) (int, int) {
 // ====== UNAUTHENTICATED USER TESTS ======
 
 func TestUnauthenticatedUserCanViewComments(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Can view comments for a service/post
@@ -79,8 +79,8 @@ func TestUnauthenticatedUserCanViewComments(t *testing.T) {
 }
 
 func TestUnauthenticatedUserCanAccessStatus(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/status"))
@@ -91,8 +91,8 @@ func TestUnauthenticatedUserCanAccessStatus(t *testing.T) {
 }
 
 func TestUnauthenticatedUserCanAccessDemo(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/demo"))
@@ -105,8 +105,8 @@ func TestUnauthenticatedUserCanAccessDemo(t *testing.T) {
 }
 
 func TestUnauthenticatedUserCannotPostComments(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	client := createTestHttpClient(false)
@@ -137,8 +137,8 @@ func TestUnauthenticatedUserCannotPostComments(t *testing.T) {
 }
 
 func TestUnauthenticatedUserCannotAccessUserRoutes(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	testCases := []string{
@@ -157,8 +157,8 @@ func TestUnauthenticatedUserCannotAccessUserRoutes(t *testing.T) {
 }
 
 func TestUnauthenticatedUserCannotAccessAdminRoutes(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	testCases := []string{
@@ -181,8 +181,8 @@ func TestUnauthenticatedUserCannotAccessAdminRoutes(t *testing.T) {
 // ====== REGULAR USER TESTS ======
 
 func TestRegularUserCanAccessTheirCommentPages(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	regularUserId, _, _ := createTestUsersWithExternalIds(t, controller.Store)
@@ -206,8 +206,8 @@ func TestRegularUserCanAccessTheirCommentPages(t *testing.T) {
 }
 
 func TestRegularUserCannotAccessOtherUsersPages(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	regularUserId, _, _ := createTestUsersWithExternalIds(t, controller.Store)
@@ -226,8 +226,8 @@ func TestRegularUserCannotAccessOtherUsersPages(t *testing.T) {
 }
 
 func TestRegularUserCannotAccessAdminRoutes(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	adminPaths := []string{
@@ -254,8 +254,8 @@ func TestRegularUserCannotAccessAdminRoutes(t *testing.T) {
 // ====== SERVICE ADMIN TESTS ======
 
 func TestServiceAdminCanAccessTheirServiceComments(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	createTestServices(t, controller.Store)
@@ -274,8 +274,8 @@ func TestServiceAdminCanAccessTheirServiceComments(t *testing.T) {
 }
 
 func TestServiceAdminCannotAccessOtherServices(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	createTestServices(t, controller.Store)
@@ -293,8 +293,8 @@ func TestServiceAdminCannotAccessOtherServices(t *testing.T) {
 }
 
 func TestServiceAdminCannotAccessSuperAdminRoutes(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	superAdminPaths := []string{
@@ -319,8 +319,8 @@ func TestServiceAdminCannotAccessSuperAdminRoutes(t *testing.T) {
 // ====== SUPER ADMIN TESTS ======
 
 func TestSuperAdminCanAccessAllRoutes(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	createTestServices(t, controller.Store)
@@ -346,8 +346,8 @@ func TestSuperAdminCanAccessAllRoutes(t *testing.T) {
 // ====== AUTHENTICATION FLOW TESTS ======
 
 func TestOIDCCallbackRoute(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Test OIDC callback endpoint exists
@@ -361,8 +361,8 @@ func TestOIDCCallbackRoute(t *testing.T) {
 }
 
 func TestUserLoginRoute(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/login"))
@@ -378,8 +378,8 @@ func TestUserLoginRoute(t *testing.T) {
 // ====== EDGE CASES AND ERROR HANDLING ======
 
 func TestInvalidServiceKeyReturns404(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	res, err := http.Get(createServerUrl(serverConfig.Port, "/services/nonexistent/posts/test/comments/"))
@@ -391,8 +391,8 @@ func TestInvalidServiceKeyReturns404(t *testing.T) {
 }
 
 func TestInvalidUserIdHandledGracefully(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	client := createTestHttpClient(false)
@@ -415,8 +415,8 @@ func TestInvalidUserIdHandledGracefully(t *testing.T) {
 }
 
 func TestInvalidCommentIdHandledGracefully(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	client := createTestHttpClient(false)
@@ -450,8 +450,8 @@ func TestInvalidCommentIdHandledGracefully(t *testing.T) {
 // ====== FORM SUBMISSION TESTS ======
 
 func TestUnauthenticatedCommentSubmissionIsRejected(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	client := createTestHttpClient(false)
@@ -501,8 +501,8 @@ func TestUnauthenticatedCommentSubmissionIsRejected(t *testing.T) {
 // ====== STATIC ASSET TESTS ======
 
 func TestStaticAssetAccess(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	staticPaths := []string{

@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"path"
 	"strings"
-
-	"github.com/labstack/echo/v4"
 )
 
 type templateData struct {
@@ -20,11 +18,11 @@ type templateData struct {
 	AssetPath func(string) string
 }
 
-type EchoTemplateRenderer struct {
+type TemplateRenderer struct {
 	templates map[string]*template.Template
 }
 
-func (t *EchoTemplateRenderer) Render(w io.Writer, name string, data any, c echo.Context) error {
+func (t *TemplateRenderer) Render(w io.Writer, name string, data any) error {
 	var tmplData = templateData{
 		Data:      data,
 		AssetPath: getHashedAssetPath,
@@ -100,27 +98,27 @@ func initializeStaticAssets(filesystem embed.FS, prefix string) error {
 }
 
 // hashedStaticHandler creates a handler that serves static files with their content hashes in URLs
-func hashedStaticHandler(filesystem embed.FS, prefix string) echo.HandlerFunc {
+func hashedStaticHandler(filesystem embed.FS, prefix string) http.HandlerFunc {
 	fileServer := http.FileServer(http.FS(filesystem))
 
-	return func(c echo.Context) error {
-		requestPath := c.Request().URL.Path
+	return func(w http.ResponseWriter, r *http.Request) {
+		requestPath := r.URL.Path
 
 		// Check if this is a request for a hashed file
 		for _, info := range staticAssets {
 			if strings.HasSuffix(requestPath, path.Base(info.hashedPath)) {
 				// Set strong caching headers
-				c.Response().Header().Set("Cache-Control", "public, max-age=31536000, immutable") // 1 year
-				c.Response().Header().Set("ETag", fmt.Sprintf(`"%s"`, info.contentHash))
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable") // 1 year
+				w.Header().Set("ETag", fmt.Sprintf(`"%s"`, info.contentHash))
 
 				// Serve the file from its original path
-				req := c.Request().Clone(c.Request().Context())
+				req := r.Clone(r.Context())
 				req.URL.Path = "/" + strings.TrimPrefix(info.originalPath, prefix+"/")
-				fileServer.ServeHTTP(c.Response(), req)
-				return nil
+				fileServer.ServeHTTP(w, req)
+				return
 			}
 		}
 
-		return echo.NewHTTPError(http.StatusNotFound)
+		http.NotFound(w, r)
 	}
 }

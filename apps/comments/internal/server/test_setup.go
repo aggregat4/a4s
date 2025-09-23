@@ -3,12 +3,12 @@ package server
 import (
 	"aggregat4/go-commentservice/internal/domain"
 	"aggregat4/go-commentservice/internal/repository"
+	"net/http"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/aggregat4/go-baselib/crypto"
-	"github.com/labstack/echo/v4"
 )
 
 var TEST_ENCRYPTIONKEY = "12345678901234567890123456789012"
@@ -42,7 +42,7 @@ var serverConfig = domain.Config{
 	SessionCookieSecureFlag:   false,
 }
 
-func waitForServer(t *testing.T) (*echo.Echo, Controller) {
+func waitForServer(t *testing.T) (*http.Server, *Controller) {
 	aesCipher, err := crypto.CreateAes256GcmAead([]byte(TEST_ENCRYPTIONKEY))
 	if err != nil {
 		panic(err)
@@ -54,17 +54,17 @@ func waitForServer(t *testing.T) (*echo.Echo, Controller) {
 	if err != nil {
 		panic(err)
 	}
-	createTestData(t, store)
-	controller := Controller{&store, serverConfig}
-	echoServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback(), false)
+	createTestData(t, &store)
+	controller := &Controller{Store: &store, Config: serverConfig}
+	httpServer := InitServerWithOidcMiddleware(controller, createMockOidcMiddleware(), createMockOidcCallback(), false)
 	go func() {
-		_ = echoServer.Start(":" + strconv.Itoa(serverConfig.Port))
+		_ = httpServer.ListenAndServe()
 	}()
 	waitForServerStart(t, createServerUrl(serverConfig.Port, "/status"))
-	return echoServer, controller
+	return httpServer, controller
 }
 
-func createTestData(t *testing.T, store repository.Store) {
+func createTestData(t *testing.T, store *repository.Store) {
 	serviceId, err := store.CreateService(TEST_SERVICE, "https://example.com")
 	if err != nil {
 		t.Fatal("Error creating test service: " + err.Error())

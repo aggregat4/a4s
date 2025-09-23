@@ -13,8 +13,8 @@ import (
 
 // TestFullUserWorkflowUnauthenticated tests the complete flow for an unauthenticated user
 func TestFullUserWorkflowUnauthenticated(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	client := createTestHttpClient(false)
@@ -56,8 +56,8 @@ func TestFullUserWorkflowUnauthenticated(t *testing.T) {
 
 // TestRegularUserWorkflowWithSession tests a regular authenticated user's workflow
 func TestRegularUserWorkflowWithSession(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Create a regular user
@@ -97,8 +97,8 @@ func TestRegularUserWorkflowWithSession(t *testing.T) {
 
 // TestServiceAdminWorkflowWithSession tests a service admin's workflow
 func TestServiceAdminWorkflowWithSession(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Create test service admin
@@ -133,8 +133,8 @@ func TestServiceAdminWorkflowWithSession(t *testing.T) {
 
 // TestSuperAdminWorkflowWithSession tests super admin functionality
 func TestSuperAdminWorkflowWithSession(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Create super admin
@@ -168,8 +168,8 @@ func TestSuperAdminWorkflowWithSession(t *testing.T) {
 
 // TestCommentManagementWorkflows tests comment operations for different user types
 func TestCommentManagementWorkflows(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Create test data
@@ -241,8 +241,8 @@ func TestCommentManagementWorkflows(t *testing.T) {
 
 // TestServiceScopingAndSecurity tests that service-scoped operations work correctly
 func TestServiceScopingAndSecurity(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Create two services
@@ -329,8 +329,8 @@ func TestServiceScopingAndSecurity(t *testing.T) {
 
 // TestErrorHandlingAndEdgeCases tests various error conditions
 func TestErrorHandlingAndEdgeCases(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	// Test accessing non-existent comment
@@ -374,8 +374,8 @@ func TestErrorHandlingAndEdgeCases(t *testing.T) {
 
 // TestStatusAndUtilityEndpoints tests non-comment endpoints
 func TestStatusAndUtilityEndpoints(t *testing.T) {
-	echoServer, controller := waitForServer(t)
-	defer echoServer.Close()
+	srv, controller := waitForServer(t)
+	defer func() { _ = srv.Close() }()
 	defer controller.Store.Close()
 
 	client := createTestHttpClient(true)

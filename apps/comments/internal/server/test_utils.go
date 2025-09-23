@@ -6,34 +6,31 @@ import (
 	"net/http/cookiejar"
 	"testing"
 	"time"
-
-	"github.com/labstack/echo/v4"
 )
 
-func createMockOidcCallback() echo.HandlerFunc {
-	return func(c echo.Context) error {
-		return nil
+func createMockOidcCallback() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
-func createMockOidcMiddleware() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			return next(c)
-		}
+func createMockOidcMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
 func waitForServerStart(t *testing.T, url string) {
-	maxRetries := 10
-	//nolint:gosec
-	for range maxRetries {
+	const maxRetries = 10
+	for i := 0; i < maxRetries; i++ {
 		resp, err := http.Get(url)
-		if err == nil && (resp != nil && resp.StatusCode == 200) {
-			resp.Body.Close()
+		if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
+			_ = resp.Body.Close()
 			return
 		}
-		time.Sleep(time.Millisecond * 500)
+		time.Sleep(500 * time.Millisecond)
 	}
 	t.Fatalf("Server did not start after %d retries", maxRetries)
 }
