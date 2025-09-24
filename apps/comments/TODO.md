@@ -1,5 +1,10 @@
 # TODO
 
+* Testing improvements:
+  * build helpers that mint session cookies / OIDC stubs so we can assert authenticated success paths end-to-end
+  * add positive workflow tests that cover comment creation, admin approvals, and super-admin dashboards using those helpers
+  * track full coverage with `go test -coverpkg=./... ./...` (or equivalent) once happy-path tests exist, so cross-package calls remain visible
+
 * CONTINUE here: Sketched out the login flow for unauthenticated commenters:
   * user clicks "add comment"
   * when unauthenticated they land on the addeditcomment page in the state unauthenticated and get the option to log in
