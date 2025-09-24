@@ -150,7 +150,7 @@ func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]doma
 		query += ")"
 	}
 	query += " ORDER BY created_at DESC"
-	statusInts := make([]interface{}, len(statuses))
+	statusInts := make([]any, len(statuses))
 	for i, status := range statuses {
 		statusInts[i] = int(status)
 	}
@@ -164,8 +164,8 @@ func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]doma
 
 func (store *Store) GetCommentsByServiceAndStatus(serviceKey string, statuses []domain.CommentStatus) ([]domain.Comment, error) {
 	query := "SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments WHERE service_key = ?"
-	args := []interface{}{serviceKey}
-	
+	args := []any{serviceKey}
+
 	if len(statuses) > 0 {
 		query += " AND status IN ("
 		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",")
@@ -175,7 +175,7 @@ func (store *Store) GetCommentsByServiceAndStatus(serviceKey string, statuses []
 		}
 	}
 	query += " ORDER BY created_at DESC"
-	
+
 	rows, err := store.db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func (store *Store) GetAllServices() ([]domain.Service, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var services []domain.Service
 	for rows.Next() {
 		var service domain.Service
@@ -200,11 +200,11 @@ func (store *Store) GetAllServices() ([]domain.Service, error) {
 		}
 		services = append(services, service)
 	}
-	
+
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	
+
 	return services, nil
 }
 
@@ -261,7 +261,7 @@ func (store *Store) FindOrCreateUserByExternalId(externalUserId string) (domain.
 	if err == nil {
 		return user, nil
 	}
-	
+
 	// If not found, create new user
 	if errors.Is(err, lang.ErrNotFound) {
 		userId, err := store.CreateUserWithExternalId(externalUserId)
@@ -273,7 +273,7 @@ func (store *Store) FindOrCreateUserByExternalId(externalUserId string) (domain.
 			ExternalUserId: externalUserId,
 		}, nil
 	}
-	
+
 	// Return other errors as-is
 	return domain.User{}, err
 }
@@ -385,7 +385,6 @@ func mapOptionalUser(rows *sql.Rows) (domain.User, error) {
 	}
 }
 
-
 func (store *Store) FindUserById(userId int) (domain.User, error) {
 	rows, err := store.db.Query(
 		"SELECT id, external_user_id FROM users WHERE id = ?",
@@ -396,7 +395,6 @@ func (store *Store) FindUserById(userId int) (domain.User, error) {
 	defer rows.Close()
 	return mapOptionalUser(rows)
 }
-
 
 func (store *Store) GetComment(commentId int) (domain.Comment, error) {
 	rows, err := store.db.Query(

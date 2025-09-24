@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -52,9 +53,9 @@ type AdminUser struct {
 }
 
 type AuthContext struct {
-	User        *User
-	AdminUser   *AdminUser
-	IsAdmin     bool
+	User         *User
+	AdminUser    *AdminUser
+	IsAdmin      bool
 	IsSuperAdmin bool
 }
 
@@ -75,12 +76,7 @@ func (a *AdminUser) IsSuperAdmin() bool {
 	if a == nil {
 		return false
 	}
-	for _, role := range a.Roles {
-		if role == "superadmin" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(a.Roles, "superadmin")
 }
 
 type Service struct {

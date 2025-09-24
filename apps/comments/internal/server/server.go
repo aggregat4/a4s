@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	baselibmiddleware "github.com/aggregat4/go-baselib-services/v3/middleware"
-	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
+	baselibmiddleware "github.com/aggregat4/go-baselib-services/v4/middleware"
+	baseliboidc "github.com/aggregat4/go-baselib-services/v4/oidc"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
@@ -483,7 +483,7 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 	userAuthenticated := false
 	if _, err := controller.getUserFromSession(r); err == nil {
 		userAuthenticated = true
-	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+	} else if !errors.Is(err, lang.ErrNotFound) {
 		controller.sendInternalError(w, err)
 		return
 	}
@@ -491,7 +491,7 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 	adminAuthenticated := false
 	if _, err := controller.getAdminUserIdFromSession(r); err == nil {
 		adminAuthenticated = true
-	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+	} else if !errors.Is(err, lang.ErrNotFound) {
 		controller.sendInternalError(w, err)
 		return
 	}

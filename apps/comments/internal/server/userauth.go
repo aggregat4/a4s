@@ -6,7 +6,7 @@ import (
 
 	"aggregat4/go-commentservice/internal/domain"
 
-	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
+	baseliboidc "github.com/aggregat4/go-baselib-services/v4/oidc"
 	"github.com/aggregat4/go-baselib/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
@@ -15,7 +15,7 @@ import (
 
 var (
 	authenticatedUserCookieName = "commentservice-authenticated-user"
-	flashCookieName             = baseliboidc.SessionCookieName
+	flashCookieName             = baseliboidc.STDSessionCookieName
 )
 
 func (controller *Controller) initializeSessionStores() {
