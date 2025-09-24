@@ -47,12 +47,16 @@ type Controller struct {
 	renderer     *TemplateRenderer
 }
 
-func RunServer(controller Controller) {
-	httpServer := InitServer(&controller)
+func RunServer(controller *Controller) *http.Server {
+	httpServer := InitServer(controller)
 	logger.Info("Starting HTTP server on port {port}", controller.Config.Port)
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Fatal("Server failed: {err}", err)
-	}
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatal("Server failed: {err}", err)
+		}
+	}()
+
+	return httpServer
 }
 
 func InitServer(controller *Controller) *http.Server {

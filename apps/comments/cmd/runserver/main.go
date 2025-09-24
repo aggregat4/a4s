@@ -4,10 +4,14 @@ import (
 	"aggregat4/go-commentservice/internal/domain"
 	"aggregat4/go-commentservice/internal/repository"
 	"aggregat4/go-commentservice/internal/server"
+	"context"
 	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/aggregat4/go-baselib/crypto"
 	"github.com/aggregat4/go-baselib/lang"
@@ -57,13 +61,33 @@ func main() {
 	defer store.Close()
 	err = store.InitAndVerifyDb(repository.CreateFileDbUrl(config.DatabaseFilename))
 	if err != nil {
-		logger.With("error", err).Fatal("Error initializing database")
+		logger.Fatal("Error initializing database {err}", err)
 		os.Exit(1)
 	}
-	server.RunServer(
-		server.Controller{
-			Store:  &store,
-			Config: config,
-		},
-	)
+
+	controller := server.Controller{
+		Store:  &store,
+		Config: config,
+	}
+
+	httpServer := server.RunServer(&controller)
+
+	shutdownSignals := make(chan os.Signal, 1)
+	signal.Notify(shutdownSignals, syscall.SIGINT, syscall.SIGTERM)
+
+	sig := <-shutdownSignals
+	logger.Info("Shutdown signal received {signal}", sig)
+	signal.Stop(shutdownSignals)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		logger.Error("Graceful shutdown failed {err}", err)
+		if closeErr := httpServer.Close(); closeErr != nil {
+			logger.Error("HTTP server close failed {err}", closeErr)
+		}
+	} else {
+		logger.Info("HTTP server shut down gracefully")
+	}
 }
