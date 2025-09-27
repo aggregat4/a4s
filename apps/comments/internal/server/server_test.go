@@ -8,11 +8,9 @@ import (
 )
 
 func TestStatus(t *testing.T) {
-	srv, controller := waitForServer(t)
-	defer func() { _ = srv.Close() }()
-	defer controller.Store.Close()
-	client := createTestHttpClient(srv.handler, true)
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/status"))
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	res, err := client.Get(h.URL("/status"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,11 +21,9 @@ func TestStatus(t *testing.T) {
 }
 
 func TestInvalidService(t *testing.T) {
-	srv, controller := waitForServer(t)
-	defer func() { _ = srv.Close() }()
-	defer controller.Store.Close()
-	client := createTestHttpClient(srv.handler, true)
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/foo/posts/bar/comments/"))
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	res, err := client.Get(h.URL("/services/foo/posts/bar/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,11 +31,9 @@ func TestInvalidService(t *testing.T) {
 }
 
 func TestEmptyCommentsPage(t *testing.T) {
-	srv, controller := waitForServer(t)
-	defer func() { _ = srv.Close() }()
-	defer controller.Store.Close()
-	client := createTestHttpClient(srv.handler, true)
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/bar/comments/"))
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	res, err := client.Get(h.URL("/services/" + h.Data.Service.ServiceKey + "/posts/bar/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,18 +44,20 @@ func TestEmptyCommentsPage(t *testing.T) {
 }
 
 func TestSingleCommentPostPage(t *testing.T) {
-	srv, controller := waitForServer(t)
-	defer func() { _ = srv.Close() }()
-	defer controller.Store.Close()
-	client := createTestHttpClient(srv.handler, true)
-	res, err := client.Get(createServerUrl(serverConfig.Port, "/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"))
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	res, err := client.Get(h.URL("/services/" + h.Data.Service.ServiceKey + "/posts/" + testPostKeyApproved + "/comments/"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	assert.Equal(t, 200, res.StatusCode)
 	body := readBody(res)
+	approved := h.Data.Comments["approved"].Comment
+	pending := h.Data.Comments["pending"].Comment
+	rejected := h.Data.Comments["rejected"].Comment
+
 	// Only approved comments should be visible on the public page
-	assert.Contains(t, body, TEST_COMMENT_APPROVED)
-	assert.NotContains(t, body, TEST_COMMENT_PENDING_APPROVAL)
-	assert.NotContains(t, body, TEST_COMMENT_REJECTED)
+	assert.Contains(t, body, approved)
+	assert.NotContains(t, body, pending)
+	assert.NotContains(t, body, rejected)
 }

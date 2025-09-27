@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -22,20 +23,9 @@ func expectAny(statuses ...int) statusMatcher {
 	}
 }
 
-func expectAtLeast(lowerBound int) statusMatcher {
-	return func(code int) bool {
-		return code >= lowerBound
-	}
-}
-
 func TestProtectedRoutesRequireAuthentication(t *testing.T) {
-	srv, controller := waitForServer(t)
-	t.Cleanup(func() {
-		_ = srv.Close()
-		controller.Store.Close()
-	})
-
-	client := createTestHttpClient(srv.handler, false)
+	h := NewServerHarness(t)
+	client := h.NewClient(false)
 
 	cases := []struct {
 		name    string
@@ -53,7 +43,7 @@ func TestProtectedRoutesRequireAuthentication(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest(tc.method, createServerUrl(serverConfig.Port, tc.path), nil)
+			req, err := http.NewRequest(tc.method, h.URL(tc.path), nil)
 			require.NoError(t, err)
 
 			res, err := client.Do(req)
@@ -66,13 +56,8 @@ func TestProtectedRoutesRequireAuthentication(t *testing.T) {
 }
 
 func TestUnauthenticatedCommentSubmissionRejected(t *testing.T) {
-	srv, controller := waitForServer(t)
-	t.Cleanup(func() {
-		_ = srv.Close()
-		controller.Store.Close()
-	})
-
-	client := createTestHttpClient(srv.handler, false)
+	h := NewServerHarness(t)
+	client := h.NewClient(false)
 
 	form := url.Values{}
 	form.Set("comment", "Unauthenticated comment")
@@ -81,7 +66,7 @@ func TestUnauthenticatedCommentSubmissionRejected(t *testing.T) {
 
 	req, err := http.NewRequest(
 		http.MethodPost,
-		createServerUrl(serverConfig.Port, "/users/1/services/"+TEST_SERVICE+"/posts/"+TEST_POSTKEY1+"/comments/"),
+		h.URL("/users/"+strconv.Itoa(h.Data.PrimaryUser.Id)+"/services/"+h.Data.Service.ServiceKey+"/posts/"+testPostKeyApproved+"/comments/"),
 		strings.NewReader(form.Encode()),
 	)
 	require.NoError(t, err)
@@ -97,13 +82,8 @@ func TestUnauthenticatedCommentSubmissionRejected(t *testing.T) {
 }
 
 func TestInvalidIdRoutesFailGracefully(t *testing.T) {
-	srv, controller := waitForServer(t)
-	t.Cleanup(func() {
-		_ = srv.Close()
-		controller.Store.Close()
-	})
-
-	client := createTestHttpClient(srv.handler, false)
+	h := NewServerHarness(t)
+	client := h.NewClient(false)
 
 	getCases := []string{
 		"/users/999999/comments/",
@@ -113,7 +93,7 @@ func TestInvalidIdRoutesFailGracefully(t *testing.T) {
 
 	for _, path := range getCases {
 		t.Run("GET "+path, func(t *testing.T) {
-			res, err := client.Get(createServerUrl(serverConfig.Port, path))
+			res, err := client.Get(h.URL(path))
 			require.NoError(t, err)
 			if res.StatusCode < 300 {
 				t.Fatalf("expected non-success status for %s, got %d", path, res.StatusCode)
@@ -129,7 +109,7 @@ func TestInvalidIdRoutesFailGracefully(t *testing.T) {
 
 	for _, path := range postCases {
 		t.Run("POST "+path, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodPost, createServerUrl(serverConfig.Port, path), strings.NewReader(""))
+			req, err := http.NewRequest(http.MethodPost, h.URL(path), strings.NewReader(""))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("Origin", "https://example.com")
@@ -144,13 +124,8 @@ func TestInvalidIdRoutesFailGracefully(t *testing.T) {
 }
 
 func TestStaticAssetsAccessible(t *testing.T) {
-	srv, controller := waitForServer(t)
-	t.Cleanup(func() {
-		_ = srv.Close()
-		controller.Store.Close()
-	})
-
-	client := createTestHttpClient(srv.handler, true)
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
 
 	paths := []string{
 		"/css/main.css",
@@ -159,7 +134,7 @@ func TestStaticAssetsAccessible(t *testing.T) {
 
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
-			res, err := client.Get(createServerUrl(serverConfig.Port, path))
+			res, err := client.Get(h.URL(path))
 			require.NoError(t, err)
 			if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotFound {
 				t.Fatalf("unexpected status %d for %s", res.StatusCode, path)

@@ -1,10 +1,12 @@
 package repository
 
 import (
+	"errors"
 	"testing"
 
 	"aggregat4/go-commentservice/internal/domain"
 	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/go-baselib/lang"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -173,5 +175,131 @@ func TestStoreGetAllServices(t *testing.T) {
 
 	if !keys["blog1"] || !keys["blog2"] {
 		t.Fatalf("missing expected service keys: %v", keys)
+	}
+}
+
+func TestStoreUpdateCommentMarksEdited(t *testing.T) {
+	store := newTestStore(t)
+
+	serviceID, err := store.CreateService("blog1", "https://blog1.example.com")
+	if err != nil {
+		t.Fatalf("CreateService failed: %v", err)
+	}
+
+	userID, err := store.CreateUser()
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	commentID, err := store.CreateComment(
+		domain.CommentStatusPendingApproval,
+		serviceID,
+		"blog1",
+		userID,
+		"post-1",
+		"First draft",
+		"Author",
+		"https://example.com",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("CreateComment failed: %v", err)
+	}
+
+	if err := store.UpdateComment(
+		commentID,
+		domain.CommentStatusApproved,
+		"Updated body",
+		"Updated Author",
+		"https://updated.example.com",
+		"https://parent.example.com",
+	); err != nil {
+		t.Fatalf("UpdateComment failed: %v", err)
+	}
+
+	updated, err := store.GetComment(commentID)
+	if err != nil {
+		t.Fatalf("GetComment failed: %v", err)
+	}
+
+	if updated.Status != domain.CommentStatusApproved {
+		t.Fatalf("expected status approved, got %v", updated.Status)
+	}
+	if updated.Comment != "Updated body" || updated.Name != "Updated Author" || updated.Website != "https://updated.example.com" {
+		t.Fatalf("comment not updated correctly: %+v", updated)
+	}
+	if updated.ParentUrl != "https://parent.example.com" {
+		t.Fatalf("parent url not updated: %+v", updated)
+	}
+	if !updated.Edited {
+		t.Fatalf("expected comment to be marked edited")
+	}
+}
+
+func TestStoreDeleteCommentMissingReturnsNotFound(t *testing.T) {
+	store := newTestStore(t)
+
+	err := store.DeleteComment(12345)
+	if err == nil {
+		t.Fatalf("expected error deleting unknown comment")
+	}
+	if !errors.Is(err, lang.ErrNotFound) {
+		t.Fatalf("expected lang.ErrNotFound, got %v", err)
+	}
+}
+
+func TestStoreGetCommentsForPostOnlyReturnsApproved(t *testing.T) {
+	store := newTestStore(t)
+
+	serviceID, err := store.CreateService("blog1", "https://blog1.example.com")
+	if err != nil {
+		t.Fatalf("CreateService failed: %v", err)
+	}
+
+	userID, err := store.CreateUser()
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	approvedID, err := store.CreateComment(
+		domain.CommentStatusApproved,
+		serviceID,
+		"blog1",
+		userID,
+		"post-1",
+		"Visible",
+		"Author",
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("CreateComment failed: %v", err)
+	}
+
+	_, err = store.CreateComment(
+		domain.CommentStatusPendingApproval,
+		serviceID,
+		"blog1",
+		userID,
+		"post-1",
+		"Hidden",
+		"Author",
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("CreateComment pending failed: %v", err)
+	}
+
+	comments, err := store.GetCommentsForPost(serviceID, "post-1")
+	if err != nil {
+		t.Fatalf("GetCommentsForPost failed: %v", err)
+	}
+
+	if len(comments) != 1 {
+		t.Fatalf("expected 1 approved comment, got %d", len(comments))
+	}
+	if comments[0].Id != approvedID {
+		t.Fatalf("unexpected comment returned: %+v", comments[0])
 	}
 }
