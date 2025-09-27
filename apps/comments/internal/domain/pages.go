@@ -35,12 +35,15 @@ type AdminDashboardPage struct {
 
 type AddOrEditCommentPage struct {
 	BasePage
-	ServiceKey   string
-	PostKey      string
-	UserFound    bool
-	User         User
-	CommentFound bool
-	Comment      Comment
+	ServiceKey        string
+	PostKey           string
+	UserFound         bool
+	User              User
+	CommentFound      bool
+	Comment           Comment
+	LoginPopupURL     string
+	LoginFullPageURL  string
+	PostMessageOrigin string
 }
 
 type UserLoginPage struct {
@@ -54,5 +57,7 @@ type DemoPage struct {
 
 type LoginPageData struct {
 	BasePage
-	IsAuthenticated bool
+	IsAuthenticated   bool
+	IsPopup           bool
+	PostMessageOrigin string
 }

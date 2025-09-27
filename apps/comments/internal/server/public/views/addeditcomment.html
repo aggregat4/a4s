@@ -12,9 +12,25 @@
 </header>
 <main>
     {{if not .Data.UserFound}}
-        <div class="auth-required">
+        <div class="auth-required" data-auth-required>
             <p>You need to be logged in to post a comment.</p>
-            <button type="button" onclick="openAuthPopup()" class="primary-button">Login to Comment</button>
+            <button
+                type="button"
+                class="primary-button"
+                data-login-button
+                data-login-url="{{.Data.LoginPopupURL}}"
+                data-login-origin="{{.Data.PostMessageOrigin}}"
+                data-login-fullpage="{{.Data.LoginFullPageURL}}"
+                onclick="return openAuthPopup(this);"
+            >Login to Comment</button>
+            <p class="popup-hint" data-popup-hint>
+                The login opens in a separate window. If you do not see it, please allow popups for this site.
+            </p>
+            <p class="popup-status" data-popup-status role="status" aria-live="polite" hidden></p>
+            <p class="popup-blocked" data-popup-blocked hidden role="alert">
+                We could not open the login window. You can continue by using the
+                <a href="{{.Data.LoginFullPageURL}}" data-popup-fallback>full-page login</a> instead.
+            </p>
         </div>
     {{else}}
         <div class="important">

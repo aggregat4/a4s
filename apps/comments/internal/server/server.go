@@ -7,6 +7,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ var javaScript embed.FS
 var styleSheets embed.FS
 
 var templateStylesheets = []string{"css/main.css"}
-var templateScripts = []string{"js/components.js", "js/formatting.js"}
+var templateScripts = []string{"js/components.js", "js/formatting.js", "js/auth.js"}
 
 type Controller struct {
 	Store        *repository.Store
@@ -181,6 +182,35 @@ func InitServerWithOidcMiddleware(
 	}
 
 	return server
+}
+
+func (controller *Controller) postMessageOrigin(r *http.Request) string {
+	if controller.Config.BaseURL != "" {
+		if parsed, err := url.Parse(controller.Config.BaseURL); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+			return parsed.Scheme + "://" + parsed.Host
+		}
+	}
+
+	scheme := "https"
+	if r.TLS == nil {
+		if forwardedProto := r.Header.Get("X-Forwarded-Proto"); forwardedProto != "" {
+			parts := strings.Split(forwardedProto, ",")
+			scheme = strings.TrimSpace(parts[0])
+		} else {
+			scheme = "http"
+		}
+	}
+
+	host := r.Host
+	if forwardedHost := r.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
+		parts := strings.Split(forwardedHost, ",")
+		host = strings.TrimSpace(parts[0])
+	}
+	if host == "" {
+		host = "localhost"
+	}
+
+	return scheme + "://" + host
 }
 
 func (controller *Controller) GetComments(w http.ResponseWriter, r *http.Request) {
@@ -337,17 +367,24 @@ func (controller *Controller) GetCommentForm(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 
+	loginPopupURL := "/login?popup=1"
+	loginFullPageURL := "/login"
+	origin := controller.postMessageOrigin(r)
+
 	controller.renderTemplate(w, http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
 		BasePage: domain.BasePage{
 			Stylesheets: templateStylesheets,
 			Scripts:     templateScripts,
 		},
-		ServiceKey:   serviceKey,
-		PostKey:      postKey,
-		UserFound:    userErr == nil,
-		User:         user,
-		CommentFound: commentFound,
-		Comment:      comment,
+		ServiceKey:        serviceKey,
+		PostKey:           postKey,
+		UserFound:         userErr == nil,
+		User:              user,
+		CommentFound:      commentFound,
+		Comment:           comment,
+		LoginPopupURL:     loginPopupURL,
+		LoginFullPageURL:  loginFullPageURL,
+		PostMessageOrigin: origin,
 	})
 }
 
@@ -367,17 +404,24 @@ func (controller *Controller) GetUserCommentForm(w http.ResponseWriter, r *http.
 		return
 	}
 
+	loginPopupURL := "/login?popup=1"
+	loginFullPageURL := "/login"
+	origin := controller.postMessageOrigin(r)
+
 	controller.renderTemplate(w, http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
 		BasePage: domain.BasePage{
 			Stylesheets: templateStylesheets,
 			Scripts:     templateScripts,
 		},
-		ServiceKey:   service.ServiceKey,
-		PostKey:      comment.PostKey,
-		UserFound:    true,
-		User:         user,
-		CommentFound: true,
-		Comment:      comment,
+		ServiceKey:        service.ServiceKey,
+		PostKey:           comment.PostKey,
+		UserFound:         true,
+		User:              user,
+		CommentFound:      true,
+		Comment:           comment,
+		LoginPopupURL:     loginPopupURL,
+		LoginFullPageURL:  loginFullPageURL,
+		PostMessageOrigin: origin,
 	})
 }
 
@@ -500,12 +544,20 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	isPopup := false
+	switch strings.ToLower(r.URL.Query().Get("popup")) {
+	case "1", "true", "yes", "popup":
+		isPopup = true
+	}
+
 	controller.renderTemplate(w, http.StatusOK, "userlogin", domain.LoginPageData{
 		BasePage: domain.BasePage{
 			Stylesheets: templateStylesheets,
 			Scripts:     templateScripts,
 		},
-		IsAuthenticated: userAuthenticated || adminAuthenticated,
+		IsAuthenticated:   userAuthenticated || adminAuthenticated,
+		IsPopup:           isPopup,
+		PostMessageOrigin: controller.postMessageOrigin(r),
 	})
 }
 

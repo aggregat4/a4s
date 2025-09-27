@@ -109,3 +109,19 @@ the site configurations.
 
 Users (commenters) also authenticate via OIDC but require no special rights.
 
+### Authenticated Commenter Login Flow
+
+The add/edit comment form is only available to authenticated users. When an unauthenticated visitor opens the form:
+
+- The page renders a login prompt with a `Login to Comment` button and guidance about popup blockers. The prompt contains both the popup login URL (`/login?popup=1`) and a full-page fallback (`/login`).
+- Clicking the button attempts to open the `/login?popup=1` route in a centered popup window. While the popup is open, an inline status message reminds the visitor to finish authentication.
+- The popup serves the same OIDC-backed login page, but in popup mode it posts a message back to the opener (`postMessage({ type: 'auth-success' }, origin)`) once the OIDC callback creates the session. After the message is delivered the popup closes itself.
+- The opener listens for that success message and reloads the add/edit form so the freshly authenticated state is visible without manual refresh.
+
+Failure and fallback handling:
+
+- If the popup cannot be opened (blocked by the browser), the UI exposes an inline alert with a direct link to the full-page login flow so the visitor can continue.
+- If the OIDC flow encounters an error, the popup can stay open and the inline status message encourages the visitor to retry or fall back to the full-page login.
+- All postMessage exchanges are origin-scoped using the configured service origin, so unexpected origins are ignored.
+
+Once authenticated, the form re-renders with the comment inputs. Subsequent comment submissions and edits then proceed through the standard approval workflow.

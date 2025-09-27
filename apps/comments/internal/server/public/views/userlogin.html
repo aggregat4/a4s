@@ -3,43 +3,53 @@
 {{define "bodyClass"}}userlogin{{end}}
 
 {{define "content"}}
-<main>
+<main class="user-login">
     {{if .Data.IsAuthenticated}}
-        <div class="auth-success">
-            <h1>Already Authenticated</h1>
-            <p>You are already logged in!</p>
+        <div class="auth-success" data-auth-success>
+            <h1>Authenticated</h1>
+            <p>You are already logged in.</p>
+            {{if .Data.IsPopup}}
             <p>This window will close automatically.</p>
+            {{else}}
+            <p>You can return to the page you were viewing.</p>
+            {{end}}
         </div>
-        
+        {{if .Data.IsPopup}}
         <script>
-            // Check if this page is opened in a popup
-            if (window.opener && !window.opener.closed) {
-                var authDiv = document.querySelector('.auth-success');
-                var userData = {
-                    type: 'auth-success',
-                    message: 'Authentication successful',
-                };                
-                // Send success message to parent window
-                window.opener.postMessage(userData, '*');
-                // Close the popup after a short delay
-                setTimeout(function() {
-                    window.close();
-                }, 2000);
-            }
+            (function() {
+                if (window.opener && !window.opener.closed) {
+                    const payload = { type: 'auth-success' };
+                    const targetOrigin = '{{.Data.PostMessageOrigin | js}}' || window.location.origin;
+                    try {
+                        window.opener.postMessage(payload, targetOrigin);
+                    } catch (_) {
+                        // ignore postMessage failures
+                    }
+                    setTimeout(function() {
+                        window.close();
+                    }, 500);
+                }
+            })();
         </script>
+        {{end}}
     {{else}}
         <h1>User Login</h1>
+        {{if .Data.IsPopup}}
+        <p class="popup-note">After signing in this window will close and the original page will refresh.</p>
+        {{end}}
         <form action="/login" method="GET">
             <p>
-                Please log in to access the comment system. This login requires an account registered with the OIDC provider.
-                When you login you will be redirected to the OIDC provider to authenticate.
+                Please log in to access the comment system. You will be redirected to the OIDC provider to authenticate.
             </p>
-            <button type="submit">Login with OIDC</button>
-        </form>       
+            {{if .Data.IsPopup}}
+            <input type="hidden" name="popup" value="1">
+            {{end}}
+            <button type="submit" class="primary-button">Login with OIDC</button>
+        </form>
     {{end}}
 </main>
 {{end}}
-    
+
 {{define "userlogin"}}
 {{template "layout" .}}
-{{end}} 
+{{end}}
