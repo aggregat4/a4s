@@ -1,17 +1,22 @@
 # TODO
 
-* Testing improvements:
-  * build helpers that mint session cookies / OIDC stubs so we can assert authenticated success paths end-to-end
-  * add positive workflow tests that cover comment creation, admin approvals, and super-admin dashboards using those helpers
-  * track full coverage with `go test -coverpkg=./... ./...` (or equivalent) once happy-path tests exist, so cross-package calls remain visible
+## Testing improvements
 
-* CONTINUE here: Sketched out the login flow for unauthenticated commenters:
+* build helpers that mint session cookies / OIDC stubs so we can assert authenticated success paths end-to-end
+* add positive workflow tests that cover comment creation, admin approvals, and super-admin dashboards using those helpers
+* track full coverage with `go test -coverpkg=./... ./...` (or equivalent) once happy-path tests exist, so cross-package calls remain visible
+
+## Login Flow for Unauthenticated Commenters
+
+* Flow
   * user clicks "add comment"
   * when unauthenticated they land on the addeditcomment page in the state unauthenticated and get the option to log in
   * clicking the log in triggers a popup showing a popuplogin page that is OIDC protected and triggers the OIDC flow
   * on returning from the flow, the authenticated version of that page is displayed and it uses javascript to autoclose the popup and send a postmessage to the opener
   * the opener is the addeditcomment page and it will reload on receiving the postmessage
-  * TODO: implement this and consider the failure cases
+* Consider the failure cases
+
+## Miscellaneous
 
 * Show a logged in user's own comments when they are not yet approved but with some marker: this confirms that the comment arrived
 
