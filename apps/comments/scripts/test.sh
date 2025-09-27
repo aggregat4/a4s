@@ -1,16 +1,20 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
-echo "Running tests"
-go test -v ./...
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="${SCRIPT_DIR}/.."
+cd "${REPO_ROOT}"
 
-#echo "Checking race conditions"
-#go test -race ./...
-#
-#echo "Creating coverage report"
-#go test -coverprofile=coverage.out ./...
-#go tool cover -func coverage.out
-#go tool cover -html=coverage.out -o coverage.html
+if [[ -z "${GOCACHE:-}" ]]; then
+	export GOCACHE="${REPO_ROOT}/.gocache"
+fi
+mkdir -p "${GOCACHE}"
+
+echo "Running tests with full-package coverage"
+go test -v -coverpkg=./... -coverprofile=coverage.out ./...
+
+echo "Coverage summary"
+go tool cover -func=coverage.out | tail -n 1
 
 echo "Tests passed"
