@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prototype Lists</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar" aria-label="Collections and lists">
+        <section class="sidebar-section">
+          <header class="section-header">
+            <h2>Collections</h2>
+            <button id="create-collection" class="ghost">New</button>
+          </header>
+          <ul id="collection-list" class="nav-list" role="list"></ul>
+        </section>
+        <section class="sidebar-section">
+          <header class="section-header">
+            <h2>Lists</h2>
+            <button id="create-list" class="ghost">New</button>
+          </header>
+          <ul id="list-list" class="nav-list" role="list"></ul>
+        </section>
+      </aside>
+      <main id="main" aria-live="polite">
+        <header id="context-header">
+          <div class="title-block">
+            <h1 id="context-title" contenteditable="plaintext-only" spellcheck="false"></h1>
+            <button id="assign-shortcut" class="ghost" title="Bind a quick move shortcut">Set Shortcut</button>
+          </div>
+          <div class="header-actions">
+            <button id="search-button">Search</button>
+            <button id="delete-collection" class="danger" hidden>Delete Collection</button>
+          </div>
+        </header>
+        <section id="context-body">
+          <div id="list-tools">
+            <div class="tool-group">
+              <button id="add-item">Add Item</button>
+            </div>
+            <div class="tool-group" id="collection-membership" hidden></div>
+          </div>
+          <ul id="item-list" class="item-list" role="list"></ul>
+        </section>
+      </main>
+    </div>
+
+    <div id="search-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="search-title">
+      <div class="overlay-content">
+        <header>
+          <h2 id="search-title">Search</h2>
+          <button class="ghost" data-close="search">Close</button>
+        </header>
+        <div class="overlay-body">
+          <p class="search-scope" id="search-scope"></p>
+          <input id="search-input" type="search" placeholder="Search titles, payloads or tags" autofocus />
+          <ul id="search-results" class="search-results" role="list"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div id="move-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="move-title">
+      <div class="overlay-content">
+        <header>
+          <h2 id="move-title">Move Item</h2>
+          <button class="ghost" data-close="move">Close</button>
+        </header>
+        <div class="overlay-body">
+          <p class="move-instruction">Type to find a list. Use ↑ ↓ to pick, Enter to move.</p>
+          <input id="move-input" type="search" placeholder="Find a list" />
+          <ul id="move-results" class="move-results" role="listbox"></ul>
+        </div>
+      </div>
+    </div>
+
+    <template id="item-template">
+      <li class="item-card" tabindex="0">
+        <div class="item-handle" aria-hidden="true">☰</div>
+        <div class="item-content">
+          <div class="item-title" contenteditable="plaintext-only" spellcheck="false"></div>
+          <textarea class="item-payload" rows="3" placeholder="Add details"></textarea>
+        </div>
+        <div class="item-actions">
+          <span class="item-toolbar">
+            <button class="ghost item-move" title="Move (Ctrl+Shift+M)">Move</button>
+            <button class="ghost item-delete" title="Delete">Delete</button>
+          </span>
+          <div class="item-meta"></div>
+        </div>
+      </li>
+    </template>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
