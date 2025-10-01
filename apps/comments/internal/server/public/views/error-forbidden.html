@@ -20,9 +20,9 @@
     </p>
     {{- end }}
     <p>You can log out and sign in with a different account that has the required access.</p>
-    <form method="POST" action="/logout" class="auth-action">
+    <form method="POST" action="/logout">
         <input type="hidden" name="redirectTo" value="{{.Data.CurrentPath}}">
-        <button type="submit" class="text-button">Log out</button>
+        <button type="submit">Log out</button>
     </form>
 </main>
 {{end}}

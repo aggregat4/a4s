@@ -15,31 +15,16 @@
 <body class="{{template "bodyClass" .}}">
     {{- $auth := .Data.Auth -}}
     <header class="site-auth-bar" role="banner">
+        {{- if $auth.AdminUser -}}
+        <div>Comment Service Admin</div>
+        {{- end -}}
         {{- if or $auth.User $auth.AdminUser -}}
-        <div class="auth-info">
-            {{- if $auth.AdminUser -}}
-            <span class="auth-summary">Signed in as admin {{$auth.AdminUser.UserId}}</span>
-            {{- if $auth.AdminUser.Roles -}}
-            <span class="auth-roles">Roles:
-                {{- range $index, $role := $auth.AdminUser.Roles -}}
-                {{- if $index}}, {{end -}}
-                {{$role -}}
-                {{- end -}}
-            </span>
-            {{- end -}}
-            {{- else if $auth.User -}}
-            <span class="auth-summary">Signed in as user #{{$auth.User.Id}}</span>
-            {{- end -}}
-        </div>
-        <form method="POST" action="/logout" class="auth-action">
+        <form method="POST" action="/logout">
             <input type="hidden" name="redirectTo" value="{{.Data.CurrentPath}}">
-            <button type="submit" class="text-button">Log out</button>
+            <button type="submit">Log out of the Comment Service</button>
         </form>
         {{- else -}}
-        <div class="auth-info">
-            <span class="auth-summary">You are not signed in.</span>
-        </div>
-        <a class="text-button" href="/login">Log in</a>
+        <a href="/login">Log in to the Comment Service</a>
         {{- end -}}
     </header>
     {{template "content" .}}
