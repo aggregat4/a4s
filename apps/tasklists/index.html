@@ -1,16 +1,129 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Prototype Lists</title>
-    <style>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prototype Lists</title>
+<style>
+  body {
+    font-family: Inter, sans-serif;
+    padding: 0;
+    font-size: 18px;
+  }
+  main {
+    max-width: 800px;
+    margin: 0 auto;
+    /* padding: 1rem; */
+  }
+  ol.tasklist {
+    padding: 12px;
+    margin: 0;
+    list-style-type: none;
+    background-color: #f5f5f5;
+  }
+  .tasklist li {
+    padding: 12px 6px;
+    margin-bottom: 12px;
+    background-color: white;
+    border: 1px solid #a1a1a1;
+    border-bottom: 2px solid #4d4d4d;
+  }
+  .tasklist > li:active { cursor: grabbing; }
+  .tasklist > li.dragging { opacity: .6; }
+  /* subtle drop indicators */
+  .tasklist > li.drop-before { box-shadow: 0 -2px 0 0 currentColor inset; }
+  .tasklist > li.drop-after  { box-shadow: 0  2px 0 0 currentColor inset; }
+</style>
 
-    </style>
-    <script>
+</head>
+<body>
 
-    </script>
-  </head>
-  <body>
-  </body>
+  <main>
+    <ol id="tasks" class="tasklist">
+      <li>Refill the bird feeder before the sparrows file another formal request.</li>
+      <li>Check the fridge light still turns off, preferably without crawling inside again.</li>
+      <li>Return the umbrella to the hallway, where it insists it lives.</li>
+      <li>Water the fern before it submits another strongly worded letter to the radiator.</li>
+      <li>Update the shopping list to include milk, bread, and a moderately sensible hat.</li>
+      <li>Verify that the kettle boils water and not, as it occasionally attempts, good intentions.</li>
+      <li>Organize the cutlery drawer so the forks don’t keep holding union meetings.</li>
+      <li>Empty the dishwasher before it begins drafting poetry about neglect.</li>
+      <li>Set the alarm clock, reminding it gently that no one enjoys its personality.</li>
+      <li>Take the bins out, though they are increasingly insistent they’d rather stay in.</li>
+      <li>Test the smoke detector by asking it politely to explain its worldview.</li>
+      <li>Send an email to the electricity meter thanking it for its tireless blinking.</li>
+      <li>Sharpen pencils so they feel prepared for anything, including international diplomacy.</li>
+      <li>Update the calendar to reflect the current year, not the one the cat prefers.</li>
+      <li>Polish the windows until they are clear about their long-term career goals.</li>
+      <li>Check the washing machine for socks that have declared independence.</li>
+      <li>Restock the biscuit tin before negotiations with visitors turn awkward.</li>
+      <li>Feed the goldfish, who has recently taken to sighing at odd intervals.</li>
+      <li>Write down the Wi-Fi password in case it decides to change its name again.</li>
+      <li>Vacuum the carpet before it develops further geological features.</li>
+    </ol>
+  </main>
+
+  <script>
+  const list = document.getElementById('tasks');
+  let dragging = null;
+
+  list.addEventListener('dragstart', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    dragging = li;
+    li.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ''); // Firefox requires setData
+  });
+
+  list.addEventListener('dragend', () => {
+    cleanupIndicators();
+    dragging?.classList.remove('dragging');
+    dragging = null;
+  });
+
+  list.addEventListener('dragover', (e) => {
+    if (!dragging) return;
+    e.preventDefault(); // allow drop
+    const after = getDropTarget(list, e.clientY);
+
+    // visual cues
+    cleanupIndicators();
+    if (after == null) {
+      list.lastElementChild?.classList.add('drop-after');
+    } else {
+      after.classList.add('drop-before');
+    }
+
+    e.dataTransfer.dropEffect = 'move';
+  });
+
+  list.addEventListener('drop', (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const after = getDropTarget(list, e.clientY);
+    if (after == null) list.appendChild(dragging);
+    else list.insertBefore(dragging, after);
+    cleanupIndicators();
+  });
+
+  function getDropTarget(container, mouseY) {
+    // Find the closest non-dragging LI above the pointer’s midpoint
+    const items = [...container.querySelectorAll('li:not(.dragging)')];
+    let closest = { offset: Number.NEGATIVE_INFINITY, el: null };
+    for (const el of items) {
+      const r = el.getBoundingClientRect();
+      const offset = mouseY - (r.top + r.height / 2);
+      if (offset < 0 && offset > closest.offset) closest = { offset, el };
+    }
+    return closest.el; // null => append at end
+  }
+
+  function cleanupIndicators() {
+    list.querySelectorAll('.drop-before, .drop-after').forEach(li => {
+      li.classList.remove('drop-before', 'drop-after');
+    });
+  }
+</script>
+</body>
 </html>
