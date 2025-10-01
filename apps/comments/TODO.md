@@ -1,14 +1,14 @@
 # TODO
 
-## Login Flow for Unauthenticated Commenters
+## User Status Bar
 
-* Flow
-  * user clicks "add comment"
-  * when unauthenticated they land on the addeditcomment page in the state unauthenticated and get the option to log in
-  * clicking the log in triggers a popup showing a popuplogin page that is OIDC protected and triggers the OIDC flow
-  * on returning from the flow, the authenticated version of that page is displayed and it uses javascript to autoclose the popup and send a postmessage to the opener
-  * the opener is the addeditcomment page and it will reload on receiving the postmessage
-* Consider the failure cases
+The current header with the user ID and logout button is ugly and unfitting. Needs to be more minimal and better integrated and take as little real estate as possible.
+Should be merged with the "add new comment" and "administer comments" functions to be one whole thing.
+
+## Offer an alternative JSON way to manage comments
+
+- Have a JSON endpoint same as the userComments endpoint that just returns everything as JSON so a site can render comments themselves
+- Sites could model the entire comment writing flow as a popup?
 
 ## Miscellaneous
 
