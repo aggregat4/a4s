@@ -17,7 +17,6 @@ Users can see, export, edit and delete their comments.
 Admins for a particular website can screen, approve or deny comments. Only
 authenticated comments are considered.
 
-
 ## Embedding the Comments Page
 
 To embed comments on your website, you'll need to:
@@ -40,6 +39,7 @@ Add an iframe to your page using the following format:
 ```
 
 Replace:
+
 - `your-comment-service.com` with your actual comment service domain
 - `{serviceId}` with your registered service ID
 - `{postKey}` with a unique identifier for the current page/post
@@ -63,7 +63,6 @@ window.addEventListener('message', function(e) {
 ```
 
 The comment service will automatically send height update messages whenever the content size changes, ensuring a seamless integration without iframe scrollbars.
-
 
 ## Privacy Laws, GDPR and this Project
 
