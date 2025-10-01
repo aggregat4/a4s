@@ -15,7 +15,7 @@ func (controller *Controller) buildAuthContext(r *http.Request) domain.AuthConte
 	if user, err := controller.getUserFromSession(r); err == nil {
 		u := user
 		auth.User = &u
-	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+	} else if !errors.Is(err, lang.ErrNotFound) {
 		logger.Error("Failed to resolve user for auth context: {err}", err)
 	}
 
@@ -24,7 +24,7 @@ func (controller *Controller) buildAuthContext(r *http.Request) domain.AuthConte
 		auth.AdminUser = &a
 		auth.IsAdmin = true
 		auth.IsSuperAdmin = a.IsSuperAdmin()
-	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+	} else if !errors.Is(err, lang.ErrNotFound) {
 		logger.Error("Failed to resolve admin user for auth context: {err}", err)
 	}
 
