@@ -145,7 +145,7 @@ func (controller *Controller) clearSession(w http.ResponseWriter, r *http.Reques
 		if err := flash.Save(r, w); err != nil {
 			logger.Error("Failed to clear flash session: {err}", err)
 		}
-	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+	} else if !errors.Is(err, lang.ErrNotFound) {
 		logger.Error("Failed to load flash session for clearing: {err}", err)
 	}
 
