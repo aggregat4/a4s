@@ -4,8 +4,19 @@
 
 {{define "content"}}
 <main>
+    {{- $auth := .Data.Auth -}}
     <h1>Unauthorized</h1>
-    <p>You do not have permission to access this resource.</p>
+    {{- if or $auth.User $auth.AdminUser }}
+    <p>We could not grant access with the current account.</p>
+    <p>Log out and sign in with a different account if you need access.</p>
+    <form method="POST" action="/logout" class="auth-action">
+        <input type="hidden" name="redirectTo" value="{{.Data.CurrentPath}}">
+        <button type="submit" class="text-button">Log out</button>
+    </form>
+    {{- else }}
+    <p>You need to sign in before continuing.</p>
+    <a class="button primary-button" href="/login">Log in</a>
+    {{- end }}
 </main>
 {{end}}
 

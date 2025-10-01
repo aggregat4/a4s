@@ -52,6 +52,61 @@ body {
     }
 }
 
+.auth-action {
+    margin-top: 1rem;
+}
+
+.auth-roles {
+    color: #4d5563;
+    font-size: 0.85rem;
+}
+
+.site-auth-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0.5rem 24px;
+    background-color: #f5f7fa;
+    border-bottom: 1px solid #d4d8df;
+    font-size: 0.9rem;
+
+    & .auth-info {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    & .auth-action {
+        margin: 0;
+    }
+}
+
+.text-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--button-primary-color);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+
+    &:hover,
+    &:focus {
+        color: var(--button-primary-color-hover);
+    }
+}
+
+.text-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    text-decoration: none;
+}
+
 body.demo {
     & main,
     & header {

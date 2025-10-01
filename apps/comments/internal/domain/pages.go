@@ -6,6 +6,8 @@ type BasePage struct {
 	Scripts     []string
 	Error       []string
 	Success     []string
+	Auth        AuthContext
+	CurrentPath string
 }
 
 type ErrorPage struct {

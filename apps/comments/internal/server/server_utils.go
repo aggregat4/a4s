@@ -9,13 +9,46 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (controller *Controller) sendInternalError(w http.ResponseWriter, err error) {
+func (controller *Controller) buildAuthContext(r *http.Request) domain.AuthContext {
+	var auth domain.AuthContext
+
+	if user, err := controller.getUserFromSession(r); err == nil {
+		u := user
+		auth.User = &u
+	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+		logger.Error("Failed to resolve user for auth context: {err}", err)
+	}
+
+	if adminUser, err := controller.getAdminUserFromSession(r); err == nil {
+		a := adminUser
+		auth.AdminUser = &a
+		auth.IsAdmin = true
+		auth.IsSuperAdmin = a.IsSuperAdmin()
+	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+		logger.Error("Failed to resolve admin user for auth context: {err}", err)
+	}
+
+	return auth
+}
+
+func (controller *Controller) basePage(r *http.Request) domain.BasePage {
+	base := domain.BasePage{
+		Stylesheets: templateStylesheets,
+		Scripts:     templateScripts,
+		Auth:        controller.buildAuthContext(r),
+	}
+
+	if r != nil && r.URL != nil {
+		base.CurrentPath = r.URL.RequestURI()
+	}
+
+	return base
+}
+
+func (controller *Controller) sendInternalError(w http.ResponseWriter, r *http.Request, err error) {
 	logger.Error("Internal server error: {err}", err)
-	controller.renderTemplate(w, http.StatusInternalServerError, "error-internalserver", domain.ErrorPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-		},
+	controller.renderTemplate(w, r, http.StatusInternalServerError, "error-internalserver", domain.ErrorPage{
+		BasePage: controller.basePage(r),
 	})
 }
 
@@ -30,7 +63,7 @@ func httpResponseLogger(next http.Handler) http.Handler {
 	})
 }
 
-func (controller *Controller) renderTemplate(w http.ResponseWriter, status int, template string, data any) {
+func (controller *Controller) renderTemplate(w http.ResponseWriter, r *http.Request, status int, template string, data any) {
 	if controller.renderer == nil {
 		logger.Error("Template renderer not configured")
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -49,41 +82,38 @@ func (controller *Controller) renderTemplate(w http.ResponseWriter, status int, 
 	}
 }
 
-func (controller *Controller) renderErrorPage(w http.ResponseWriter, status int, template string) {
-	controller.renderTemplate(w, status, template, domain.ErrorPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-		},
+func (controller *Controller) renderErrorPage(w http.ResponseWriter, r *http.Request, status int, template string) {
+	controller.renderTemplate(w, r, status, template, domain.ErrorPage{
+		BasePage: controller.basePage(r),
 	})
 }
 
-func (controller *Controller) renderBadRequest(w http.ResponseWriter) {
-	controller.renderErrorPage(w, http.StatusBadRequest, "error-badrequest")
+func (controller *Controller) renderBadRequest(w http.ResponseWriter, r *http.Request) {
+	controller.renderErrorPage(w, r, http.StatusBadRequest, "error-badrequest")
 }
 
-func (controller *Controller) renderUnauthorized(w http.ResponseWriter) {
-	controller.renderErrorPage(w, http.StatusUnauthorized, "error-unauthorized")
+func (controller *Controller) renderUnauthorized(w http.ResponseWriter, r *http.Request) {
+	controller.renderErrorPage(w, r, http.StatusUnauthorized, "error-unauthorized")
 }
 
-func (controller *Controller) renderNotFound(w http.ResponseWriter) {
-	controller.renderErrorPage(w, http.StatusNotFound, "error-notfound")
+func (controller *Controller) renderNotFound(w http.ResponseWriter, r *http.Request) {
+	controller.renderErrorPage(w, r, http.StatusNotFound, "error-notfound")
 }
 
-func (controller *Controller) renderForbidden(w http.ResponseWriter) {
-	controller.renderErrorPage(w, http.StatusForbidden, "error-forbidden")
+func (controller *Controller) renderForbidden(w http.ResponseWriter, r *http.Request) {
+	controller.renderErrorPage(w, r, http.StatusForbidden, "error-forbidden")
 }
 
-func (controller *Controller) handleCommonErrors(w http.ResponseWriter, err error) {
+func (controller *Controller) handleCommonErrors(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, lang.ErrNotFound) {
-		controller.renderNotFound(w)
+		controller.renderNotFound(w, r)
 		return
 	}
 	if errors.Is(err, ErrIllegalArgument) {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return
 	}
-	controller.sendInternalError(w, err)
+	controller.sendInternalError(w, r, err)
 }
 
 var ErrIllegalArgument = errors.New("illegal argument")

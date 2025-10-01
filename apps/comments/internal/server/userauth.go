@@ -128,6 +128,30 @@ func (controller *Controller) createAdminSessionCookie(w http.ResponseWriter, r 
 	return sess.Save(r, w)
 }
 
+func (controller *Controller) clearSession(w http.ResponseWriter, r *http.Request) error {
+	sess, err := controller.getSession(r)
+	if err != nil {
+		return err
+	}
+	sess.Values = map[interface{}]interface{}{}
+	sess.Options.MaxAge = -1
+	if err := sess.Save(r, w); err != nil {
+		return err
+	}
+
+	if flash, err := controller.getFlashSession(r); err == nil {
+		flash.Values = map[interface{}]interface{}{}
+		flash.Options.MaxAge = -1
+		if err := flash.Save(r, w); err != nil {
+			logger.Error("Failed to clear flash session: {err}", err)
+		}
+	} else if err != nil && !errors.Is(err, lang.ErrNotFound) {
+		logger.Error("Failed to load flash session for clearing: {err}", err)
+	}
+
+	return nil
+}
+
 func (controller *Controller) getUserFromSession(r *http.Request) (domain.User, error) {
 	userId, err := controller.getUserIdFromSession(r)
 	if err != nil {
@@ -144,18 +168,18 @@ func (controller *Controller) serviceAdminAuthMiddleware(next http.Handler) http
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		adminUser, err := controller.getAdminUserFromSession(r)
 		if err != nil {
-			controller.renderUnauthorized(w)
+			controller.renderUnauthorized(w, r)
 			return
 		}
 
 		serviceKey := chi.URLParam(r, "servicekey")
 		if serviceKey == "" {
-			controller.renderBadRequest(w)
+			controller.renderBadRequest(w, r)
 			return
 		}
 
 		if !adminUser.HasServiceAdminRole(serviceKey) {
-			controller.renderForbidden(w)
+			controller.renderForbidden(w, r)
 			return
 		}
 
@@ -167,12 +191,12 @@ func (controller *Controller) superAdminAuthMiddleware(next http.Handler) http.H
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		adminUser, err := controller.getAdminUserFromSession(r)
 		if err != nil {
-			controller.renderUnauthorized(w)
+			controller.renderUnauthorized(w, r)
 			return
 		}
 
 		if !adminUser.IsSuperAdmin() {
-			controller.renderForbidden(w)
+			controller.renderForbidden(w, r)
 			return
 		}
 

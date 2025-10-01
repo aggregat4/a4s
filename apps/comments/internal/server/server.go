@@ -149,6 +149,7 @@ func InitServerWithOidcMiddleware(
 	router.Post("/users/{userId}/comments/{commentId}/delete", controller.DeleteUserComment)
 
 	router.Get("/login", controller.GetUserLoginForm)
+	router.Post("/logout", controller.Logout)
 	router.Get("/admin", controller.GetAdminHome)
 
 	router.Route("/admin/{servicekey}", func(r chi.Router) {
@@ -167,11 +168,11 @@ func InitServerWithOidcMiddleware(
 	router.Get("/demo", controller.GetDemo)
 
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		controller.renderNotFound(w)
+		controller.renderNotFound(w, r)
 	})
 
 	router.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 	})
 
 	server := &http.Server{
@@ -216,53 +217,52 @@ func (controller *Controller) postMessageOrigin(r *http.Request) string {
 func (controller *Controller) GetComments(w http.ResponseWriter, r *http.Request) {
 	user, err := controller.getUserFromSession(r)
 	if err != nil && !errors.Is(err, lang.ErrNotFound) {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	serviceKey := chi.URLParam(r, "serviceKey")
 	postKey := chi.URLParam(r, "postKey")
 	if serviceKey == "" || postKey == "" {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return
 	}
 
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
-			controller.renderNotFound(w)
+			controller.renderNotFound(w, r)
 		} else {
-			controller.sendInternalError(w, err)
+			controller.sendInternalError(w, r, err)
 		}
 		return
 	}
 
 	comments, err := controller.Store.GetCommentsForPost(service.Id, postKey)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	successFlashes, errorFlashes, err := controller.getFlashes(w, r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	w.Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 
-	controller.renderTemplate(w, http.StatusOK, "postcomments", domain.PostCommentsPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-			Error:       errorFlashes,
-			Success:     successFlashes,
-		},
+	page := domain.PostCommentsPage{
+		BasePage:   controller.basePage(r),
 		User:       user,
 		ServiceKey: serviceKey,
 		PostKey:    postKey,
 		Comments:   comments,
-	})
+	}
+	page.BasePage.Error = errorFlashes
+	page.BasePage.Success = successFlashes
+
+	controller.renderTemplate(w, r, http.StatusOK, "postcomments", page)
 }
 
 func (controller *Controller) Status(w http.ResponseWriter, r *http.Request) {
@@ -272,60 +272,59 @@ func (controller *Controller) Status(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("OK"))
 }
 
-func handleAuthenticationError(controller *Controller, w http.ResponseWriter, err error) {
+func handleAuthenticationError(controller *Controller, w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, lang.ErrNotFound) {
-		controller.renderUnauthorized(w)
+		controller.renderUnauthorized(w, r)
 		return
 	}
-	controller.sendInternalError(w, err)
+	controller.sendInternalError(w, r, err)
 }
 
 func (controller *Controller) GetCommentsForUser(w http.ResponseWriter, r *http.Request) {
 	userIdString := chi.URLParam(r, "userId")
 	userId, err := strconv.Atoi(userIdString)
 	if err != nil {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return
 	}
 
 	user, err := controller.getUserFromSession(r)
 	if err != nil {
-		handleAuthenticationError(controller, w, err)
+		handleAuthenticationError(controller, w, r, err)
 		return
 	}
 
 	if user.Id != userId {
-		controller.renderUnauthorized(w)
+		controller.renderUnauthorized(w, r)
 		return
 	}
 
 	comments, err := controller.Store.GetCommentsForUser(user.Id)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
-	controller.renderTemplate(w, http.StatusOK, "usercomments", domain.UserCommentsPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-		},
+	page := domain.UserCommentsPage{
+		BasePage: controller.basePage(r),
 		User:     user,
 		Comments: comments,
-	})
+	}
+
+	controller.renderTemplate(w, r, http.StatusOK, "usercomments", page)
 }
 
 func (controller *Controller) GetCommentForm(w http.ResponseWriter, r *http.Request) {
 	serviceKey := chi.URLParam(r, "serviceKey")
 	postKey := chi.URLParam(r, "postKey")
 	if serviceKey == "" || postKey == "" {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return
 	}
 
 	user, userErr := controller.getUserFromSession(r)
 	if userErr != nil && !errors.Is(userErr, lang.ErrNotFound) {
-		controller.sendInternalError(w, userErr)
+		controller.sendInternalError(w, r, userErr)
 		return
 	}
 
@@ -336,20 +335,20 @@ func (controller *Controller) GetCommentForm(w http.ResponseWriter, r *http.Requ
 	if commentIDParam != "" && userErr == nil {
 		commentID, err := strconv.Atoi(commentIDParam)
 		if err != nil {
-			controller.renderNotFound(w)
+			controller.renderNotFound(w, r)
 			return
 		}
 		comment, err = controller.Store.GetComment(commentID)
 		if err != nil {
 			if errors.Is(err, lang.ErrNotFound) {
-				controller.renderNotFound(w)
+				controller.renderNotFound(w, r)
 			} else {
-				controller.sendInternalError(w, err)
+				controller.sendInternalError(w, r, err)
 			}
 			return
 		}
 		if comment.UserId != user.Id {
-			controller.renderUnauthorized(w)
+			controller.renderUnauthorized(w, r)
 			return
 		}
 		commentFound = true
@@ -358,9 +357,9 @@ func (controller *Controller) GetCommentForm(w http.ResponseWriter, r *http.Requ
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
-			controller.renderNotFound(w)
+			controller.renderNotFound(w, r)
 		} else {
-			controller.sendInternalError(w, err)
+			controller.sendInternalError(w, r, err)
 		}
 		return
 	}
@@ -371,11 +370,8 @@ func (controller *Controller) GetCommentForm(w http.ResponseWriter, r *http.Requ
 	loginFullPageURL := "/login"
 	origin := controller.postMessageOrigin(r)
 
-	controller.renderTemplate(w, http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-		},
+	page := domain.AddOrEditCommentPage{
+		BasePage:          controller.basePage(r),
 		ServiceKey:        serviceKey,
 		PostKey:           postKey,
 		UserFound:         userErr == nil,
@@ -385,7 +381,9 @@ func (controller *Controller) GetCommentForm(w http.ResponseWriter, r *http.Requ
 		LoginPopupURL:     loginPopupURL,
 		LoginFullPageURL:  loginFullPageURL,
 		PostMessageOrigin: origin,
-	})
+	}
+
+	controller.renderTemplate(w, r, http.StatusOK, "addeditcomment", page)
 }
 
 func (controller *Controller) GetUserCommentForm(w http.ResponseWriter, r *http.Request) {
@@ -397,9 +395,9 @@ func (controller *Controller) GetUserCommentForm(w http.ResponseWriter, r *http.
 	service, err := controller.Store.FindServiceById(comment.ServiceId)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
-			controller.renderNotFound(w)
+			controller.renderNotFound(w, r)
 		} else {
-			controller.sendInternalError(w, err)
+			controller.sendInternalError(w, r, err)
 		}
 		return
 	}
@@ -408,11 +406,8 @@ func (controller *Controller) GetUserCommentForm(w http.ResponseWriter, r *http.
 	loginFullPageURL := "/login"
 	origin := controller.postMessageOrigin(r)
 
-	controller.renderTemplate(w, http.StatusOK, "addeditcomment", domain.AddOrEditCommentPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-		},
+	page := domain.AddOrEditCommentPage{
+		BasePage:          controller.basePage(r),
 		ServiceKey:        service.ServiceKey,
 		PostKey:           comment.PostKey,
 		UserFound:         true,
@@ -422,7 +417,9 @@ func (controller *Controller) GetUserCommentForm(w http.ResponseWriter, r *http.
 		LoginPopupURL:     loginPopupURL,
 		LoginFullPageURL:  loginFullPageURL,
 		PostMessageOrigin: origin,
-	})
+	}
+
+	controller.renderTemplate(w, r, http.StatusOK, "addeditcomment", page)
 }
 
 func (controller *Controller) DeleteUserComment(w http.ResponseWriter, r *http.Request) {
@@ -436,7 +433,7 @@ func (controller *Controller) DeleteUserComment(w http.ResponseWriter, r *http.R
 			http.Redirect(w, r, "/users/"+strconv.Itoa(user.Id)+"/comments/", http.StatusFound)
 			return
 		}
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -447,28 +444,28 @@ func (controller *Controller) PostComment(w http.ResponseWriter, r *http.Request
 	serviceKey := chi.URLParam(r, "serviceKey")
 	postKey := chi.URLParam(r, "postKey")
 	if serviceKey == "" || postKey == "" {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return
 	}
 
 	service, err := controller.Store.GetServiceForKey(serviceKey)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	user, err := controller.getUserFromSession(r)
 	if err != nil {
 		if errors.Is(err, lang.ErrNotFound) {
-			controller.renderUnauthorized(w)
+			controller.renderUnauthorized(w, r)
 		} else {
-			controller.sendInternalError(w, err)
+			controller.sendInternalError(w, r, err)
 		}
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return
 	}
 
@@ -479,35 +476,35 @@ func (controller *Controller) PostComment(w http.ResponseWriter, r *http.Request
 	parentURL := r.FormValue("parentUrl")
 
 	if commentContent == "" {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return
 	}
 
 	if commentIDString != "" {
 		commentID, err := strconv.Atoi(commentIDString)
 		if err != nil {
-			controller.renderNotFound(w)
+			controller.renderNotFound(w, r)
 			return
 		}
 		comment, err := controller.Store.GetComment(commentID)
 		if err != nil {
 			if errors.Is(err, lang.ErrNotFound) {
-				controller.renderNotFound(w)
+				controller.renderNotFound(w, r)
 			} else {
-				controller.sendInternalError(w, err)
+				controller.sendInternalError(w, r, err)
 			}
 			return
 		}
 		if comment.UserId != user.Id || comment.Status == domain.CommentStatusApproved {
-			controller.renderUnauthorized(w)
+			controller.renderUnauthorized(w, r)
 			return
 		}
 		if err := controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website, parentURL); err != nil {
-			controller.sendInternalError(w, err)
+			controller.sendInternalError(w, r, err)
 			return
 		}
 		if err := controller.setFlash(w, r, "success", "Your comment has been updated"); err != nil {
-			controller.sendInternalError(w, err)
+			controller.sendInternalError(w, r, err)
 			return
 		}
 		http.Redirect(w, r, "/services/"+serviceKey+"/posts/"+postKey+"/comments/", http.StatusFound)
@@ -515,12 +512,12 @@ func (controller *Controller) PostComment(w http.ResponseWriter, r *http.Request
 	}
 
 	if _, err := controller.Store.CreateComment(domain.CommentStatusPendingApproval, service.Id, service.ServiceKey, user.Id, postKey, commentContent, name, website, parentURL); err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	if err := controller.setFlash(w, r, "success", "Your comment has been added"); err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -532,7 +529,7 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 	if _, err := controller.getUserFromSession(r); err == nil {
 		userAuthenticated = true
 	} else if !errors.Is(err, lang.ErrNotFound) {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -540,7 +537,7 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 	if _, err := controller.getAdminUserIdFromSession(r); err == nil {
 		adminAuthenticated = true
 	} else if !errors.Is(err, lang.ErrNotFound) {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -550,15 +547,36 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 		isPopup = true
 	}
 
-	controller.renderTemplate(w, http.StatusOK, "userlogin", domain.LoginPageData{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-		},
+	page := domain.LoginPageData{
+		BasePage:          controller.basePage(r),
 		IsAuthenticated:   userAuthenticated || adminAuthenticated,
 		IsPopup:           isPopup,
 		PostMessageOrigin: controller.postMessageOrigin(r),
-	})
+	}
+
+	controller.renderTemplate(w, r, http.StatusOK, "userlogin", page)
+}
+
+func (controller *Controller) Logout(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		controller.renderBadRequest(w, r)
+		return
+	}
+
+	redirectTo := r.FormValue("redirectTo")
+	if redirectTo == "" {
+		redirectTo = "/"
+	}
+	if !strings.HasPrefix(redirectTo, "/") || strings.HasPrefix(redirectTo, "//") {
+		redirectTo = "/"
+	}
+
+	if err := controller.clearSession(w, r); err != nil {
+		controller.sendInternalError(w, r, err)
+		return
+	}
+
+	http.Redirect(w, r, redirectTo, http.StatusFound)
 }
 
 func (controller *Controller) GetAdminHome(w http.ResponseWriter, r *http.Request) {
@@ -571,7 +589,7 @@ func (controller *Controller) GetAdminDashboard(w http.ResponseWriter, r *http.R
 		if errors.Is(err, lang.ErrNotFound) {
 			http.Redirect(w, r, "/login/", http.StatusUnauthorized)
 		} else {
-			controller.sendInternalError(w, err)
+			controller.sendInternalError(w, r, err)
 		}
 		return
 	}
@@ -582,7 +600,7 @@ func (controller *Controller) GetAdminDashboard(w http.ResponseWriter, r *http.R
 		for status := range strings.SplitSeq(showStatusParam, ",") {
 			parsedStatus, err := domain.ParseCommentStatus(status)
 			if err != nil {
-				controller.renderBadRequest(w)
+				controller.renderBadRequest(w, r)
 				return
 			}
 			statuses = append(statuses, parsedStatus)
@@ -591,33 +609,32 @@ func (controller *Controller) GetAdminDashboard(w http.ResponseWriter, r *http.R
 
 	comments, err := controller.Store.GetCommentsByStatus(statuses)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	successFlashes, errorFlashes, err := controller.getFlashes(w, r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
-	controller.renderTemplate(w, http.StatusOK, "admin-dashboard", domain.AdminDashboardPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-			Error:       errorFlashes,
-			Success:     successFlashes,
-		},
+	page := domain.AdminDashboardPage{
+		BasePage:  controller.basePage(r),
 		AdminUser: domain.AdminUser{UserId: adminUserID},
 		Comments:  comments,
 		Statuses:  statuses,
-	})
+	}
+	page.BasePage.Error = errorFlashes
+	page.BasePage.Success = successFlashes
+
+	controller.renderTemplate(w, r, http.StatusOK, "admin-dashboard", page)
 }
 
 func (controller *Controller) GetServiceAdminDashboard(w http.ResponseWriter, r *http.Request) {
 	adminUser, err := controller.getAdminUserFromSession(r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -628,7 +645,7 @@ func (controller *Controller) GetServiceAdminDashboard(w http.ResponseWriter, r 
 		for status := range strings.SplitSeq(showStatusParam, ",") {
 			parsedStatus, err := domain.ParseCommentStatus(status)
 			if err != nil {
-				controller.renderBadRequest(w)
+				controller.renderBadRequest(w, r)
 				return
 			}
 			statuses = append(statuses, parsedStatus)
@@ -637,49 +654,48 @@ func (controller *Controller) GetServiceAdminDashboard(w http.ResponseWriter, r 
 
 	comments, err := controller.Store.GetCommentsByServiceAndStatus(serviceKey, statuses)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	successFlashes, errorFlashes, err := controller.getFlashes(w, r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
-	controller.renderTemplate(w, http.StatusOK, "admin-dashboard", domain.AdminDashboardPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-			Error:       errorFlashes,
-			Success:     successFlashes,
-		},
+	page := domain.AdminDashboardPage{
+		BasePage:  controller.basePage(r),
 		AdminUser: adminUser,
 		Comments:  comments,
 		Statuses:  statuses,
-	})
+	}
+	page.BasePage.Error = errorFlashes
+	page.BasePage.Success = successFlashes
+
+	controller.renderTemplate(w, r, http.StatusOK, "admin-dashboard", page)
 }
 
 func (controller *Controller) ServiceAdminApproveComment(w http.ResponseWriter, r *http.Request) {
 	if _, err := controller.getAdminUserFromSession(r); err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	serviceKey := chi.URLParam(r, "servicekey")
 	comment, err := controller.requireCommentAndRetrieve(r)
 	if err != nil {
-		controller.handleCommonErrors(w, err)
+		controller.handleCommonErrors(w, r, err)
 		return
 	}
 
 	if comment.ServiceKey != serviceKey {
-		controller.renderForbidden(w)
+		controller.renderForbidden(w, r)
 		return
 	}
 
 	if err := controller.Store.UpdateComment(comment.Id, domain.CommentStatusApproved, comment.Comment, comment.Name, comment.Website, comment.ParentUrl); err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -688,24 +704,24 @@ func (controller *Controller) ServiceAdminApproveComment(w http.ResponseWriter, 
 
 func (controller *Controller) ServiceAdminDeleteComment(w http.ResponseWriter, r *http.Request) {
 	if _, err := controller.getAdminUserFromSession(r); err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	serviceKey := chi.URLParam(r, "servicekey")
 	comment, err := controller.requireCommentAndRetrieve(r)
 	if err != nil {
-		controller.handleCommonErrors(w, err)
+		controller.handleCommonErrors(w, r, err)
 		return
 	}
 
 	if comment.ServiceKey != serviceKey {
-		controller.renderForbidden(w)
+		controller.renderForbidden(w, r)
 		return
 	}
 
 	if err := controller.Store.DeleteComment(comment.Id); err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -715,42 +731,41 @@ func (controller *Controller) ServiceAdminDeleteComment(w http.ResponseWriter, r
 func (controller *Controller) GetSuperAdminServices(w http.ResponseWriter, r *http.Request) {
 	adminUser, err := controller.getAdminUserFromSession(r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	services, err := controller.Store.GetAllServices()
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	successFlashes, errorFlashes, err := controller.getFlashes(w, r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
-	controller.renderTemplate(w, http.StatusOK, "superadmin-services", struct {
+	page := struct {
 		domain.BasePage
 		AdminUser domain.AdminUser
 		Services  []domain.Service
 	}{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-			Error:       errorFlashes,
-			Success:     successFlashes,
-		},
+		BasePage:  controller.basePage(r),
 		AdminUser: adminUser,
 		Services:  services,
-	})
+	}
+	page.BasePage.Error = errorFlashes
+	page.BasePage.Success = successFlashes
+
+	controller.renderTemplate(w, r, http.StatusOK, "superadmin-services", page)
 }
 
 func (controller *Controller) GetSuperAdminDashboard(w http.ResponseWriter, r *http.Request) {
 	adminUser, err := controller.getAdminUserFromSession(r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
@@ -760,7 +775,7 @@ func (controller *Controller) GetSuperAdminDashboard(w http.ResponseWriter, r *h
 		for status := range strings.SplitSeq(showStatusParam, ",") {
 			parsedStatus, err := domain.ParseCommentStatus(status)
 			if err != nil {
-				controller.renderBadRequest(w)
+				controller.renderBadRequest(w, r)
 				return
 			}
 			statuses = append(statuses, parsedStatus)
@@ -769,42 +784,39 @@ func (controller *Controller) GetSuperAdminDashboard(w http.ResponseWriter, r *h
 
 	comments, err := controller.Store.GetCommentsByStatus(statuses)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
 	successFlashes, errorFlashes, err := controller.getFlashes(w, r)
 	if err != nil {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
 
-	controller.renderTemplate(w, http.StatusOK, "admin-dashboard", domain.AdminDashboardPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-			Error:       errorFlashes,
-			Success:     successFlashes,
-		},
+	page := domain.AdminDashboardPage{
+		BasePage:  controller.basePage(r),
 		AdminUser: adminUser,
 		Comments:  comments,
 		Statuses:  statuses,
-	})
+	}
+	page.BasePage.Error = errorFlashes
+	page.BasePage.Success = successFlashes
+
+	controller.renderTemplate(w, r, http.StatusOK, "admin-dashboard", page)
 }
 
 func (controller *Controller) GetDemo(w http.ResponseWriter, r *http.Request) {
 	user, err := controller.getUserFromSession(r)
 	if err != nil && !errors.Is(err, lang.ErrNotFound) {
-		controller.sendInternalError(w, err)
+		controller.sendInternalError(w, r, err)
 		return
 	}
-	controller.renderTemplate(w, http.StatusOK, "demo", domain.DemoPage{
-		BasePage: domain.BasePage{
-			Stylesheets: templateStylesheets,
-			Scripts:     templateScripts,
-		},
-		User: user,
-	})
+	page := domain.DemoPage{
+		BasePage: controller.basePage(r),
+		User:     user,
+	}
+	controller.renderTemplate(w, r, http.StatusOK, "demo", page)
 }
 
 func (controller *Controller) requireCommentAndRetrieve(r *http.Request) (domain.Comment, error) {
@@ -822,35 +834,35 @@ func (controller *Controller) requireCommentAndRetrieve(r *http.Request) (domain
 func (controller *Controller) extractAndValidateUserAndCommentFromRequest(w http.ResponseWriter, r *http.Request) (domain.User, domain.Comment, bool) {
 	userIDString := chi.URLParam(r, "userId")
 	if userIDString == "" {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return domain.User{}, domain.Comment{}, false
 	}
 
 	userID, err := strconv.Atoi(userIDString)
 	if err != nil {
-		controller.renderBadRequest(w)
+		controller.renderBadRequest(w, r)
 		return domain.User{}, domain.Comment{}, false
 	}
 
 	user, err := controller.getUserFromSession(r)
 	if err != nil {
-		handleAuthenticationError(controller, w, err)
+		handleAuthenticationError(controller, w, r, err)
 		return domain.User{}, domain.Comment{}, false
 	}
 
 	if user.Id != userID {
-		controller.renderUnauthorized(w)
+		controller.renderUnauthorized(w, r)
 		return domain.User{}, domain.Comment{}, false
 	}
 
 	comment, err := controller.requireCommentAndRetrieve(r)
 	if err != nil {
-		controller.handleCommonErrors(w, err)
+		controller.handleCommonErrors(w, r, err)
 		return domain.User{}, domain.Comment{}, false
 	}
 
 	if comment.UserId != user.Id {
-		controller.renderUnauthorized(w)
+		controller.renderUnauthorized(w, r)
 		return domain.User{}, domain.Comment{}, false
 	}
 

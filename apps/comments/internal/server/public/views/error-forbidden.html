@@ -4,8 +4,26 @@
 
 {{define "content"}}
 <main>
+    {{- $auth := .Data.Auth -}}
     <h1>Forbidden</h1>
-    <p>You do not have the required permissions to access this resource.</p>
+    <p>The current account is signed in but does not have permission to view this page.</p>
+    {{- if $auth.AdminUser }}
+    <p class="auth-roles">Active roles:
+        {{- if $auth.AdminUser.Roles -}}
+        {{- range $index, $role := $auth.AdminUser.Roles -}}
+        {{- if $index}}, {{end -}}
+        {{$role -}}
+        {{- end -}}
+        {{- else -}}
+        none
+        {{- end -}}
+    </p>
+    {{- end }}
+    <p>You can log out and sign in with a different account that has the required access.</p>
+    <form method="POST" action="/logout" class="auth-action">
+        <input type="hidden" name="redirectTo" value="{{.Data.CurrentPath}}">
+        <button type="submit" class="text-button">Log out</button>
+    </form>
 </main>
 {{end}}
 
