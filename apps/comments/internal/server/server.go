@@ -84,7 +84,7 @@ func InitServer(controller *Controller) *http.Server {
 			return err == nil
 		},
 		func(r *http.Request) bool {
-			return !strings.HasPrefix(r.URL.Path, "/admin")
+			return !strings.HasPrefix(r.URL.Path, "/admin") && !strings.HasPrefix(r.URL.Path, "/login") && !strings.HasPrefix(r.URL.Path, "/superadmin")
 		},
 	)
 
