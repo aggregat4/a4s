@@ -57,10 +57,36 @@
   }
   .tasklist li .handle {
     margin-left: auto;
-    padding: 8px;
+    padding: 8px 12px;
     cursor: grab;
     color: #999;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+    font-size: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .tasklist li .handle::before {
+    content: '';
+    display: block;
+    width: 18px;
+    height: 14px;
+    background: repeating-linear-gradient(
+      to bottom,
+      currentColor 0px,
+      currentColor 3px,
+      transparent 3px,
+      transparent 6px
+    );
+    border-radius: 2px;
   }
   .tasklist li .handle:active { cursor: grabbing; }
   .tasklist > li:active { cursor: grabbing; }
@@ -195,7 +221,7 @@
       this.container.addEventListener('drop', this._onDrop);
 
       // Touch events
-      this.container.addEventListener('touchstart', this._onTouchStart, { passive: true });
+      this.container.addEventListener('touchstart', this._onTouchStart, { passive: false });
       this.container.addEventListener('touchmove', this._onTouchMove, { passive: false });
       this.container.addEventListener('touchend', this._onTouchEnd, { passive: true });
     }
@@ -267,6 +293,7 @@
       if (!e.target.classList.contains(this.options.handleClass)) return;
       const li = e.target.closest('li');
       if (!li) return;
+      if (e.cancelable) e.preventDefault();
       this.touchStartY = e.touches[0].clientY;
       this.touchStartX = e.touches[0].clientX;
       this.isTouchDragging = false;
