@@ -44,9 +44,21 @@
   .tasklist > li.dragging { 
     opacity: .6; 
   }
-  /* subtle drop indicators */
-  .tasklist > li.drop-before { box-shadow: 0 -2px 0 0 currentColor inset; }
-  .tasklist > li.drop-after  { box-shadow: 0  2px 0 0 currentColor inset; }
+  /* placeholder element */
+  .tasklist > li.placeholder {
+    background-color: #e3f2fd;
+    border: 2px dashed #2196f3;
+    opacity: 0.7;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2196f3;
+    font-style: italic;
+  }
+  .tasklist > li.placeholder::before {
+    content: "Drop here";
+  }
   
   /* drop animation */
   .tasklist > li.drop-animation {
@@ -115,6 +127,7 @@
       this.rafId = null;
       this.cachedItems = null;
       this.enabled = false;
+      this.placeholder = null;
     }
 
     enable() {
@@ -235,7 +248,7 @@
     }
 
     endDrag() {
-      this.cleanupIndicators();
+      this.removePlaceholder();
       this.dragging?.classList.remove('dragging');
       this.dragging = null;
       this.isTouchDragging = false;
@@ -245,12 +258,7 @@
     dragOver(clientY) {
       if (!this.dragging) return;
       const after = this.getDropTarget(clientY);
-      this.cleanupIndicators();
-      if (after == null) {
-        this.container.lastElementChild?.classList.add('drop-before');
-      } else {
-        after.classList.add('drop-after');
-      }
+      this.updatePlaceholder(after);
     }
 
     debouncedDragOver(clientY) {
@@ -266,7 +274,10 @@
       const after = this.getDropTarget(clientY);
       if (after == null) this.container.appendChild(this.dragging);
       else this.container.insertBefore(this.dragging, after);
-      this.cleanupIndicators();
+      
+      // Remove placeholder and dragging class
+      this.removePlaceholder();
+      this.dragging.classList.remove('dragging');
       this.invalidateItemsCache();
       
       // Trigger drop animation
@@ -314,10 +325,24 @@
       this.cachedItems = null;
     }
 
-    cleanupIndicators() {
-      this.container.querySelectorAll('.drop-before, .drop-after').forEach(li => {
-        li.classList.remove('drop-before', 'drop-after');
-      });
+    updatePlaceholder(after) {
+      this.removePlaceholder();
+      
+      this.placeholder = document.createElement('li');
+      this.placeholder.className = 'placeholder';
+      
+      if (after == null) {
+        this.container.appendChild(this.placeholder);
+      } else {
+        this.container.insertBefore(this.placeholder, after);
+      }
+    }
+
+    removePlaceholder() {
+      if (this.placeholder) {
+        this.placeholder.remove();
+        this.placeholder = null;
+      }
     }
   }
 
