@@ -44,6 +44,12 @@
   }
   .tasklist li .text {
     padding: 8px 6px;
+    flex: 1;
+  }
+  .tasklist li.editing .text {
+    background: #f0f0f0;
+    outline: 2px solid rgba(77,77,77,0.2);
+    outline-offset: 2px;
   }
   .tasklist li .handle {
     margin-left: auto;
@@ -485,11 +491,108 @@
     }
   }
 
+  // InlineTextEditor manages single-click editing for list item text content.
+  class InlineTextEditor {
+    constructor(list) {
+      this.list = list;
+      this.editingEl = null;
+
+      this.handleClick = this.handleClick.bind(this);
+      this.handleBlur = this.handleBlur.bind(this);
+      this.handleKeyDown = this.handleKeyDown.bind(this);
+
+      this.list.addEventListener('click', this.handleClick);
+    }
+
+    destroy() {
+      this.list.removeEventListener('click', this.handleClick);
+      if (this.editingEl) {
+        this.finishEditing(this.editingEl);
+      }
+      this.list = null;
+    }
+
+    handleClick(e) {
+      const text = e.target.closest('.text');
+      if (!text || !this.list.contains(text)) return;
+      this.startEditing(text);
+    }
+
+    startEditing(textEl) {
+      if (this.editingEl === textEl) return;
+
+      if (this.editingEl) {
+        this.finishEditing(this.editingEl);
+      }
+
+      this.editingEl = textEl;
+      const li = textEl.closest('li');
+      if (li) {
+        if (li.getAttribute('draggable') !== 'false') {
+          li.dataset.wasDraggable = 'true';
+          li.setAttribute('draggable', 'false');
+        }
+        li.classList.add('editing');
+      }
+
+      textEl.setAttribute('contenteditable', 'true');
+      textEl.setAttribute('spellcheck', 'false');
+      textEl.addEventListener('blur', this.handleBlur);
+      textEl.addEventListener('keydown', this.handleKeyDown);
+
+      // focus after listeners to ensure we capture the blur that follows
+      textEl.focus();
+      this.placeCaretAtEnd(textEl);
+    }
+
+    placeCaretAtEnd(element) {
+      const selection = window.getSelection();
+      if (!selection) return;
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    handleBlur(e) {
+      this.finishEditing(e.target);
+    }
+
+    handleKeyDown(e) {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        e.target.blur();
+      }
+    }
+
+    finishEditing(textEl) {
+      if (!textEl || this.editingEl !== textEl) return;
+
+      textEl.removeEventListener('blur', this.handleBlur);
+      textEl.removeEventListener('keydown', this.handleKeyDown);
+      textEl.removeAttribute('contenteditable');
+      textEl.removeAttribute('spellcheck');
+
+      const li = textEl.closest('li');
+      if (li) {
+        li.classList.remove('editing');
+        if (li.dataset.wasDraggable) {
+          li.setAttribute('draggable', 'true');
+          delete li.dataset.wasDraggable;
+        }
+      }
+
+      this.editingEl = null;
+    }
+  }
+
   // TodoList Web Component - extends HTMLOListElement
   class TodoList extends HTMLOListElement {
     constructor() {
       super();
       this.dragBehavior = null;
+      this.inlineEditor = null;
     }
 
     connectedCallback() {
@@ -498,6 +601,7 @@
 
     disconnectedCallback() {
       this.dragBehavior?.destroy();
+      this.inlineEditor?.destroy();
     }
 
     setupDragAndDrop() {
@@ -513,6 +617,8 @@
         animator: new FlipAnimator()
       });
       this.dragBehavior.enable();
+
+      this.inlineEditor = new InlineTextEditor(this);
     }
   }
 
