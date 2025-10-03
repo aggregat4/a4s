@@ -105,7 +105,7 @@
 <body>
 
   <main>
-    <ol is="todo-list" class="tasklist">
+    <ol class="tasklist">
       <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Refill the bird feeder before the sparrows file another formal request.</span><span class="handle">≡</span></li>
       <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Check the fridge light still turns off, preferably without crawling inside again.</span><span class="handle">≡</span></li>
       <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Return the umbrella to the hallway, where it insists it lives.</span><span class="handle">≡</span></li>
@@ -126,7 +126,7 @@
       <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Feed the goldfish, who has recently taken to sighing at odd intervals.</span><span class="handle">≡</span></li>
       <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Write down the Wi-Fi password in case it decides to change its name again.</span><span class="handle">≡</span></li>
       <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Vacuum the carpet before it develops further geological features.</span><span class="handle">≡</span></li>
-    </todo-list>
+    </ol>
   </main>
 
   <script>
@@ -641,30 +641,22 @@
     }
   }
 
-  // TodoList Web Component - extends HTMLOListElement
-  class TodoList extends HTMLOListElement {
-    constructor() {
-      super();
+  // TodoListController wires drag/drop + inline editing to a list element.
+  class TodoListController {
+    constructor(listElement) {
+      this.list = listElement;
       this.dragBehavior = null;
       this.inlineEditor = null;
+      this.setup();
     }
 
-    connectedCallback() {
-      this.setupDragAndDrop();
-    }
-
-    disconnectedCallback() {
-      this.dragBehavior?.destroy();
-      this.inlineEditor?.destroy();
-    }
-
-    setupDragAndDrop() {
-      this.dragBehavior = new DraggableBehavior(this, {
+    setup() {
+      this.dragBehavior = new DraggableBehavior(this.list, {
         handleClass: 'handle',
         onReorder: (fromIndex, toIndex) => {
           console.log(`Moved item from ${fromIndex} to ${toIndex}`);
           // Emit custom event for external listeners
-          this.dispatchEvent(new CustomEvent('reorder', {
+          this.list.dispatchEvent(new CustomEvent('reorder', {
             detail: { fromIndex, toIndex }
           }));
         },
@@ -672,12 +664,19 @@
       });
       this.dragBehavior.enable();
 
-      this.inlineEditor = new InlineTextEditor(this);
+      this.inlineEditor = new InlineTextEditor(this.list);
+    }
+
+    destroy() {
+      this.dragBehavior?.destroy();
+      this.inlineEditor?.destroy();
     }
   }
 
-  // Register the custom element as extending ol
-  customElements.define('todo-list', TodoList, { extends: 'ol' });
+  const todoListControllers = [];
+  document.querySelectorAll('ol.tasklist').forEach(listEl => {
+    todoListControllers.push(new TodoListController(listEl));
+  });
 </script>
 </body>
 </html>
