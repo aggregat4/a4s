@@ -161,6 +161,9 @@
       this._onTouchStart = this.handleTouchStart.bind(this);
       this._onTouchMove  = this.handleTouchMove.bind(this);
       this._onTouchEnd   = this.handleTouchEnd.bind(this);
+      
+      this.deferFloatingInit = false;   // for Chrome: delay init on mouse DnD
+      this._pendingInitCoords = null;   // { x, y } to start floating later
     }
 
     enable() {
@@ -204,13 +207,20 @@
       this.container.removeEventListener('touchend', this._onTouchEnd);
     }
 
-    // Mouse event handlers
     handleDragStart(e) {
       const li = e.target.closest('li');
       if (!li) return;
 
-      // start floating with current pointer
-      this.startDrag(li, e.clientX, e.clientY);
+      // Mark that we must delay floating/placeholder until the first dragover
+      // we do this for desktop browsers, specifically Chrome will abort a drag
+      // if we create a placeholder element with document.createElement before
+      // the first dragover event. This workaround delays creating the placeholder
+      // until that moment
+      this.deferFloatingInit = true;
+      this._pendingInitCoords = { x: e.clientX, y: e.clientY };
+
+      // Just record the drag start; NO DOM changes here
+      this.startDrag(li /* no coords now */);
 
       // suppress default ghost image
       e.dataTransfer.effectAllowed = 'move';
@@ -226,12 +236,21 @@
 
     handleDragOver(e) {
       e.preventDefault();
-      // update floating item position
+
+      // If we deferred (Chrome), do the first-time init now
+      if (this.dragging && this.deferFloatingInit) {
+        this.deferFloatingInit = false;
+        const p = this._pendingInitCoords || { x: e.clientX, y: e.clientY };
+        this.beginFloating(p.x, p.y);      // create placeholder + make item fixed
+        this._pendingInitCoords = null;
+      }
+
+      // Now it’s safe to animate & move
       this.updateFloating(e.clientX, e.clientY);
-      // figure potential target & animate siblings
       this.debouncedDragOver(e.clientY);
       e.dataTransfer.dropEffect = 'move';
     }
+
 
     handleDrop(e) {
       e.preventDefault();
@@ -284,7 +303,11 @@
       this.dragging = li;
       this.originalPosition = this.getIndex(li);
       this.invalidateItemsCache();
-      this.beginFloating(startClientX, startClientY);
+
+      // For touch (or any non-deferred start), we may be passed coords:
+      if (!this.deferFloatingInit && startClientX != null && startClientY != null) {
+        this.beginFloating(startClientX, startClientY);
+      }
     }
 
     endDrag() {
