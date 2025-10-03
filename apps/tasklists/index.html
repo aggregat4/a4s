@@ -71,7 +71,7 @@
 <body>
 
   <main>
-    <ol id="tasks" class="tasklist">
+    <todo-list class="tasklist">
       <li draggable="true"><span class="text">Refill the bird feeder before the sparrows file another formal request.</span><span class="handle">≡</span></li>
       <li draggable="true"><span class="text">Check the fridge light still turns off, preferably without crawling inside again.</span><span class="handle">≡</span></li>
       <li draggable="true"><span class="text">Return the umbrella to the hallway, where it insists it lives.</span><span class="handle">≡</span></li>
@@ -92,163 +92,255 @@
       <li draggable="true"><span class="text">Feed the goldfish, who has recently taken to sighing at odd intervals.</span><span class="handle">≡</span></li>
       <li draggable="true"><span class="text">Write down the Wi-Fi password in case it decides to change its name again.</span><span class="handle">≡</span></li>
       <li draggable="true"><span class="text">Vacuum the carpet before it develops further geological features.</span><span class="handle">≡</span></li>
-    </ol>
+    </todo-list>
   </main>
 
   <script>
-  const list = document.getElementById('tasks');
-  let dragging = null;
-  let touchStartY = 0;
-  let touchStartX = 0;
-  let isTouchDragging = false;
-  let rafId = null;
-  let cachedItems = null;
-
-  // Shared functions
-  function startDrag(li) {
-    dragging = li;
-    li.classList.add('dragging');
-    invalidateItemsCache(); // Clear cache when drag starts
-  }
-
-  function endDrag() {
-    cleanupIndicators();
-    dragging?.classList.remove('dragging');
-    dragging = null;
-    isTouchDragging = false;
-    invalidateItemsCache(); // Clear cache when drag ends
-  }
-
-  function handleDragOver(clientY) {
-    if (!dragging) return;
-    const after = getDropTarget(list, clientY);
-    cleanupIndicators();
-    if (after == null) {
-      list.lastElementChild?.classList.add('drop-before');
-    } else {
-      after.classList.add('drop-after');
+  // DraggableBehavior - Pure drag and drop logic, reusable
+  class DraggableBehavior {
+    constructor(container, options = {}) {
+      this.container = container;
+      this.options = {
+        handle: '.handle',
+        threshold: 10,
+        onReorder: null,
+        ...options
+      };
+      this.dragging = null;
+      this.touchStartY = 0;
+      this.touchStartX = 0;
+      this.isTouchDragging = false;
+      this.rafId = null;
+      this.cachedItems = null;
+      this.enabled = false;
     }
-  }
 
-  // Debounce drag over events to 60fps max using requestAnimationFrame
-  // Prevents excessive DOM queries and getBoundingClientRect() calls during drag
-  function debouncedHandleDragOver(clientY) {
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(() => {
-      handleDragOver(clientY);
-      rafId = null;
-    });
-  }
-
-  function handleDrop(clientY) {
-    if (!dragging) return;
-    const after = getDropTarget(list, clientY);
-    if (after == null) list.appendChild(dragging);
-    else list.insertBefore(dragging, after);
-    cleanupIndicators();
-    invalidateItemsCache(); // Clear cache after DOM changes
-    
-    // Trigger drop animation
-    dragging.classList.add('drop-animation');
-    const animatedDragging = dragging;
-    setTimeout(() => animatedDragging.classList.remove('drop-animation'), 300);
-  }
-
-  function invalidateItemsCache() {
-    cachedItems = null;
-  }
-
-  function getDropTarget(container, mouseY) {
-    // Use cached items to avoid array allocation on every call
-    if (!cachedItems) {
-      cachedItems = [...container.querySelectorAll('li:not(.dragging)')];
+    enable() {
+      if (this.enabled) return;
+      this.enabled = true;
+      this.setupEventListeners();
     }
-    if (cachedItems.length === 0) return null;
-    
-    // Binary search for insertion point
-    let left = 0;
-    let right = cachedItems.length;
-    
-    while (left < right) {
-      const mid = Math.floor((left + right) / 2);
-      const rect = cachedItems[mid].getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      
-      if (mouseY < midY) {
-        right = mid;
-      } else {
-        left = mid + 1;
-      }
+
+    disable() {
+      if (!this.enabled) return;
+      this.enabled = false;
+      this.removeEventListeners();
     }
-    
-    // Return the item at the insertion point, or null for append at end
-    return left < cachedItems.length ? cachedItems[left] : null;
-  }
 
-  // Mouse events
-  list.addEventListener('dragstart', (e) => {
-    const li = e.target.closest('li');
-    if (!li) return;
-    startDrag(li);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-  });
+    destroy() {
+      this.disable();
+      this.container = null;
+    }
 
-  list.addEventListener('dragend', endDrag);
+    setupEventListeners() {
+      // Mouse events
+      this.container.addEventListener('dragstart', this.handleDragStart.bind(this));
+      this.container.addEventListener('dragend', this.handleDragEnd.bind(this));
+      this.container.addEventListener('dragover', this.handleDragOver.bind(this));
+      this.container.addEventListener('drop', this.handleDrop.bind(this));
 
-  list.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    debouncedHandleDragOver(e.clientY);
-    e.dataTransfer.dropEffect = 'move';
-  });
+      // Touch events
+      this.container.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
+      this.container.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+      this.container.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+    }
 
-  list.addEventListener('drop', (e) => {
-    e.preventDefault();
-    handleDrop(e.clientY);
-    endDrag();
-  });
+    removeEventListeners() {
+      this.container.removeEventListener('dragstart', this.handleDragStart.bind(this));
+      this.container.removeEventListener('dragend', this.handleDragEnd.bind(this));
+      this.container.removeEventListener('dragover', this.handleDragOver.bind(this));
+      this.container.removeEventListener('drop', this.handleDrop.bind(this));
+      this.container.removeEventListener('touchstart', this.handleTouchStart.bind(this));
+      this.container.removeEventListener('touchmove', this.handleTouchMove.bind(this));
+      this.container.removeEventListener('touchend', this.handleTouchEnd.bind(this));
+    }
 
-  function cleanupIndicators() {
-    list.querySelectorAll('.drop-before, .drop-after').forEach(li => {
-      li.classList.remove('drop-before', 'drop-after');
-    });
-  }
-
-  // Touch events
-  list.addEventListener('touchstart', (e) => {
-    if (!e.target.classList.contains('handle')) return;
-    const li = e.target.closest('li');
-    if (!li) return;
-    touchStartY = e.touches[0].clientY;
-    touchStartX = e.touches[0].clientX;
-    isTouchDragging = false;
-  }, { passive: true });
-
-  list.addEventListener('touchmove', (e) => {
-    if (!e.target.classList.contains('handle')) return;
-    const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
-    const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
-    const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    
-    if (!isTouchDragging && totalDistance > 10) {
+    // Mouse event handlers
+    handleDragStart(e) {
       const li = e.target.closest('li');
-      if (li) {
-        isTouchDragging = true;
-        startDrag(li);
-        e.preventDefault();
-      }
-    } else if (isTouchDragging && dragging) {
-      e.preventDefault();
-      debouncedHandleDragOver(e.touches[0].clientY);
+      if (!li) return;
+      this.startDrag(li);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
     }
-  }, { passive: false });
 
-  list.addEventListener('touchend', (e) => {
-    if (isTouchDragging && dragging) {
-      handleDrop(e.changedTouches[0].clientY);
-      endDrag();
+    handleDragEnd() {
+      this.endDrag();
     }
-  }, { passive: true });
+
+    handleDragOver(e) {
+      e.preventDefault();
+      this.debouncedDragOver(e.clientY);
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    handleDrop(e) {
+      e.preventDefault();
+      this.drop(e.clientY);
+      this.endDrag();
+    }
+
+    // Touch event handlers
+    handleTouchStart(e) {
+      if (!e.target.classList.contains(this.options.handle)) return;
+      const li = e.target.closest('li');
+      if (!li) return;
+      this.touchStartY = e.touches[0].clientY;
+      this.touchStartX = e.touches[0].clientX;
+      this.isTouchDragging = false;
+    }
+
+    handleTouchMove(e) {
+      if (!e.target.classList.contains(this.options.handle)) return;
+      const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
+      const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
+      const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      
+      if (!this.isTouchDragging && totalDistance > this.options.threshold) {
+        const li = e.target.closest('li');
+        if (li) {
+          this.isTouchDragging = true;
+          this.startDrag(li);
+          e.preventDefault();
+        }
+      } else if (this.isTouchDragging && this.dragging) {
+        e.preventDefault();
+        this.debouncedDragOver(e.touches[0].clientY);
+      }
+    }
+
+    handleTouchEnd(e) {
+      if (this.isTouchDragging && this.dragging) {
+        this.drop(e.changedTouches[0].clientY);
+        this.endDrag();
+      }
+    }
+
+    // Core drag logic
+    startDrag(li) {
+      this.dragging = li;
+      li.classList.add('dragging');
+      this.invalidateItemsCache();
+    }
+
+    endDrag() {
+      this.cleanupIndicators();
+      this.dragging?.classList.remove('dragging');
+      this.dragging = null;
+      this.isTouchDragging = false;
+      this.invalidateItemsCache();
+    }
+
+    dragOver(clientY) {
+      if (!this.dragging) return;
+      const after = this.getDropTarget(clientY);
+      this.cleanupIndicators();
+      if (after == null) {
+        this.container.lastElementChild?.classList.add('drop-before');
+      } else {
+        after.classList.add('drop-after');
+      }
+    }
+
+    debouncedDragOver(clientY) {
+      if (this.rafId) cancelAnimationFrame(this.rafId);
+      this.rafId = requestAnimationFrame(() => {
+        this.dragOver(clientY);
+        this.rafId = null;
+      });
+    }
+
+    drop(clientY) {
+      if (!this.dragging) return;
+      const after = this.getDropTarget(clientY);
+      if (after == null) this.container.appendChild(this.dragging);
+      else this.container.insertBefore(this.dragging, after);
+      this.cleanupIndicators();
+      this.invalidateItemsCache();
+      
+      // Trigger drop animation
+      this.dragging.classList.add('drop-animation');
+      setTimeout(() => this.dragging.classList.remove('drop-animation'), 300);
+
+      // Call reorder callback
+      if (this.options.onReorder) {
+        const fromIndex = this.getIndex(this.dragging);
+        const toIndex = after ? this.getIndex(after) : this.container.children.length - 1;
+        this.options.onReorder(fromIndex, toIndex);
+      }
+    }
+
+    getDropTarget(mouseY) {
+      if (!this.cachedItems) {
+        this.cachedItems = [...this.container.querySelectorAll('li:not(.dragging)')];
+      }
+      if (this.cachedItems.length === 0) return null;
+      
+      let left = 0;
+      let right = this.cachedItems.length;
+      
+      while (left < right) {
+        const mid = Math.floor((left + right) / 2);
+        const rect = this.cachedItems[mid].getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        
+        if (mouseY < midY) {
+          right = mid;
+        } else {
+          left = mid + 1;
+        }
+      }
+      
+      return left < this.cachedItems.length ? this.cachedItems[left] : null;
+    }
+
+    getIndex(element) {
+      return Array.from(this.container.children).indexOf(element);
+    }
+
+    invalidateItemsCache() {
+      this.cachedItems = null;
+    }
+
+    cleanupIndicators() {
+      this.container.querySelectorAll('.drop-before, .drop-after').forEach(li => {
+        li.classList.remove('drop-before', 'drop-after');
+      });
+    }
+  }
+
+  // TodoList Web Component
+  class TodoList extends HTMLElement {
+    constructor() {
+      super();
+      this.dragBehavior = null;
+    }
+
+    connectedCallback() {
+      this.setupDragAndDrop();
+    }
+
+    disconnectedCallback() {
+      this.dragBehavior?.destroy();
+    }
+
+    setupDragAndDrop() {
+      this.dragBehavior = new DraggableBehavior(this, {
+        handle: '.handle',
+        onReorder: (fromIndex, toIndex) => {
+          console.log(`Moved item from ${fromIndex} to ${toIndex}`);
+          // Emit custom event for external listeners
+          this.dispatchEvent(new CustomEvent('reorder', {
+            detail: { fromIndex, toIndex }
+          }));
+        }
+      });
+      this.dragBehavior.enable();
+    }
+  }
+
+  // Register the custom element
+  customElements.define('todo-list', TodoList);
 </script>
 </body>
 </html>
