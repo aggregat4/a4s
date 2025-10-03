@@ -515,10 +515,10 @@
     handleClick(e) {
       const text = e.target.closest('.text');
       if (!text || !this.list.contains(text)) return;
-      this.startEditing(text);
+      this.startEditing(text, e);
     }
 
-    startEditing(textEl) {
+    startEditing(textEl, triggerEvent = null) {
       if (this.editingEl === textEl) return;
 
       if (this.editingEl) {
@@ -542,15 +542,42 @@
 
       // focus after listeners to ensure we capture the blur that follows
       textEl.focus();
-      this.placeCaretAtEnd(textEl);
+      this.placeCaret(textEl, triggerEvent);
     }
 
-    placeCaretAtEnd(element) {
+    placeCaret(element, triggerEvent) {
       const selection = window.getSelection();
       if (!selection) return;
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(false);
+      // Try to put the caret at the click position
+      let range = null;
+      if (triggerEvent && typeof triggerEvent.clientX === 'number' && typeof triggerEvent.clientY === 'number') {
+        const doc = element.ownerDocument;
+        if (doc.caretPositionFromPoint) {
+          const pos = doc.caretPositionFromPoint(triggerEvent.clientX, triggerEvent.clientY);
+          if (pos) {
+            range = doc.createRange();
+            range.setStart(pos.offsetNode, pos.offset);
+            range.collapse(true);
+          }
+        } else if (doc.caretRangeFromPoint) {
+          range = doc.caretRangeFromPoint(triggerEvent.clientX, triggerEvent.clientY);
+          if (range && !range.collapsed) {
+            range.collapse(true);
+          }
+        }
+
+        if (range && !element.contains(range.startContainer)) {
+          range = null;
+        }
+      }
+
+      if (!range) {
+        // If that fails, just select the entire content
+        range = element.ownerDocument.createRange();
+        range.selectNodeContents(element);
+        range.collapse(false);
+      }
+
       selection.removeAllRanges();
       selection.addRange(range);
     }
