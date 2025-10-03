@@ -101,7 +101,7 @@
     constructor(container, options = {}) {
       this.container = container;
       this.options = {
-        handle: '.handle',
+        handleClass: 'handle',
         threshold: 10,
         onReorder: null,
         ...options
@@ -182,20 +182,23 @@
 
     // Touch event handlers
     handleTouchStart(e) {
-      if (!e.target.classList.contains(this.options.handle)) return;
+      if (!e.target.classList.contains(this.options.handleClass)) return;
       const li = e.target.closest('li');
       if (!li) return;
       this.touchStartY = e.touches[0].clientY;
       this.touchStartX = e.touches[0].clientX;
+      // setting touch dragging to false as we haven't yet checked the threshold
       this.isTouchDragging = false;
     }
 
     handleTouchMove(e) {
-      if (!e.target.classList.contains(this.options.handle)) return;
+      if (!e.target.classList.contains(this.options.handleClass)) return;
       const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
       const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
       const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      
+      // now we can check whether we really started dragging in touchstart
+      // we check whether the total movement dragged is more than a threshold in pixels
+      // this prevents the dragging to trigger with the smallest movement
       if (!this.isTouchDragging && totalDistance > this.options.threshold) {
         const li = e.target.closest('li');
         if (li) {
@@ -326,7 +329,7 @@
 
     setupDragAndDrop() {
       this.dragBehavior = new DraggableBehavior(this, {
-        handle: '.handle',
+        handleClass: 'handle',
         onReorder: (fromIndex, toIndex) => {
           console.log(`Moved item from ${fromIndex} to ${toIndex}`);
           // Emit custom event for external listeners
