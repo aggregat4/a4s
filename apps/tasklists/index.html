@@ -13,7 +13,6 @@
   main {
     max-width: 800px;
     margin: 0 auto;
-    /* padding: 1rem; */
   }
   ol.tasklist {
     padding: 12px;
@@ -28,6 +27,10 @@
     border-bottom: 2px solid #4d4d4d;
     display: flex;
     align-items: center;
+
+    /* smooth reflow for siblings (FLIP) */
+    position: relative;
+    will-change: transform;
   }
   .tasklist li .text {
     padding: 8px 6px;
@@ -41,44 +44,41 @@
   }
   .tasklist li .handle:active { cursor: grabbing; }
   .tasklist > li:active { cursor: grabbing; }
-  .tasklist > li.dragging { 
-    /* opacity: .6;  */
-    background-color: #4d4d4d;
-    /* border: 2px dotted white; */
-    color: white;
-    /* display: none; */
-  }
-  
-  /* drop animation */
-  .tasklist > li.drop-animation {
-    animation: dropSlide 0.3s ease-out;
-  }
-  
-  @keyframes dropSlide {
-    0% {
-      transform: translateX(-8px);
-      opacity: 0.7;
-    }
-    50% {
-      transform: translateX(8px);
-      opacity: 0.7;
-    }
-    100% {
-      transform: translateX(0);
-      opacity: 1;
-    }
+
+  /* The floating dragged item */
+  .tasklist > li.dragging {
+    position: fixed;      /* out of flow while dragging */
+    z-index: 1000;
+    pointer-events: none; /* don't intercept */
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    opacity: 0.98;
+    color: inherit;
+    background: white;
+    border-color: #a1a1a1;
   }
 
-  /* smooth reflow for items that shift around the dragged one */
-  .tasklist li {
-    position: relative;          /* safer for transforms */
-    will-change: transform;      /* hint for smoother anims */
+  /* Placeholder reserves space where the item would be */
+  .tasklist li.placeholder {
+    background: transparent;
+    border: 2px dashed #bbb;
+    height: 0;              /* set inline */
+    margin-bottom: 10px;    /* match spacing */
   }
 
+  /* siblings' slide animation (FLIP) */
   .tasklist li.flip-animating {
     transition: transform 140ms ease;
   }
 
+  /* optional subtle drop wiggle (kept, affects final item after drop) */
+  .tasklist > li.drop-animation {
+    animation: dropSlide 0.3s ease-out;
+  }
+  @keyframes dropSlide {
+    0%   { transform: translateX(-8px); opacity: 0.7; }
+    50%  { transform: translateX(8px);  opacity: 0.7; }
+    100% { transform: translateX(0);    opacity: 1; }
+  }
 </style>
 
 </head>
@@ -110,7 +110,7 @@
   </main>
 
   <script>
-  // DraggableBehavior - Pure drag and drop logic, reusable
+  // DraggableBehavior - drag & drop with floating dragged item + FLIP siblings
   class DraggableBehavior {
     constructor(container, options = {}) {
       this.container = container;
@@ -129,6 +129,18 @@
       this.enabled = false;
       this.placeholder = null;
       this.originalPosition = null;
+      this.pointerOffsetY = 0;
+      this.pointerOffsetX = 0;
+
+      // bind handlers once so removeEventListeners works reliably
+      this._onDragStart = this.handleDragStart.bind(this);
+      this._onDragEnd   = this.handleDragEnd.bind(this);
+      this._onDragOver  = this.handleDragOver.bind(this);
+      this._onDrop      = this.handleDrop.bind(this);
+
+      this._onTouchStart = this.handleTouchStart.bind(this);
+      this._onTouchMove  = this.handleTouchMove.bind(this);
+      this._onTouchEnd   = this.handleTouchEnd.bind(this);
     }
 
     enable() {
@@ -150,36 +162,39 @@
 
     setupEventListeners() {
       // Mouse events
-      this.container.addEventListener('dragstart', this.handleDragStart.bind(this));
-      this.container.addEventListener('dragend', this.handleDragEnd.bind(this));
-      this.container.addEventListener('dragover', this.handleDragOver.bind(this));
-      this.container.addEventListener('drop', this.handleDrop.bind(this));
+      this.container.addEventListener('dragstart', this._onDragStart);
+      this.container.addEventListener('dragend', this._onDragEnd);
+      this.container.addEventListener('dragover', this._onDragOver);
+      this.container.addEventListener('drop', this._onDrop);
 
       // Touch events
-      this.container.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
-      this.container.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-      this.container.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+      this.container.addEventListener('touchstart', this._onTouchStart, { passive: true });
+      this.container.addEventListener('touchmove', this._onTouchMove, { passive: false });
+      this.container.addEventListener('touchend', this._onTouchEnd, { passive: true });
     }
 
     removeEventListeners() {
-      this.container.removeEventListener('dragstart', this.handleDragStart.bind(this));
-      this.container.removeEventListener('dragend', this.handleDragEnd.bind(this));
-      this.container.removeEventListener('dragover', this.handleDragOver.bind(this));
-      this.container.removeEventListener('drop', this.handleDrop.bind(this));
-      this.container.removeEventListener('touchstart', this.handleTouchStart.bind(this));
-      this.container.removeEventListener('touchmove', this.handleTouchMove.bind(this));
-      this.container.removeEventListener('touchend', this.handleTouchEnd.bind(this));
+      this.container.removeEventListener('dragstart', this._onDragStart);
+      this.container.removeEventListener('dragend', this._onDragEnd);
+      this.container.removeEventListener('dragover', this._onDragOver);
+      this.container.removeEventListener('drop', this._onDrop);
+
+      this.container.removeEventListener('touchstart', this._onTouchStart);
+      this.container.removeEventListener('touchmove', this._onTouchMove);
+      this.container.removeEventListener('touchend', this._onTouchEnd);
     }
 
     // Mouse event handlers
     handleDragStart(e) {
       const li = e.target.closest('li');
       if (!li) return;
-      this.startDrag(li);
+
+      // start floating with current pointer
+      this.startDrag(li, e.clientX, e.clientY);
+
+      // suppress default ghost image
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
-      
-      // Suppress the drag image by setting an empty/transparent image
       const emptyImg = document.createElement('img');
       emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
       e.dataTransfer.setDragImage(emptyImg, 0, 0);
@@ -191,6 +206,9 @@
 
     handleDragOver(e) {
       e.preventDefault();
+      // update floating item position
+      this.updateFloating(e.clientX, e.clientY);
+      // figure potential target & animate siblings
       this.debouncedDragOver(e.clientY);
       e.dataTransfer.dropEffect = 'move';
     }
@@ -208,33 +226,27 @@
       if (!li) return;
       this.touchStartY = e.touches[0].clientY;
       this.touchStartX = e.touches[0].clientX;
-      // setting touch dragging to false as we haven't yet checked the threshold
       this.isTouchDragging = false;
     }
 
     handleTouchMove(e) {
       if (!e.target.classList.contains(this.options.handleClass)) return;
+
       if (!this.isTouchDragging) {
         const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
         const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
-        const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        // now we can check whether we really started dragging in touchstart
-        // we check whether the total movement dragged is more than a threshold in pixels
-        // this prevents the dragging to trigger with the smallest movement
+        const totalDistance = Math.hypot(deltaX, deltaY);
         if (totalDistance > this.options.threshold) {
           const li = e.target.closest('li');
           if (li) {
             this.isTouchDragging = true;
-            this.startDrag(li);
-            if (e.cancelable) {
-              e.preventDefault();
-            }
+            this.startDrag(li, e.touches[0].clientX, e.touches[0].clientY);
+            if (e.cancelable) e.preventDefault();
           }
         }
       } else if (this.dragging) {
-        if (e.cancelable) {
-          e.preventDefault();
-        }
+        if (e.cancelable) e.preventDefault();
+        this.updateFloating(e.touches[0].clientX, e.touches[0].clientY);
         this.debouncedDragOver(e.touches[0].clientY);
       }
     }
@@ -247,19 +259,31 @@
     }
 
     // Core drag logic
-    startDrag(li) {
+    startDrag(li, startClientX = null, startClientY = null) {
       this.dragging = li;
-      li.classList.add('dragging');
       this.originalPosition = this.getIndex(li);
-      this.invalidateItemsCache();      
+      this.invalidateItemsCache();
+      this.beginFloating(startClientX, startClientY);
     }
 
     endDrag() {
-      // If drag was cancelled (no drop), restore original position
-      if (this.dragging && this.originalPosition !== null) {
-        this.restoreOriginalPosition();
+      if (!this.dragging) return;
+
+      // If drag was cancelled (no drop), restore to original position via placeholder
+      if (this.originalPosition !== null && this.placeholder) {
+        const children = Array.from(this.container.children).filter(n => n !== this.dragging);
+        const targetIndex = Math.min(this.originalPosition, children.length);
+        const target = children[targetIndex] || null;
+        this.container.insertBefore(this.placeholder, target);
       }
-      this.dragging?.classList.remove('dragging');
+
+      // Place dragged item at placeholder (drop() already positioned placeholder)
+      if (this.placeholder) {
+        this.container.insertBefore(this.dragging, this.placeholder);
+      }
+
+      this.endFloating();
+
       this.dragging = null;
       this.isTouchDragging = false;
       this.originalPosition = null;
@@ -283,46 +307,147 @@
     drop(clientY) {
       if (!this.dragging) return;
       const after = this.getDropTarget(clientY);
-      
-      // Final position is already set by moveDraggedElement during drag
-      // Mark as successfully dropped so endDrag won't restore position
+
+      // Move placeholder to its final spot
+      this.moveDraggedElement(after);
+
+      // mark as successfully dropped so endDrag won't restore
       this.originalPosition = null;
-      
-      this.dragging.classList.remove('dragging');
-      this.invalidateItemsCache();
-      
-      this.dragging.classList.add('drop-animation');
-      const animatedDragging = this.dragging;
-      setTimeout(() => animatedDragging.classList.remove('drop-animation'), 300);
+
+      // optional: small wiggle on the final item after drop
+      // will apply once the item is inserted before placeholder in endDrag()
+      // (safe to leave as-is)
+      // no-op here; class added after insertion below via setTimeout
+      const draggedRef = this.dragging;
 
       if (this.options.onReorder) {
-        const fromIndex = this.getIndex(this.dragging);
-        const toIndex = after ? this.getIndex(after) : this.container.children.length - 1;
+        const items = Array.from(this.container.children);
+        const toIndex = items.indexOf(this.placeholder);
+        const fromIndex = this.getIndex(draggedRef);
         this.options.onReorder(fromIndex, toIndex);
       }
+
+      // give a short wiggle once it lands (after endDrag puts it in place)
+      setTimeout(() => {
+        if (draggedRef) {
+          draggedRef.classList.add('drop-animation');
+          setTimeout(() => draggedRef.classList.remove('drop-animation'), 300);
+        }
+      }, 0);
+    }
+
+    // Floating item + placeholder
+    createPlaceholder(heightPx) {
+      const ph = document.createElement('li');
+      ph.className = 'placeholder';
+      ph.style.height = `${heightPx}px`;
+      return ph;
+    }
+
+    beginFloating(eClientX, eClientY) {
+      const li = this.dragging;
+      const rect = li.getBoundingClientRect();
+
+      // Insert placeholder at current location
+      this.placeholder = this.createPlaceholder(rect.height);
+      this.container.insertBefore(this.placeholder, li);
+
+      // Fix the dragged element to the viewport (use existing node)
+      li.style.width = rect.width + 'px';
+      li.style.left = rect.left + 'px';
+      li.style.top = rect.top + 'px';
+      li.classList.add('dragging');
+
+      // Remember pointer offset inside the element for a natural grip
+      this.pointerOffsetY = (eClientY != null) ? (eClientY - rect.top) : rect.height / 2;
+      this.pointerOffsetX = (eClientX != null) ? (eClientX - rect.left) : 16;
+    }
+
+    updateFloating(eClientX, eClientY) {
+      if (!this.dragging) return;
+      const y = eClientY - this.pointerOffsetY;
+      this.dragging.style.top = y + 'px';
+      // If you want to follow X too, uncomment:
+      // this.dragging.style.left = (eClientX - this.pointerOffsetX) + 'px';
+    }
+
+    endFloating() {
+      if (!this.dragging) return;
+      const li = this.dragging;
+      li.classList.remove('dragging');
+      li.style.position = '';
+      li.style.top = '';
+      li.style.left = '';
+      li.style.width = '';
+      li.style.zIndex = '';
+      li.style.pointerEvents = '';
+      li.style.boxShadow = '';
+      if (this.placeholder?.parentNode) {
+        this.placeholder.parentNode.removeChild(this.placeholder);
+      }
+      this.placeholder = null;
+    }
+
+    // FLIP helpers for siblings
+    snapshotPositions() {
+      const map = new Map();
+      [...this.container.querySelectorAll('li')].forEach(li => {
+        if (li !== this.dragging) {
+          map.set(li, li.getBoundingClientRect().top);
+        }
+      });
+      return map;
+    }
+
+    playFLIP(prevTops) {
+      [...this.container.querySelectorAll('li')].forEach(li => {
+        if (li === this.dragging) return;
+        const prevTop = prevTops.get(li);
+        if (prevTop == null) return;
+
+        const nowTop = li.getBoundingClientRect().top;
+        const dy = prevTop - nowTop;
+        if (dy === 0) return;
+
+        li.style.transform = `translateY(${dy}px)`;
+        // force reflow
+        // eslint-disable-next-line no-unused-expressions
+        li.offsetHeight;
+
+        li.classList.add('flip-animating');
+        li.style.transform = 'translateY(0)';
+
+        const done = () => {
+          li.classList.remove('flip-animating');
+          li.style.transform = '';
+          li.removeEventListener('transitionend', done);
+        };
+        li.addEventListener('transitionend', done, { once: true });
+      });
     }
 
     getDropTarget(mouseY) {
       if (!this.cachedItems) {
-        this.cachedItems = [...this.container.querySelectorAll('li:not(.dragging)')];
+        // exclude dragging item and placeholder from the search set
+        this.cachedItems = [...this.container.querySelectorAll('li:not(.dragging):not(.placeholder)')];
       }
       if (this.cachedItems.length === 0) return null;
-      
+
       let left = 0;
       let right = this.cachedItems.length;
-      
+
       while (left < right) {
         const mid = Math.floor((left + right) / 2);
         const rect = this.cachedItems[mid].getBoundingClientRect();
         const midY = rect.top + rect.height / 2;
-        
+
         if (mouseY < midY) {
           right = mid;
         } else {
           left = mid + 1;
         }
       }
-      
+
       return left < this.cachedItems.length ? this.cachedItems[left] : null;
     }
 
@@ -334,86 +459,21 @@
       this.cachedItems = null;
     }
 
+    // Move the placeholder (not the dragged element) and FLIP siblings
     moveDraggedElement(after) {
-      if (!this.dragging) return;
+      if (!this.dragging || !this.placeholder) return;
 
-      // 1) FIRST: snapshot before layout change
       const prev = this.snapshotPositions();
 
-      // 2) DOM move (the “snap”)
       if (after == null) {
-        this.container.appendChild(this.dragging);
+        this.container.appendChild(this.placeholder);
       } else {
-        this.container.insertBefore(this.dragging, after);
+        this.container.insertBefore(this.placeholder, after);
       }
 
-      // invalidate cache since DOM changed
       this.invalidateItemsCache();
-
-      // 3) PLAY: animate siblings to new positions
-      // (the dragged element itself is styled via .dragging)
       requestAnimationFrame(() => this.playFLIP(prev));
     }
-
-    restoreOriginalPosition() {
-      if (!this.dragging || this.originalPosition === null) return;
-      
-      const children = Array.from(this.container.children);
-      const targetIndex = Math.min(this.originalPosition, children.length - 1);
-      const targetElement = children[targetIndex];
-      
-      if (targetElement && targetElement !== this.dragging) {
-        this.container.insertBefore(this.dragging, targetElement);
-      } else if (targetIndex === children.length - 1) {
-        this.container.appendChild(this.dragging);
-      }
-    }
-
-    // --- FLIP helpers ---
-    snapshotPositions() {
-      // store top for every non-dragging li
-      const map = new Map();
-      [...this.container.querySelectorAll('li')].forEach(li => {
-        if (li !== this.dragging) {
-          map.set(li, li.getBoundingClientRect().top);
-        }
-      });
-      return map;
-    }
-
-    playFLIP(prevTops) {
-      // after DOM move, compute deltas and animate back to 0
-      [...this.container.querySelectorAll('li')].forEach(li => {
-        if (li === this.dragging) return;
-        const prevTop = prevTops.get(li);
-        if (prevTop == null) return;
-
-        const nowTop = li.getBoundingClientRect().top;
-        const dy = prevTop - nowTop;
-        if (dy === 0) return;
-
-        // Invert
-        li.style.transform = `translateY(${dy}px)`;
-
-        // Force reflow so the following transition runs
-        // eslint-disable-next-line no-unused-expressions
-        li.offsetHeight;
-
-        // Play
-        li.classList.add('flip-animating');
-        li.style.transform = 'translateY(0)';
-
-        // Cleanup after the transition
-        const done = () => {
-          li.classList.remove('flip-animating');
-          li.style.transform = '';
-          li.removeEventListener('transitionend', done);
-        };
-        li.addEventListener('transitionend', done, { once: true });
-      });
-    }
-
-
   }
 
   // TodoList Web Component - extends HTMLOListElement
@@ -445,7 +505,6 @@
       this.dragBehavior.enable();
     }
   }
-
 
   // Register the custom element as extending ol
   customElements.define('todo-list', TodoList, { extends: 'ol' });
