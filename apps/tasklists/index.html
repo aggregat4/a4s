@@ -68,6 +68,17 @@
       opacity: 1;
     }
   }
+
+  /* smooth reflow for items that shift around the dragged one */
+  .tasklist li {
+    position: relative;          /* safer for transforms */
+    will-change: transform;      /* hint for smoother anims */
+  }
+
+  .tasklist li.flip-animating {
+    transition: transform 140ms ease;
+  }
+
 </style>
 
 </head>
@@ -325,13 +336,23 @@
 
     moveDraggedElement(after) {
       if (!this.dragging) return;
-      
-      // Move the dragged element to the new position
+
+      // 1) FIRST: snapshot before layout change
+      const prev = this.snapshotPositions();
+
+      // 2) DOM move (the “snap”)
       if (after == null) {
         this.container.appendChild(this.dragging);
       } else {
         this.container.insertBefore(this.dragging, after);
       }
+
+      // invalidate cache since DOM changed
+      this.invalidateItemsCache();
+
+      // 3) PLAY: animate siblings to new positions
+      // (the dragged element itself is styled via .dragging)
+      requestAnimationFrame(() => this.playFLIP(prev));
     }
 
     restoreOriginalPosition() {
@@ -347,6 +368,52 @@
         this.container.appendChild(this.dragging);
       }
     }
+
+    // --- FLIP helpers ---
+    snapshotPositions() {
+      // store top for every non-dragging li
+      const map = new Map();
+      [...this.container.querySelectorAll('li')].forEach(li => {
+        if (li !== this.dragging) {
+          map.set(li, li.getBoundingClientRect().top);
+        }
+      });
+      return map;
+    }
+
+    playFLIP(prevTops) {
+      // after DOM move, compute deltas and animate back to 0
+      [...this.container.querySelectorAll('li')].forEach(li => {
+        if (li === this.dragging) return;
+        const prevTop = prevTops.get(li);
+        if (prevTop == null) return;
+
+        const nowTop = li.getBoundingClientRect().top;
+        const dy = prevTop - nowTop;
+        if (dy === 0) return;
+
+        // Invert
+        li.style.transform = `translateY(${dy}px)`;
+
+        // Force reflow so the following transition runs
+        // eslint-disable-next-line no-unused-expressions
+        li.offsetHeight;
+
+        // Play
+        li.classList.add('flip-animating');
+        li.style.transform = 'translateY(0)';
+
+        // Cleanup after the transition
+        const done = () => {
+          li.classList.remove('flip-animating');
+          li.style.transform = '';
+          li.removeEventListener('transitionend', done);
+        };
+        li.addEventListener('transitionend', done, { once: true });
+      });
+    }
+
+
   }
 
   // TodoList Web Component - extends HTMLOListElement
@@ -378,6 +445,7 @@
       this.dragBehavior.enable();
     }
   }
+
 
   // Register the custom element as extending ol
   customElements.define('todo-list', TodoList, { extends: 'ol' });
