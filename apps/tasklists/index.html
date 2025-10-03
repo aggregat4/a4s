@@ -102,11 +102,13 @@
   let touchStartX = 0;
   let isTouchDragging = false;
   let rafId = null;
+  let cachedItems = null;
 
   // Shared functions
   function startDrag(li) {
     dragging = li;
     li.classList.add('dragging');
+    invalidateItemsCache(); // Clear cache when drag starts
   }
 
   function endDrag() {
@@ -114,6 +116,7 @@
     dragging?.classList.remove('dragging');
     dragging = null;
     isTouchDragging = false;
+    invalidateItemsCache(); // Clear cache when drag ends
   }
 
   function handleDragOver(clientY) {
@@ -143,6 +146,7 @@
     if (after == null) list.appendChild(dragging);
     else list.insertBefore(dragging, after);
     cleanupIndicators();
+    invalidateItemsCache(); // Clear cache after DOM changes
     
     // Trigger drop animation
     dragging.classList.add('drop-animation');
@@ -150,17 +154,24 @@
     setTimeout(() => animatedDragging.classList.remove('drop-animation'), 300);
   }
 
+  function invalidateItemsCache() {
+    cachedItems = null;
+  }
+
   function getDropTarget(container, mouseY) {
-    const items = [...container.querySelectorAll('li:not(.dragging)')];
-    if (items.length === 0) return null;
+    // Use cached items to avoid array allocation on every call
+    if (!cachedItems) {
+      cachedItems = [...container.querySelectorAll('li:not(.dragging)')];
+    }
+    if (cachedItems.length === 0) return null;
     
     // Binary search for insertion point
     let left = 0;
-    let right = items.length;
+    let right = cachedItems.length;
     
     while (left < right) {
       const mid = Math.floor((left + right) / 2);
-      const rect = items[mid].getBoundingClientRect();
+      const rect = cachedItems[mid].getBoundingClientRect();
       const midY = rect.top + rect.height / 2;
       
       if (mouseY < midY) {
@@ -171,7 +182,7 @@
     }
     
     // Return the item at the insertion point, or null for append at end
-    return left < items.length ? items[left] : null;
+    return left < cachedItems.length ? cachedItems[left] : null;
   }
 
   // Mouse events
