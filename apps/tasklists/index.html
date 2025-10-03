@@ -27,7 +27,6 @@
     border-bottom: 2px solid #4d4d4d;
     display: flex;
     align-items: center;
-
     /* smooth reflow for siblings (FLIP) */
     position: relative;
     will-change: transform;
@@ -65,13 +64,13 @@
     margin-bottom: 10px;    /* match spacing */
   }
 
-  /* siblings' slide animation (FLIP) */
-  .tasklist li.flip-animating {
+  /* slide animation (FLIP) */
+  .flip-animating {
     transition: transform 140ms ease;
   }
 
-  /* optional subtle drop wiggle (kept, affects final item after drop) */
-  .tasklist > li.drop-animation {
+  /* subtle drop wiggle animation */
+  .drop-animation {
     animation: dropSlide 0.3s ease-out;
   }
   @keyframes dropSlide {
@@ -110,7 +109,9 @@
   </main>
 
   <script>
-  // DraggableBehavior - drag & drop with floating dragged item + FLIP siblings
+  // DraggableBehavior - drag & drop with floating dragged item and an optional animator
+  // It assumes it is being applied to a list container as some of the internals assume
+  // li elements
   class DraggableBehavior {
     constructor(container, options = {}) {
       this.container = container;
@@ -118,6 +119,7 @@
         handleClass: 'handle',
         threshold: 10,
         onReorder: null,
+        animator: null,
         ...options
       };
       this.dragging = null;
@@ -131,6 +133,7 @@
       this.originalPosition = null;
       this.pointerOffsetY = 0;
       this.pointerOffsetX = 0;
+      this.animator = this.options.animator;
 
       // bind handlers once so removeEventListeners works reliably
       this._onDragStart = this.handleDragStart.bind(this);
@@ -231,7 +234,8 @@
 
     handleTouchMove(e) {
       if (!e.target.classList.contains(this.options.handleClass)) return;
-
+      // Only start dragging if the touch distance is greater than the threshold
+      // This prevents accidental dragging when scrolling or tapping
       if (!this.isTouchDragging) {
         const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
         const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
@@ -307,33 +311,22 @@
     drop(clientY) {
       if (!this.dragging) return;
       const after = this.getDropTarget(clientY);
-
       // Move placeholder to its final spot
       this.moveDraggedElement(after);
-
       // mark as successfully dropped so endDrag won't restore
       this.originalPosition = null;
-
-      // optional: small wiggle on the final item after drop
-      // will apply once the item is inserted before placeholder in endDrag()
-      // (safe to leave as-is)
-      // no-op here; class added after insertion below via setTimeout
+      // Save a reference to the dragged element so we can access it after the animation
       const draggedRef = this.dragging;
-
+      // give a short wiggle once it lands (after endDrag puts it in place)
+      draggedRef.classList.add('drop-animation');
+      setTimeout(() => draggedRef.classList.remove('drop-animation'), 300);
+      // notify reorder listeners
       if (this.options.onReorder) {
         const items = Array.from(this.container.children);
         const toIndex = items.indexOf(this.placeholder);
         const fromIndex = this.getIndex(draggedRef);
         this.options.onReorder(fromIndex, toIndex);
       }
-
-      // give a short wiggle once it lands (after endDrag puts it in place)
-      setTimeout(() => {
-        if (draggedRef) {
-          draggedRef.classList.add('drop-animation');
-          setTimeout(() => draggedRef.classList.remove('drop-animation'), 300);
-        }
-      }, 0);
     }
 
     // Floating item + placeholder
@@ -367,8 +360,6 @@
       if (!this.dragging) return;
       const y = eClientY - this.pointerOffsetY;
       this.dragging.style.top = y + 'px';
-      // If you want to follow X too, uncomment:
-      // this.dragging.style.left = (eClientX - this.pointerOffsetX) + 'px';
     }
 
     endFloating() {
@@ -386,44 +377,6 @@
         this.placeholder.parentNode.removeChild(this.placeholder);
       }
       this.placeholder = null;
-    }
-
-    // FLIP helpers for siblings
-    snapshotPositions() {
-      const map = new Map();
-      [...this.container.querySelectorAll('li')].forEach(li => {
-        if (li !== this.dragging) {
-          map.set(li, li.getBoundingClientRect().top);
-        }
-      });
-      return map;
-    }
-
-    playFLIP(prevTops) {
-      [...this.container.querySelectorAll('li')].forEach(li => {
-        if (li === this.dragging) return;
-        const prevTop = prevTops.get(li);
-        if (prevTop == null) return;
-
-        const nowTop = li.getBoundingClientRect().top;
-        const dy = prevTop - nowTop;
-        if (dy === 0) return;
-
-        li.style.transform = `translateY(${dy}px)`;
-        // force reflow
-        // eslint-disable-next-line no-unused-expressions
-        li.offsetHeight;
-
-        li.classList.add('flip-animating');
-        li.style.transform = 'translateY(0)';
-
-        const done = () => {
-          li.classList.remove('flip-animating');
-          li.style.transform = '';
-          li.removeEventListener('transitionend', done);
-        };
-        li.addEventListener('transitionend', done, { once: true });
-      });
     }
 
     getDropTarget(mouseY) {
@@ -459,11 +412,11 @@
       this.cachedItems = null;
     }
 
-    // Move the placeholder (not the dragged element) and FLIP siblings
+    // Move the placeholder (not the dragged element) and hand over animations
     moveDraggedElement(after) {
       if (!this.dragging || !this.placeholder) return;
 
-      const prev = this.snapshotPositions();
+      const prev = this.animator?.snapshot(this.container, this.dragging);
 
       if (after == null) {
         this.container.appendChild(this.placeholder);
@@ -472,9 +425,52 @@
       }
 
       this.invalidateItemsCache();
-      // Apply the FLIP transform immediately so the browser never paints the
-      // target layout before we invert it, avoiding the brief flicker.
-      this.playFLIP(prev);
+      // Apply the configured animation (if any) immediately so the browser
+      // never paints the target layout before we invert it, avoiding flicker.
+      this.animator?.play(this.container, this.dragging, prev);
+    }
+  }
+
+  // FLIPAnimator isolates the animation concerns from the drag logic so a
+  // different animator can be supplied if desired.
+  class FlipAnimator {
+    snapshot(container, dragging) {
+      const map = new Map();
+      [...container.querySelectorAll('li')].forEach(li => {
+        if (li !== dragging) {
+          map.set(li, li.getBoundingClientRect().top);
+        }
+      });
+      return map;
+    }
+
+    play(container, dragging, prevTops) {
+      if (!prevTops) return;
+      [...container.querySelectorAll('li')].forEach(li => {
+        if (li === dragging) return;
+        const prevTop = prevTops.get(li);
+        if (prevTop == null) return;
+
+        const nowTop = li.getBoundingClientRect().top;
+        const dy = prevTop - nowTop;
+        if (dy === 0) return;
+
+        li.style.transform = `translateY(${dy}px)`;
+        // force reflow so the browser picks up the initial transform before
+        // transitioning back to zero
+        // eslint-disable-next-line no-unused-expressions
+        li.offsetHeight;
+
+        li.classList.add('flip-animating');
+        li.style.transform = 'translateY(0)';
+
+        const done = () => {
+          li.classList.remove('flip-animating');
+          li.style.transform = '';
+          li.removeEventListener('transitionend', done);
+        };
+        li.addEventListener('transitionend', done, { once: true });
+      });
     }
   }
 
@@ -502,7 +498,8 @@
           this.dispatchEvent(new CustomEvent('reorder', {
             detail: { fromIndex, toIndex }
           }));
-        }
+        },
+        animator: new FlipAnimator()
       });
       this.dragBehavior.enable();
     }
