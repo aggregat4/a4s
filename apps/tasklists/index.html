@@ -41,7 +41,9 @@
   }
   .tasklist li .handle:active { cursor: grabbing; }
   .tasklist > li:active { cursor: grabbing; }
-  .tasklist > li.dragging { opacity: .6; }
+  .tasklist > li.dragging { 
+    opacity: .6; 
+  }
   /* subtle drop indicators */
   .tasklist > li.drop-before { box-shadow: 0 -2px 0 0 currentColor inset; }
   .tasklist > li.drop-after  { box-shadow: 0  2px 0 0 currentColor inset; }
@@ -193,21 +195,27 @@
 
     handleTouchMove(e) {
       if (!e.target.classList.contains(this.options.handleClass)) return;
-      const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
-      const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
-      const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      // now we can check whether we really started dragging in touchstart
-      // we check whether the total movement dragged is more than a threshold in pixels
-      // this prevents the dragging to trigger with the smallest movement
-      if (!this.isTouchDragging && totalDistance > this.options.threshold) {
-        const li = e.target.closest('li');
-        if (li) {
-          this.isTouchDragging = true;
-          this.startDrag(li);
+      if (!this.isTouchDragging) {
+        const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
+        const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
+        const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        // now we can check whether we really started dragging in touchstart
+        // we check whether the total movement dragged is more than a threshold in pixels
+        // this prevents the dragging to trigger with the smallest movement
+        if (totalDistance > this.options.threshold) {
+          const li = e.target.closest('li');
+          if (li) {
+            this.isTouchDragging = true;
+            this.startDrag(li);
+            if (e.cancelable) {
+              e.preventDefault();
+            }
+          }
+        }
+      } else if (this.dragging) {
+        if (e.cancelable) {
           e.preventDefault();
         }
-      } else if (this.isTouchDragging && this.dragging) {
-        e.preventDefault();
         this.debouncedDragOver(e.touches[0].clientY);
       }
     }
@@ -263,7 +271,8 @@
       
       // Trigger drop animation
       this.dragging.classList.add('drop-animation');
-      setTimeout(() => this.dragging.classList.remove('drop-animation'), 300);
+      const animatedDragging = this.dragging;
+      setTimeout(() => animatedDragging.classList.remove('drop-animation'), 300);
 
       // Call reorder callback
       if (this.options.onReorder) {
