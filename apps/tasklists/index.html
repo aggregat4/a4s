@@ -101,6 +101,7 @@
   let touchStartY = 0;
   let touchStartX = 0;
   let isTouchDragging = false;
+  let rafId = null;
 
   // Shared functions
   function startDrag(li) {
@@ -124,6 +125,16 @@
     } else {
       after.classList.add('drop-after');
     }
+  }
+
+  // Debounce drag over events to 60fps max using requestAnimationFrame
+  // Prevents excessive DOM queries and getBoundingClientRect() calls during drag
+  function debouncedHandleDragOver(clientY) {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      handleDragOver(clientY);
+      rafId = null;
+    });
   }
 
   function handleDrop(clientY) {
@@ -176,7 +187,7 @@
 
   list.addEventListener('dragover', (e) => {
     e.preventDefault();
-    handleDragOver(e.clientY);
+    debouncedHandleDragOver(e.clientY);
     e.dataTransfer.dropEffect = 'move';
   });
 
@@ -217,7 +228,7 @@
       }
     } else if (isTouchDragging && dragging) {
       e.preventDefault();
-      handleDragOver(e.touches[0].clientY);
+      debouncedHandleDragOver(e.touches[0].clientY);
     }
   }, { passive: false });
 
