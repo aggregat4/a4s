@@ -167,6 +167,11 @@
       this.startDrag(li);
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
+      
+      // Suppress the drag image by setting an empty/transparent image
+      const emptyImg = document.createElement('img');
+      emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
+      e.dataTransfer.setDragImage(emptyImg, 0, 0);
     }
 
     handleDragEnd() {
