@@ -100,41 +100,33 @@
   let touchStartX = 0;
   let isTouchDragging = false;
 
-  list.addEventListener('dragstart', (e) => {
-    const li = e.target.closest('li');
-    if (!li) return;
+  // Shared functions
+  function startDrag(li) {
     dragging = li;
     li.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', ''); // Firefox requires setData
-  });
+  }
 
-  list.addEventListener('dragend', () => {
+  function endDrag() {
     cleanupIndicators();
     dragging?.classList.remove('dragging');
     dragging = null;
-  });
+    isTouchDragging = false;
+  }
 
-  list.addEventListener('dragover', (e) => {
+  function handleDragOver(clientY) {
     if (!dragging) return;
-    e.preventDefault(); // allow drop
-    const after = getDropTarget(list, e.clientY);
-
-    // visual cues
+    const after = getDropTarget(list, clientY);
     cleanupIndicators();
     if (after == null) {
       list.lastElementChild?.classList.add('drop-before');
     } else {
       after.classList.add('drop-after');
     }
+  }
 
-    e.dataTransfer.dropEffect = 'move';
-  });
-
-  list.addEventListener('drop', (e) => {
+  function handleDrop(clientY) {
     if (!dragging) return;
-    e.preventDefault();
-    const after = getDropTarget(list, e.clientY);
+    const after = getDropTarget(list, clientY);
     if (after == null) list.appendChild(dragging);
     else list.insertBefore(dragging, after);
     cleanupIndicators();
@@ -142,9 +134,30 @@
     // Trigger drop animation
     dragging.classList.add('drop-animation');
     const animatedDragging = dragging;
-    setTimeout(() => {
-      animatedDragging.classList.remove('drop-animation');
-    }, 300); // Match animation duration
+    setTimeout(() => animatedDragging.classList.remove('drop-animation'), 300);
+  }
+
+  // Mouse events
+  list.addEventListener('dragstart', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    startDrag(li);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+  });
+
+  list.addEventListener('dragend', endDrag);
+
+  list.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    handleDragOver(e.clientY);
+    e.dataTransfer.dropEffect = 'move';
+  });
+
+  list.addEventListener('drop', (e) => {
+    e.preventDefault();
+    handleDrop(e.clientY);
+    endDrag();
   });
 
   function getDropTarget(container, mouseY) {
@@ -165,7 +178,7 @@
     });
   }
 
-  // Touch support - only on handles
+  // Touch events
   list.addEventListener('touchstart', (e) => {
     if (!e.target.classList.contains('handle')) return;
     const li = e.target.closest('li');
@@ -185,34 +198,19 @@
       const li = e.target.closest('li');
       if (li) {
         isTouchDragging = true;
-        dragging = li;
-        li.classList.add('dragging');
+        startDrag(li);
         e.preventDefault();
       }
     } else if (isTouchDragging && dragging) {
       e.preventDefault();
-      const after = getDropTarget(list, e.touches[0].clientY);
-      cleanupIndicators();
-      if (after == null) {
-        list.lastElementChild?.classList.add('drop-before');
-      } else {
-        after.classList.add('drop-after');
-      }
+      handleDragOver(e.touches[0].clientY);
     }
   }, { passive: false });
 
   list.addEventListener('touchend', (e) => {
     if (isTouchDragging && dragging) {
-      const after = getDropTarget(list, e.changedTouches[0].clientY);
-      if (after == null) list.appendChild(dragging);
-      else list.insertBefore(dragging, after);
-      cleanupIndicators();
-      dragging.classList.add('drop-animation');
-      const animatedDragging = dragging;
-      setTimeout(() => animatedDragging.classList.remove('drop-animation'), 300);
-      dragging.classList.remove('dragging');
-      dragging = null;
-      isTouchDragging = false;
+      handleDrop(e.changedTouches[0].clientY);
+      endDrag();
     }
   }, { passive: true });
 </script>
