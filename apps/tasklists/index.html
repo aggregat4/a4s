@@ -97,6 +97,7 @@
   const list = document.getElementById('tasks');
   let dragging = null;
   let touchStartY = 0;
+  let touchStartX = 0;
   let isTouchDragging = false;
 
   list.addEventListener('dragstart', (e) => {
@@ -170,12 +171,17 @@
     const li = e.target.closest('li');
     if (!li) return;
     touchStartY = e.touches[0].clientY;
+    touchStartX = e.touches[0].clientX;
     isTouchDragging = false;
   }, { passive: true });
 
   list.addEventListener('touchmove', (e) => {
     if (!e.target.classList.contains('handle')) return;
-    if (!isTouchDragging && Math.abs(e.touches[0].clientY - touchStartY) > 10) {
+    const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
+    const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
+    const totalDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    if (!isTouchDragging && totalDistance > 10) {
       const li = e.target.closest('li');
       if (li) {
         isTouchDragging = true;
