@@ -22,12 +22,22 @@
     background-color: #f5f5f5;
   }
   .tasklist li {
-    padding: 12px 6px;
+    padding: 6px 6px;
     margin-bottom: 12px;
     background-color: white;
     border: 1px solid #a1a1a1;
     border-bottom: 2px solid #4d4d4d;
+    display: flex;
+    align-items: center;
   }
+  .tasklist li .handle {
+    margin-left: auto;
+    padding: 8px;
+    cursor: grab;
+    color: #999;
+    user-select: none;
+  }
+  .tasklist li .handle:active { cursor: grabbing; }
   .tasklist > li:active { cursor: grabbing; }
   .tasklist > li.dragging { opacity: .6; }
   /* subtle drop indicators */
@@ -60,32 +70,34 @@
 
   <main>
     <ol id="tasks" class="tasklist">
-      <li draggable="true">Refill the bird feeder before the sparrows file another formal request.</li>
-      <li draggable="true">Check the fridge light still turns off, preferably without crawling inside again.</li>
-      <li draggable="true">Return the umbrella to the hallway, where it insists it lives.</li>
-      <li draggable="true">Water the fern before it submits another strongly worded letter to the radiator.</li>
-      <li draggable="true">Update the shopping list to include milk, bread, and a moderately sensible hat.</li>
-      <li draggable="true">Verify that the kettle boils water and not, as it occasionally attempts, good intentions.</li>
-      <li draggable="true">Organize the cutlery drawer so the forks don’t keep holding union meetings.</li>
-      <li draggable="true">Empty the dishwasher before it begins drafting poetry about neglect.</li>
-      <li draggable="true">Set the alarm clock, reminding it gently that no one enjoys its personality.</li>
-      <li draggable="true">Take the bins out, though they are increasingly insistent they’d rather stay in.</li>
-      <li draggable="true">Test the smoke detector by asking it politely to explain its worldview.</li>
-      <li draggable="true">Send an email to the electricity meter thanking it for its tireless blinking.</li>
-      <li draggable="true">Sharpen pencils so they feel prepared for anything, including international diplomacy.</li>
-      <li draggable="true">Update the calendar to reflect the current year, not the one the cat prefers.</li>
-      <li draggable="true">Polish the windows until they are clear about their long-term career goals.</li>
-      <li draggable="true">Check the washing machine for socks that have declared independence.</li>
-      <li draggable="true">Restock the biscuit tin before negotiations with visitors turn awkward.</li>
-      <li draggable="true">Feed the goldfish, who has recently taken to sighing at odd intervals.</li>
-      <li draggable="true">Write down the Wi-Fi password in case it decides to change its name again.</li>
-      <li draggable="true">Vacuum the carpet before it develops further geological features.</li>
+      <li draggable="true">Refill the bird feeder before the sparrows file another formal request.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Check the fridge light still turns off, preferably without crawling inside again.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Return the umbrella to the hallway, where it insists it lives.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Water the fern before it submits another strongly worded letter to the radiator.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Update the shopping list to include milk, bread, and a moderately sensible hat.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Verify that the kettle boils water and not, as it occasionally attempts, good intentions.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Organize the cutlery drawer so the forks don't keep holding union meetings.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Empty the dishwasher before it begins drafting poetry about neglect.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Set the alarm clock, reminding it gently that no one enjoys its personality.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Take the bins out, though they are increasingly insistent they'd rather stay in.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Test the smoke detector by asking it politely to explain its worldview.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Send an email to the electricity meter thanking it for its tireless blinking.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Sharpen pencils so they feel prepared for anything, including international diplomacy.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Update the calendar to reflect the current year, not the one the cat prefers.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Polish the windows until they are clear about their long-term career goals.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Check the washing machine for socks that have declared independence.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Restock the biscuit tin before negotiations with visitors turn awkward.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Feed the goldfish, who has recently taken to sighing at odd intervals.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Write down the Wi-Fi password in case it decides to change its name again.<span class="handle">⋮⋮</span></li>
+      <li draggable="true">Vacuum the carpet before it develops further geological features.<span class="handle">⋮⋮</span></li>
     </ol>
   </main>
 
   <script>
   const list = document.getElementById('tasks');
   let dragging = null;
+  let touchStartY = 0;
+  let isTouchDragging = false;
 
   list.addEventListener('dragstart', (e) => {
     const li = e.target.closest('li');
@@ -150,6 +162,50 @@
       li.classList.remove('drop-before', 'drop-after');
     });
   }
+
+  // Touch support
+  list.addEventListener('touchstart', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    touchStartY = e.touches[0].clientY;
+    isTouchDragging = false;
+  }, { passive: true });
+
+  list.addEventListener('touchmove', (e) => {
+    if (!isTouchDragging && Math.abs(e.touches[0].clientY - touchStartY) > 10) {
+      const li = e.target.closest('li');
+      if (li) {
+        isTouchDragging = true;
+        dragging = li;
+        li.classList.add('dragging');
+        e.preventDefault();
+      }
+    }
+    if (isTouchDragging && dragging) {
+      e.preventDefault();
+      const after = getDropTarget(list, e.touches[0].clientY);
+      cleanupIndicators();
+      if (after == null) {
+        list.lastElementChild?.classList.add('drop-before');
+      } else {
+        after.classList.add('drop-after');
+      }
+    }
+  }, { passive: false });
+
+  list.addEventListener('touchend', (e) => {
+    if (isTouchDragging && dragging) {
+      const after = getDropTarget(list, e.changedTouches[0].clientY);
+      if (after == null) list.appendChild(dragging);
+      else list.insertBefore(dragging, after);
+      cleanupIndicators();
+      dragging.classList.add('drop-animation');
+      setTimeout(() => dragging.classList.remove('drop-animation'), 300);
+      dragging.classList.remove('dragging');
+      dragging = null;
+      isTouchDragging = false;
+    }
+  }, { passive: true });
 </script>
 </body>
 </html>
