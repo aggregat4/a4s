@@ -472,7 +472,9 @@
       }
 
       this.invalidateItemsCache();
-      requestAnimationFrame(() => this.playFLIP(prev));
+      // Apply the FLIP transform immediately so the browser never paints the
+      // target layout before we invert it, avoiding the brief flicker.
+      this.playFLIP(prev);
     }
   }
 
