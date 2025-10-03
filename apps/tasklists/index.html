@@ -42,22 +42,11 @@
   .tasklist li .handle:active { cursor: grabbing; }
   .tasklist > li:active { cursor: grabbing; }
   .tasklist > li.dragging { 
-    opacity: .6; 
-  }
-  /* placeholder element */
-  .tasklist > li.placeholder {
-    background-color: #e3f2fd;
-    border: 2px dashed #2196f3;
-    opacity: 0.7;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #2196f3;
-    font-style: italic;
-  }
-  .tasklist > li.placeholder::before {
-    content: "Drop here";
+    /* opacity: .6;  */
+    background-color: #4d4d4d;
+    /* border: 2px dotted white; */
+    color: white;
+    /* display: none; */
   }
   
   /* drop animation */
@@ -85,7 +74,7 @@
 <body>
 
   <main>
-    <todo-list class="tasklist">
+    <ol is="todo-list" class="tasklist">
       <li draggable="true"><span class="text">Refill the bird feeder before the sparrows file another formal request.</span><span class="handle">≡</span></li>
       <li draggable="true"><span class="text">Check the fridge light still turns off, preferably without crawling inside again.</span><span class="handle">≡</span></li>
       <li draggable="true"><span class="text">Return the umbrella to the hallway, where it insists it lives.</span><span class="handle">≡</span></li>
@@ -128,6 +117,7 @@
       this.cachedItems = null;
       this.enabled = false;
       this.placeholder = null;
+      this.originalPosition = null;
     }
 
     enable() {
@@ -244,21 +234,26 @@
     startDrag(li) {
       this.dragging = li;
       li.classList.add('dragging');
-      this.invalidateItemsCache();
+      this.originalPosition = this.getIndex(li);
+      this.invalidateItemsCache();      
     }
 
     endDrag() {
-      this.removePlaceholder();
+      // If drag was cancelled (no drop), restore original position
+      if (this.dragging && this.originalPosition !== null) {
+        this.restoreOriginalPosition();
+      }
       this.dragging?.classList.remove('dragging');
       this.dragging = null;
       this.isTouchDragging = false;
+      this.originalPosition = null;
       this.invalidateItemsCache();
     }
 
     dragOver(clientY) {
       if (!this.dragging) return;
       const after = this.getDropTarget(clientY);
-      this.updatePlaceholder(after);
+      this.moveDraggedElement(after);
     }
 
     debouncedDragOver(clientY) {
@@ -272,20 +267,18 @@
     drop(clientY) {
       if (!this.dragging) return;
       const after = this.getDropTarget(clientY);
-      if (after == null) this.container.appendChild(this.dragging);
-      else this.container.insertBefore(this.dragging, after);
       
-      // Remove placeholder and dragging class
-      this.removePlaceholder();
+      // Final position is already set by moveDraggedElement during drag
+      // Mark as successfully dropped so endDrag won't restore position
+      this.originalPosition = null;
+      
       this.dragging.classList.remove('dragging');
       this.invalidateItemsCache();
       
-      // Trigger drop animation
       this.dragging.classList.add('drop-animation');
       const animatedDragging = this.dragging;
       setTimeout(() => animatedDragging.classList.remove('drop-animation'), 300);
 
-      // Call reorder callback
       if (this.options.onReorder) {
         const fromIndex = this.getIndex(this.dragging);
         const toIndex = after ? this.getIndex(after) : this.container.children.length - 1;
@@ -325,29 +318,34 @@
       this.cachedItems = null;
     }
 
-    updatePlaceholder(after) {
-      this.removePlaceholder();
+    moveDraggedElement(after) {
+      if (!this.dragging) return;
       
-      this.placeholder = document.createElement('li');
-      this.placeholder.className = 'placeholder';
-      
+      // Move the dragged element to the new position
       if (after == null) {
-        this.container.appendChild(this.placeholder);
+        this.container.appendChild(this.dragging);
       } else {
-        this.container.insertBefore(this.placeholder, after);
+        this.container.insertBefore(this.dragging, after);
       }
     }
 
-    removePlaceholder() {
-      if (this.placeholder) {
-        this.placeholder.remove();
-        this.placeholder = null;
+    restoreOriginalPosition() {
+      if (!this.dragging || this.originalPosition === null) return;
+      
+      const children = Array.from(this.container.children);
+      const targetIndex = Math.min(this.originalPosition, children.length - 1);
+      const targetElement = children[targetIndex];
+      
+      if (targetElement && targetElement !== this.dragging) {
+        this.container.insertBefore(this.dragging, targetElement);
+      } else if (targetIndex === children.length - 1) {
+        this.container.appendChild(this.dragging);
       }
     }
   }
 
-  // TodoList Web Component
-  class TodoList extends HTMLElement {
+  // TodoList Web Component - extends HTMLOListElement
+  class TodoList extends HTMLOListElement {
     constructor() {
       super();
       this.dragBehavior = null;
@@ -376,8 +374,8 @@
     }
   }
 
-  // Register the custom element
-  customElements.define('todo-list', TodoList);
+  // Register the custom element as extending ol
+  customElements.define('todo-list', TodoList, { extends: 'ol' });
 </script>
 </body>
 </html>
