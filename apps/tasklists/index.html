@@ -441,6 +441,8 @@
       this.pointerOffsetY = 0;
       this.pointerOffsetX = 0;
       this.animator = this.options.animator;
+      this._currentPlaceholderIndex = null;
+      this._dropHandled = false;
 
       // bind handlers once so removeEventListeners works reliably
       this._onDragStart = this.handleDragStart.bind(this);
@@ -521,7 +523,21 @@
     }
 
     handleDragEnd() {
+      // Chrome/Safari occasionally skip the drop event if the pointer exits the list.
+      // When that happens the placeholder is still where the user left it, so we
+      // synthesize the reorder using the last known placeholder index.
+      if (this.dragging && !this._dropHandled && this._currentPlaceholderIndex != null) {
+        const fromIndex = this.getIndex(this.dragging);
+        const toIndex = this._currentPlaceholderIndex;
+        if (fromIndex !== toIndex) {
+          this.options.onReorder?.(fromIndex, toIndex);
+          this._dropHandled = true;
+          this.originalPosition = null;
+        }
+      }
       this.endDrag();
+      this._dropHandled = false;
+      this._currentPlaceholderIndex = null;
     }
 
     handleDragOver(e) {
@@ -593,6 +609,8 @@
       this.dragging = li;
       this.originalPosition = this.getIndex(li);
       this.invalidateItemsCache();
+      this._currentPlaceholderIndex = this.originalPosition;
+      this._dropHandled = false;
 
       // For touch (or any non-deferred start), we may be passed coords:
       if (!this.deferFloatingInit && startClientX != null && startClientY != null) {
@@ -657,6 +675,7 @@
         const fromIndex = this.getIndex(draggedRef);
         this.options.onReorder(fromIndex, toIndex);
       }
+      this._dropHandled = true;
     }
 
     // Floating item + placeholder
@@ -674,6 +693,7 @@
       // Insert placeholder at current location
       this.placeholder = this.createPlaceholder(rect.height);
       this.container.insertBefore(this.placeholder, li);
+      this._currentPlaceholderIndex = this.getIndex(this.placeholder);
 
       // Fix the dragged element to the viewport (use existing node)
       li.style.width = rect.width + 'px';
@@ -755,6 +775,7 @@
       }
 
       this.invalidateItemsCache();
+      this._currentPlaceholderIndex = this.getIndex(this.placeholder);
       // Apply the configured animation (if any) immediately so the browser
       // never paints the target layout before we invert it, avoiding flicker.
       this.animator?.play(this.container, this.dragging, prev);
