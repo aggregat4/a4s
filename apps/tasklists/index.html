@@ -91,6 +91,14 @@
     color: inherit;
     border-radius: 2px;
   }
+  .task-token-mention {
+    color: #125ec5;
+    font-weight: 600;
+  }
+  .task-token-tag {
+    color: #0f7a48;
+    font-weight: 600;
+  }
   .tasklist li.editing .text {
     background: #f0f0f0;
     outline: 2px solid rgba(77,77,77,0.2);
@@ -184,6 +192,119 @@
   </main>
 
   <script>
+  const escapeHTML = (str) => str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const mergeRanges = (ranges) => {
+    if (!ranges.length) return [];
+    const sorted = ranges.slice().sort((a, b) => {
+      if (a.start !== b.start) return a.start - b.start;
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.end !== b.end) return a.end - b.end;
+      return a.key.localeCompare(b.key);
+    });
+    const merged = [{ ...sorted[0] }];
+    for (let i = 1; i < sorted.length; i++) {
+      const current = sorted[i];
+      const last = merged[merged.length - 1];
+      if (current.start <= last.end && current.key === last.key) {
+        last.end = Math.max(last.end, current.end);
+      } else {
+        merged.push({ ...current });
+      }
+    }
+    return merged;
+  };
+
+  const buildDecoratedMarkup = (original, tokens, patternConfig) => {
+    const haystack = original.toLowerCase();
+    const ranges = [];
+    const patterns = Array.isArray(patternConfig) ? patternConfig : [];
+    let matchesAllTokens = true;
+
+    tokens.forEach(token => {
+      let searchIndex = 0;
+      let foundAny = false;
+      while (searchIndex <= haystack.length) {
+        const found = haystack.indexOf(token, searchIndex);
+        if (found === -1) break;
+        ranges.push({
+          start: found,
+          end: found + token.length,
+          priority: 1,
+          open: '<mark>',
+          close: '</mark>',
+          key: 'mark'
+        });
+        searchIndex = found + token.length;
+        foundAny = true;
+      }
+      if (!foundAny) {
+        matchesAllTokens = false;
+      }
+    });
+
+    patterns.forEach(def => {
+      const patternRegex = new RegExp(def.regexSource, def.regexFlags);
+      let match;
+      while ((match = patternRegex.exec(original)) !== null) {
+        if (!match[0].length) {
+          patternRegex.lastIndex += 1;
+          continue;
+        }
+        ranges.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          priority: def.priority,
+          open: `<span class="${def.className}">`,
+          close: '</span>',
+          key: def.key
+        });
+        if (!patternRegex.global) break;
+      }
+    });
+
+    if (!ranges.length) {
+      return { markup: null, matchesAllTokens };
+    }
+
+    const merged = mergeRanges(ranges);
+    if (!merged.length) {
+      return { markup: null, matchesAllTokens };
+    }
+
+    const boundaries = new Set([0, original.length]);
+    merged.forEach(range => {
+      boundaries.add(range.start);
+      boundaries.add(range.end);
+    });
+    const sortedBoundaries = Array.from(boundaries).sort((a, b) => a - b);
+
+    let result = '';
+    for (let i = 0; i < sortedBoundaries.length - 1; i++) {
+      const start = sortedBoundaries[i];
+      const end = sortedBoundaries[i + 1];
+      if (start === end) continue;
+      let segment = escapeHTML(original.slice(start, end));
+      if (!segment) continue;
+      const covering = merged.filter(range => range.start <= start && range.end >= end);
+      if (covering.length) {
+        covering.sort((a, b) => a.priority - b.priority);
+        for (let j = covering.length - 1; j >= 0; j--) {
+          const wrapper = covering[j];
+          segment = wrapper.open + segment + wrapper.close;
+        }
+      }
+      result += segment;
+    }
+
+    return { markup: result, matchesAllTokens };
+  };
+
   // DraggableBehavior - drag & drop with floating dragged item and an optional animator
   // It assumes it is being applied to a list container as some of the internals assume
   // li elements
@@ -714,6 +835,10 @@
       this.searchInput = null;
       this.searchTimer = null;
       this.searchQuery = '';
+      this.patternConfig = this.normalizePatternDefs([
+        { regex: /@[A-Za-z0-9_]+/g, className: 'task-token-mention', priority: 2 },
+        { regex: /#[A-Za-z0-9_]+/g, className: 'task-token-tag', priority: 2 }
+      ]);
 
       this.handleSearchInput = this.handleSearchInput.bind(this);
       this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -844,6 +969,57 @@
       });
     }
 
+    normalizePatternDefs(defs) {
+      if (!Array.isArray(defs)) return [];
+      const normalized = [];
+      defs.forEach(def => {
+        if (!def) return;
+        let { regex, className, priority } = def;
+        if (typeof regex === 'string') {
+          try {
+            regex = new RegExp(regex, 'g');
+          } catch (err) {
+            return;
+          }
+        } else if (regex instanceof RegExp) {
+          const flags = regex.flags.includes('g') ? regex.flags : regex.flags + 'g';
+          regex = new RegExp(regex.source, flags);
+        } else {
+          return;
+        }
+
+        const safeClass = typeof className === 'string' && className.trim().length
+          ? className.trim()
+          : 'task-token';
+        const prio = Number.isFinite(priority) ? priority : 2;
+        normalized.push({
+          regexSource: regex.source,
+          regexFlags: regex.flags,
+          className: safeClass,
+          priority: prio,
+          key: `pattern:${safeClass}`
+        });
+      });
+      return normalized;
+    }
+
+    setPatternHighlighters(defs) {
+      this.patternConfig = this.normalizePatternDefs(defs);
+      this.performSearch(this.searchQuery);
+    }
+
+    get patternHighlighters() {
+      return this.patternConfig.map(def => ({
+        regex: new RegExp(def.regexSource, def.regexFlags),
+        className: def.className,
+        priority: def.priority
+      }));
+    }
+
+    set patternHighlighters(defs) {
+      this.setPatternHighlighters(defs);
+    }
+
     handleSearchInput() {
       if (!this.searchInput) return;
       const value = this.searchInput.value;
@@ -880,9 +1056,7 @@
       const textEl = e.target.classList?.contains('text') ? e.target : null;
       if (!textEl) return;
       textEl.dataset.originalText = textEl.textContent;
-      if (this.searchQuery) {
-        this.performSearch(this.searchQuery);
-      }
+      this.performSearch(this.searchQuery);
     }
 
     performSearch(query) {
@@ -895,29 +1069,6 @@
         .map(token => token.toLowerCase());
       const hasQuery = tokens.length > 0;
 
-      const escapeHTML = (str) => str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
-      const mergeRanges = (ranges) => {
-        if (!ranges.length) return ranges;
-        ranges.sort((a, b) => a.start - b.start || a.end - b.end);
-        const merged = [ranges[0]];
-        for (let i = 1; i < ranges.length; i++) {
-          const current = ranges[i];
-          const last = merged[merged.length - 1];
-          if (current.start <= last.end) {
-            last.end = Math.max(last.end, current.end);
-          } else {
-            merged.push({ ...current });
-          }
-        }
-        return merged;
-      };
-
       this.listEl.querySelectorAll('li').forEach(li => {
         if (li.classList.contains('placeholder')) return;
         const textEl = li.querySelector('.text');
@@ -927,48 +1078,20 @@
           ? textEl.dataset.originalText
           : (textEl.dataset.originalText = textEl.textContent);
 
-        if (!hasQuery) {
-          li.hidden = false;
-          textEl.textContent = original;
-          return;
-        }
+        const { markup, matchesAllTokens } = buildDecoratedMarkup(original, tokens, this.patternConfig);
 
-        const haystack = original.toLowerCase();
-        const matchesAllTokens = tokens.every(token => haystack.includes(token));
-        if (!matchesAllTokens) {
+        if (hasQuery && !matchesAllTokens) {
           li.hidden = true;
           textEl.textContent = original;
           return;
         }
 
         li.hidden = false;
-
-        const ranges = [];
-        tokens.forEach(token => {
-          let searchIndex = 0;
-          while (searchIndex < haystack.length) {
-            const found = haystack.indexOf(token, searchIndex);
-            if (found === -1) break;
-            ranges.push({ start: found, end: found + token.length });
-            searchIndex = found + token.length;
-          }
-        });
-
-        const merged = mergeRanges(ranges);
-        if (!merged.length) {
+        if (markup == null) {
           textEl.textContent = original;
-          return;
+        } else {
+          textEl.innerHTML = markup;
         }
-
-        let cursor = 0;
-        let result = '';
-        merged.forEach(range => {
-          result += escapeHTML(original.slice(cursor, range.start));
-          result += `<mark>${escapeHTML(original.slice(range.start, range.end))}</mark>`;
-          cursor = range.end;
-        });
-        result += escapeHTML(original.slice(cursor));
-        textEl.innerHTML = result;
       });
 
       this.dragBehavior?.invalidateItemsCache();
