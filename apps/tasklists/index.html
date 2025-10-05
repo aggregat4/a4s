@@ -166,32 +166,136 @@
 
   <main>
     <a4-tasklist name="Prototype Tasks">
-      <ol class="tasklist">
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Refill the bird feeder before the sparrows file another formal request.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Check the fridge light still turns off, preferably without crawling inside again.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Return the umbrella to the hallway, where it insists it lives.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Water the fern before it submits another strongly worded letter to the radiator.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Update the shopping list to include milk, bread, and a moderately sensible hat.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Verify that the kettle boils water and not, as it occasionally attempts, good intentions.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Organize the cutlery drawer so the forks don't keep holding union meetings.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Empty the dishwasher before it begins drafting poetry about neglect.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Set the alarm clock, reminding it gently that no one enjoys its personality.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Take the bins out, though they are increasingly insistent they'd rather stay in.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Test the smoke detector by asking it politely to explain its worldview.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Send an email to the electricity meter thanking it for its tireless blinking.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Sharpen pencils so they feel prepared for anything, including international diplomacy.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Update the calendar to reflect the current year, not the one the cat prefers.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Polish the windows until they are clear about their long-term career goals.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Check the washing machine for socks that have declared independence.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Restock the biscuit tin before negotiations with visitors turn awkward.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Feed the goldfish, who has recently taken to sighing at odd intervals.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Write down the Wi-Fi password in case it decides to change its name again.</span><span class="handle" aria-hidden="true"></span></li>
-        <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Vacuum the carpet before it develops further geological features.</span><span class="handle" aria-hidden="true"></span></li>
-      </ol>
+      <ol class="tasklist"></ol>
     </a4-tasklist>
   </main>
 
   <script>
+  const PROTOTYPE_TASK_TEXTS = [
+    'Refill the bird feeder before the sparrows file another formal request.',
+    'Check the fridge light still turns off, preferably without crawling inside again.',
+    'Return the umbrella to the hallway, where it insists it lives.',
+    'Water the fern before it submits another strongly worded letter to the radiator.',
+    'Update the shopping list to include milk, bread, and a moderately sensible hat.',
+    'Verify that the kettle boils water and not, as it occasionally attempts, good intentions.',
+    'Organize the cutlery drawer so the forks don\'t keep holding union meetings.',
+    'Empty the dishwasher before it begins drafting poetry about neglect.',
+    'Set the alarm clock, reminding it gently that no one enjoys its personality.',
+    'Take the bins out, though they are increasingly insistent they\'d rather stay in.',
+    'Test the smoke detector by asking it politely to explain its worldview.',
+    'Send an email to the electricity meter thanking it for its tireless blinking.',
+    'Sharpen pencils so they feel prepared for anything, including international diplomacy.',
+    'Update the calendar to reflect the current year, not the one the cat prefers.',
+    'Polish the windows until they are clear about their long-term career goals.',
+    'Check the washing machine for socks that have declared independence.',
+    'Restock the biscuit tin before negotiations with visitors turn awkward.',
+    'Feed the goldfish, who has recently taken to sighing at odd intervals.',
+    'Write down the Wi-Fi password in case it decides to change its name again.',
+    'Vacuum the carpet before it develops further geological features.'
+  ];
+
+  const DEFAULT_TASK_LIST_STATE = {
+    title: 'Prototype Tasks',
+    items: PROTOTYPE_TASK_TEXTS.map((text, index) => ({
+      id: `task-${index + 1}`,
+      text,
+      done: false
+    }))
+  };
+
+  const cloneListState = (source) => ({
+    title: typeof source?.title === 'string' ? source.title : '',
+    items: Array.isArray(source?.items)
+      ? source.items.map((item, index) => ({
+        id: typeof item?.id === 'string' && item.id.length ? item.id : `item-${index}`,
+        text: typeof item?.text === 'string' ? item.text : '',
+        done: Boolean(item?.done)
+      }))
+      : []
+  });
+
+  const LIST_ACTIONS = {
+    setTitle: 'list/setTitle',
+    setItemDone: 'list/setItemDone',
+    updateItemText: 'list/updateItemText',
+    reorderItems: 'list/reorderItems'
+  };
+
+  const listReducer = (state = { title: '', items: [] }, action = {}) => {
+    switch (action.type) {
+      case LIST_ACTIONS.setTitle: {
+        const nextTitle = typeof action.payload?.title === 'string' ? action.payload.title : state.title;
+        if (nextTitle === state.title) return state;
+        return { ...state, title: nextTitle };
+      }
+      case LIST_ACTIONS.setItemDone: {
+        const { id, done } = action.payload ?? {};
+        if (!id) return state;
+        const targetDone = Boolean(done);
+        let changed = false;
+        const nextItems = state.items.map(item => {
+          if (item.id !== id) return item;
+          if (item.done === targetDone) return item;
+          changed = true;
+          return { ...item, done: targetDone };
+        });
+        return changed ? { ...state, items: nextItems } : state;
+      }
+      case LIST_ACTIONS.updateItemText: {
+        const { id, text } = action.payload ?? {};
+        if (!id || typeof text !== 'string') return state;
+        const nextText = text;
+        let changed = false;
+        const nextItems = state.items.map(item => {
+          if (item.id !== id) return item;
+          if (item.text === nextText) return item;
+          changed = true;
+          return { ...item, text: nextText };
+        });
+        return changed ? { ...state, items: nextItems } : state;
+      }
+      case LIST_ACTIONS.reorderItems: {
+        const order = Array.isArray(action.payload?.order) ? action.payload.order : null;
+        if (!order || !order.length) return state;
+        if (order.length !== state.items.length) return state;
+        const itemMap = new Map(state.items.map(item => [item.id, item]));
+        const nextItems = order.map(id => itemMap.get(id)).filter(Boolean);
+        if (nextItems.length !== state.items.length) return state;
+        const unchanged = nextItems.every((item, index) => item === state.items[index]);
+        if (unchanged) return state;
+        return { ...state, items: nextItems };
+      }
+      default:
+        return state;
+    }
+  };
+
+  const createStore = (reducer, preloadedState) => {
+    let currentState = typeof preloadedState === 'undefined'
+      ? reducer(undefined, { type: '@@INIT' })
+      : reducer(preloadedState, { type: '@@INIT' });
+    let listeners = new Set();
+
+    return {
+      getState: () => currentState,
+      dispatch(action) {
+        const nextState = reducer(currentState, action);
+        if (nextState !== currentState) {
+          currentState = nextState;
+          listeners.forEach(fn => fn());
+        }
+        return action;
+      },
+      subscribe(listener) {
+        if (typeof listener !== 'function') return () => {};
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      }
+    };
+  };
+
   const escapeHTML = (str) => str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -695,9 +799,11 @@
 
   // InlineTextEditor manages single-click editing for list item text content.
   class InlineTextEditor {
-    constructor(list) {
+    constructor(list, options = {}) {
       this.list = list;
+      this.options = options;
       this.editingEl = null;
+      this.initialTextValue = '';
 
       this.handleClick = this.handleClick.bind(this);
       this.handleBlur = this.handleBlur.bind(this);
@@ -709,7 +815,7 @@
     destroy() {
       this.list.removeEventListener('click', this.handleClick);
       if (this.editingEl) {
-        this.finishEditing(this.editingEl);
+        this.finishEditing(this.editingEl, true);
       }
       this.list = null;
     }
@@ -733,6 +839,7 @@
         textEl.dataset.originalText = textEl.textContent;
       }
 
+      this.initialTextValue = textEl.dataset.originalText ?? textEl.textContent;
       this.editingEl = textEl;
       const li = textEl.closest('li');
       if (li) {
@@ -801,15 +908,17 @@
       }
     }
 
-    finishEditing(textEl) {
+    finishEditing(textEl, skipCallback = false) {
       if (!textEl || this.editingEl !== textEl) return;
 
+      const previousText = this.initialTextValue;
       textEl.removeEventListener('blur', this.handleBlur);
       textEl.removeEventListener('keydown', this.handleKeyDown);
       textEl.removeAttribute('contenteditable');
       textEl.removeAttribute('spellcheck');
 
       textEl.dataset.originalText = textEl.textContent;
+      const newText = textEl.textContent;
 
       const li = textEl.closest('li');
       if (li) {
@@ -821,6 +930,15 @@
       }
 
       this.editingEl = null;
+      this.initialTextValue = '';
+
+      if (!skipCallback && typeof this.options.onCommit === 'function') {
+        this.options.onCommit({
+          element: textEl,
+          previousText,
+          newText
+        });
+      }
     }
   }
 
@@ -835,6 +953,9 @@
       this.searchInput = null;
       this.searchTimer = null;
       this.searchQuery = '';
+      this.store = null;
+      this.unsubscribe = null;
+      this.suppressNameSync = false;
       this.patternConfig = this.normalizePatternDefs([
         { regex: /@[A-Za-z0-9_]+/g, className: 'task-token-mention', priority: 2 },
         { regex: /#[A-Za-z0-9_]+/g, className: 'task-token-tag', priority: 2 }
@@ -844,6 +965,10 @@
       this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
       this.handleSearchClear = this.handleSearchClear.bind(this);
       this.handleItemBlur = this.handleItemBlur.bind(this);
+      this.handleToggle = this.handleToggle.bind(this);
+      this.handleStoreChange = this.handleStoreChange.bind(this);
+      this.handleEditCommit = this.handleEditCommit.bind(this);
+      this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
     }
 
     static get observedAttributes() {
@@ -855,11 +980,11 @@
       if (!this.listEl) return;
 
       this.ensureHeader();
-      this.syncTitle();
       if (this.searchInput) {
         this.searchInput.value = this.searchQuery;
       }
-      this.refreshOriginalText();
+
+      this.initializeStore();
 
       if (!this.dragBehavior) {
         this.dragBehavior = new DraggableBehavior(this.listEl, {
@@ -872,6 +997,7 @@
               bubbles: true,
               composed: true
             }));
+            this.scheduleReorderUpdate();
           },
           animator: new FlipAnimator()
         });
@@ -879,12 +1005,33 @@
       this.dragBehavior.enable();
 
       if (!this.inlineEditor) {
-        this.inlineEditor = new InlineTextEditor(this.listEl);
+        this.inlineEditor = new InlineTextEditor(this.listEl, {
+          onCommit: this.handleEditCommit
+        });
       }
 
       this.listEl.removeEventListener('blur', this.handleItemBlur, true);
       this.listEl.addEventListener('blur', this.handleItemBlur, true);
+      this.listEl.removeEventListener('change', this.handleToggle);
+      this.listEl.addEventListener('change', this.handleToggle);
       this.performSearch(this.searchQuery);
+    }
+
+    initializeStore() {
+      if (!this.store) {
+        const baseState = cloneListState(DEFAULT_TASK_LIST_STATE);
+        const attrTitle = this.getAttribute('name');
+        if (typeof attrTitle === 'string' && attrTitle.length) {
+          baseState.title = attrTitle;
+        }
+        this.store = createStore(listReducer, baseState);
+      }
+      if (!this.unsubscribe && this.store) {
+        this.unsubscribe = this.store.subscribe(this.handleStoreChange);
+      }
+      if (this.store) {
+        this.handleStoreChange();
+      }
     }
 
     disconnectedCallback() {
@@ -893,17 +1040,28 @@
       this.inlineEditor?.destroy();
       this.inlineEditor = null;
       this.listEl?.removeEventListener('blur', this.handleItemBlur, true);
+      this.listEl?.removeEventListener('change', this.handleToggle);
       if (this.searchInput) {
         this.searchInput.removeEventListener('input', this.handleSearchInput);
         this.searchInput.removeEventListener('keydown', this.handleSearchKeyDown);
       }
       clearTimeout(this.searchTimer);
       this.searchTimer = null;
+      this.unsubscribe?.();
+      this.unsubscribe = null;
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
       if (name === 'name' && oldValue !== newValue) {
-        this.syncTitle();
+        if (this.suppressNameSync) return;
+        if (this.store) {
+          this.store.dispatch({
+            type: LIST_ACTIONS.setTitle,
+            payload: { title: newValue ?? '' }
+          });
+        } else {
+          this.syncTitle();
+        }
       }
     }
 
@@ -958,15 +1116,6 @@
       if (!this.titleEl) return;
       const value = this.getAttribute('name');
       this.titleEl.textContent = value ?? '';
-    }
-
-    refreshOriginalText() {
-      if (!this.listEl) return;
-      this.listEl.querySelectorAll('li .text').forEach(textEl => {
-        if (textEl.dataset.originalText == null) {
-          textEl.dataset.originalText = textEl.textContent;
-        }
-      });
     }
 
     normalizePatternDefs(defs) {
@@ -1050,6 +1199,140 @@
         this.searchInput.value = '';
       }
       this.performSearch('');
+    }
+
+    handleStoreChange() {
+      if (!this.store) return;
+      this.renderFromState(this.store.getState());
+    }
+
+    renderFromState(state) {
+      if (!this.listEl) return;
+
+      const activeElement = document.activeElement;
+      let preservedFocus = null;
+      if (activeElement && this.listEl.contains(activeElement)) {
+        const activeLi = activeElement.closest('li');
+        if (activeLi?.dataset?.itemId) {
+          preservedFocus = {
+            itemId: activeLi.dataset.itemId,
+            role: activeElement.classList.contains('done-toggle')
+              ? 'toggle'
+              : activeElement.classList.contains('text')
+                ? 'text'
+                : null
+          };
+        }
+      }
+
+      this.listEl.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+      state.items.forEach(item => {
+        const li = document.createElement('li');
+        li.setAttribute('draggable', 'true');
+        li.dataset.itemId = item.id;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'done-toggle';
+        checkbox.checked = Boolean(item.done);
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'text';
+        textSpan.textContent = item.text;
+        textSpan.dataset.originalText = item.text;
+
+        const handle = document.createElement('span');
+        handle.className = 'handle';
+        handle.setAttribute('aria-hidden', 'true');
+
+        li.append(checkbox, textSpan, handle);
+        fragment.appendChild(li);
+      });
+      this.listEl.appendChild(fragment);
+
+      const nextTitle = state.title ?? '';
+      if (this.titleEl) {
+        this.titleEl.textContent = nextTitle;
+      }
+
+      const attrTitle = this.getAttribute('name');
+      if (attrTitle !== nextTitle) {
+        this.suppressNameSync = true;
+        if (nextTitle) {
+          this.setAttribute('name', nextTitle);
+        } else {
+          this.removeAttribute('name');
+        }
+        this.suppressNameSync = false;
+      }
+
+      this.performSearch(this.searchQuery);
+
+      if (preservedFocus?.itemId && preservedFocus.role) {
+        const selectorId = preservedFocus.itemId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const targetLi = this.listEl.querySelector(`li[data-item-id="${selectorId}"]`);
+        if (targetLi) {
+          const focusTarget = preservedFocus.role === 'toggle'
+            ? targetLi.querySelector('.done-toggle')
+            : preservedFocus.role === 'text'
+              ? targetLi.querySelector('.text')
+              : null;
+          focusTarget?.focus();
+        }
+      }
+    }
+
+    handleToggle(e) {
+      if (!e.target.classList?.contains('done-toggle')) return;
+      const li = e.target.closest('li');
+      const id = li?.dataset?.itemId;
+      if (!id || !this.store) return;
+      this.store.dispatch({
+        type: LIST_ACTIONS.setItemDone,
+        payload: { id, done: e.target.checked }
+      });
+    }
+
+    handleEditCommit({ element, newText, previousText }) {
+      if (!element || !this.store) {
+        this.performSearch(this.searchQuery);
+        return;
+      }
+      const li = element.closest('li');
+      const id = li?.dataset?.itemId;
+      if (!id) {
+        this.performSearch(this.searchQuery);
+        return;
+      }
+      if (typeof newText !== 'string') {
+        this.performSearch(this.searchQuery);
+        return;
+      }
+      if (newText === previousText) {
+        this.performSearch(this.searchQuery);
+        return;
+      }
+      this.store.dispatch({
+        type: LIST_ACTIONS.updateItemText,
+        payload: { id, text: newText }
+      });
+    }
+
+    scheduleReorderUpdate() {
+      if (!this.store || !this.listEl) return;
+      Promise.resolve().then(() => {
+        if (!this.store || !this.listEl) return;
+        const order = Array.from(this.listEl.children)
+          .filter(li => !li.classList.contains('placeholder'))
+          .map(li => li.dataset.itemId)
+          .filter(Boolean);
+        if (!order.length) return;
+        this.store.dispatch({
+          type: LIST_ACTIONS.reorderItems,
+          payload: { order }
+        });
+      });
     }
 
     handleItemBlur(e) {
