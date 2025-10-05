@@ -28,7 +28,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 8px;
+    padding: 6px 0px 6px 8px;
     /* smooth reflow for siblings (FLIP) */
     position: relative;
     will-change: transform;
@@ -63,6 +63,16 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none; /* Safari: block the long-press callout */
     touch-action: none;          /* Safari: prevent accidental text selection */
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 24px 24px;
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktZ3JpcC12ZXJ0aWNhbCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBkPSJNNyAyYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwTTcgNWExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDhhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0tMyAzYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwIi8+Cjwvc3ZnPg==');
   }
   .tasklist li .handle:active { cursor: grabbing; }
   .tasklist > li:active { cursor: grabbing; }
@@ -108,26 +118,26 @@
 
   <main>
     <ol class="tasklist">
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Refill the bird feeder before the sparrows file another formal request.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Check the fridge light still turns off, preferably without crawling inside again.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Return the umbrella to the hallway, where it insists it lives.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Water the fern before it submits another strongly worded letter to the radiator.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Update the shopping list to include milk, bread, and a moderately sensible hat.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Verify that the kettle boils water and not, as it occasionally attempts, good intentions.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Organize the cutlery drawer so the forks don't keep holding union meetings.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Empty the dishwasher before it begins drafting poetry about neglect.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Set the alarm clock, reminding it gently that no one enjoys its personality.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Take the bins out, though they are increasingly insistent they'd rather stay in.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Test the smoke detector by asking it politely to explain its worldview.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Send an email to the electricity meter thanking it for its tireless blinking.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Sharpen pencils so they feel prepared for anything, including international diplomacy.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Update the calendar to reflect the current year, not the one the cat prefers.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Polish the windows until they are clear about their long-term career goals.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Check the washing machine for socks that have declared independence.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Restock the biscuit tin before negotiations with visitors turn awkward.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Feed the goldfish, who has recently taken to sighing at odd intervals.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Write down the Wi-Fi password in case it decides to change its name again.</span><span class="handle">≡</span></li>
-      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Vacuum the carpet before it develops further geological features.</span><span class="handle">≡</span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Refill the bird feeder before the sparrows file another formal request.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Check the fridge light still turns off, preferably without crawling inside again.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Return the umbrella to the hallway, where it insists it lives.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Water the fern before it submits another strongly worded letter to the radiator.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Update the shopping list to include milk, bread, and a moderately sensible hat.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Verify that the kettle boils water and not, as it occasionally attempts, good intentions.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Organize the cutlery drawer so the forks don't keep holding union meetings.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Empty the dishwasher before it begins drafting poetry about neglect.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Set the alarm clock, reminding it gently that no one enjoys its personality.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Take the bins out, though they are increasingly insistent they'd rather stay in.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Test the smoke detector by asking it politely to explain its worldview.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Send an email to the electricity meter thanking it for its tireless blinking.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Sharpen pencils so they feel prepared for anything, including international diplomacy.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Update the calendar to reflect the current year, not the one the cat prefers.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Polish the windows until they are clear about their long-term career goals.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Check the washing machine for socks that have declared independence.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Restock the biscuit tin before negotiations with visitors turn awkward.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Feed the goldfish, who has recently taken to sighing at odd intervals.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Write down the Wi-Fi password in case it decides to change its name again.</span><span class="handle" aria-hidden="true"></span></li>
+      <li draggable="true"><input type="checkbox" class="done-toggle" /><span class="text">Vacuum the carpet before it develops further geological features.</span><span class="handle" aria-hidden="true"></span></li>
     </ol>
   </main>
 
