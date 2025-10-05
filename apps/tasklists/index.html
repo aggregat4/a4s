@@ -194,7 +194,7 @@
     'Vacuum the carpet before it develops further geological features.'
   ];
 
-  const DEFAULT_TASK_LIST_STATE = {
+  const PROTOTYPE_TASK_LIST = {
     title: 'Prototype Tasks',
     items: PROTOTYPE_TASK_TEXTS.map((text, index) => ({
       id: `task-${index + 1}`,
@@ -218,7 +218,8 @@
     setTitle: 'list/setTitle',
     setItemDone: 'list/setItemDone',
     updateItemText: 'list/updateItemText',
-    reorderItems: 'list/reorderItems'
+    reorderItems: 'list/reorderItems',
+    replaceAll: 'list/replaceAll'
   };
 
   const listReducer = (state = { title: '', items: [] }, action = {}) => {
@@ -264,6 +265,12 @@
         const unchanged = nextItems.every((item, index) => item === state.items[index]);
         if (unchanged) return state;
         return { ...state, items: nextItems };
+      }
+      case LIST_ACTIONS.replaceAll: {
+        const payload = action.payload;
+        if (!payload) return state;
+        const next = cloneListState(payload);
+        return next;
       }
       default:
         return state;
@@ -956,6 +963,7 @@
       this.store = null;
       this.unsubscribe = null;
       this.suppressNameSync = false;
+      this._initialState = null;
       this.patternConfig = this.normalizePatternDefs([
         { regex: /@[A-Za-z0-9_]+/g, className: 'task-token-mention', priority: 2 },
         { regex: /#[A-Za-z0-9_]+/g, className: 'task-token-tag', priority: 2 }
@@ -973,6 +981,23 @@
 
     static get observedAttributes() {
       return ['name'];
+    }
+
+    get initialState() {
+      return this._initialState;
+    }
+
+    set initialState(value) {
+      const next = cloneListState(value);
+      this._initialState = next;
+      if (this.store) {
+        this.store.dispatch({
+          type: LIST_ACTIONS.replaceAll,
+          payload: next
+        });
+      } else if (this.isConnected) {
+        this.initializeStore();
+      }
     }
 
     connectedCallback() {
@@ -1018,13 +1043,15 @@
     }
 
     initializeStore() {
+      const baseState = this.buildInitialState();
       if (!this.store) {
-        const baseState = cloneListState(DEFAULT_TASK_LIST_STATE);
-        const attrTitle = this.getAttribute('name');
-        if (typeof attrTitle === 'string' && attrTitle.length) {
-          baseState.title = attrTitle;
-        }
         this.store = createStore(listReducer, baseState);
+      }
+      if (this.store && baseState) {
+        this.store.dispatch({
+          type: LIST_ACTIONS.replaceAll,
+          payload: baseState
+        });
       }
       if (!this.unsubscribe && this.store) {
         this.unsubscribe = this.store.subscribe(this.handleStoreChange);
@@ -1032,6 +1059,20 @@
       if (this.store) {
         this.handleStoreChange();
       }
+    }
+
+    buildInitialState() {
+      const fallback = {
+        title: this.getAttribute('name') ?? '',
+        items: []
+      };
+      const source = this._initialState ?? fallback;
+      const baseState = cloneListState(source);
+      const attrTitle = this.getAttribute('name');
+      if (typeof attrTitle === 'string' && attrTitle.length) {
+        baseState.title = attrTitle;
+      }
+      return baseState;
     }
 
     disconnectedCallback() {
@@ -1394,6 +1435,14 @@
   }
 
   customElements.define('a4-tasklist', A4TaskList);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const demoList = document.querySelector('a4-tasklist');
+    if (!demoList) return;
+    if (!demoList.initialState || !demoList.initialState.items?.length) {
+      demoList.initialState = PROTOTYPE_TASK_LIST;
+    }
+  });
 </script>
 </body>
 </html>
