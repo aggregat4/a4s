@@ -888,13 +888,35 @@
     performSearch(query) {
       if (!this.listEl) return;
       this.searchQuery = query;
-      const needle = query.toLowerCase();
-      const hasQuery = needle.length > 0;
+      const tokens = query
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(token => token.toLowerCase());
+      const hasQuery = tokens.length > 0;
 
       const escapeHTML = (str) => str
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+      const mergeRanges = (ranges) => {
+        if (!ranges.length) return ranges;
+        ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+        const merged = [ranges[0]];
+        for (let i = 1; i < ranges.length; i++) {
+          const current = ranges[i];
+          const last = merged[merged.length - 1];
+          if (current.start <= last.end) {
+            last.end = Math.max(last.end, current.end);
+          } else {
+            merged.push({ ...current });
+          }
+        }
+        return merged;
+      };
 
       this.listEl.querySelectorAll('li').forEach(li => {
         if (li.classList.contains('placeholder')) return;
@@ -912,17 +934,41 @@
         }
 
         const haystack = original.toLowerCase();
-        const index = haystack.indexOf(needle);
-        if (index === -1) {
+        const matchesAllTokens = tokens.every(token => haystack.includes(token));
+        if (!matchesAllTokens) {
           li.hidden = true;
           textEl.textContent = original;
-        } else {
-          li.hidden = false;
-          const before = escapeHTML(original.slice(0, index));
-          const match = escapeHTML(original.slice(index, index + needle.length));
-          const after = escapeHTML(original.slice(index + needle.length));
-          textEl.innerHTML = `${before}<mark>${match}</mark>${after}`;
+          return;
         }
+
+        li.hidden = false;
+
+        const ranges = [];
+        tokens.forEach(token => {
+          let searchIndex = 0;
+          while (searchIndex < haystack.length) {
+            const found = haystack.indexOf(token, searchIndex);
+            if (found === -1) break;
+            ranges.push({ start: found, end: found + token.length });
+            searchIndex = found + token.length;
+          }
+        });
+
+        const merged = mergeRanges(ranges);
+        if (!merged.length) {
+          textEl.textContent = original;
+          return;
+        }
+
+        let cursor = 0;
+        let result = '';
+        merged.forEach(range => {
+          result += escapeHTML(original.slice(cursor, range.start));
+          result += `<mark>${escapeHTML(original.slice(range.start, range.end))}</mark>`;
+          cursor = range.end;
+        });
+        result += escapeHTML(original.slice(cursor));
+        textEl.innerHTML = result;
       });
 
       this.dragBehavior?.invalidateItemsCache();
