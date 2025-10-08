@@ -1287,31 +1287,40 @@
         }
       }
 
-      this.listEl.innerHTML = '';
-      const fragment = document.createDocumentFragment();
+      const existingNodes = Array.from(this.listEl.children).filter(li => !li.classList.contains('placeholder'));
+      const byId = new Map(existingNodes.map(li => [li.dataset.itemId, li]));
+      const usedNodes = new Set();
+      let previous = null;
+
+      const nextNonPlaceholder = (node) => {
+        while (node && node.classList?.contains('placeholder')) {
+          node = node.nextSibling;
+        }
+        return node;
+      };
+
       state.items.forEach(item => {
-        const li = document.createElement('li');
-        li.setAttribute('draggable', 'true');
-        li.dataset.itemId = item.id;
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'done-toggle';
-        checkbox.checked = Boolean(item.done);
-
-        const textSpan = document.createElement('span');
-        textSpan.className = 'text';
-        textSpan.textContent = item.text;
-        textSpan.dataset.originalText = item.text;
-
-        const handle = document.createElement('span');
-        handle.className = 'handle';
-        handle.setAttribute('aria-hidden', 'true');
-
-        li.append(checkbox, textSpan, handle);
-        fragment.appendChild(li);
+        let li = byId.get(item.id);
+        if (!li) {
+          li = this.createItemElement(item);
+        } else {
+          this.updateItemElement(li, item);
+        }
+        usedNodes.add(li);
+        const desired = previous
+          ? nextNonPlaceholder(previous.nextSibling)
+          : nextNonPlaceholder(this.listEl.firstChild);
+        if (li !== desired) {
+          this.listEl.insertBefore(li, desired || null);
+        }
+        previous = li;
       });
-      this.listEl.appendChild(fragment);
+
+      existingNodes.forEach(li => {
+        if (!usedNodes.has(li)) {
+          li.remove();
+        }
+      });
 
       const nextTitle = state.title ?? '';
       if (this.titleEl) {
@@ -1341,6 +1350,52 @@
               ? targetLi.querySelector('.text')
               : null;
           focusTarget?.focus();
+        }
+      }
+    }
+
+    createItemElement(item) {
+      const li = document.createElement('li');
+      li.setAttribute('draggable', 'true');
+      li.dataset.itemId = item.id;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'done-toggle';
+      checkbox.checked = Boolean(item.done);
+
+      const textSpan = document.createElement('span');
+      textSpan.className = 'text';
+      textSpan.textContent = item.text;
+      textSpan.dataset.originalText = item.text;
+
+      const handle = document.createElement('span');
+      handle.className = 'handle';
+      handle.setAttribute('aria-hidden', 'true');
+
+      li.append(checkbox, textSpan, handle);
+      return li;
+    }
+
+    updateItemElement(li, item) {
+      li.dataset.itemId = item.id;
+      if (li.getAttribute('draggable') !== 'true') {
+        li.setAttribute('draggable', 'true');
+      }
+
+      const checkbox = li.querySelector('.done-toggle');
+      if (checkbox && checkbox.checked !== Boolean(item.done)) {
+        checkbox.checked = Boolean(item.done);
+      }
+
+      const textSpan = li.querySelector('.text');
+      if (textSpan) {
+        const isEditing = textSpan.isContentEditable;
+        if (textSpan.dataset.originalText !== item.text) {
+          textSpan.dataset.originalText = item.text;
+          if (!isEditing) {
+            textSpan.textContent = item.text;
+          }
         }
       }
     }
