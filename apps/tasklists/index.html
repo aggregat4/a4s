@@ -25,6 +25,11 @@
     gap: 16px;
     margin-bottom: 12px;
   }
+  .tasklist-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
   .tasklist-title {
     font-size: 20px;
     font-weight: 600;
@@ -44,6 +49,31 @@
     width: 250px;
   }
   .tasklist-header input[type="search"]:focus {
+    outline: 2px solid #4d4d4d;
+    outline-offset: 2px;
+  }
+  .tasklist-add-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #4d4d4d;
+    background-color: #fff;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+  .tasklist-add-button svg {
+    width: 16px;
+    height: 16px;
+  }
+  .tasklist-add-button:hover {
+    background-color: #333;
+    color: #fff;
+  }
+  .tasklist-add-button:focus-visible {
     outline: 2px solid #4d4d4d;
     outline-offset: 2px;
   }
@@ -214,12 +244,25 @@
       : []
   });
 
+  const generateItemId = (() => {
+    let counter = 0;
+    return () => {
+      counter += 1;
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return `task-${crypto.randomUUID()}`;
+      }
+      const salt = Math.random().toString(36).slice(2, 8);
+      return `task-${Date.now().toString(36)}-${counter.toString(36)}-${salt}`;
+    };
+  })();
+
   const LIST_ACTIONS = {
     setTitle: 'list/setTitle',
     setItemDone: 'list/setItemDone',
     updateItemText: 'list/updateItemText',
     reorderItems: 'list/reorderItems',
-    replaceAll: 'list/replaceAll'
+    replaceAll: 'list/replaceAll',
+    insertItem: 'list/insertItem'
   };
 
   const listReducer = (state = { title: '', items: [] }, action = {}) => {
@@ -264,6 +307,22 @@
         if (nextItems.length !== state.items.length) return state;
         const unchanged = nextItems.every((item, index) => item === state.items[index]);
         if (unchanged) return state;
+        return { ...state, items: nextItems };
+      }
+      case LIST_ACTIONS.insertItem: {
+        const { index, item } = action.payload ?? {};
+        if (!item || typeof item.id !== 'string' || !item.id.length) return state;
+        if (state.items.some(existing => existing.id === item.id)) return state;
+        const insertionIndex = Number.isInteger(index)
+          ? Math.max(0, Math.min(index, state.items.length))
+          : state.items.length;
+        const nextItem = {
+          id: item.id,
+          text: typeof item.text === 'string' ? item.text : '',
+          done: Boolean(item.done)
+        };
+        const nextItems = state.items.slice();
+        nextItems.splice(insertionIndex, 0, nextItem);
         return { ...state, items: nextItems };
       }
       case LIST_ACTIONS.replaceAll: {
@@ -930,10 +989,55 @@
     }
 
     handleKeyDown(e) {
-      if (e.key === 'Enter' || e.key === 'Escape') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const textEl = e.target;
+        if (!textEl) return;
+        const fullText = textEl.textContent ?? '';
+        const { start, end } = this.getSelectionOffsets(textEl);
+        const beforeText = fullText.slice(0, start);
+        const afterText = fullText.slice(end);
+        if (typeof this.options.onSplit === 'function') {
+          this.options.onSplit({
+            element: textEl,
+            beforeText,
+            afterText,
+            previousText: this.initialTextValue,
+            splitIndex: start
+          });
+        }
+        textEl.textContent = beforeText;
+        textEl.dataset.originalText = beforeText;
+        textEl.blur();
+        return;
+      }
+      if (e.key === 'Escape') {
         e.preventDefault();
         e.target.blur();
       }
+    }
+
+    getSelectionOffsets(element) {
+      const fallbackLength = element?.textContent?.length ?? 0;
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        return { start: fallbackLength, end: fallbackLength };
+      }
+      const range = selection.getRangeAt(0);
+      if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) {
+        return { start: fallbackLength, end: fallbackLength };
+      }
+      const preStartRange = range.cloneRange();
+      preStartRange.selectNodeContents(element);
+      preStartRange.setEnd(range.startContainer, range.startOffset);
+      const start = preStartRange.toString().length;
+
+      const preEndRange = range.cloneRange();
+      preEndRange.selectNodeContents(element);
+      preEndRange.setEnd(range.endContainer, range.endOffset);
+      const end = preEndRange.toString().length;
+
+      return { start, end };
     }
 
     finishEditing(textEl, skipCallback = false) {
@@ -979,11 +1083,14 @@
       this.headerEl = null;
       this.titleEl = null;
       this.searchInput = null;
+      this.addButton = null;
       this.searchTimer = null;
       this.searchQuery = '';
       this.store = null;
       this.unsubscribe = null;
       this.suppressNameSync = false;
+      this.pendingEditItemId = null;
+      this.pendingEditCaret = null;
       this._initialState = null;
       this.patternConfig = this.normalizePatternDefs([
         { regex: /@[A-Za-z0-9_]+/g, className: 'task-token-mention', priority: 2 },
@@ -997,6 +1104,8 @@
       this.handleToggle = this.handleToggle.bind(this);
       this.handleStoreChange = this.handleStoreChange.bind(this);
       this.handleEditCommit = this.handleEditCommit.bind(this);
+      this.handleEditSplit = this.handleEditSplit.bind(this);
+      this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
       this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
     }
 
@@ -1052,7 +1161,8 @@
 
       if (!this.inlineEditor) {
         this.inlineEditor = new InlineTextEditor(this.listEl, {
-          onCommit: this.handleEditCommit
+          onCommit: this.handleEditCommit,
+          onSplit: this.handleEditSplit
         });
       }
 
@@ -1152,18 +1262,40 @@
         title.className = 'tasklist-title';
         header.appendChild(title);
 
+        const controls = document.createElement('div');
+        controls.className = 'tasklist-controls';
+
         const searchInput = document.createElement('input');
         searchInput.type = 'search';
         searchInput.className = 'tasklist-search-input';
         searchInput.placeholder = 'Search tasks...';
         searchInput.setAttribute('aria-label', 'Search tasks');
-        header.append(title, searchInput);
+
+        const addButton = document.createElement('button');
+        addButton.type = 'button';
+        addButton.className = 'tasklist-add-button';
+        addButton.setAttribute('aria-label', 'Add task');
+        const addIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        addIcon.setAttribute('viewBox', '0 0 16 16');
+        addIcon.setAttribute('aria-hidden', 'true');
+        addIcon.setAttribute('focusable', 'false');
+        const addPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        addPath.setAttribute('fill', 'currentColor');
+        addPath.setAttribute('d', 'M7 1h2v6h6v2H9v6H7V9H1V7h6z');
+        addIcon.appendChild(addPath);
+        const addLabel = document.createElement('span');
+        addLabel.textContent = 'Add';
+        addButton.append(addIcon, addLabel);
+
+        controls.append(searchInput, addButton);
+        header.append(controls);
 
         this.insertBefore(header, this.listEl);
 
         this.headerEl = header;
         this.titleEl = title;
         this.searchInput = searchInput;
+        this.addButton = addButton;
       }
 
       if (this.searchInput) {
@@ -1171,6 +1303,10 @@
         this.searchInput.removeEventListener('keydown', this.handleSearchKeyDown);
         this.searchInput.addEventListener('input', this.handleSearchInput);
         this.searchInput.addEventListener('keydown', this.handleSearchKeyDown);
+      }
+      if (this.addButton) {
+        this.addButton.removeEventListener('click', this.handleAddButtonClick);
+        this.addButton.addEventListener('click', this.handleAddButtonClick);
       }
     }
 
@@ -1263,6 +1399,57 @@
       this.performSearch('');
     }
 
+    handleAddButtonClick() {
+      if (!this.store) return;
+      if (this.searchQuery) {
+        this.clearSearch();
+      }
+      const newId = generateItemId();
+      this.pendingEditItemId = newId;
+      this.pendingEditCaret = 'end';
+      this.store.dispatch({
+        type: LIST_ACTIONS.insertItem,
+        payload: {
+          index: 0,
+          item: { id: newId, text: '', done: false }
+        }
+      });
+    }
+
+    handleEditSplit({ element, beforeText, afterText }) {
+      if (!element || !this.store) return;
+      const li = element.closest('li');
+      const id = li?.dataset?.itemId;
+      if (!id) return;
+
+      const state = this.store.getState();
+      const currentIndex = state.items.findIndex(item => item.id === id);
+      if (currentIndex === -1) return;
+
+      if (typeof beforeText === 'string') {
+        this.store.dispatch({
+          type: LIST_ACTIONS.updateItemText,
+          payload: { id, text: beforeText }
+        });
+      }
+
+      const newId = generateItemId();
+      this.pendingEditItemId = newId;
+      this.pendingEditCaret = 'start';
+
+      this.store.dispatch({
+        type: LIST_ACTIONS.insertItem,
+        payload: {
+          index: currentIndex + 1,
+          item: {
+            id: newId,
+            text: typeof afterText === 'string' ? afterText : '',
+            done: false
+          }
+        }
+      });
+    }
+
     handleStoreChange() {
       if (!this.store) return;
       this.renderFromState(this.store.getState());
@@ -1338,9 +1525,33 @@
         this.suppressNameSync = false;
       }
 
+      const hasPendingEdit = Boolean(this.pendingEditItemId);
+      const pendingCaretPreference = this.pendingEditCaret;
+
       this.performSearch(this.searchQuery);
 
-      if (preservedFocus?.itemId && preservedFocus.role) {
+      if (hasPendingEdit && this.inlineEditor && this.listEl) {
+        const selectorId = this.pendingEditItemId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const targetLi = this.listEl.querySelector(`li[data-item-id="${selectorId}"]`);
+        const textEl = targetLi?.querySelector('.text') ?? null;
+        if (textEl) {
+          this.inlineEditor.startEditing(textEl);
+          if (pendingCaretPreference === 'start') {
+            const selection = window.getSelection();
+            if (selection) {
+              const range = textEl.ownerDocument.createRange();
+              range.selectNodeContents(textEl);
+              range.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          }
+          this.pendingEditItemId = null;
+          this.pendingEditCaret = null;
+        }
+      }
+
+      if (!hasPendingEdit && preservedFocus?.itemId && preservedFocus.role) {
         const selectorId = preservedFocus.itemId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const targetLi = this.listEl.querySelector(`li[data-item-id="${selectorId}"]`);
         if (targetLi) {
@@ -1477,6 +1688,12 @@
         const original = textEl.dataset.originalText != null
           ? textEl.dataset.originalText
           : (textEl.dataset.originalText = textEl.textContent);
+
+        if (this.pendingEditItemId && li.dataset.itemId === this.pendingEditItemId) {
+          li.hidden = false;
+          textEl.textContent = original;
+          return;
+        }
 
         const { markup, matchesAllTokens } = buildDecoratedMarkup(original, tokens, this.patternConfig);
 
