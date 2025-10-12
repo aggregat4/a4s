@@ -5,6 +5,20 @@ import { pathToFileURL } from "url";
 const appUrl = pathToFileURL(resolve(__dirname, "..", "index.html")).href;
 const listItemsSelector = "ol.tasklist li:not(.placeholder)";
 
+function showDoneToggle(page: Page) {
+  return page.getByRole("checkbox", { name: "Show done" });
+}
+
+async function setShowDone(page: Page, value: boolean) {
+  const toggle = showDoneToggle(page);
+  if (value) {
+    await toggle.check();
+  } else {
+    await toggle.uncheck();
+  }
+  return toggle;
+}
+
 async function addTask(page: Page, text: string) {
   await page.getByRole("button", { name: "Add task" }).click();
   const editor = page.locator(listItemsSelector).first().locator(".text");
@@ -60,6 +74,11 @@ test("user can add, complete, and filter tasks", async ({ page }) => {
     .locator("input.done-toggle");
   await checkbox.check();
   await expect(checkbox).toBeChecked();
+
+  const hiddenLocator = page.locator("ol.tasklist li[hidden]");
+  await expect(hiddenLocator).toHaveCount(1);
+  await setShowDone(page, true);
+  await expect(hiddenLocator).toHaveCount(0);
 
   const searchInput = page.getByRole("searchbox", { name: "Search tasks" });
   await searchInput.fill("playwright");
@@ -159,6 +178,7 @@ test("completed tasks stay checked after performing a search", async ({
 }) => {
   const items = page.locator(listItemsSelector);
   const checkbox = items.nth(0).locator("input.done-toggle");
+  await setShowDone(page, true);
   await checkbox.check();
   await expect(checkbox).toBeChecked();
 
@@ -167,6 +187,25 @@ test("completed tasks stay checked after performing a search", async ({
   await searchInput.fill("");
 
   await expect(checkbox).toBeChecked();
+});
+
+test("show done toggle reveals and hides completed items", async ({ page }) => {
+  const items = page.locator(listItemsSelector);
+  const firstText = (await items.first().locator(".text").textContent())?.trim() ?? "";
+  const checkbox = items.first().locator("input.done-toggle");
+  await checkbox.check();
+
+  await expect(items.first()).toBeHidden();
+
+  const toggle = await setShowDone(page, true);
+  await expect(toggle).toBeChecked();
+  await expect(items.first()).toBeVisible();
+  if (firstText) {
+    await expect(items.first().locator(".text")).toContainText(firstText);
+  }
+
+  await setShowDone(page, false);
+  await expect(items.first()).toBeHidden();
 });
 
 test("adding a task resets any active search filter", async ({ page }) => {

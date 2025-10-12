@@ -30,6 +30,18 @@
     align-items: center;
     gap: 10px;
   }
+  .tasklist-show-done {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 16px;
+    color: #333;
+  }
+  .tasklist-show-done input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+  }
   .tasklist-title {
     font-size: 20px;
     font-weight: 600;
@@ -1199,8 +1211,10 @@
       this.titleEl = null;
       this.searchInput = null;
       this.addButton = null;
+      this.showDoneCheckbox = null;
       this.searchTimer = null;
       this.searchQuery = '';
+      this.showDone = false;
       this.store = null;
       this.unsubscribe = null;
       this.suppressNameSync = false;
@@ -1223,6 +1237,7 @@
       this.handleEditMerge = this.handleEditMerge.bind(this);
       this.handleEditRemove = this.handleEditRemove.bind(this);
       this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
+      this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
       this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
     }
 
@@ -1254,6 +1269,9 @@
       this.ensureHeader();
       if (this.searchInput) {
         this.searchInput.value = this.searchQuery;
+      }
+      if (this.showDoneCheckbox) {
+        this.showDoneCheckbox.checked = this.showDone;
       }
 
       this.initializeStore();
@@ -1336,6 +1354,7 @@
         this.searchInput.removeEventListener('input', this.handleSearchInput);
         this.searchInput.removeEventListener('keydown', this.handleSearchKeyDown);
       }
+      this.showDoneCheckbox?.removeEventListener('change', this.handleShowDoneChange);
       clearTimeout(this.searchTimer);
       this.searchTimer = null;
       this.unsubscribe?.();
@@ -1406,7 +1425,17 @@
         addLabel.textContent = 'Add';
         addButton.append(addIcon, addLabel);
 
-        controls.append(searchInput, addButton);
+        const showDoneLabel = document.createElement('label');
+        showDoneLabel.className = 'tasklist-show-done';
+        const showDoneCheckbox = document.createElement('input');
+        showDoneCheckbox.type = 'checkbox';
+        showDoneCheckbox.className = 'tasklist-show-done-toggle';
+        showDoneCheckbox.checked = this.showDone;
+        const showDoneText = document.createElement('span');
+        showDoneText.textContent = 'Show done';
+        showDoneLabel.append(showDoneCheckbox, showDoneText);
+
+        controls.append(searchInput, showDoneLabel, addButton);
         header.append(controls);
 
         this.insertBefore(header, this.listEl);
@@ -1414,6 +1443,7 @@
         this.headerEl = header;
         this.titleEl = title;
         this.searchInput = searchInput;
+        this.showDoneCheckbox = showDoneCheckbox;
         this.addButton = addButton;
       }
 
@@ -1422,6 +1452,10 @@
         this.searchInput.removeEventListener('keydown', this.handleSearchKeyDown);
         this.searchInput.addEventListener('input', this.handleSearchInput);
         this.searchInput.addEventListener('keydown', this.handleSearchKeyDown);
+      }
+      if (this.showDoneCheckbox) {
+        this.showDoneCheckbox.removeEventListener('change', this.handleShowDoneChange);
+        this.showDoneCheckbox.addEventListener('change', this.handleShowDoneChange);
       }
       if (this.addButton) {
         this.addButton.removeEventListener('click', this.handleAddButtonClick);
@@ -1507,6 +1541,13 @@
     handleSearchClear() {
       this.clearSearch();
       this.searchInput?.focus();
+    }
+
+    handleShowDoneChange(e) {
+      const isChecked = Boolean(e?.target?.checked);
+      if (this.showDone === isChecked) return;
+      this.showDone = isChecked;
+      this.performSearch(this.searchQuery);
     }
 
     clearSearch() {
@@ -1739,6 +1780,7 @@
       const li = document.createElement('li');
       li.setAttribute('draggable', 'true');
       li.dataset.itemId = item.id;
+      li.dataset.done = item.done ? 'true' : 'false';
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -1760,6 +1802,7 @@
 
     updateItemElement(li, item) {
       li.dataset.itemId = item.id;
+      li.dataset.done = item.done ? 'true' : 'false';
       if (li.getAttribute('draggable') !== 'true') {
         li.setAttribute('draggable', 'true');
       }
@@ -1855,6 +1898,7 @@
         const textEl = li.querySelector('.text');
         if (!textEl) return;
         const isEditing = textEl.isContentEditable;
+        const isDone = li.dataset.done === 'true';
 
         const original = textEl.dataset.originalText != null
           ? textEl.dataset.originalText
@@ -1867,6 +1911,12 @@
 
         if (this.pendingEditItemId && li.dataset.itemId === this.pendingEditItemId) {
           li.hidden = false;
+          textEl.textContent = original;
+          return;
+        }
+
+        if (!this.showDone && isDone) {
+          li.hidden = true;
           textEl.textContent = original;
           return;
         }
