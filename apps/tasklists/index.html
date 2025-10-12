@@ -1031,6 +1031,33 @@
       const selectionCollapsed = start === end;
       const isModKey = e.metaKey || e.ctrlKey;
       const isShortcutRemove = isModKey && !e.altKey && e.key === 'Backspace';
+      if (!isModKey && !e.altKey && e.key === 'Backspace' && selectionCollapsed && start === 0 && fullText.length > 0) {
+        const li = textEl.closest('li');
+        let previousLi = li?.previousElementSibling ?? null;
+        while (previousLi && previousLi.classList?.contains('placeholder')) {
+          previousLi = previousLi.previousElementSibling ?? null;
+        }
+        const previousItemId = previousLi?.dataset?.itemId ?? null;
+        if (previousItemId && typeof this.options.onMerge === 'function') {
+          e.preventDefault();
+          this.finishEditing(textEl, true);
+          textEl.blur();
+          const handled = this.options.onMerge({
+            element: textEl,
+            currentItemId: li?.dataset?.itemId ?? null,
+            previousItemId,
+            currentText: fullText,
+            previousText: this.initialTextValue,
+            selectionStart: start,
+            selectionEnd: end,
+            reason: 'backspace-merge'
+          }) === true;
+          if (!handled) {
+            this.startEditing(textEl);
+          }
+          return;
+        }
+      }
       const shouldRemoveEmptyBackspace = e.key === 'Backspace'
         && !isModKey
         && !e.altKey
@@ -1145,6 +1172,7 @@
       this.handleStoreChange = this.handleStoreChange.bind(this);
       this.handleEditCommit = this.handleEditCommit.bind(this);
       this.handleEditSplit = this.handleEditSplit.bind(this);
+      this.handleEditMerge = this.handleEditMerge.bind(this);
       this.handleEditRemove = this.handleEditRemove.bind(this);
       this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
       this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
@@ -1204,6 +1232,7 @@
         this.inlineEditor = new InlineTextEditor(this.listEl, {
           onCommit: this.handleEditCommit,
           onSplit: this.handleEditSplit,
+          onMerge: this.handleEditMerge,
           onRemove: this.handleEditRemove
         });
       }
@@ -1492,6 +1521,37 @@
       });
     }
 
+    handleEditMerge({ currentItemId, previousItemId, currentText }) {
+      if (!this.store || !currentItemId || !previousItemId) return false;
+
+      const state = this.store.getState();
+      const items = Array.isArray(state?.items) ? state.items : [];
+      const currentIndex = items.findIndex(item => item.id === currentItemId);
+      if (currentIndex <= 0) return false;
+
+      const previousIndex = currentIndex - 1;
+      const previousItem = items[previousIndex];
+      if (!previousItem || previousItem.id !== previousItemId) return false;
+
+      const prevText = typeof previousItem.text === 'string' ? previousItem.text : '';
+      const currText = typeof currentText === 'string' ? currentText : '';
+      const mergedText = prevText + currText;
+
+      this.pendingEditItemId = previousItem.id;
+      this.pendingEditCaret = { type: 'offset', value: prevText.length };
+
+      this.store.dispatch({
+        type: LIST_ACTIONS.updateItemText,
+        payload: { id: previousItem.id, text: mergedText }
+      });
+      this.store.dispatch({
+        type: LIST_ACTIONS.removeItem,
+        payload: { id: currentItemId }
+      });
+
+      return true;
+    }
+
     handleEditRemove({ element }) {
       if (!element || !this.store) return;
       const li = element.closest('li');
@@ -1612,6 +1672,38 @@
               range.collapse(true);
               selection.removeAllRanges();
               selection.addRange(range);
+            }
+          } else if (
+            pendingCaretPreference
+            && typeof pendingCaretPreference === 'object'
+            && pendingCaretPreference.type === 'offset'
+          ) {
+            const selection = window.getSelection();
+            if (selection) {
+              const textNode = textEl.firstChild;
+              const totalLength = textEl.textContent?.length ?? 0;
+              const desired = Math.max(
+                0,
+                Math.min(
+                  typeof pendingCaretPreference.value === 'number'
+                    ? pendingCaretPreference.value
+                    : 0,
+                  totalLength
+                )
+              );
+              if (textNode && textNode.nodeType === 3) {
+                const range = textEl.ownerDocument.createRange();
+                range.setStart(textNode, Math.min(desired, textNode.textContent.length));
+                range.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(range);
+              } else {
+                const range = textEl.ownerDocument.createRange();
+                range.selectNodeContents(textEl);
+                range.collapse(desired >= totalLength);
+                selection.removeAllRanges();
+                selection.addRange(range);
+              }
             }
           }
           this.pendingEditItemId = null;
