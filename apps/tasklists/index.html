@@ -921,7 +921,7 @@
       this.startEditing(text, e);
     }
 
-    startEditing(textEl, triggerEvent = null) {
+    startEditing(textEl, triggerEvent = null, caretPreference = null) {
       if (this.editingEl === textEl) return;
 
       if (this.editingEl) {
@@ -952,7 +952,11 @@
 
       // focus after listeners to ensure we capture the blur that follows
       textEl.focus();
-      this.placeCaret(textEl, triggerEvent);
+      if (caretPreference) {
+        this.applyCaretPreference(textEl, caretPreference);
+      } else {
+        this.placeCaret(textEl, triggerEvent);
+      }
     }
 
     placeCaret(element, triggerEvent) {
@@ -1105,6 +1109,50 @@
       const end = preEndRange.toString().length;
 
       return { start, end };
+    }
+
+    applyCaretPreference(element, preference) {
+      const selection = window.getSelection();
+      if (!selection) return;
+
+      let target = null;
+
+      if (preference === 'start') {
+        target = 0;
+      } else if (preference === 'end') {
+        target = element?.textContent?.length ?? 0;
+      } else if (
+        preference
+        && typeof preference === 'object'
+        && preference.type === 'offset'
+        && typeof preference.value === 'number'
+      ) {
+        const length = element?.textContent?.length ?? 0;
+        target = Math.max(0, Math.min(preference.value, length));
+      }
+
+      if (target == null) {
+        this.placeCaret(element, null);
+        return;
+      }
+
+      const textNode = element?.firstChild;
+      const doc = element?.ownerDocument ?? document;
+      const range = doc.createRange();
+
+      if (textNode && textNode.nodeType === 3) {
+        const clamped = Math.min(target, textNode.textContent.length);
+        range.setStart(textNode, clamped);
+        range.collapse(true);
+      } else {
+        range.selectNodeContents(element);
+        const length = element?.textContent?.length ?? 0;
+        const collapseToEnd = target >= length;
+        range.collapse(collapseToEnd);
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
 
     finishEditing(textEl, skipCallback = false) {
@@ -1521,7 +1569,7 @@
       });
     }
 
-    handleEditMerge({ currentItemId, previousItemId, currentText }) {
+    handleEditMerge({ currentItemId, previousItemId, currentText, selectionStart }) {
       if (!this.store || !currentItemId || !previousItemId) return false;
 
       const state = this.store.getState();
@@ -1534,11 +1582,15 @@
       if (!previousItem || previousItem.id !== previousItemId) return false;
 
       const prevText = typeof previousItem.text === 'string' ? previousItem.text : '';
-      const currText = typeof currentText === 'string' ? currentText : '';
-      const mergedText = prevText + currText;
+      const currentTextValue = typeof currentText === 'string' ? currentText : '';
+      const mergedText = prevText + currentTextValue;
+
+      const mergeOffset = prevText.length + (typeof selectionStart === 'number'
+        ? Math.max(0, Math.min(selectionStart, currentTextValue.length))
+        : 0);
 
       this.pendingEditItemId = previousItem.id;
-      this.pendingEditCaret = { type: 'offset', value: prevText.length };
+      this.pendingEditCaret = { type: 'offset', value: mergeOffset };
 
       this.store.dispatch({
         type: LIST_ACTIONS.updateItemText,
@@ -1663,49 +1715,7 @@
         const targetLi = this.listEl.querySelector(`li[data-item-id="${selectorId}"]`);
         const textEl = targetLi?.querySelector('.text') ?? null;
         if (textEl) {
-          this.inlineEditor.startEditing(textEl);
-          if (pendingCaretPreference === 'start') {
-            const selection = window.getSelection();
-            if (selection) {
-              const range = textEl.ownerDocument.createRange();
-              range.selectNodeContents(textEl);
-              range.collapse(true);
-              selection.removeAllRanges();
-              selection.addRange(range);
-            }
-          } else if (
-            pendingCaretPreference
-            && typeof pendingCaretPreference === 'object'
-            && pendingCaretPreference.type === 'offset'
-          ) {
-            const selection = window.getSelection();
-            if (selection) {
-              const textNode = textEl.firstChild;
-              const totalLength = textEl.textContent?.length ?? 0;
-              const desired = Math.max(
-                0,
-                Math.min(
-                  typeof pendingCaretPreference.value === 'number'
-                    ? pendingCaretPreference.value
-                    : 0,
-                  totalLength
-                )
-              );
-              if (textNode && textNode.nodeType === 3) {
-                const range = textEl.ownerDocument.createRange();
-                range.setStart(textNode, Math.min(desired, textNode.textContent.length));
-                range.collapse(true);
-                selection.removeAllRanges();
-                selection.addRange(range);
-              } else {
-                const range = textEl.ownerDocument.createRange();
-                range.selectNodeContents(textEl);
-                range.collapse(desired >= totalLength);
-                selection.removeAllRanges();
-                selection.addRange(range);
-              }
-            }
-          }
+          this.inlineEditor.startEditing(textEl, null, pendingCaretPreference);
           this.pendingEditItemId = null;
           this.pendingEditCaret = null;
         }
@@ -1844,10 +1854,16 @@
         if (li.classList.contains('placeholder')) return;
         const textEl = li.querySelector('.text');
         if (!textEl) return;
+        const isEditing = textEl.isContentEditable;
 
         const original = textEl.dataset.originalText != null
           ? textEl.dataset.originalText
           : (textEl.dataset.originalText = textEl.textContent);
+
+        if (isEditing) {
+          li.hidden = false;
+          return;
+        }
 
         if (this.pendingEditItemId && li.dataset.itemId === this.pendingEditItemId) {
           li.hidden = false;
