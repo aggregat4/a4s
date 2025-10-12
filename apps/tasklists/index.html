@@ -262,7 +262,8 @@
     updateItemText: 'list/updateItemText',
     reorderItems: 'list/reorderItems',
     replaceAll: 'list/replaceAll',
-    insertItem: 'list/insertItem'
+    insertItem: 'list/insertItem',
+    removeItem: 'list/removeItem'
   };
 
   const listReducer = (state = { title: '', items: [] }, action = {}) => {
@@ -323,6 +324,13 @@
         };
         const nextItems = state.items.slice();
         nextItems.splice(insertionIndex, 0, nextItem);
+        return { ...state, items: nextItems };
+      }
+      case LIST_ACTIONS.removeItem: {
+        const { id } = action.payload ?? {};
+        if (typeof id !== 'string' || !id.length) return state;
+        const nextItems = state.items.filter(item => item.id !== id);
+        if (nextItems.length === state.items.length) return state;
         return { ...state, items: nextItems };
       }
       case LIST_ACTIONS.replaceAll: {
@@ -989,11 +997,12 @@
     }
 
     handleKeyDown(e) {
+      const textEl = e.target;
+      if (!textEl) return;
+      const fullText = textEl.textContent ?? '';
+
       if (e.key === 'Enter') {
         e.preventDefault();
-        const textEl = e.target;
-        if (!textEl) return;
-        const fullText = textEl.textContent ?? '';
         const { start, end } = this.getSelectionOffsets(textEl);
         const beforeText = fullText.slice(0, start);
         const afterText = fullText.slice(end);
@@ -1011,9 +1020,41 @@
         textEl.blur();
         return;
       }
+
       if (e.key === 'Escape') {
         e.preventDefault();
-        e.target.blur();
+        textEl.blur();
+        return;
+      }
+
+      const { start, end } = this.getSelectionOffsets(textEl);
+      const selectionCollapsed = start === end;
+      const selectionCoversAll = start === 0 && end === fullText.length;
+      const isModKey = e.metaKey || e.ctrlKey;
+      const isShortcutRemove = isModKey && (e.key === 'Backspace' || e.key === 'Delete');
+      const shouldRemoveEmptyBackspace = e.key === 'Backspace'
+        && !isModKey
+        && !e.altKey
+        && (fullText.length === 0)
+        && selectionCollapsed;
+      const shouldRemoveByShortcut = isShortcutRemove && (fullText.length === 0 || selectionCoversAll);
+
+      if (shouldRemoveEmptyBackspace || shouldRemoveByShortcut) {
+        e.preventDefault();
+        const reason = shouldRemoveByShortcut ? 'shortcut' : 'empty-backspace';
+        this.finishEditing(textEl, true);
+        textEl.blur();
+        if (typeof this.options.onRemove === 'function') {
+          this.options.onRemove({
+            element: textEl,
+            previousText: this.initialTextValue,
+            currentText: fullText,
+            selectionStart: start,
+            selectionEnd: end,
+            reason
+          });
+        }
+        return;
       }
     }
 
@@ -1105,6 +1146,7 @@
       this.handleStoreChange = this.handleStoreChange.bind(this);
       this.handleEditCommit = this.handleEditCommit.bind(this);
       this.handleEditSplit = this.handleEditSplit.bind(this);
+      this.handleEditRemove = this.handleEditRemove.bind(this);
       this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
       this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
     }
@@ -1162,7 +1204,8 @@
       if (!this.inlineEditor) {
         this.inlineEditor = new InlineTextEditor(this.listEl, {
           onCommit: this.handleEditCommit,
-          onSplit: this.handleEditSplit
+          onSplit: this.handleEditSplit,
+          onRemove: this.handleEditRemove
         });
       }
 
@@ -1447,6 +1490,32 @@
             done: false
           }
         }
+      });
+    }
+
+    handleEditRemove({ element }) {
+      if (!element || !this.store) return;
+      const li = element.closest('li');
+      const id = li?.dataset?.itemId;
+      if (!id) return;
+
+      const state = this.store.getState();
+      const items = state?.items ?? [];
+      const currentIndex = items.findIndex(item => item.id === id);
+      if (currentIndex === -1) return;
+
+      const nextItem = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
+      if (nextItem) {
+        this.pendingEditItemId = nextItem.id;
+        this.pendingEditCaret = 'end';
+      } else {
+        this.pendingEditItemId = null;
+        this.pendingEditCaret = null;
+      }
+
+      this.store.dispatch({
+        type: LIST_ACTIONS.removeItem,
+        payload: { id }
       });
     }
 
