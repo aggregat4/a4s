@@ -29,6 +29,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
   }
   .tasklist-show-done {
     display: inline-flex;
@@ -59,6 +60,7 @@
     background-color: #fff;
     color: #333;
     width: 250px;
+    max-width: 100%;
   }
   .tasklist-header input[type="search"]:focus {
     outline: 2px solid #4d4d4d;
@@ -200,6 +202,25 @@
     0%   { transform: translateX(-8px); opacity: 0.7; }
     50%  { transform: translateX(8px);  opacity: 0.7; }
     100% { transform: translateX(0);    opacity: 1; }
+  }
+
+  @media (max-width: 640px) {
+    .tasklist-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .tasklist-title {
+      width: 100%;
+    }
+    .tasklist-controls {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+    .tasklist-header input[type="search"] {
+      width: 100%;
+    }
   }
 </style>
 
