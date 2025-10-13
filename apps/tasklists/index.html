@@ -1129,6 +1129,21 @@
       if (!textEl) return;
       const fullText = textEl.textContent ?? '';
 
+      const isMoveShortcut = (e.key === 'ArrowDown' || e.key === 'ArrowUp')
+        && !e.altKey
+        && (e.metaKey || e.ctrlKey);
+      if (isMoveShortcut) {
+        e.preventDefault();
+        const { start, end } = this.getSelectionOffsets(textEl);
+        this.options.onMove?.({
+          element: textEl,
+          direction: e.key === 'ArrowDown' ? 'down' : 'up',
+          selectionStart: start,
+          selectionEnd: end
+        });
+        return;
+      }
+
       const isVerticalNav = (e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.altKey && !e.metaKey && !e.ctrlKey;
       if (isVerticalNav) {
         const direction = e.key === 'ArrowDown' ? 'down' : 'up';
@@ -1615,6 +1630,7 @@
       this.handleEditSplit = this.handleEditSplit.bind(this);
       this.handleEditMerge = this.handleEditMerge.bind(this);
       this.handleEditRemove = this.handleEditRemove.bind(this);
+      this.handleEditMove = this.handleEditMove.bind(this);
       this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
       this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
       this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
@@ -1686,7 +1702,8 @@
           onCommit: this.handleEditCommit,
           onSplit: this.handleEditSplit,
           onMerge: this.handleEditMerge,
-          onRemove: this.handleEditRemove
+          onRemove: this.handleEditRemove,
+          onMove: this.handleEditMove
         });
       }
 
@@ -2053,6 +2070,36 @@
       });
     }
 
+    handleEditMove({ element, direction, selectionStart }) {
+      if (!element || !this.store) return;
+      const li = element.closest('li');
+      const id = li?.dataset?.itemId;
+      if (!id) return;
+
+      const state = this.store.getState();
+      const items = Array.isArray(state?.items) ? state.items : [];
+      const fromIndex = items.findIndex(item => item.id === id);
+      if (fromIndex === -1) return;
+      const delta = direction === 'down' ? 1 : -1;
+      const toIndex = fromIndex + delta;
+      if (toIndex < 0 || toIndex >= items.length) return;
+
+      const order = items.map(item => item.id);
+      const [moved] = order.splice(fromIndex, 1);
+      order.splice(toIndex, 0, moved);
+
+      const caretOffset = typeof selectionStart === 'number'
+        ? Math.max(0, selectionStart)
+        : 0;
+      this.editController.queue(id, { type: 'offset', value: caretOffset });
+      this.inlineEditor?.finishEditing(element, true);
+
+      this.store.dispatch({
+        type: LIST_ACTIONS.reorderItems,
+        payload: { order }
+      });
+    }
+
     handleStoreChange() {
       if (!this.store) return;
       this.renderFromState(this.store.getState());
@@ -2168,6 +2215,15 @@
         return;
       }
       if (typeof newText !== 'string') {
+        this.performSearch(this.searchQuery);
+        return;
+      }
+      const currentState = this.store.getState();
+      const stateItem = currentState?.items?.find(item => item.id === id);
+      if (stateItem && stateItem.text !== previousText) {
+        const authoritativeText = stateItem.text ?? '';
+        element.textContent = authoritativeText;
+        element.dataset.originalText = authoritativeText;
         this.performSearch(this.searchQuery);
         return;
       }

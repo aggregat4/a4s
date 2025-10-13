@@ -40,7 +40,7 @@ async function setCaretPosition(target: Locator, position: number) {
     if (!textNode) return;
     const safeOffset = Math.max(
       0,
-      Math.min(offset ?? 0, textNode.textContent?.length ?? 0)
+      Math.min(offset ?? 0, textNode.textContent?.length ?? 0),
     );
     const range = el.ownerDocument.createRange();
     range.setStart(textNode, safeOffset);
@@ -50,10 +50,25 @@ async function setCaretPosition(target: Locator, position: number) {
   }, position);
 }
 
+async function getCaretOffset(target: Locator) {
+  return target.evaluate((el) => {
+    const selection = el.ownerDocument.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    if (!el.contains(range.startContainer)) return null;
+    const pre = range.cloneRange();
+    pre.selectNodeContents(el);
+    pre.setEnd(range.startContainer, range.startOffset);
+    const offset = pre.toString().length;
+    pre.detach?.();
+    return offset;
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto(appUrl);
   await expect(
-    page.getByRole("heading", { name: "Prototype Tasks" })
+    page.getByRole("heading", { name: "Prototype Tasks" }),
   ).toBeVisible();
 });
 
@@ -84,11 +99,11 @@ test("user can add, complete, and filter tasks", async ({ page }) => {
   await searchInput.fill("playwright");
 
   const visibleTasks = page.locator(
-    "ol.tasklist li:not(.placeholder):not([hidden])"
+    "ol.tasklist li:not(.placeholder):not([hidden])",
   );
   await expect(visibleTasks).toHaveCount(1);
   await expect(visibleTasks.first().locator(".text")).toContainText(
-    "Playwright smoke task"
+    "Playwright smoke task",
   );
 });
 
@@ -163,7 +178,7 @@ test("search highlights matching tokens and clears after reset", async ({
   await searchInput.fill("bird");
 
   const visible = page.locator(
-    "ol.tasklist li:not(.placeholder):not([hidden])"
+    "ol.tasklist li:not(.placeholder):not([hidden])",
   );
   await expect(visible).toHaveCount(1);
   await expect(page.locator("ol.tasklist mark")).toHaveCount(1);
@@ -191,7 +206,8 @@ test("completed tasks stay checked after performing a search", async ({
 
 test("show done toggle reveals and hides completed items", async ({ page }) => {
   const items = page.locator(listItemsSelector);
-  const firstText = (await items.first().locator(".text").textContent())?.trim() ?? "";
+  const firstText =
+    (await items.first().locator(".text").textContent())?.trim() ?? "";
   const checkbox = items.first().locator("input.done-toggle");
   await checkbox.check();
 
@@ -218,4 +234,87 @@ test("adding a task resets any active search filter", async ({ page }) => {
   await page.getByRole("button", { name: "Add task" }).click();
 
   await expect(hiddenLocator).toHaveCount(0);
+});
+
+test("keyboard shortcut moves items while preserving caret position", async ({
+  page,
+}) => {
+  await addTask(page, "Keyboard Move");
+  const items = page.locator(listItemsSelector);
+  const activeText = items.first().locator(".text");
+
+  await activeText.click();
+  await setCaretPosition(activeText, 3);
+
+  await page.keyboard.press("Control+ArrowDown");
+
+  const movedText = items.nth(1).locator(".text");
+  await expect(movedText).toHaveAttribute("contenteditable", "true");
+  await expect(movedText).toHaveText("Keyboard Move");
+  const offsetAfterDown = await getCaretOffset(movedText);
+  expect(offsetAfterDown).toBe(3);
+
+  await page.keyboard.press("Control+ArrowUp");
+
+  const backToTop = items.first().locator(".text");
+  await expect(backToTop).toHaveAttribute("contenteditable", "true");
+  await expect(backToTop).toHaveText("Keyboard Move");
+  const offsetAfterUp = await getCaretOffset(backToTop);
+  expect(offsetAfterUp).toBe(3);
+});
+
+test("splitting then dragging keeps items separated", async ({ page }) => {
+  const items = page.locator(listItemsSelector);
+  const firstTextLocator = items.first().locator(".text");
+  const originalFirst = (await firstTextLocator.textContent())?.trim() ?? "";
+
+  await firstTextLocator.click();
+  await setCaretPosition(firstTextLocator, 0);
+  await page.keyboard.type("Fresh");
+  await page.keyboard.press("Enter");
+
+  const secondTextLocator = items.nth(1).locator(".text");
+  const splitRemainder = (await secondTextLocator.textContent())?.trim() ?? "";
+
+  await page.keyboard.press("Escape");
+  await expect(secondTextLocator).not.toHaveAttribute(
+    "contenteditable",
+    "true",
+  );
+
+  await expect(items.first().locator(".text")).toHaveText("Fresh");
+  const dataBefore = await items
+    .first()
+    .locator(".text")
+    .getAttribute("data-original-text");
+  expect(dataBefore).toBe("Fresh");
+
+  const handle = items.nth(1).locator(".handle");
+  const target = items.nth(4);
+  await handle.dragTo(target);
+
+  const stateAfter = await page.evaluate(() => {
+    const el = document.querySelector("a4-tasklist");
+    return {
+      state: el?.store?.getState(),
+    };
+  });
+  expect(stateAfter?.state?.items?.[0]?.text).toBe("Fresh");
+  const remainderCount =
+    stateAfter?.state?.items?.filter(
+      (item: any) => item?.text === splitRemainder,
+    )?.length ?? 0;
+  expect(remainderCount).toBe(1);
+
+  await expect(items.first().locator(".text")).toHaveText("Fresh");
+  const dataAfter = await items
+    .first()
+    .locator(".text")
+    .getAttribute("data-original-text");
+  expect(dataAfter).toBe("Fresh");
+  await expect(
+    page
+      .locator(`${listItemsSelector} .text`)
+      .filter({ hasText: splitRemainder || originalFirst }),
+  ).toHaveCount(1);
 });
