@@ -495,6 +495,34 @@
     return { markup: result, matchesAllTokens };
   };
 
+  const tokenizeSearchQuery = (query) => {
+    if (typeof query !== 'string') return [];
+    return query
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(token => token.toLowerCase());
+  };
+
+  const evaluateSearchEntry = ({ originalText, tokens, patternConfig, showDone, isDone }) => {
+    const hiddenByCompletion = !showDone && isDone;
+    if (hiddenByCompletion) {
+      return { hidden: true, markup: null };
+    }
+
+    const { markup, matchesAllTokens } = buildDecoratedMarkup(originalText, tokens, patternConfig);
+    if (tokens.length > 0 && !matchesAllTokens) {
+      return { hidden: true, markup: null };
+    }
+
+    return { hidden: false, markup };
+  };
+
+  const escapeSelectorId = (value) => {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  };
+
   // DraggableBehavior - drag & drop with floating dragged item and an optional animator
   // It assumes it is being applied to a list container as some of the internals assume
   // li elements
@@ -1201,6 +1229,142 @@
     }
   }
 
+  class EditController {
+    constructor({ getListElement, getInlineEditor }) {
+      this.getListElement = typeof getListElement === 'function' ? getListElement : () => null;
+      this.getInlineEditor = typeof getInlineEditor === 'function' ? getInlineEditor : () => null;
+      this.pendingItemId = null;
+      this.pendingCaret = null;
+    }
+
+    queue(itemId, caretPreference = null) {
+      if (typeof itemId === 'string' && itemId.length) {
+        this.pendingItemId = itemId;
+        this.pendingCaret = caretPreference ?? null;
+      }
+    }
+
+    clear() {
+      this.pendingItemId = null;
+      this.pendingCaret = null;
+    }
+
+    hasPending() {
+      return typeof this.pendingItemId === 'string' && this.pendingItemId.length > 0;
+    }
+
+    isPendingItem(itemId) {
+      if (!this.hasPending()) return false;
+      return this.pendingItemId === itemId;
+    }
+
+    getPendingEdit() {
+      if (!this.hasPending()) return null;
+      return {
+        itemId: this.pendingItemId,
+        caret: this.pendingCaret
+      };
+    }
+
+    getForceVisibleIds() {
+      if (!this.hasPending()) return null;
+      return new Set([this.pendingItemId]);
+    }
+
+    applyPendingEdit() {
+      if (!this.hasPending()) return false;
+      const listEl = this.getListElement();
+      const inlineEditor = this.getInlineEditor();
+      if (!listEl || !inlineEditor) return false;
+
+      const selectorId = escapeSelectorId(this.pendingItemId);
+      const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
+      const textEl = targetLi?.querySelector('.text') ?? null;
+      if (!textEl) {
+        return false;
+      }
+
+      inlineEditor.startEditing(textEl, null, this.pendingCaret);
+      this.clear();
+      return true;
+    }
+  }
+
+  class TaskListView {
+    constructor({ getListElement }) {
+      this.getListElement = typeof getListElement === 'function' ? getListElement : () => null;
+    }
+
+    captureFocus() {
+      const listEl = this.getListElement();
+      if (!listEl) return null;
+      const activeElement = document.activeElement;
+      if (!activeElement || !listEl.contains(activeElement)) return null;
+      const activeLi = activeElement.closest('li');
+      if (!activeLi?.dataset?.itemId) return null;
+      const role = activeElement.classList.contains('done-toggle')
+        ? 'toggle'
+        : activeElement.classList.contains('text')
+          ? 'text'
+          : null;
+      return role ? { itemId: activeLi.dataset.itemId, role } : null;
+    }
+
+    syncItems(items, { createItem, updateItem }) {
+      const listEl = this.getListElement();
+      if (!listEl || !Array.isArray(items)) return;
+      const existingNodes = Array.from(listEl.children).filter(li => !li.classList.contains('placeholder'));
+      const byId = new Map(existingNodes.map(li => [li.dataset.itemId, li]));
+      const usedNodes = new Set();
+      let previous = null;
+
+      const nextNonPlaceholder = (node) => {
+        while (node && node.classList?.contains('placeholder')) {
+          node = node.nextSibling;
+        }
+        return node;
+      };
+
+      items.forEach(item => {
+        let li = byId.get(item.id);
+        if (!li) {
+          li = createItem(item);
+        } else {
+          updateItem(li, item);
+        }
+        usedNodes.add(li);
+        const desired = previous
+          ? nextNonPlaceholder(previous.nextSibling)
+          : nextNonPlaceholder(listEl.firstChild);
+        if (li !== desired) {
+          listEl.insertBefore(li, desired || null);
+        }
+        previous = li;
+      });
+
+      existingNodes.forEach(li => {
+        if (!usedNodes.has(li)) {
+          li.remove();
+        }
+      });
+    }
+
+    restoreFocus(preservedFocus, { skip } = {}) {
+      if (skip || !preservedFocus) return;
+      const listEl = this.getListElement();
+      if (!listEl) return;
+      const selectorId = escapeSelectorId(preservedFocus.itemId);
+      const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
+      if (!targetLi) return;
+      const focusTarget = preservedFocus.role === 'toggle'
+        ? targetLi.querySelector('.done-toggle')
+        : preservedFocus.role === 'text'
+          ? targetLi.querySelector('.text')
+          : null;
+      focusTarget?.focus();
+    }
+  }
+
   class A4TaskList extends HTMLElement {
     constructor() {
       super();
@@ -1218,8 +1382,6 @@
       this.store = null;
       this.unsubscribe = null;
       this.suppressNameSync = false;
-      this.pendingEditItemId = null;
-      this.pendingEditCaret = null;
       this._initialState = null;
       this.patternConfig = this.normalizePatternDefs([
         { regex: /@[A-Za-z0-9_]+/g, className: 'task-token-mention', priority: 2 },
@@ -1239,6 +1401,14 @@
       this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
       this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
       this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
+
+      this.editController = new EditController({
+        getListElement: () => this.listEl,
+        getInlineEditor: () => this.inlineEditor
+      });
+      this.view = new TaskListView({
+        getListElement: () => this.listEl
+      });
     }
 
     static get observedAttributes() {
@@ -1565,8 +1735,7 @@
         this.clearSearch();
       }
       const newId = generateItemId();
-      this.pendingEditItemId = newId;
-      this.pendingEditCaret = 'end';
+      this.editController.queue(newId, 'end');
       this.store.dispatch({
         type: LIST_ACTIONS.insertItem,
         payload: {
@@ -1594,8 +1763,7 @@
       }
 
       const newId = generateItemId();
-      this.pendingEditItemId = newId;
-      this.pendingEditCaret = 'start';
+      this.editController.queue(newId, 'start');
 
       this.store.dispatch({
         type: LIST_ACTIONS.insertItem,
@@ -1630,8 +1798,7 @@
         ? Math.max(0, Math.min(selectionStart, currentTextValue.length))
         : 0);
 
-      this.pendingEditItemId = previousItem.id;
-      this.pendingEditCaret = { type: 'offset', value: mergeOffset };
+      this.editController.queue(previousItem.id, { type: 'offset', value: mergeOffset });
 
       this.store.dispatch({
         type: LIST_ACTIONS.updateItemText,
@@ -1658,11 +1825,9 @@
 
       const nextItem = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
       if (nextItem) {
-        this.pendingEditItemId = nextItem.id;
-        this.pendingEditCaret = 'end';
+        this.editController.queue(nextItem.id, 'end');
       } else {
-        this.pendingEditItemId = null;
-        this.pendingEditCaret = null;
+        this.editController.clear();
       }
 
       this.store.dispatch({
@@ -1677,57 +1842,13 @@
     }
 
     renderFromState(state) {
-      if (!this.listEl) return;
+      if (!this.listEl || !state) return;
 
-      const activeElement = document.activeElement;
-      let preservedFocus = null;
-      if (activeElement && this.listEl.contains(activeElement)) {
-        const activeLi = activeElement.closest('li');
-        if (activeLi?.dataset?.itemId) {
-          preservedFocus = {
-            itemId: activeLi.dataset.itemId,
-            role: activeElement.classList.contains('done-toggle')
-              ? 'toggle'
-              : activeElement.classList.contains('text')
-                ? 'text'
-                : null
-          };
-        }
-      }
+      const preservedFocus = this.view.captureFocus();
 
-      const existingNodes = Array.from(this.listEl.children).filter(li => !li.classList.contains('placeholder'));
-      const byId = new Map(existingNodes.map(li => [li.dataset.itemId, li]));
-      const usedNodes = new Set();
-      let previous = null;
-
-      const nextNonPlaceholder = (node) => {
-        while (node && node.classList?.contains('placeholder')) {
-          node = node.nextSibling;
-        }
-        return node;
-      };
-
-      state.items.forEach(item => {
-        let li = byId.get(item.id);
-        if (!li) {
-          li = this.createItemElement(item);
-        } else {
-          this.updateItemElement(li, item);
-        }
-        usedNodes.add(li);
-        const desired = previous
-          ? nextNonPlaceholder(previous.nextSibling)
-          : nextNonPlaceholder(this.listEl.firstChild);
-        if (li !== desired) {
-          this.listEl.insertBefore(li, desired || null);
-        }
-        previous = li;
-      });
-
-      existingNodes.forEach(li => {
-        if (!usedNodes.has(li)) {
-          li.remove();
-        }
+      this.view.syncItems(state.items, {
+        createItem: (item) => this.createItemElement(item),
+        updateItem: (li, item) => this.updateItemElement(li, item)
       });
 
       const nextTitle = state.title ?? '';
@@ -1746,34 +1867,17 @@
         this.suppressNameSync = false;
       }
 
-      const hasPendingEdit = Boolean(this.pendingEditItemId);
-      const pendingCaretPreference = this.pendingEditCaret;
+      const forceVisible = this.editController.getForceVisibleIds();
+      let hasPendingEdit = this.editController.hasPending();
 
-      this.performSearch(this.searchQuery);
+      this.performSearch(this.searchQuery, { forceVisible });
 
-      if (hasPendingEdit && this.inlineEditor && this.listEl) {
-        const selectorId = this.pendingEditItemId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const targetLi = this.listEl.querySelector(`li[data-item-id="${selectorId}"]`);
-        const textEl = targetLi?.querySelector('.text') ?? null;
-        if (textEl) {
-          this.inlineEditor.startEditing(textEl, null, pendingCaretPreference);
-          this.pendingEditItemId = null;
-          this.pendingEditCaret = null;
-        }
+      if (hasPendingEdit) {
+        this.editController.applyPendingEdit();
+        hasPendingEdit = this.editController.hasPending();
       }
 
-      if (!hasPendingEdit && preservedFocus?.itemId && preservedFocus.role) {
-        const selectorId = preservedFocus.itemId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const targetLi = this.listEl.querySelector(`li[data-item-id="${selectorId}"]`);
-        if (targetLi) {
-          const focusTarget = preservedFocus.role === 'toggle'
-            ? targetLi.querySelector('.done-toggle')
-            : preservedFocus.role === 'text'
-              ? targetLi.querySelector('.text')
-              : null;
-          focusTarget?.focus();
-        }
-      }
+      this.view.restoreFocus(preservedFocus, { skip: hasPendingEdit });
     }
 
     createItemElement(item) {
@@ -1883,15 +1987,11 @@
       this.performSearch(this.searchQuery);
     }
 
-    performSearch(query) {
+    performSearch(query, options = {}) {
       if (!this.listEl) return;
       this.searchQuery = query;
-      const tokens = query
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean)
-        .map(token => token.toLowerCase());
-      const hasQuery = tokens.length > 0;
+      const tokens = tokenizeSearchQuery(query);
+      const forceVisible = options?.forceVisible ?? null;
 
       this.listEl.querySelectorAll('li').forEach(li => {
         if (li.classList.contains('placeholder')) return;
@@ -1909,32 +2009,26 @@
           return;
         }
 
-        if (this.pendingEditItemId && li.dataset.itemId === this.pendingEditItemId) {
+        if (forceVisible && li.dataset.itemId && forceVisible.has(li.dataset.itemId)) {
           li.hidden = false;
           textEl.textContent = original;
           return;
         }
 
-        if (!this.showDone && isDone) {
-          li.hidden = true;
+        const result = evaluateSearchEntry({
+          originalText: original,
+          tokens,
+          patternConfig: this.patternConfig,
+          showDone: this.showDone,
+          isDone
+        });
+
+        li.hidden = result.hidden;
+        if (result.hidden || result.markup == null) {
           textEl.textContent = original;
           return;
         }
-
-        const { markup, matchesAllTokens } = buildDecoratedMarkup(original, tokens, this.patternConfig);
-
-        if (hasQuery && !matchesAllTokens) {
-          li.hidden = true;
-          textEl.textContent = original;
-          return;
-        }
-
-        li.hidden = false;
-        if (markup == null) {
-          textEl.textContent = original;
-        } else {
-          textEl.innerHTML = markup;
-        }
+        textEl.innerHTML = result.markup;
       });
 
       this.dragBehavior?.invalidateItemsCache();
