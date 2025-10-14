@@ -1540,6 +1540,11 @@
                     // never paints the target layout before we invert it, avoiding flicker.
                     this.animator?.play(this.container, this.dragging, prev);
                 }
+
+                cancel() {
+                    if (!this.dragging) return;
+                    this.endDrag();
+                }
             }
 
             // FLIPAnimator isolates the animation concerns from the drag logic so a
@@ -3234,6 +3239,10 @@
                     return false;
                 }
 
+                cancelActiveDrag() {
+                    this.dragBehavior?.cancel?.();
+                }
+
                 setListName(name) {
                     const nextTitle = typeof name === "string" ? name : "";
                     if (this.store) {
@@ -3304,12 +3313,14 @@
                     this.currentLists = [];
                     this.activeListId = null;
                     this.currentSearch = "";
+                    this.dropTargetDepth = new Map();
                     this.handleSearchInput = this.handleSearchInput.bind(this);
                     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
                     this.handleListDragEnter = this.handleListDragEnter.bind(this);
                     this.handleListDragOver = this.handleListDragOver.bind(this);
                     this.handleListDragLeave = this.handleListDragLeave.bind(this);
                     this.handleListDrop = this.handleListDrop.bind(this);
+                    this.handleGlobalDragEnd = this.handleGlobalDragEnd.bind(this);
                 }
 
                 init() {
@@ -3324,12 +3335,14 @@
                     );
                     this.renderLists();
                     this.updateActionStates();
+                    document.addEventListener("dragend", this.handleGlobalDragEnd);
                 }
 
                 destroy() {
                     this.searchInput?.removeEventListener("input", this.handleSearchInput);
                     this.searchInput?.removeEventListener("keydown", this.handleSearchKeyDown);
                     clearTimeout(this.searchDebounceId);
+                    document.removeEventListener("dragend", this.handleGlobalDragEnd);
                 }
 
                 setSearchValue(value) {
@@ -3433,6 +3446,8 @@
                     if (!payload) return;
                     if (payload.sourceListId === button.dataset.listId) return;
                     event.preventDefault();
+                    const nextDepth = (this.dropTargetDepth.get(button) ?? 0) + 1;
+                    this.dropTargetDepth.set(button, nextDepth);
                     button.classList.add("is-drop-target");
                 }
 
@@ -3447,18 +3462,36 @@
 
                 handleListDragLeave(event) {
                     const button = event.currentTarget;
-                    button.classList.remove("is-drop-target");
+                    if (button.contains(event.relatedTarget)) {
+                        return;
+                    }
+                    const nextDepth = (this.dropTargetDepth.get(button) ?? 1) - 1;
+                    if (nextDepth <= 0) {
+                        this.dropTargetDepth.delete(button);
+                        button.classList.remove("is-drop-target");
+                    } else {
+                        this.dropTargetDepth.set(button, nextDepth);
+                    }
                 }
 
                 handleListDrop(event) {
                     const button = event.currentTarget;
                     const payload = this.parseTaskData(event.dataTransfer);
                     button.classList.remove("is-drop-target");
+                    this.dropTargetDepth.delete(button);
                     if (!payload) return;
                     const targetListId = button.dataset.listId;
                     if (!targetListId || payload.sourceListId === targetListId) return;
                     event.preventDefault();
                     this.handlers.onItemDropped?.(payload, targetListId);
+                }
+
+                handleGlobalDragEnd() {
+                    if (!this.dropTargetDepth.size) return;
+                    this.dropTargetDepth.forEach((_, button) => {
+                        button.classList.remove("is-drop-target");
+                    });
+                    this.dropTargetDepth.clear();
                 }
             }
 
@@ -3964,6 +3997,7 @@
                     const snapshot =
                         options.snapshot ?? sourceRecord.element.getItemSnapshot(itemId);
                     if (!snapshot) return;
+                    sourceRecord.element.cancelActiveDrag?.();
                     const removed = sourceRecord.element.removeItemById(itemId);
                     if (!removed) return;
                     targetRecord.element.prependItem(snapshot);

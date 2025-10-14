@@ -352,6 +352,26 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
   ).toHaveCount(1);
 });
 
+test("dragging task to sidebar leaves no placeholders", async ({ page }) => {
+  const destinationButton = page
+    .locator(".sidebar-list-button")
+    .filter({ hasText: "Weekend Projects" });
+  const originalText =
+    (await page.locator(listItemsSelector).first().locator(".text").textContent())?.trim() ?? "";
+
+  await page.locator(listItemsSelector).first().dragTo(destinationButton);
+
+  await expect(page.locator("ol.tasklist li.placeholder")).toHaveCount(0);
+  await expect(destinationButton).not.toHaveClass(/is-drop-target/);
+
+  await destinationButton.click();
+  if (originalText) {
+    await expect(
+      page.locator("ol.tasklist li:not(.placeholder) .text").filter({ hasText: originalText }),
+    ).toHaveCount(1);
+  }
+});
+
 test("deleting a list removes it and selects a fallback list", async ({
   page,
 }) => {
