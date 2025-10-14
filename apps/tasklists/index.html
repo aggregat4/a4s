@@ -3446,6 +3446,15 @@
                     if (!payload) return;
                     if (payload.sourceListId === button.dataset.listId) return;
                     event.preventDefault();
+                    if (this.dropTargetDepth.size) {
+                        const others = Array.from(this.dropTargetDepth.keys()).filter(
+                            (btn) => btn !== button,
+                        );
+                        others.forEach((btn) => {
+                            btn.classList.remove("is-drop-target");
+                            this.dropTargetDepth.delete(btn);
+                        });
+                    }
                     const nextDepth = (this.dropTargetDepth.get(button) ?? 0) + 1;
                     this.dropTargetDepth.set(button, nextDepth);
                     button.classList.add("is-drop-target");
