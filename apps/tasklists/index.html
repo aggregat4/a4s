@@ -239,28 +239,6 @@
                 display: flex;
             }
 
-            .list-section__header {
-                display: none;
-                align-items: center;
-                justify-content: space-between;
-                gap: var(--space-sm);
-            }
-
-            .lists-main.search-mode .list-section__header {
-                display: flex;
-            }
-
-            .list-section__title {
-                margin: 0;
-                font-size: 22px;
-                font-weight: 600;
-            }
-
-            .list-section__matches {
-                font-size: 14px;
-                color: var(--color-muted);
-            }
-
             .list-section--flash {
                 animation: targetFlash 0.8s ease;
             }
@@ -499,6 +477,17 @@
                 }
             }
 
+            .tasklist-empty {
+                display: none;
+                padding: var(--space-md) var(--space-sm);
+                color: var(--color-muted);
+                font-style: italic;
+            }
+
+            a4-tasklist.tasklist-no-matches .tasklist-empty {
+                display: block;
+            }
+
             .task-token-mention {
                 color: var(--color-mention);
                 font-weight: 600;
@@ -677,7 +666,6 @@
                 </div>
                 <div class="sidebar-section sidebar-search">
                     <label class="sidebar-field">
-                        <span class="sidebar-label">Global search</span>
                         <input
                             type="search"
                             class="sidebar-search-input"
@@ -697,7 +685,11 @@
                     <button type="button" class="sidebar-action" data-role="rename-list">
                         Rename list
                     </button>
-                    <button type="button" class="sidebar-action sidebar-action--danger" data-role="delete-list">
+                    <button
+                        type="button"
+                        class="sidebar-action sidebar-action--danger"
+                        data-role="delete-list"
+                    >
                         Delete list
                     </button>
                 </div>
@@ -722,11 +714,16 @@
             >
                 <h2 id="move-dialog-title" class="move-dialog__title">Move Task</h2>
                 <p id="move-dialog-description" class="move-dialog__description">
-                    Select a destination list for this task. Use the arrow keys to choose, then press Enter.
+                    Select a destination list for this task. Use the arrow keys to choose, then
+                    press Enter.
                 </p>
                 <ul class="move-dialog__options" data-role="move-dialog-options"></ul>
                 <div class="move-dialog__actions">
-                    <button type="button" class="move-dialog__cancel" data-role="move-dialog-cancel">
+                    <button
+                        type="button"
+                        class="move-dialog__cancel"
+                        data-role="move-dialog-cancel"
+                    >
                         Cancel
                     </button>
                 </div>
@@ -2248,6 +2245,7 @@
                     this.lastReportedMatches = null;
                     this.lastReportedTotal = null;
                     this.lastReportedQuery = "";
+                    this.emptyStateEl = null;
 
                     this.handleSearchInput = this.handleSearchInput.bind(this);
                     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -2410,6 +2408,7 @@
                     this.searchTimer = null;
                     this.unsubscribe?.();
                     this.unsubscribe = null;
+                    this.classList.remove("tasklist-no-matches");
                 }
 
                 attributeChangedCallback(name, oldValue, newValue) {
@@ -2440,6 +2439,15 @@
                         this.appendChild(list);
                     }
                     this.listEl = list;
+
+                    if (!this.emptyStateEl || !this.contains(this.emptyStateEl)) {
+                        const empty = document.createElement("div");
+                        empty.className = "tasklist-empty";
+                        empty.textContent = "No matching items";
+                        empty.hidden = true;
+                        this.insertBefore(empty, this.listEl.nextSibling);
+                        this.emptyStateEl = empty;
+                    }
                 }
 
                 ensureHeader() {
@@ -2820,13 +2828,14 @@
 
                     this.performSearch(this.searchQuery, { forceVisible });
 
+                    let appliedPendingEdit = false;
                     if (hasPendingEdit) {
-                        this.editController.applyPendingEdit();
+                        appliedPendingEdit = this.editController.applyPendingEdit() === true;
                         hasPendingEdit = this.editController.hasPending();
                     }
 
                     this.view.restoreFocus(preservedFocus, {
-                        skip: hasPendingEdit,
+                        skip: hasPendingEdit || appliedPendingEdit,
                     });
                 }
 
@@ -3148,6 +3157,15 @@
                             }),
                         );
                     }
+
+                    const shouldShowEmpty =
+                        typeof this.searchQuery === "string" &&
+                        this.searchQuery.trim().length > 0 &&
+                        visibleCount === 0;
+                    if (this.emptyStateEl) {
+                        this.emptyStateEl.hidden = !shouldShowEmpty;
+                    }
+                    this.classList.toggle("tasklist-no-matches", shouldShowEmpty);
                 }
 
                 applyFilter(query) {
@@ -3276,10 +3294,8 @@
                     this.listContainer =
                         element?.querySelector("[data-role='sidebar-list']") ?? null;
                     this.addButton = element?.querySelector("[data-role='add-list']") ?? null;
-                    this.renameButton =
-                        element?.querySelector("[data-role='rename-list']") ?? null;
-                    this.deleteButton =
-                        element?.querySelector("[data-role='delete-list']") ?? null;
+                    this.renameButton = element?.querySelector("[data-role='rename-list']") ?? null;
+                    this.deleteButton = element?.querySelector("[data-role='delete-list']") ?? null;
                     this.searchDebounceId = null;
                     this.currentLists = [];
                     this.activeListId = null;
@@ -3295,9 +3311,7 @@
                 init() {
                     this.searchInput?.addEventListener("input", this.handleSearchInput);
                     this.searchInput?.addEventListener("keydown", this.handleSearchKeyDown);
-                    this.addButton?.addEventListener("click", () =>
-                        this.handlers.onAddList?.(),
-                    );
+                    this.addButton?.addEventListener("click", () => this.handlers.onAddList?.());
                     this.renameButton?.addEventListener("click", () =>
                         this.handlers.onRenameList?.(),
                     );
@@ -3673,16 +3687,6 @@
                     wrapper.className = "list-section";
                     wrapper.dataset.listId = id;
 
-                    const header = document.createElement("div");
-                    header.className = "list-section__header";
-                    const titleEl = document.createElement("h3");
-                    titleEl.className = "list-section__title";
-                    titleEl.textContent = name;
-                    const matchesEl = document.createElement("span");
-                    matchesEl.className = "list-section__matches";
-                    header.append(titleEl, matchesEl);
-                    wrapper.appendChild(header);
-
                     const listElement = document.createElement("a4-tasklist");
                     listElement.setAttribute("name", name);
                     listElement.listId = id;
@@ -3700,9 +3704,6 @@
                         name,
                         element: listElement,
                         wrapper,
-                        headerEl: header,
-                        headerTitleEl: titleEl,
-                        matchLabelEl: matchesEl,
                         totalCount: listElement.getTotalItemCount(),
                         matchCount: listElement.getSearchMatchCount(),
                         flashTimer: null,
@@ -3716,7 +3717,6 @@
                         this.activeListId = id;
                     }
                     this.updateListVisibility();
-                    this.updateListMatchLabel(record);
                     return record;
                 }
 
@@ -3724,10 +3724,7 @@
                     const element = record.element;
                     element.addEventListener("taskMoveRequest", this.handleTaskMoveRequest);
                     element.addEventListener("itemcountchange", this.handleItemCountChange);
-                    element.addEventListener(
-                        "searchresultschange",
-                        this.handleSearchResultsChange,
-                    );
+                    element.addEventListener("searchresultschange", this.handleSearchResultsChange);
                     element.addEventListener("taskFocus", this.handleListFocus);
                 }
 
@@ -3792,7 +3789,6 @@
                     if (!trimmed.length) return;
                     record.name = trimmed;
                     record.element.setListName(trimmed);
-                    record.headerTitleEl.textContent = trimmed;
                     this.refreshSidebar();
                     this.updateMainHeading();
                 }
@@ -3811,18 +3807,22 @@
                     if (!confirmed) return;
                     const removeId = record.id;
                     const removeIndex = this.listOrder.indexOf(removeId);
+                    const removedActive = removeId === this.activeListId;
                     this.removeList(removeId);
-                    if (this.listOrder.length) {
+                    if (!this.listOrder.length) {
+                        this.activeListId = null;
+                        this.updateListVisibility();
+                        this.refreshSidebar();
+                        this.updateMainHeading();
+                        return;
+                    }
+                    if (removedActive) {
                         const fallbackIndex = Math.min(
                             Math.max(removeIndex, 0),
                             this.listOrder.length - 1,
                         );
-                        this.activeListId = this.listOrder[fallbackIndex];
-                    } else {
-                        this.activeListId = null;
-                    }
-                    if (this.activeListId) {
-                        this.setActiveList(this.activeListId);
+                        const nextActiveId = this.listOrder[fallbackIndex];
+                        this.setActiveList(nextActiveId);
                     } else {
                         this.updateListVisibility();
                         this.refreshSidebar();
@@ -3844,8 +3844,7 @@
 
                 handleTaskMoveRequest(event) {
                     const detail = event.detail ?? {};
-                    const sourceListId =
-                        detail.sourceListId ?? event.currentTarget?.listId ?? null;
+                    const sourceListId = detail.sourceListId ?? event.currentTarget?.listId ?? null;
                     const itemId = detail.itemId ?? null;
                     if (!sourceListId || !itemId) return;
                     const record = this.listRegistry.get(sourceListId);
@@ -3902,7 +3901,6 @@
                     } else {
                         record.totalCount = record.element.getTotalItemCount();
                     }
-                    this.updateListMatchLabel(record);
                     if (!this.isApplyingSearch) {
                         this.refreshSidebar();
                     }
@@ -3918,7 +3916,6 @@
                     } else {
                         record.matchCount = record.element.getSearchMatchCount();
                     }
-                    this.updateListMatchLabel(record);
                     if (!this.isApplyingSearch) {
                         this.refreshSidebar();
                     }
@@ -3979,7 +3976,6 @@
                     if (!record) return;
                     record.totalCount = record.element.getTotalItemCount();
                     record.matchCount = record.element.getSearchMatchCount();
-                    this.updateListMatchLabel(record);
                 }
 
                 refreshSidebar() {
@@ -4015,11 +4011,6 @@
                         this.mainElement.classList.toggle("search-mode", searchMode);
                     }
                     this.updateListVisibility();
-                    this.listOrder.forEach((id) => {
-                        const record = this.listRegistry.get(id);
-                        if (!record) return;
-                        this.updateListMatchLabel(record);
-                    });
                 }
 
                 updateListVisibility() {
@@ -4031,21 +4022,7 @@
                         const shouldShow = searchMode || isActive;
                         record.wrapper.classList.toggle("is-visible", shouldShow);
                         record.wrapper.classList.toggle("is-active", isActive);
-                        if (record.matchLabelEl) {
-                            record.matchLabelEl.hidden = !searchMode;
-                        }
                     });
-                }
-
-                updateListMatchLabel(record) {
-                    if (!record || !record.matchLabelEl) return;
-                    record.headerTitleEl.textContent = record.name;
-                    const searchMode = this.isSearchMode();
-                    record.matchLabelEl.hidden = !searchMode;
-                    const label = searchMode
-                        ? this.formatMatchCount(record.matchCount)
-                        : this.formatTotalCount(record.totalCount);
-                    record.matchLabelEl.textContent = label;
                 }
 
                 updateMainHeading() {

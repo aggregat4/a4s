@@ -137,6 +137,9 @@ test("pressing enter splits the current task into two", async ({ page }) => {
   await expect(items.nth(0).locator(".text")).toHaveText("Split");
   const secondText = items.nth(1).locator(".text");
   await expect(secondText).toHaveText("Here");
+  await expect(
+    page.locator(".text[contenteditable='true']").filter({ hasText: "Here" }),
+  ).toHaveCount(1);
 });
 
 test("backspace at start merges the task with the previous item", async ({
@@ -189,6 +192,13 @@ test("search highlights matching tokens and clears after reset", async ({
 
   await searchInput.fill("");
   await expect(page.locator("ol.tasklist mark")).toHaveCount(0);
+
+  await searchInput.fill("no-such-term");
+  const emptyMessages = page.locator(".tasklist-empty:not([hidden])");
+  await expect(emptyMessages).toHaveCount(3);
+  await expect(emptyMessages.first()).toHaveText("No matching items");
+  await searchInput.fill("");
+  await expect(page.locator("a4-tasklist.tasklist-no-matches")).toHaveCount(0);
 });
 
 test("completed tasks stay checked after performing a search", async ({
@@ -336,6 +346,28 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
   ).toHaveCount(1);
 });
 
+test("deleting a list removes it and selects a fallback list", async ({
+  page,
+}) => {
+  await page
+    .locator(".sidebar-list-button")
+    .filter({ hasText: "Weekend Projects" })
+    .click();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete list" }).click();
+
+  await expect(
+    page
+      .locator(".sidebar-list-button")
+      .filter({ hasText: "Weekend Projects" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator("[data-role='active-list-title']"),
+  ).toHaveText("Work Follow-ups");
+  await expect(page.locator(listItemsSelector).first()).toBeVisible();
+});
+
 test("multi-list search and move flow", async ({ page }) => {
   const listButtons = page.locator(".sidebar-list-button");
   await expect(listButtons).toHaveCount(3);
@@ -348,7 +380,7 @@ test("multi-list search and move flow", async ({ page }) => {
   const visibleSections = page.locator(".list-section.is-visible");
   await expect(visibleSections).toHaveCount(3);
   const weekendSection = visibleSections.filter({
-    has: page.locator(".list-section__title", { hasText: "Weekend Projects" }),
+    has: page.locator("a4-tasklist[name='Weekend Projects']"),
   });
   const weekendMatches = await weekendSection
     .locator("ol.tasklist li:not(.placeholder):not([hidden])")
