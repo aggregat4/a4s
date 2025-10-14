@@ -356,10 +356,7 @@
                 let counter = 0;
                 return () => {
                     counter += 1;
-                    if (
-                        typeof crypto !== "undefined" &&
-                        typeof crypto.randomUUID === "function"
-                    ) {
+                    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
                         return `task-${crypto.randomUUID()}`;
                     }
                     const salt = Math.random().toString(36).slice(2, 8);
@@ -377,10 +374,7 @@
                 removeItem: "list/removeItem",
             };
 
-            const listReducer = (
-                state = { title: "", items: [] },
-                action = {},
-            ) => {
+            const listReducer = (state = { title: "", items: [] }, action = {}) => {
                 switch (action.type) {
                     case LIST_ACTIONS.setTitle: {
                         const nextTitle =
@@ -422,14 +416,9 @@
                             : null;
                         if (!order || !order.length) return state;
                         if (order.length !== state.items.length) return state;
-                        const itemMap = new Map(
-                            state.items.map((item) => [item.id, item]),
-                        );
-                        const nextItems = order
-                            .map((id) => itemMap.get(id))
-                            .filter(Boolean);
-                        if (nextItems.length !== state.items.length)
-                            return state;
+                        const itemMap = new Map(state.items.map((item) => [item.id, item]));
+                        const nextItems = order.map((id) => itemMap.get(id)).filter(Boolean);
+                        if (nextItems.length !== state.items.length) return state;
                         const unchanged = nextItems.every(
                             (item, index) => item === state.items[index],
                         );
@@ -438,25 +427,14 @@
                     }
                     case LIST_ACTIONS.insertItem: {
                         const { index, item } = action.payload ?? {};
-                        if (
-                            !item ||
-                            typeof item.id !== "string" ||
-                            !item.id.length
-                        )
-                            return state;
-                        if (
-                            state.items.some(
-                                (existing) => existing.id === item.id,
-                            )
-                        )
-                            return state;
+                        if (!item || typeof item.id !== "string" || !item.id.length) return state;
+                        if (state.items.some((existing) => existing.id === item.id)) return state;
                         const insertionIndex = Number.isInteger(index)
                             ? Math.max(0, Math.min(index, state.items.length))
                             : state.items.length;
                         const nextItem = {
                             id: item.id,
-                            text:
-                                typeof item.text === "string" ? item.text : "",
+                            text: typeof item.text === "string" ? item.text : "",
                             done: Boolean(item.done),
                         };
                         const nextItems = state.items.slice();
@@ -466,11 +444,8 @@
                     case LIST_ACTIONS.removeItem: {
                         const { id } = action.payload ?? {};
                         if (typeof id !== "string" || !id.length) return state;
-                        const nextItems = state.items.filter(
-                            (item) => item.id !== id,
-                        );
-                        if (nextItems.length === state.items.length)
-                            return state;
+                        const nextItems = state.items.filter((item) => item.id !== id);
+                        if (nextItems.length === state.items.length) return state;
                         return { ...state, items: nextItems };
                     }
                     case LIST_ACTIONS.replaceAll: {
@@ -523,8 +498,7 @@
                 if (!ranges.length) return [];
                 const sorted = ranges.slice().sort((a, b) => {
                     if (a.start !== b.start) return a.start - b.start;
-                    if (a.priority !== b.priority)
-                        return a.priority - b.priority;
+                    if (a.priority !== b.priority) return a.priority - b.priority;
                     if (a.end !== b.end) return a.end - b.end;
                     return a.key.localeCompare(b.key);
                 });
@@ -544,9 +518,7 @@
             const buildDecoratedMarkup = (original, tokens, patternConfig) => {
                 const haystack = original.toLowerCase();
                 const ranges = [];
-                const patterns = Array.isArray(patternConfig)
-                    ? patternConfig
-                    : [];
+                const patterns = Array.isArray(patternConfig) ? patternConfig : [];
                 let matchesAllTokens = true;
 
                 tokens.forEach((token) => {
@@ -572,10 +544,7 @@
                 });
 
                 patterns.forEach((def) => {
-                    const patternRegex = new RegExp(
-                        def.regexSource,
-                        def.regexFlags,
-                    );
+                    const patternRegex = new RegExp(def.regexSource, def.regexFlags);
                     let match;
                     while ((match = patternRegex.exec(original)) !== null) {
                         if (!match[0].length) {
@@ -608,9 +577,7 @@
                     boundaries.add(range.start);
                     boundaries.add(range.end);
                 });
-                const sortedBoundaries = Array.from(boundaries).sort(
-                    (a, b) => a - b,
-                );
+                const sortedBoundaries = Array.from(boundaries).sort((a, b) => a - b);
 
                 let result = "";
                 for (let i = 0; i < sortedBoundaries.length - 1; i++) {
@@ -734,62 +701,32 @@
 
                 setupEventListeners() {
                     // Mouse events
-                    this.container.addEventListener(
-                        "dragstart",
-                        this._onDragStart,
-                    );
+                    this.container.addEventListener("dragstart", this._onDragStart);
                     this.container.addEventListener("dragend", this._onDragEnd);
-                    this.container.addEventListener(
-                        "dragover",
-                        this._onDragOver,
-                    );
+                    this.container.addEventListener("dragover", this._onDragOver);
                     this.container.addEventListener("drop", this._onDrop);
 
                     // Touch events
-                    this.container.addEventListener(
-                        "touchstart",
-                        this._onTouchStart,
-                        { passive: false },
-                    );
-                    this.container.addEventListener(
-                        "touchmove",
-                        this._onTouchMove,
-                        { passive: false },
-                    );
-                    this.container.addEventListener(
-                        "touchend",
-                        this._onTouchEnd,
-                        { passive: true },
-                    );
+                    this.container.addEventListener("touchstart", this._onTouchStart, {
+                        passive: false,
+                    });
+                    this.container.addEventListener("touchmove", this._onTouchMove, {
+                        passive: false,
+                    });
+                    this.container.addEventListener("touchend", this._onTouchEnd, {
+                        passive: true,
+                    });
                 }
 
                 removeEventListeners() {
-                    this.container.removeEventListener(
-                        "dragstart",
-                        this._onDragStart,
-                    );
-                    this.container.removeEventListener(
-                        "dragend",
-                        this._onDragEnd,
-                    );
-                    this.container.removeEventListener(
-                        "dragover",
-                        this._onDragOver,
-                    );
+                    this.container.removeEventListener("dragstart", this._onDragStart);
+                    this.container.removeEventListener("dragend", this._onDragEnd);
+                    this.container.removeEventListener("dragover", this._onDragOver);
                     this.container.removeEventListener("drop", this._onDrop);
 
-                    this.container.removeEventListener(
-                        "touchstart",
-                        this._onTouchStart,
-                    );
-                    this.container.removeEventListener(
-                        "touchmove",
-                        this._onTouchMove,
-                    );
-                    this.container.removeEventListener(
-                        "touchend",
-                        this._onTouchEnd,
-                    );
+                    this.container.removeEventListener("touchstart", this._onTouchStart);
+                    this.container.removeEventListener("touchmove", this._onTouchMove);
+                    this.container.removeEventListener("touchend", this._onTouchEnd);
                 }
 
                 handleDragStart(e) {
@@ -866,8 +803,7 @@
 
                 // Touch event handlers
                 handleTouchStart(e) {
-                    if (!e.target.classList.contains(this.options.handleClass))
-                        return;
+                    if (!e.target.classList.contains(this.options.handleClass)) return;
                     const li = e.target.closest("li");
                     if (!li) return;
                     if (e.cancelable) e.preventDefault(); // Safari: stop default to avoid text highlight
@@ -877,36 +813,24 @@
                 }
 
                 handleTouchMove(e) {
-                    if (!e.target.classList.contains(this.options.handleClass))
-                        return;
+                    if (!e.target.classList.contains(this.options.handleClass)) return;
                     // Only start dragging if the touch distance is greater than the threshold
                     // This prevents accidental dragging when scrolling or tapping
                     if (!this.isTouchDragging) {
-                        const deltaY = Math.abs(
-                            e.touches[0].clientY - this.touchStartY,
-                        );
-                        const deltaX = Math.abs(
-                            e.touches[0].clientX - this.touchStartX,
-                        );
+                        const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
+                        const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
                         const totalDistance = Math.hypot(deltaX, deltaY);
                         if (totalDistance > this.options.threshold) {
                             const li = e.target.closest("li");
                             if (li) {
                                 this.isTouchDragging = true;
-                                this.startDrag(
-                                    li,
-                                    e.touches[0].clientX,
-                                    e.touches[0].clientY,
-                                );
+                                this.startDrag(li, e.touches[0].clientX, e.touches[0].clientY);
                                 if (e.cancelable) e.preventDefault();
                             }
                         }
                     } else if (this.dragging) {
                         if (e.cancelable) e.preventDefault();
-                        this.updateFloating(
-                            e.touches[0].clientX,
-                            e.touches[0].clientY,
-                        );
+                        this.updateFloating(e.touches[0].clientX, e.touches[0].clientY);
                         this.debouncedDragOver(e.touches[0].clientY);
                     }
                 }
@@ -927,11 +851,7 @@
                     this._dropHandled = false;
 
                     // For touch (or any non-deferred start), we may be passed coords:
-                    if (
-                        !this.deferFloatingInit &&
-                        startClientX != null &&
-                        startClientY != null
-                    ) {
+                    if (!this.deferFloatingInit && startClientX != null && startClientY != null) {
                         this.beginFloating(startClientX, startClientY);
                     }
                 }
@@ -941,23 +861,17 @@
 
                     // If drag was cancelled (no drop), restore to original position via placeholder
                     if (this.originalPosition !== null && this.placeholder) {
-                        const children = Array.from(
-                            this.container.children,
-                        ).filter((n) => n !== this.dragging);
-                        const targetIndex = Math.min(
-                            this.originalPosition,
-                            children.length,
+                        const children = Array.from(this.container.children).filter(
+                            (n) => n !== this.dragging,
                         );
+                        const targetIndex = Math.min(this.originalPosition, children.length);
                         const target = children[targetIndex] || null;
                         this.container.insertBefore(this.placeholder, target);
                     }
 
                     // Place dragged item at placeholder (drop() already positioned placeholder)
                     if (this.placeholder) {
-                        this.container.insertBefore(
-                            this.dragging,
-                            this.placeholder,
-                        );
+                        this.container.insertBefore(this.dragging, this.placeholder);
                     }
 
                     this.endFloating();
@@ -993,10 +907,7 @@
                     const draggedRef = this.dragging;
                     // give a short wiggle once it lands (after endDrag puts it in place)
                     draggedRef.classList.add("drop-animation");
-                    setTimeout(
-                        () => draggedRef.classList.remove("drop-animation"),
-                        300,
-                    );
+                    setTimeout(() => draggedRef.classList.remove("drop-animation"), 300);
                     // notify reorder listeners
                     if (this.options.onReorder) {
                         const items = Array.from(this.container.children);
@@ -1022,9 +933,7 @@
                     // Insert placeholder at current location
                     this.placeholder = this.createPlaceholder(rect.height);
                     this.container.insertBefore(this.placeholder, li);
-                    this._currentPlaceholderIndex = this.getIndex(
-                        this.placeholder,
-                    );
+                    this._currentPlaceholderIndex = this.getIndex(this.placeholder);
 
                     // Fix the dragged element to the viewport (use existing node)
                     li.style.width = rect.width + "px";
@@ -1033,12 +942,8 @@
                     li.classList.add("dragging");
 
                     // Remember pointer offset inside the element for a natural grip
-                    this.pointerOffsetY =
-                        eClientY != null
-                            ? eClientY - rect.top
-                            : rect.height / 2;
-                    this.pointerOffsetX =
-                        eClientX != null ? eClientX - rect.left : 16;
+                    this.pointerOffsetY = eClientY != null ? eClientY - rect.top : rect.height / 2;
+                    this.pointerOffsetX = eClientX != null ? eClientX - rect.left : 16;
                 }
 
                 updateFloating(eClientX, eClientY) {
@@ -1059,9 +964,7 @@
                     li.style.pointerEvents = "";
                     li.style.boxShadow = "";
                     if (this.placeholder?.parentNode) {
-                        this.placeholder.parentNode.removeChild(
-                            this.placeholder,
-                        );
+                        this.placeholder.parentNode.removeChild(this.placeholder);
                     }
                     this.placeholder = null;
                 }
@@ -1082,8 +985,7 @@
 
                     while (left < right) {
                         const mid = Math.floor((left + right) / 2);
-                        const rect =
-                            this.cachedItems[mid].getBoundingClientRect();
+                        const rect = this.cachedItems[mid].getBoundingClientRect();
                         const midY = rect.top + rect.height / 2;
 
                         if (mouseY < midY) {
@@ -1093,9 +995,7 @@
                         }
                     }
 
-                    return left < this.cachedItems.length
-                        ? this.cachedItems[left]
-                        : null;
+                    return left < this.cachedItems.length ? this.cachedItems[left] : null;
                 }
 
                 getIndex(element) {
@@ -1110,10 +1010,7 @@
                 moveDraggedElement(after) {
                     if (!this.dragging || !this.placeholder) return;
 
-                    const prev = this.animator?.snapshot(
-                        this.container,
-                        this.dragging,
-                    );
+                    const prev = this.animator?.snapshot(this.container, this.dragging);
 
                     if (after == null) {
                         this.container.appendChild(this.placeholder);
@@ -1122,9 +1019,7 @@
                     }
 
                     this.invalidateItemsCache();
-                    this._currentPlaceholderIndex = this.getIndex(
-                        this.placeholder,
-                    );
+                    this._currentPlaceholderIndex = this.getIndex(this.placeholder);
                     // Apply the configured animation (if any) immediately so the browser
                     // never paints the target layout before we invert it, avoiding flicker.
                     this.animator?.play(this.container, this.dragging, prev);
@@ -1205,11 +1100,7 @@
                     this.startEditing(text, e);
                 }
 
-                startEditing(
-                    textEl,
-                    triggerEvent = null,
-                    caretPreference = null,
-                ) {
+                startEditing(textEl, triggerEvent = null, caretPreference = null) {
                     if (this.editingEl === textEl) return;
 
                     if (this.editingEl) {
@@ -1222,8 +1113,7 @@
                         textEl.dataset.originalText = textEl.textContent;
                     }
 
-                    this.initialTextValue =
-                        textEl.dataset.originalText ?? textEl.textContent;
+                    this.initialTextValue = textEl.dataset.originalText ?? textEl.textContent;
                     this.editingEl = textEl;
                     const li = textEl.closest("li");
                     if (li) {
@@ -1362,8 +1252,7 @@
                     const { start, end } = this.getSelectionOffsets(textEl);
                     const selectionCollapsed = start === end;
                     const isModKey = e.metaKey || e.ctrlKey;
-                    const isShortcutRemove =
-                        isModKey && !e.altKey && e.key === "Backspace";
+                    const isShortcutRemove = isModKey && !e.altKey && e.key === "Backspace";
                     if (
                         !isModKey &&
                         !e.altKey &&
@@ -1374,19 +1263,11 @@
                     ) {
                         const li = textEl.closest("li");
                         let previousLi = li?.previousElementSibling ?? null;
-                        while (
-                            previousLi &&
-                            previousLi.classList?.contains("placeholder")
-                        ) {
-                            previousLi =
-                                previousLi.previousElementSibling ?? null;
+                        while (previousLi && previousLi.classList?.contains("placeholder")) {
+                            previousLi = previousLi.previousElementSibling ?? null;
                         }
-                        const previousItemId =
-                            previousLi?.dataset?.itemId ?? null;
-                        if (
-                            previousItemId &&
-                            typeof this.options.onMerge === "function"
-                        ) {
+                        const previousItemId = previousLi?.dataset?.itemId ?? null;
+                        if (previousItemId && typeof this.options.onMerge === "function") {
                             e.preventDefault();
                             this.finishEditing(textEl, true);
                             textEl.blur();
@@ -1417,9 +1298,7 @@
 
                     if (shouldRemoveEmptyBackspace || shouldRemoveByShortcut) {
                         e.preventDefault();
-                        const reason = shouldRemoveByShortcut
-                            ? "shortcut"
-                            : "empty-backspace";
+                        const reason = shouldRemoveByShortcut ? "shortcut" : "empty-backspace";
                         this.finishEditing(textEl, true);
                         textEl.blur();
                         if (typeof this.options.onRemove === "function") {
@@ -1451,10 +1330,7 @@
                     }
                     const preStartRange = range.cloneRange();
                     preStartRange.selectNodeContents(element);
-                    preStartRange.setEnd(
-                        range.startContainer,
-                        range.startOffset,
-                    );
+                    preStartRange.setEnd(range.startContainer, range.startOffset);
                     const start = preStartRange.toString().length;
 
                     const preEndRange = range.cloneRange();
@@ -1478,8 +1354,7 @@
                     const probe = range.cloneRange();
                     const { startContainer, startOffset } = range;
                     if (startContainer.nodeType === Node.TEXT_NODE) {
-                        const textLength =
-                            startContainer.textContent?.length ?? 0;
+                        const textLength = startContainer.textContent?.length ?? 0;
                         if (startOffset < textLength) {
                             probe.setEnd(startContainer, startOffset + 1);
                         } else if (startOffset > 0) {
@@ -1488,9 +1363,7 @@
                             return element.getBoundingClientRect();
                         }
                     } else if (startContainer.childNodes[startOffset]) {
-                        probe.selectNode(
-                            startContainer.childNodes[startOffset],
-                        );
+                        probe.selectNode(startContainer.childNodes[startOffset]);
                     } else {
                         probe.selectNodeContents(element);
                     }
@@ -1503,46 +1376,30 @@
                     const selection = window.getSelection();
                     if (!selection || selection.rangeCount === 0) return false;
                     const range = selection.getRangeAt(0);
-                    if (
-                        !range.collapsed ||
-                        !textEl.contains(range.startContainer)
-                    )
-                        return false;
+                    if (!range.collapsed || !textEl.contains(range.startContainer)) return false;
 
                     const caretRect = this.getCaretRect(textEl);
                     if (!caretRect) return false;
                     const elementRect = textEl.getBoundingClientRect();
                     const tolerance = 2;
 
-                    if (
-                        direction === "down" &&
-                        caretRect.bottom < elementRect.bottom - tolerance
-                    )
+                    if (direction === "down" && caretRect.bottom < elementRect.bottom - tolerance)
                         return false;
-                    if (
-                        direction === "up" &&
-                        caretRect.top > elementRect.top + tolerance
-                    )
+                    if (direction === "up" && caretRect.top > elementRect.top + tolerance)
                         return false;
 
                     const li = textEl.closest("li");
                     if (!li) return false;
 
                     let sibling =
-                        direction === "down"
-                            ? li.nextElementSibling
-                            : li.previousElementSibling;
-                    while (
-                        sibling &&
-                        sibling.classList?.contains("placeholder")
-                    ) {
+                        direction === "down" ? li.nextElementSibling : li.previousElementSibling;
+                    while (sibling && sibling.classList?.contains("placeholder")) {
                         sibling =
                             direction === "down"
                                 ? sibling.nextElementSibling
                                 : sibling.previousElementSibling;
                     }
-                    const targetText =
-                        sibling?.querySelector?.(".text") ?? null;
+                    const targetText = sibling?.querySelector?.(".text") ?? null;
                     if (!targetText) return false;
 
                     const caretPref = {
@@ -1574,8 +1431,7 @@
                     const doc = element.ownerDocument ?? document;
                     const bias = preference.bias === "end" ? "end" : "start";
                     const xCoord = preference.x;
-                    const yCoord =
-                        bias === "end" ? rect.bottom - 2 : rect.top + 2;
+                    const yCoord = bias === "end" ? rect.bottom - 2 : rect.top + 2;
                     let range = null;
 
                     if (doc.caretPositionFromPoint) {
@@ -1586,10 +1442,7 @@
                             range.collapse(true);
                         }
                     } else if (doc.caretRangeFromPoint) {
-                        const tentative = doc.caretRangeFromPoint(
-                            xCoord,
-                            yCoord,
-                        );
+                        const tentative = doc.caretRangeFromPoint(xCoord, yCoord);
                         if (tentative) {
                             tentative.collapse(true);
                             if (element.contains(tentative.startContainer)) {
@@ -1625,10 +1478,7 @@
                         typeof preference.value === "number"
                     ) {
                         const length = element?.textContent?.length ?? 0;
-                        target = Math.max(
-                            0,
-                            Math.min(preference.value, length),
-                        );
+                        target = Math.max(0, Math.min(preference.value, length));
                     } else if (
                         preference &&
                         typeof preference === "object" &&
@@ -1649,10 +1499,7 @@
                     const range = doc.createRange();
 
                     if (textNode && textNode.nodeType === 3) {
-                        const clamped = Math.min(
-                            target,
-                            textNode.textContent.length,
-                        );
+                        const clamped = Math.min(target, textNode.textContent.length);
                         range.setStart(textNode, clamped);
                         range.collapse(true);
                     } else {
@@ -1690,10 +1537,7 @@
                     this.editingEl = null;
                     this.initialTextValue = "";
 
-                    if (
-                        !skipCallback &&
-                        typeof this.options.onCommit === "function"
-                    ) {
+                    if (!skipCallback && typeof this.options.onCommit === "function") {
                         this.options.onCommit({
                             element: textEl,
                             previousText,
@@ -1706,13 +1550,9 @@
             class EditController {
                 constructor({ getListElement, getInlineEditor }) {
                     this.getListElement =
-                        typeof getListElement === "function"
-                            ? getListElement
-                            : () => null;
+                        typeof getListElement === "function" ? getListElement : () => null;
                     this.getInlineEditor =
-                        typeof getInlineEditor === "function"
-                            ? getInlineEditor
-                            : () => null;
+                        typeof getInlineEditor === "function" ? getInlineEditor : () => null;
                     this.pendingItemId = null;
                     this.pendingCaret = null;
                 }
@@ -1730,10 +1570,7 @@
                 }
 
                 hasPending() {
-                    return (
-                        typeof this.pendingItemId === "string" &&
-                        this.pendingItemId.length > 0
-                    );
+                    return typeof this.pendingItemId === "string" && this.pendingItemId.length > 0;
                 }
 
                 isPendingItem(itemId) {
@@ -1761,9 +1598,7 @@
                     if (!listEl || !inlineEditor) return false;
 
                     const selectorId = escapeSelectorId(this.pendingItemId);
-                    const targetLi = listEl.querySelector(
-                        `li[data-item-id="${selectorId}"]`,
-                    );
+                    const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
                     const textEl = targetLi?.querySelector(".text") ?? null;
                     if (!textEl) {
                         return false;
@@ -1778,17 +1613,14 @@
             class TaskListView {
                 constructor({ getListElement }) {
                     this.getListElement =
-                        typeof getListElement === "function"
-                            ? getListElement
-                            : () => null;
+                        typeof getListElement === "function" ? getListElement : () => null;
                 }
 
                 captureFocus() {
                     const listEl = this.getListElement();
                     if (!listEl) return null;
                     const activeElement = document.activeElement;
-                    if (!activeElement || !listEl.contains(activeElement))
-                        return null;
+                    if (!activeElement || !listEl.contains(activeElement)) return null;
                     const activeLi = activeElement.closest("li");
                     if (!activeLi?.dataset?.itemId) return null;
                     const role = activeElement.classList.contains("done-toggle")
@@ -1796,9 +1628,7 @@
                         : activeElement.classList.contains("text")
                           ? "text"
                           : null;
-                    return role
-                        ? { itemId: activeLi.dataset.itemId, role }
-                        : null;
+                    return role ? { itemId: activeLi.dataset.itemId, role } : null;
                 }
 
                 syncItems(items, { createItem, updateItem }) {
@@ -1807,17 +1637,12 @@
                     const existingNodes = Array.from(listEl.children).filter(
                         (li) => !li.classList.contains("placeholder"),
                     );
-                    const byId = new Map(
-                        existingNodes.map((li) => [li.dataset.itemId, li]),
-                    );
+                    const byId = new Map(existingNodes.map((li) => [li.dataset.itemId, li]));
                     const usedNodes = new Set();
                     let previous = null;
 
                     const nextNonPlaceholder = (node) => {
-                        while (
-                            node &&
-                            node.classList?.contains("placeholder")
-                        ) {
+                        while (node && node.classList?.contains("placeholder")) {
                             node = node.nextSibling;
                         }
                         return node;
@@ -1852,9 +1677,7 @@
                     const listEl = this.getListElement();
                     if (!listEl) return;
                     const selectorId = escapeSelectorId(preservedFocus.itemId);
-                    const targetLi = listEl.querySelector(
-                        `li[data-item-id="${selectorId}"]`,
-                    );
+                    const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
                     if (!targetLi) return;
                     const focusTarget =
                         preservedFocus.role === "toggle"
@@ -1898,8 +1721,7 @@
                     ]);
 
                     this.handleSearchInput = this.handleSearchInput.bind(this);
-                    this.handleSearchKeyDown =
-                        this.handleSearchKeyDown.bind(this);
+                    this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
                     this.handleSearchClear = this.handleSearchClear.bind(this);
                     this.handleItemBlur = this.handleItemBlur.bind(this);
                     this.handleToggle = this.handleToggle.bind(this);
@@ -1909,12 +1731,9 @@
                     this.handleEditMerge = this.handleEditMerge.bind(this);
                     this.handleEditRemove = this.handleEditRemove.bind(this);
                     this.handleEditMove = this.handleEditMove.bind(this);
-                    this.handleAddButtonClick =
-                        this.handleAddButtonClick.bind(this);
-                    this.handleShowDoneChange =
-                        this.handleShowDoneChange.bind(this);
-                    this.scheduleReorderUpdate =
-                        this.scheduleReorderUpdate.bind(this);
+                    this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
+                    this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
+                    this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
 
                     this.editController = new EditController({
                         getListElement: () => this.listEl,
@@ -1965,9 +1784,7 @@
                             handleClass: "handle",
                             onReorder: (fromIndex, toIndex) => {
                                 const detail = { fromIndex, toIndex };
-                                this.listEl.dispatchEvent(
-                                    new CustomEvent("reorder", { detail }),
-                                );
+                                this.listEl.dispatchEvent(new CustomEvent("reorder", { detail }));
                                 this.dispatchEvent(
                                     new CustomEvent("reorder", {
                                         detail,
@@ -1992,20 +1809,9 @@
                         });
                     }
 
-                    this.listEl.removeEventListener(
-                        "blur",
-                        this.handleItemBlur,
-                        true,
-                    );
-                    this.listEl.addEventListener(
-                        "blur",
-                        this.handleItemBlur,
-                        true,
-                    );
-                    this.listEl.removeEventListener(
-                        "change",
-                        this.handleToggle,
-                    );
+                    this.listEl.removeEventListener("blur", this.handleItemBlur, true);
+                    this.listEl.addEventListener("blur", this.handleItemBlur, true);
+                    this.listEl.removeEventListener("change", this.handleToggle);
                     this.listEl.addEventListener("change", this.handleToggle);
                     this.performSearch(this.searchQuery);
                 }
@@ -2022,9 +1828,7 @@
                         });
                     }
                     if (!this.unsubscribe && this.store) {
-                        this.unsubscribe = this.store.subscribe(
-                            this.handleStoreChange,
-                        );
+                        this.unsubscribe = this.store.subscribe(this.handleStoreChange);
                     }
                     if (this.store) {
                         this.handleStoreChange();
@@ -2050,29 +1854,13 @@
                     this.dragBehavior = null;
                     this.inlineEditor?.destroy();
                     this.inlineEditor = null;
-                    this.listEl?.removeEventListener(
-                        "blur",
-                        this.handleItemBlur,
-                        true,
-                    );
-                    this.listEl?.removeEventListener(
-                        "change",
-                        this.handleToggle,
-                    );
+                    this.listEl?.removeEventListener("blur", this.handleItemBlur, true);
+                    this.listEl?.removeEventListener("change", this.handleToggle);
                     if (this.searchInput) {
-                        this.searchInput.removeEventListener(
-                            "input",
-                            this.handleSearchInput,
-                        );
-                        this.searchInput.removeEventListener(
-                            "keydown",
-                            this.handleSearchKeyDown,
-                        );
+                        this.searchInput.removeEventListener("input", this.handleSearchInput);
+                        this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
                     }
-                    this.showDoneCheckbox?.removeEventListener(
-                        "change",
-                        this.handleShowDoneChange,
-                    );
+                    this.showDoneCheckbox?.removeEventListener("change", this.handleShowDoneChange);
                     clearTimeout(this.searchTimer);
                     this.searchTimer = null;
                     this.unsubscribe?.();
@@ -2100,9 +1888,7 @@
                     if (!list) {
                         list = document.createElement("ol");
                         list.classList.add("tasklist");
-                        const listItems = Array.from(
-                            this.querySelectorAll(":scope > li"),
-                        );
+                        const listItems = Array.from(this.querySelectorAll(":scope > li"));
                         if (listItems.length) {
                             listItems.forEach((li) => list.appendChild(li));
                         }
@@ -2145,10 +1931,7 @@
                             "path",
                         );
                         addPath.setAttribute("fill", "currentColor");
-                        addPath.setAttribute(
-                            "d",
-                            "M7 1h2v6h6v2H9v6H7V9H1V7h6z",
-                        );
+                        addPath.setAttribute("d", "M7 1h2v6h6v2H9v6H7V9H1V7h6z");
                         addIcon.appendChild(addPath);
                         const addLabel = document.createElement("span");
                         addLabel.textContent = "Add";
@@ -2156,11 +1939,9 @@
 
                         const showDoneLabel = document.createElement("label");
                         showDoneLabel.className = "tasklist-show-done";
-                        const showDoneCheckbox =
-                            document.createElement("input");
+                        const showDoneCheckbox = document.createElement("input");
                         showDoneCheckbox.type = "checkbox";
-                        showDoneCheckbox.className =
-                            "tasklist-show-done-toggle";
+                        showDoneCheckbox.className = "tasklist-show-done-toggle";
                         showDoneCheckbox.checked = this.showDone;
                         const showDoneText = document.createElement("span");
                         showDoneText.textContent = "Show done";
@@ -2179,42 +1960,21 @@
                     }
 
                     if (this.searchInput) {
-                        this.searchInput.removeEventListener(
-                            "input",
-                            this.handleSearchInput,
-                        );
-                        this.searchInput.removeEventListener(
-                            "keydown",
-                            this.handleSearchKeyDown,
-                        );
-                        this.searchInput.addEventListener(
-                            "input",
-                            this.handleSearchInput,
-                        );
-                        this.searchInput.addEventListener(
-                            "keydown",
-                            this.handleSearchKeyDown,
-                        );
+                        this.searchInput.removeEventListener("input", this.handleSearchInput);
+                        this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
+                        this.searchInput.addEventListener("input", this.handleSearchInput);
+                        this.searchInput.addEventListener("keydown", this.handleSearchKeyDown);
                     }
                     if (this.showDoneCheckbox) {
                         this.showDoneCheckbox.removeEventListener(
                             "change",
                             this.handleShowDoneChange,
                         );
-                        this.showDoneCheckbox.addEventListener(
-                            "change",
-                            this.handleShowDoneChange,
-                        );
+                        this.showDoneCheckbox.addEventListener("change", this.handleShowDoneChange);
                     }
                     if (this.addButton) {
-                        this.addButton.removeEventListener(
-                            "click",
-                            this.handleAddButtonClick,
-                        );
-                        this.addButton.addEventListener(
-                            "click",
-                            this.handleAddButtonClick,
-                        );
+                        this.addButton.removeEventListener("click", this.handleAddButtonClick);
+                        this.addButton.addEventListener("click", this.handleAddButtonClick);
                     }
                 }
 
@@ -2246,8 +2006,7 @@
                         }
 
                         const safeClass =
-                            typeof className === "string" &&
-                            className.trim().length
+                            typeof className === "string" && className.trim().length
                                 ? className.trim()
                                 : "task-token";
                         const prio = Number.isFinite(priority) ? priority : 2;
@@ -2341,9 +2100,7 @@
                     if (!id) return;
 
                     const state = this.store.getState();
-                    const currentIndex = state.items.findIndex(
-                        (item) => item.id === id,
-                    );
+                    const currentIndex = state.items.findIndex((item) => item.id === id);
                     if (currentIndex === -1) return;
 
                     if (typeof beforeText === "string") {
@@ -2362,57 +2119,33 @@
                             index: currentIndex + 1,
                             item: {
                                 id: newId,
-                                text:
-                                    typeof afterText === "string"
-                                        ? afterText
-                                        : "",
+                                text: typeof afterText === "string" ? afterText : "",
                                 done: false,
                             },
                         },
                     });
                 }
 
-                handleEditMerge({
-                    currentItemId,
-                    previousItemId,
-                    currentText,
-                    selectionStart,
-                }) {
-                    if (!this.store || !currentItemId || !previousItemId)
-                        return false;
+                handleEditMerge({ currentItemId, previousItemId, currentText, selectionStart }) {
+                    if (!this.store || !currentItemId || !previousItemId) return false;
 
                     const state = this.store.getState();
-                    const items = Array.isArray(state?.items)
-                        ? state.items
-                        : [];
-                    const currentIndex = items.findIndex(
-                        (item) => item.id === currentItemId,
-                    );
+                    const items = Array.isArray(state?.items) ? state.items : [];
+                    const currentIndex = items.findIndex((item) => item.id === currentItemId);
                     if (currentIndex <= 0) return false;
 
                     const previousIndex = currentIndex - 1;
                     const previousItem = items[previousIndex];
-                    if (!previousItem || previousItem.id !== previousItemId)
-                        return false;
+                    if (!previousItem || previousItem.id !== previousItemId) return false;
 
-                    const prevText =
-                        typeof previousItem.text === "string"
-                            ? previousItem.text
-                            : "";
-                    const currentTextValue =
-                        typeof currentText === "string" ? currentText : "";
+                    const prevText = typeof previousItem.text === "string" ? previousItem.text : "";
+                    const currentTextValue = typeof currentText === "string" ? currentText : "";
                     const mergedText = prevText + currentTextValue;
 
                     const mergeOffset =
                         prevText.length +
                         (typeof selectionStart === "number"
-                            ? Math.max(
-                                  0,
-                                  Math.min(
-                                      selectionStart,
-                                      currentTextValue.length,
-                                  ),
-                              )
+                            ? Math.max(0, Math.min(selectionStart, currentTextValue.length))
                             : 0);
 
                     this.editController.queue(previousItem.id, {
@@ -2440,15 +2173,10 @@
 
                     const state = this.store.getState();
                     const items = state?.items ?? [];
-                    const currentIndex = items.findIndex(
-                        (item) => item.id === id,
-                    );
+                    const currentIndex = items.findIndex((item) => item.id === id);
                     if (currentIndex === -1) return;
 
-                    const nextItem =
-                        items[currentIndex + 1] ??
-                        items[currentIndex - 1] ??
-                        null;
+                    const nextItem = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
                     if (nextItem) {
                         this.editController.queue(nextItem.id, "end");
                     } else {
@@ -2468,9 +2196,7 @@
                     if (!id) return;
 
                     const state = this.store.getState();
-                    const items = Array.isArray(state?.items)
-                        ? state.items
-                        : [];
+                    const items = Array.isArray(state?.items) ? state.items : [];
                     const fromIndex = items.findIndex((item) => item.id === id);
                     if (fromIndex === -1) return;
                     const delta = direction === "down" ? 1 : -1;
@@ -2482,9 +2208,7 @@
                     order.splice(toIndex, 0, moved);
 
                     const caretOffset =
-                        typeof selectionStart === "number"
-                            ? Math.max(0, selectionStart)
-                            : 0;
+                        typeof selectionStart === "number" ? Math.max(0, selectionStart) : 0;
                     this.editController.queue(id, {
                         type: "offset",
                         value: caretOffset,
@@ -2509,8 +2233,7 @@
 
                     this.view.syncItems(state.items, {
                         createItem: (item) => this.createItemElement(item),
-                        updateItem: (li, item) =>
-                            this.updateItemElement(li, item),
+                        updateItem: (li, item) => this.updateItemElement(li, item),
                     });
 
                     const nextTitle = state.title ?? "";
@@ -2529,8 +2252,7 @@
                         this.suppressNameSync = false;
                     }
 
-                    const forceVisible =
-                        this.editController.getForceVisibleIds();
+                    const forceVisible = this.editController.getForceVisibleIds();
                     let hasPendingEdit = this.editController.hasPending();
 
                     this.performSearch(this.searchQuery, { forceVisible });
@@ -2620,9 +2342,7 @@
                         return;
                     }
                     const currentState = this.store.getState();
-                    const stateItem = currentState?.items?.find(
-                        (item) => item.id === id,
-                    );
+                    const stateItem = currentState?.items?.find((item) => item.id === id);
                     if (stateItem && stateItem.text !== previousText) {
                         const authoritativeText = stateItem.text ?? "";
                         element.textContent = authoritativeText;
@@ -2645,9 +2365,7 @@
                     Promise.resolve().then(() => {
                         if (!this.store || !this.listEl) return;
                         const order = Array.from(this.listEl.children)
-                            .filter(
-                                (li) => !li.classList.contains("placeholder"),
-                            )
+                            .filter((li) => !li.classList.contains("placeholder"))
                             .map((li) => li.dataset.itemId)
                             .filter(Boolean);
                         if (!order.length) return;
@@ -2659,9 +2377,7 @@
                 }
 
                 handleItemBlur(e) {
-                    const textEl = e.target.classList?.contains("text")
-                        ? e.target
-                        : null;
+                    const textEl = e.target.classList?.contains("text") ? e.target : null;
                     if (!textEl) return;
                     textEl.dataset.originalText = textEl.textContent;
                     this.performSearch(this.searchQuery);
@@ -2683,8 +2399,7 @@
                         const original =
                             textEl.dataset.originalText != null
                                 ? textEl.dataset.originalText
-                                : (textEl.dataset.originalText =
-                                      textEl.textContent);
+                                : (textEl.dataset.originalText = textEl.textContent);
 
                         if (isEditing) {
                             li.hidden = false;
@@ -2738,10 +2453,7 @@
             document.addEventListener("DOMContentLoaded", () => {
                 const demoList = document.querySelector("a4-tasklist");
                 if (!demoList) return;
-                if (
-                    !demoList.initialState ||
-                    !demoList.initialState.items?.length
-                ) {
+                if (!demoList.initialState || !demoList.initialState.items?.length) {
                     demoList.initialState = PROTOTYPE_TASK_LIST;
                 }
             });
