@@ -1,2334 +1,2750 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Prototype Lists</title>
-<style>
-  :root {
-    --font-family-base: 'Inter', sans-serif;
-    --font-size-base: 18px;
-    --font-size-title: 20px;
-    --color-background: #f5f5f5;
-    --color-surface: #fff;
-    --color-text: #333;
-    --color-muted: #7a7a7a;
-    --color-border: #a1a1a1;
-    --color-border-strong: #4d4d4d;
-    --color-highlight: #ffec99;
-    --color-mention: #125ec5;
-    --color-tag: #0f7a48;
-    --color-handle: #999;
-    --outline-color: #4d4d4d;
-    --shadow-drag: 0 8px 24px rgba(0,0,0,.18);
-    --radius-sm: 4px;
-    --space-xs: 6px;
-    --space-sm: 8px;
-    --space-md: 12px;
-    --space-lg: 16px;
-    --space-xl: 20px;
-    --transition-fast: 0.2s ease;
-    --drop-duration: 0.3s;
-    --list-width: 70ch;
-    --search-width: 250px;
-    --task-handle-icon: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4K');
-  }
-
-  body {
-    font-family: var(--font-family-base);
-    font-size: var(--font-size-base);
-    background-color: var(--color-background);
-    color: var(--color-text);
-    padding: 0;
-
-    main {
-      max-width: var(--list-width);
-      margin: 0 auto;
-    }
-  }
-
-  a4-tasklist {
-    display: block;
-  }
-
-  .tasklist-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-lg);
-    margin-bottom: var(--space-md);
-
-    .tasklist-title {
-      margin: 0;
-      font-size: var(--font-size-title);
-      font-weight: 600;
-      color: var(--color-text);
-
-      &:empty {
-        display: none;
-      }
-    }
-
-    .tasklist-controls {
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      flex-wrap: wrap;
-
-      input[type="search"] {
-        font: inherit;
-        padding: var(--space-xs);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-sm);
-        background-color: var(--color-surface);
-        color: var(--color-text);
-        width: var(--search-width);
-        max-width: 100%;
-
-        &:focus {
-          outline: 2px solid var(--outline-color);
-          outline-offset: 2px;
-        }
-      }
-
-      .tasklist-show-done {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-xs);
-        font-size: 16px;
-        color: var(--color-text);
-
-        input[type="checkbox"] {
-          width: 16px;
-          height: 16px;
-          margin: 0;
-        }
-      }
-
-      .tasklist-add-button {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-xs);
-        font: inherit;
-        padding: var(--space-xs) var(--space-sm);
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--outline-color);
-        background-color: var(--color-surface);
-        color: var(--color-text);
-        cursor: pointer;
-        transition: background-color var(--transition-fast), color var(--transition-fast);
-
-        svg {
-          width: 16px;
-          height: 16px;
-        }
-
-        &:hover {
-          background-color: var(--color-text);
-          color: var(--color-surface);
-        }
-
-        &:focus-visible {
-          outline: 2px solid var(--outline-color);
-          outline-offset: 2px;
-        }
-      }
-    }
-  }
-
-  ol.tasklist {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-
-    > li {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: var(--space-sm);
-      padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
-      margin-bottom: var(--space-sm);
-      background-color: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-bottom: 2px solid var(--color-border-strong);
-      will-change: transform;
-
-      &[hidden] {
-        display: none;
-      }
-
-      &.editing {
-        .text {
-          background: #f0f0f0;
-          outline: 2px solid rgba(77,77,77,0.2);
-          outline-offset: 2px;
-        }
-      }
-
-      .done-toggle {
-        width: 20px;
-        height: 20px;
-        flex-shrink: 0;
-        cursor: pointer;
-        margin: 0;
-
-        &:focus-visible {
-          outline: 2px solid var(--outline-color);
-          outline-offset: 2px;
-        }
-
-        &:checked + .text {
-          text-decoration: line-through;
-          color: var(--color-muted);
-        }
-      }
-
-      .text {
-        flex: 1;
-
-        mark {
-          background-color: var(--color-highlight);
-          color: inherit;
-          border-radius: 2px;
-        }
-      }
-
-      .handle {
-        cursor: grab;
-        color: var(--color-handle);
-        user-select: none;
-        -webkit-user-select: none;
-        -webkit-touch-callout: none;
-        touch-action: none;
-        width: 24px;
-        height: 24px;
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 24px 24px;
-        background-image: var(--task-handle-icon);
-
-        &:active {
-          cursor: grabbing;
-        }
-      }
-    }
-
-    > li:active {
-      cursor: grabbing;
-    }
-
-    > li.dragging {
-      position: fixed;
-      z-index: 1000;
-      pointer-events: none;
-      box-shadow: var(--shadow-drag);
-      opacity: 0.98;
-      color: inherit;
-      background: var(--color-surface);
-      border-color: var(--color-border);
-    }
-
-    > li.placeholder {
-      background: transparent;
-      border: 2px dashed #bbb;
-      height: 0;
-      margin-bottom: var(--space-sm);
-    }
-  }
-
-  .task-token-mention {
-    color: var(--color-mention);
-    font-weight: 600;
-  }
-
-  .task-token-tag {
-    color: var(--color-tag);
-    font-weight: 600;
-  }
-
-  .flip-animating {
-    transition: transform 140ms ease;
-  }
-
-  .drop-animation {
-    animation: dropSlide var(--drop-duration) ease-out;
-  }
-
-  @keyframes dropSlide {
-    0%   { transform: translateX(-8px); opacity: 0.7; }
-    50%  { transform: translateX(8px);  opacity: 0.7; }
-    100% { transform: translateX(0);    opacity: 1; }
-  }
-
-  @media (max-width: 640px) {
-    .tasklist-header {
-      flex-direction: column;
-      align-items: stretch;
-      gap: var(--space-md);
-
-      .tasklist-title {
-        width: 100%;
-      }
-
-      .tasklist-controls {
-        width: 100%;
-        justify-content: flex-start;
-        gap: var(--space-sm);
-
-        input[type="search"] {
-          width: 100%;
-        }
-      }
-    }
-  }
-</style>
-
-</head>
-<body>
-
-  <main>
-    <a4-tasklist name="Prototype Tasks">
-      <ol class="tasklist"></ol>
-    </a4-tasklist>
-  </main>
-
-  <script>
-  const PROTOTYPE_TASK_TEXTS = [
-    'Refill the bird feeder before the sparrows file another formal request.',
-    'Check the fridge light still turns off, preferably without crawling inside again.',
-    'Return the umbrella to the hallway, where it insists it lives.',
-    'Water the fern before it submits another strongly worded letter to the radiator.',
-    'Update the shopping list to include milk, bread, and a moderately sensible hat.',
-    'Verify that the kettle boils water and not, as it occasionally attempts, good intentions.',
-    'Organize the cutlery drawer so the forks don\'t keep holding union meetings.',
-    'Empty the dishwasher before it begins drafting poetry about neglect.',
-    'Set the alarm clock, reminding it gently that no one enjoys its personality.',
-    'Take the bins out, though they are increasingly insistent they\'d rather stay in.',
-    'Test the smoke detector by asking it politely to explain its worldview.',
-    'Send an email to the electricity meter thanking it for its tireless blinking.',
-    'Sharpen pencils so they feel prepared for anything, including international diplomacy.',
-    'Update the calendar to reflect the current year, not the one the cat prefers.',
-    'Polish the windows until they are clear about their long-term career goals.',
-    'Check the washing machine for socks that have declared independence.',
-    'Restock the biscuit tin before negotiations with visitors turn awkward.',
-    'Feed the goldfish, who has recently taken to sighing at odd intervals.',
-    'Write down the Wi-Fi password in case it decides to change its name again.',
-    'Vacuum the carpet before it develops further geological features.'
-  ];
-
-  const PROTOTYPE_TASK_LIST = {
-    title: 'Prototype Tasks',
-    items: PROTOTYPE_TASK_TEXTS.map((text, index) => ({
-      id: `task-${index + 1}`,
-      text,
-      done: false
-    }))
-  };
-
-  const cloneListState = (source) => ({
-    title: typeof source?.title === 'string' ? source.title : '',
-    items: Array.isArray(source?.items)
-      ? source.items.map((item, index) => ({
-        id: typeof item?.id === 'string' && item.id.length ? item.id : `item-${index}`,
-        text: typeof item?.text === 'string' ? item.text : '',
-        done: Boolean(item?.done)
-      }))
-      : []
-  });
-
-  const generateItemId = (() => {
-    let counter = 0;
-    return () => {
-      counter += 1;
-      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return `task-${crypto.randomUUID()}`;
-      }
-      const salt = Math.random().toString(36).slice(2, 8);
-      return `task-${Date.now().toString(36)}-${counter.toString(36)}-${salt}`;
-    };
-  })();
-
-  const LIST_ACTIONS = {
-    setTitle: 'list/setTitle',
-    setItemDone: 'list/setItemDone',
-    updateItemText: 'list/updateItemText',
-    reorderItems: 'list/reorderItems',
-    replaceAll: 'list/replaceAll',
-    insertItem: 'list/insertItem',
-    removeItem: 'list/removeItem'
-  };
-
-  const listReducer = (state = { title: '', items: [] }, action = {}) => {
-    switch (action.type) {
-      case LIST_ACTIONS.setTitle: {
-        const nextTitle = typeof action.payload?.title === 'string' ? action.payload.title : state.title;
-        if (nextTitle === state.title) return state;
-        return { ...state, title: nextTitle };
-      }
-      case LIST_ACTIONS.setItemDone: {
-        const { id, done } = action.payload ?? {};
-        if (!id) return state;
-        const targetDone = Boolean(done);
-        let changed = false;
-        const nextItems = state.items.map(item => {
-          if (item.id !== id) return item;
-          if (item.done === targetDone) return item;
-          changed = true;
-          return { ...item, done: targetDone };
-        });
-        return changed ? { ...state, items: nextItems } : state;
-      }
-      case LIST_ACTIONS.updateItemText: {
-        const { id, text } = action.payload ?? {};
-        if (!id || typeof text !== 'string') return state;
-        const nextText = text;
-        let changed = false;
-        const nextItems = state.items.map(item => {
-          if (item.id !== id) return item;
-          if (item.text === nextText) return item;
-          changed = true;
-          return { ...item, text: nextText };
-        });
-        return changed ? { ...state, items: nextItems } : state;
-      }
-      case LIST_ACTIONS.reorderItems: {
-        const order = Array.isArray(action.payload?.order) ? action.payload.order : null;
-        if (!order || !order.length) return state;
-        if (order.length !== state.items.length) return state;
-        const itemMap = new Map(state.items.map(item => [item.id, item]));
-        const nextItems = order.map(id => itemMap.get(id)).filter(Boolean);
-        if (nextItems.length !== state.items.length) return state;
-        const unchanged = nextItems.every((item, index) => item === state.items[index]);
-        if (unchanged) return state;
-        return { ...state, items: nextItems };
-      }
-      case LIST_ACTIONS.insertItem: {
-        const { index, item } = action.payload ?? {};
-        if (!item || typeof item.id !== 'string' || !item.id.length) return state;
-        if (state.items.some(existing => existing.id === item.id)) return state;
-        const insertionIndex = Number.isInteger(index)
-          ? Math.max(0, Math.min(index, state.items.length))
-          : state.items.length;
-        const nextItem = {
-          id: item.id,
-          text: typeof item.text === 'string' ? item.text : '',
-          done: Boolean(item.done)
-        };
-        const nextItems = state.items.slice();
-        nextItems.splice(insertionIndex, 0, nextItem);
-        return { ...state, items: nextItems };
-      }
-      case LIST_ACTIONS.removeItem: {
-        const { id } = action.payload ?? {};
-        if (typeof id !== 'string' || !id.length) return state;
-        const nextItems = state.items.filter(item => item.id !== id);
-        if (nextItems.length === state.items.length) return state;
-        return { ...state, items: nextItems };
-      }
-      case LIST_ACTIONS.replaceAll: {
-        const payload = action.payload;
-        if (!payload) return state;
-        const next = cloneListState(payload);
-        return next;
-      }
-      default:
-        return state;
-    }
-  };
-
-  const createStore = (reducer, preloadedState) => {
-    let currentState = typeof preloadedState === 'undefined'
-      ? reducer(undefined, { type: '@@INIT' })
-      : reducer(preloadedState, { type: '@@INIT' });
-    let listeners = new Set();
-
-    return {
-      getState: () => currentState,
-      dispatch(action) {
-        const nextState = reducer(currentState, action);
-        if (nextState !== currentState) {
-          currentState = nextState;
-          listeners.forEach(fn => fn());
-        }
-        return action;
-      },
-      subscribe(listener) {
-        if (typeof listener !== 'function') return () => {};
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-        };
-      }
-    };
-  };
-
-  const escapeHTML = (str) => str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
-  const mergeRanges = (ranges) => {
-    if (!ranges.length) return [];
-    const sorted = ranges.slice().sort((a, b) => {
-      if (a.start !== b.start) return a.start - b.start;
-      if (a.priority !== b.priority) return a.priority - b.priority;
-      if (a.end !== b.end) return a.end - b.end;
-      return a.key.localeCompare(b.key);
-    });
-    const merged = [{ ...sorted[0] }];
-    for (let i = 1; i < sorted.length; i++) {
-      const current = sorted[i];
-      const last = merged[merged.length - 1];
-      if (current.start <= last.end && current.key === last.key) {
-        last.end = Math.max(last.end, current.end);
-      } else {
-        merged.push({ ...current });
-      }
-    }
-    return merged;
-  };
-
-  const buildDecoratedMarkup = (original, tokens, patternConfig) => {
-    const haystack = original.toLowerCase();
-    const ranges = [];
-    const patterns = Array.isArray(patternConfig) ? patternConfig : [];
-    let matchesAllTokens = true;
-
-    tokens.forEach(token => {
-      let searchIndex = 0;
-      let foundAny = false;
-      while (searchIndex <= haystack.length) {
-        const found = haystack.indexOf(token, searchIndex);
-        if (found === -1) break;
-        ranges.push({
-          start: found,
-          end: found + token.length,
-          priority: 1,
-          open: '<mark>',
-          close: '</mark>',
-          key: 'mark'
-        });
-        searchIndex = found + token.length;
-        foundAny = true;
-      }
-      if (!foundAny) {
-        matchesAllTokens = false;
-      }
-    });
-
-    patterns.forEach(def => {
-      const patternRegex = new RegExp(def.regexSource, def.regexFlags);
-      let match;
-      while ((match = patternRegex.exec(original)) !== null) {
-        if (!match[0].length) {
-          patternRegex.lastIndex += 1;
-          continue;
-        }
-        ranges.push({
-          start: match.index,
-          end: match.index + match[0].length,
-          priority: def.priority,
-          open: `<span class="${def.className}">`,
-          close: '</span>',
-          key: def.key
-        });
-        if (!patternRegex.global) break;
-      }
-    });
-
-    if (!ranges.length) {
-      return { markup: null, matchesAllTokens };
-    }
-
-    const merged = mergeRanges(ranges);
-    if (!merged.length) {
-      return { markup: null, matchesAllTokens };
-    }
-
-    const boundaries = new Set([0, original.length]);
-    merged.forEach(range => {
-      boundaries.add(range.start);
-      boundaries.add(range.end);
-    });
-    const sortedBoundaries = Array.from(boundaries).sort((a, b) => a - b);
-
-    let result = '';
-    for (let i = 0; i < sortedBoundaries.length - 1; i++) {
-      const start = sortedBoundaries[i];
-      const end = sortedBoundaries[i + 1];
-      if (start === end) continue;
-      let segment = escapeHTML(original.slice(start, end));
-      if (!segment) continue;
-      const covering = merged.filter(range => range.start <= start && range.end >= end);
-      if (covering.length) {
-        covering.sort((a, b) => a.priority - b.priority);
-        for (let j = covering.length - 1; j >= 0; j--) {
-          const wrapper = covering[j];
-          segment = wrapper.open + segment + wrapper.close;
-        }
-      }
-      result += segment;
-    }
-
-    return { markup: result, matchesAllTokens };
-  };
-
-  const tokenizeSearchQuery = (query) => {
-    if (typeof query !== 'string') return [];
-    return query
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(token => token.toLowerCase());
-  };
-
-  const evaluateSearchEntry = ({ originalText, tokens, patternConfig, showDone, isDone }) => {
-    const hiddenByCompletion = !showDone && isDone;
-    if (hiddenByCompletion) {
-      return { hidden: true, markup: null };
-    }
-
-    const { markup, matchesAllTokens } = buildDecoratedMarkup(originalText, tokens, patternConfig);
-    if (tokens.length > 0 && !matchesAllTokens) {
-      return { hidden: true, markup: null };
-    }
-
-    return { hidden: false, markup };
-  };
-
-  const escapeSelectorId = (value) => {
-    if (typeof value !== 'string') return '';
-    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  };
-
-  // DraggableBehavior - drag & drop with floating dragged item and an optional animator
-  // It assumes it is being applied to a list container as some of the internals assume
-  // li elements
-  class DraggableBehavior {
-    constructor(container, options = {}) {
-      this.container = container;
-      this.options = {
-        handleClass: 'handle',
-        threshold: 10,
-        onReorder: null,
-        animator: null,
-        ...options
-      };
-      this.dragging = null;
-      this.touchStartY = 0;
-      this.touchStartX = 0;
-      this.isTouchDragging = false;
-      this.rafId = null;
-      this.cachedItems = null;
-      this.enabled = false;
-      this.placeholder = null;
-      this.originalPosition = null;
-      this.pointerOffsetY = 0;
-      this.pointerOffsetX = 0;
-      this.animator = this.options.animator;
-      this._currentPlaceholderIndex = null;
-      this._dropHandled = false;
-
-      // bind handlers once so removeEventListeners works reliably
-      this._onDragStart = this.handleDragStart.bind(this);
-      this._onDragEnd   = this.handleDragEnd.bind(this);
-      this._onDragOver  = this.handleDragOver.bind(this);
-      this._onDrop      = this.handleDrop.bind(this);
-
-      this._onTouchStart = this.handleTouchStart.bind(this);
-      this._onTouchMove  = this.handleTouchMove.bind(this);
-      this._onTouchEnd   = this.handleTouchEnd.bind(this);
-      
-      this.deferFloatingInit = false;   // for Chrome: delay init on mouse DnD
-      this._pendingInitCoords = null;   // { x, y } to start floating later
-    }
-
-    enable() {
-      if (this.enabled) return;
-      this.enabled = true;
-      this.setupEventListeners();
-    }
-
-    disable() {
-      if (!this.enabled) return;
-      this.enabled = false;
-      this.removeEventListeners();
-    }
-
-    destroy() {
-      this.disable();
-      this.container = null;
-    }
-
-    setupEventListeners() {
-      // Mouse events
-      this.container.addEventListener('dragstart', this._onDragStart);
-      this.container.addEventListener('dragend', this._onDragEnd);
-      this.container.addEventListener('dragover', this._onDragOver);
-      this.container.addEventListener('drop', this._onDrop);
-
-      // Touch events
-      this.container.addEventListener('touchstart', this._onTouchStart, { passive: false });
-      this.container.addEventListener('touchmove', this._onTouchMove, { passive: false });
-      this.container.addEventListener('touchend', this._onTouchEnd, { passive: true });
-    }
-
-    removeEventListeners() {
-      this.container.removeEventListener('dragstart', this._onDragStart);
-      this.container.removeEventListener('dragend', this._onDragEnd);
-      this.container.removeEventListener('dragover', this._onDragOver);
-      this.container.removeEventListener('drop', this._onDrop);
-
-      this.container.removeEventListener('touchstart', this._onTouchStart);
-      this.container.removeEventListener('touchmove', this._onTouchMove);
-      this.container.removeEventListener('touchend', this._onTouchEnd);
-    }
-
-    handleDragStart(e) {
-      const li = e.target.closest('li');
-      if (!li) return;
-
-      // Mark that we must delay floating/placeholder until the first dragover
-      // we do this for desktop browsers, specifically Chrome will abort a drag
-      // if we create a placeholder element with document.createElement before
-      // the first dragover event. This workaround delays creating the placeholder
-      // until that moment
-      this.deferFloatingInit = true;
-      this._pendingInitCoords = { x: e.clientX, y: e.clientY };
-
-      // Just record the drag start; NO DOM changes here
-      this.startDrag(li /* no coords now */);
-
-      // suppress default ghost image
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');
-      const emptyImg = document.createElement('img');
-      emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
-      e.dataTransfer.setDragImage(emptyImg, 0, 0);
-    }
-
-    handleDragEnd() {
-      // Chrome/Safari occasionally skip the drop event if the pointer exits the list.
-      // When that happens the placeholder is still where the user left it, so we
-      // synthesize the reorder using the last known placeholder index.
-      if (this.dragging && !this._dropHandled && this._currentPlaceholderIndex != null) {
-        const fromIndex = this.getIndex(this.dragging);
-        const toIndex = this._currentPlaceholderIndex;
-        if (fromIndex !== toIndex) {
-          this.options.onReorder?.(fromIndex, toIndex);
-          this._dropHandled = true;
-          this.originalPosition = null;
-        }
-      }
-      this.endDrag();
-      this._dropHandled = false;
-      this._currentPlaceholderIndex = null;
-    }
-
-    handleDragOver(e) {
-      e.preventDefault();
-
-      // If we deferred (for desktop browsers, but specifically Chrome), do the first-time init now
-      if (this.dragging && this.deferFloatingInit) {
-        this.deferFloatingInit = false;
-        const p = this._pendingInitCoords || { x: e.clientX, y: e.clientY };
-        this.beginFloating(p.x, p.y);      // create placeholder + make item fixed
-        this._pendingInitCoords = null;
-      }
-
-      // Now it’s safe to animate & move
-      this.updateFloating(e.clientX, e.clientY);
-      this.debouncedDragOver(e.clientY);
-      e.dataTransfer.dropEffect = 'move';
-    }
-
-    handleDrop(e) {
-      e.preventDefault();
-      this.drop(e.clientY);
-      this.endDrag();
-    }
-
-    // Touch event handlers
-    handleTouchStart(e) {
-      if (!e.target.classList.contains(this.options.handleClass)) return;
-      const li = e.target.closest('li');
-      if (!li) return;
-      if (e.cancelable) e.preventDefault(); // Safari: stop default to avoid text highlight
-      this.touchStartY = e.touches[0].clientY;
-      this.touchStartX = e.touches[0].clientX;
-      this.isTouchDragging = false;
-    }
-
-    handleTouchMove(e) {
-      if (!e.target.classList.contains(this.options.handleClass)) return;
-      // Only start dragging if the touch distance is greater than the threshold
-      // This prevents accidental dragging when scrolling or tapping
-      if (!this.isTouchDragging) {
-        const deltaY = Math.abs(e.touches[0].clientY - this.touchStartY);
-        const deltaX = Math.abs(e.touches[0].clientX - this.touchStartX);
-        const totalDistance = Math.hypot(deltaX, deltaY);
-        if (totalDistance > this.options.threshold) {
-          const li = e.target.closest('li');
-          if (li) {
-            this.isTouchDragging = true;
-            this.startDrag(li, e.touches[0].clientX, e.touches[0].clientY);
-            if (e.cancelable) e.preventDefault();
-          }
-        }
-      } else if (this.dragging) {
-        if (e.cancelable) e.preventDefault();
-        this.updateFloating(e.touches[0].clientX, e.touches[0].clientY);
-        this.debouncedDragOver(e.touches[0].clientY);
-      }
-    }
-
-    handleTouchEnd(e) {
-      if (this.isTouchDragging && this.dragging) {
-        this.drop(e.changedTouches[0].clientY);
-        this.endDrag();
-      }
-    }
-
-    // Core drag logic
-    startDrag(li, startClientX = null, startClientY = null) {
-      this.dragging = li;
-      this.originalPosition = this.getIndex(li);
-      this.invalidateItemsCache();
-      this._currentPlaceholderIndex = this.originalPosition;
-      this._dropHandled = false;
-
-      // For touch (or any non-deferred start), we may be passed coords:
-      if (!this.deferFloatingInit && startClientX != null && startClientY != null) {
-        this.beginFloating(startClientX, startClientY);
-      }
-    }
-
-    endDrag() {
-      if (!this.dragging) return;
-
-      // If drag was cancelled (no drop), restore to original position via placeholder
-      if (this.originalPosition !== null && this.placeholder) {
-        const children = Array.from(this.container.children).filter(n => n !== this.dragging);
-        const targetIndex = Math.min(this.originalPosition, children.length);
-        const target = children[targetIndex] || null;
-        this.container.insertBefore(this.placeholder, target);
-      }
-
-      // Place dragged item at placeholder (drop() already positioned placeholder)
-      if (this.placeholder) {
-        this.container.insertBefore(this.dragging, this.placeholder);
-      }
-
-      this.endFloating();
-
-      this.dragging = null;
-      this.isTouchDragging = false;
-      this.originalPosition = null;
-      this.invalidateItemsCache();
-    }
-
-    dragOver(clientY) {
-      if (!this.dragging) return;
-      const after = this.getDropTarget(clientY);
-      this.moveDraggedElement(after);
-    }
-
-    debouncedDragOver(clientY) {
-      if (this.rafId) cancelAnimationFrame(this.rafId);
-      this.rafId = requestAnimationFrame(() => {
-        this.dragOver(clientY);
-        this.rafId = null;
-      });
-    }
-
-    drop(clientY) {
-      if (!this.dragging) return;
-      const after = this.getDropTarget(clientY);
-      // Move placeholder to its final spot
-      this.moveDraggedElement(after);
-      // mark as successfully dropped so endDrag won't restore
-      this.originalPosition = null;
-      // Save a reference to the dragged element so we can access it after the animation
-      const draggedRef = this.dragging;
-      // give a short wiggle once it lands (after endDrag puts it in place)
-      draggedRef.classList.add('drop-animation');
-      setTimeout(() => draggedRef.classList.remove('drop-animation'), 300);
-      // notify reorder listeners
-      if (this.options.onReorder) {
-        const items = Array.from(this.container.children);
-        const toIndex = items.indexOf(this.placeholder);
-        const fromIndex = this.getIndex(draggedRef);
-        this.options.onReorder(fromIndex, toIndex);
-      }
-      this._dropHandled = true;
-    }
-
-    // Floating item + placeholder
-    createPlaceholder(heightPx) {
-      const ph = document.createElement('li');
-      ph.className = 'placeholder';
-      ph.style.height = `${heightPx}px`;
-      return ph;
-    }
-
-    beginFloating(eClientX, eClientY) {
-      const li = this.dragging;
-      const rect = li.getBoundingClientRect();
-
-      // Insert placeholder at current location
-      this.placeholder = this.createPlaceholder(rect.height);
-      this.container.insertBefore(this.placeholder, li);
-      this._currentPlaceholderIndex = this.getIndex(this.placeholder);
-
-      // Fix the dragged element to the viewport (use existing node)
-      li.style.width = rect.width + 'px';
-      li.style.left = rect.left + 'px';
-      li.style.top = rect.top + 'px';
-      li.classList.add('dragging');
-
-      // Remember pointer offset inside the element for a natural grip
-      this.pointerOffsetY = (eClientY != null) ? (eClientY - rect.top) : rect.height / 2;
-      this.pointerOffsetX = (eClientX != null) ? (eClientX - rect.left) : 16;
-    }
-
-    updateFloating(eClientX, eClientY) {
-      if (!this.dragging) return;
-      const y = eClientY - this.pointerOffsetY;
-      this.dragging.style.top = y + 'px';
-    }
-
-    endFloating() {
-      if (!this.dragging) return;
-      const li = this.dragging;
-      li.classList.remove('dragging');
-      li.style.position = '';
-      li.style.top = '';
-      li.style.left = '';
-      li.style.width = '';
-      li.style.zIndex = '';
-      li.style.pointerEvents = '';
-      li.style.boxShadow = '';
-      if (this.placeholder?.parentNode) {
-        this.placeholder.parentNode.removeChild(this.placeholder);
-      }
-      this.placeholder = null;
-    }
-
-    getDropTarget(mouseY) {
-      if (!this.cachedItems) {
-        // exclude dragging item and placeholder from the search set
-        this.cachedItems = [...this.container.querySelectorAll('li:not(.dragging):not(.placeholder)')];
-      }
-      if (this.cachedItems.length === 0) return null;
-
-      let left = 0;
-      let right = this.cachedItems.length;
-
-      while (left < right) {
-        const mid = Math.floor((left + right) / 2);
-        const rect = this.cachedItems[mid].getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-
-        if (mouseY < midY) {
-          right = mid;
-        } else {
-          left = mid + 1;
-        }
-      }
-
-      return left < this.cachedItems.length ? this.cachedItems[left] : null;
-    }
-
-    getIndex(element) {
-      return Array.from(this.container.children).indexOf(element);
-    }
-
-    invalidateItemsCache() {
-      this.cachedItems = null;
-    }
-
-    // Move the placeholder (not the dragged element) and hand over animations
-    moveDraggedElement(after) {
-      if (!this.dragging || !this.placeholder) return;
-
-      const prev = this.animator?.snapshot(this.container, this.dragging);
-
-      if (after == null) {
-        this.container.appendChild(this.placeholder);
-      } else {
-        this.container.insertBefore(this.placeholder, after);
-      }
-
-      this.invalidateItemsCache();
-      this._currentPlaceholderIndex = this.getIndex(this.placeholder);
-      // Apply the configured animation (if any) immediately so the browser
-      // never paints the target layout before we invert it, avoiding flicker.
-      this.animator?.play(this.container, this.dragging, prev);
-    }
-  }
-
-  // FLIPAnimator isolates the animation concerns from the drag logic so a
-  // different animator can be supplied if desired.
-  class FlipAnimator {
-    snapshot(container, dragging) {
-      const map = new Map();
-      [...container.querySelectorAll('li')].forEach(li => {
-        if (li !== dragging) {
-          map.set(li, li.getBoundingClientRect().top);
-        }
-      });
-      return map;
-    }
-
-    play(container, dragging, prevTops) {
-      if (!prevTops) return;
-      [...container.querySelectorAll('li')].forEach(li => {
-        if (li === dragging) return;
-        const prevTop = prevTops.get(li);
-        if (prevTop == null) return;
-
-        const nowTop = li.getBoundingClientRect().top;
-        const dy = prevTop - nowTop;
-        if (dy === 0) return;
-
-        li.style.transform = `translateY(${dy}px)`;
-        // force reflow so the browser picks up the initial transform before
-        // transitioning back to zero
-        // eslint-disable-next-line no-unused-expressions
-        li.offsetHeight;
-
-        li.classList.add('flip-animating');
-        li.style.transform = 'translateY(0)';
-
-        const done = () => {
-          li.classList.remove('flip-animating');
-          li.style.transform = '';
-          li.removeEventListener('transitionend', done);
-        };
-        li.addEventListener('transitionend', done, { once: true });
-      });
-    }
-  }
-
-  // InlineTextEditor manages single-click editing for list item text content.
-  class InlineTextEditor {
-    constructor(list, options = {}) {
-      this.list = list;
-      this.options = options;
-      this.editingEl = null;
-      this.initialTextValue = '';
-
-      this.handleClick = this.handleClick.bind(this);
-      this.handleBlur = this.handleBlur.bind(this);
-      this.handleKeyDown = this.handleKeyDown.bind(this);
-
-      this.list.addEventListener('click', this.handleClick);
-    }
-
-    destroy() {
-      this.list.removeEventListener('click', this.handleClick);
-      if (this.editingEl) {
-        this.finishEditing(this.editingEl, true);
-      }
-      this.list = null;
-    }
-
-    handleClick(e) {
-      const text = e.target.closest('.text');
-      if (!text || !this.list.contains(text)) return;
-      this.startEditing(text, e);
-    }
-
-    startEditing(textEl, triggerEvent = null, caretPreference = null) {
-      if (this.editingEl === textEl) return;
-
-      if (this.editingEl) {
-        this.finishEditing(this.editingEl);
-      }
-
-      if (textEl.dataset.originalText != null) {
-        textEl.textContent = textEl.dataset.originalText;
-      } else {
-        textEl.dataset.originalText = textEl.textContent;
-      }
-
-      this.initialTextValue = textEl.dataset.originalText ?? textEl.textContent;
-      this.editingEl = textEl;
-      const li = textEl.closest('li');
-      if (li) {
-        if (li.getAttribute('draggable') !== 'false') {
-          li.dataset.wasDraggable = 'true';
-          li.setAttribute('draggable', 'false');
-        }
-        li.classList.add('editing');
-      }
-
-      textEl.setAttribute('contenteditable', 'true');
-      textEl.setAttribute('spellcheck', 'false');
-      textEl.addEventListener('blur', this.handleBlur);
-      textEl.addEventListener('keydown', this.handleKeyDown);
-
-      // focus after listeners to ensure we capture the blur that follows
-      textEl.focus();
-      if (caretPreference) {
-        this.applyCaretPreference(textEl, caretPreference);
-      } else {
-        this.placeCaret(textEl, triggerEvent);
-      }
-    }
-
-    placeCaret(element, triggerEvent) {
-      const selection = window.getSelection();
-      if (!selection) return;
-      // Try to put the caret at the click position
-      let range = null;
-      if (triggerEvent && typeof triggerEvent.clientX === 'number' && typeof triggerEvent.clientY === 'number') {
-        const doc = element.ownerDocument;
-        if (doc.caretPositionFromPoint) {
-          const pos = doc.caretPositionFromPoint(triggerEvent.clientX, triggerEvent.clientY);
-          if (pos) {
-            range = doc.createRange();
-            range.setStart(pos.offsetNode, pos.offset);
-            range.collapse(true);
-          }
-        } else if (doc.caretRangeFromPoint) {
-          range = doc.caretRangeFromPoint(triggerEvent.clientX, triggerEvent.clientY);
-          if (range && !range.collapsed) {
-            range.collapse(true);
-          }
-        }
-
-        if (range && !element.contains(range.startContainer)) {
-          range = null;
-        }
-      }
-
-      if (!range) {
-        // If that fails, just select the entire content
-        range = element.ownerDocument.createRange();
-        range.selectNodeContents(element);
-        range.collapse(false);
-      }
-
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-
-    handleBlur(e) {
-      this.finishEditing(e.target);
-    }
-
-    handleKeyDown(e) {
-      const textEl = e.target;
-      if (!textEl) return;
-      const fullText = textEl.textContent ?? '';
-
-      const isMoveShortcut = (e.key === 'ArrowDown' || e.key === 'ArrowUp')
-        && !e.altKey
-        && (e.metaKey || e.ctrlKey);
-      if (isMoveShortcut) {
-        e.preventDefault();
-        const { start, end } = this.getSelectionOffsets(textEl);
-        this.options.onMove?.({
-          element: textEl,
-          direction: e.key === 'ArrowDown' ? 'down' : 'up',
-          selectionStart: start,
-          selectionEnd: end
-        });
-        return;
-      }
-
-      const isVerticalNav = (e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.altKey && !e.metaKey && !e.ctrlKey;
-      if (isVerticalNav) {
-        const direction = e.key === 'ArrowDown' ? 'down' : 'up';
-        if (this.tryMoveVertical(textEl, direction)) {
-          e.preventDefault();
-          return;
-        }
-      }
-
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const { start, end } = this.getSelectionOffsets(textEl);
-        const beforeText = fullText.slice(0, start);
-        const afterText = fullText.slice(end);
-        if (typeof this.options.onSplit === 'function') {
-          this.options.onSplit({
-            element: textEl,
-            beforeText,
-            afterText,
-            previousText: this.initialTextValue,
-            splitIndex: start
-          });
-        }
-        textEl.textContent = beforeText;
-        textEl.dataset.originalText = beforeText;
-        textEl.blur();
-        return;
-      }
-
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        textEl.blur();
-        return;
-      }
-
-      const { start, end } = this.getSelectionOffsets(textEl);
-      const selectionCollapsed = start === end;
-      const isModKey = e.metaKey || e.ctrlKey;
-      const isShortcutRemove = isModKey && !e.altKey && e.key === 'Backspace';
-      if (!isModKey && !e.altKey && e.key === 'Backspace' && selectionCollapsed && start === 0 && fullText.length > 0) {
-        const li = textEl.closest('li');
-        let previousLi = li?.previousElementSibling ?? null;
-        while (previousLi && previousLi.classList?.contains('placeholder')) {
-          previousLi = previousLi.previousElementSibling ?? null;
-        }
-        const previousItemId = previousLi?.dataset?.itemId ?? null;
-        if (previousItemId && typeof this.options.onMerge === 'function') {
-          e.preventDefault();
-          this.finishEditing(textEl, true);
-          textEl.blur();
-          const handled = this.options.onMerge({
-            element: textEl,
-            currentItemId: li?.dataset?.itemId ?? null,
-            previousItemId,
-            currentText: fullText,
-            previousText: this.initialTextValue,
-            selectionStart: start,
-            selectionEnd: end,
-            reason: 'backspace-merge'
-          }) === true;
-          if (!handled) {
-            this.startEditing(textEl);
-          }
-          return;
-        }
-      }
-      const shouldRemoveEmptyBackspace = e.key === 'Backspace'
-        && !isModKey
-        && !e.altKey
-        && (fullText.length === 0)
-        && selectionCollapsed;
-      const shouldRemoveByShortcut = isShortcutRemove;
-
-      if (shouldRemoveEmptyBackspace || shouldRemoveByShortcut) {
-        e.preventDefault();
-        const reason = shouldRemoveByShortcut ? 'shortcut' : 'empty-backspace';
-        this.finishEditing(textEl, true);
-        textEl.blur();
-        if (typeof this.options.onRemove === 'function') {
-          this.options.onRemove({
-            element: textEl,
-            previousText: this.initialTextValue,
-            currentText: fullText,
-            selectionStart: start,
-            selectionEnd: end,
-            reason
-          });
-        }
-        return;
-      }
-    }
-
-    getSelectionOffsets(element) {
-      const fallbackLength = element?.textContent?.length ?? 0;
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) {
-        return { start: fallbackLength, end: fallbackLength };
-      }
-      const range = selection.getRangeAt(0);
-      if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) {
-        return { start: fallbackLength, end: fallbackLength };
-      }
-      const preStartRange = range.cloneRange();
-      preStartRange.selectNodeContents(element);
-      preStartRange.setEnd(range.startContainer, range.startOffset);
-      const start = preStartRange.toString().length;
-
-      const preEndRange = range.cloneRange();
-      preEndRange.selectNodeContents(element);
-      preEndRange.setEnd(range.endContainer, range.endOffset);
-      const end = preEndRange.toString().length;
-
-      return { start, end };
-    }
-
-    getCaretRect(element) {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return null;
-      const range = selection.getRangeAt(0);
-      if (!range.collapsed) return null;
-      if (!element.contains(range.startContainer)) return null;
-      let rect = range.getBoundingClientRect();
-      if (rect && (rect.width > 0 || rect.height > 0)) {
-        return rect;
-      }
-      const probe = range.cloneRange();
-      const { startContainer, startOffset } = range;
-      if (startContainer.nodeType === Node.TEXT_NODE) {
-        const textLength = startContainer.textContent?.length ?? 0;
-        if (startOffset < textLength) {
-          probe.setEnd(startContainer, startOffset + 1);
-        } else if (startOffset > 0) {
-          probe.setStart(startContainer, startOffset - 1);
-        } else {
-          return element.getBoundingClientRect();
-        }
-      } else if (startContainer.childNodes[startOffset]) {
-        probe.selectNode(startContainer.childNodes[startOffset]);
-      } else {
-        probe.selectNodeContents(element);
-      }
-      rect = probe.getBoundingClientRect();
-      probe.detach?.();
-      return rect;
-    }
-
-    tryMoveVertical(textEl, direction) {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return false;
-      const range = selection.getRangeAt(0);
-      if (!range.collapsed || !textEl.contains(range.startContainer)) return false;
-
-      const caretRect = this.getCaretRect(textEl);
-      if (!caretRect) return false;
-      const elementRect = textEl.getBoundingClientRect();
-      const tolerance = 2;
-
-      if (direction === 'down' && caretRect.bottom < elementRect.bottom - tolerance) return false;
-      if (direction === 'up' && caretRect.top > elementRect.top + tolerance) return false;
-
-      const li = textEl.closest('li');
-      if (!li) return false;
-
-      let sibling = direction === 'down' ? li.nextElementSibling : li.previousElementSibling;
-      while (sibling && sibling.classList?.contains('placeholder')) {
-        sibling = direction === 'down' ? sibling.nextElementSibling : sibling.previousElementSibling;
-      }
-      const targetText = sibling?.querySelector?.('.text') ?? null;
-      if (!targetText) return false;
-
-      const caretPref = {
-        type: 'caret-column',
-        x: caretRect.left,
-        bias: direction === 'down' ? 'start' : 'end'
-      };
-
-      this.finishEditing(textEl);
-      textEl.blur();
-
-      if (typeof this.options.onNavigate === 'function') {
-        this.options.onNavigate({
-          direction,
-          targetElement: targetText,
-          preference: caretPref
-        });
-      }
-
-      this.startEditing(targetText, null, caretPref);
-      return true;
-    }
-
-    placeCaretByPoint(element, preference) {
-      const selection = window.getSelection();
-      if (!selection) return;
-
-      const rect = element.getBoundingClientRect();
-      const doc = element.ownerDocument ?? document;
-      const bias = preference.bias === 'end' ? 'end' : 'start';
-      const xCoord = preference.x;
-      const yCoord = bias === 'end'
-        ? rect.bottom - 2
-        : rect.top + 2;
-      let range = null;
-
-      if (doc.caretPositionFromPoint) {
-        const pos = doc.caretPositionFromPoint(xCoord, yCoord);
-        if (pos && element.contains(pos.offsetNode)) {
-          range = doc.createRange();
-          range.setStart(pos.offsetNode, pos.offset);
-          range.collapse(true);
-        }
-      } else if (doc.caretRangeFromPoint) {
-        const tentative = doc.caretRangeFromPoint(xCoord, yCoord);
-        if (tentative) {
-          tentative.collapse(true);
-          if (element.contains(tentative.startContainer)) {
-            range = tentative;
-          }
-        }
-      }
-
-      if (!range || !element.contains(range.startContainer)) {
-        range = doc.createRange();
-        range.selectNodeContents(element);
-        range.collapse(bias === 'end');
-      }
-
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-
-    applyCaretPreference(element, preference) {
-      const selection = window.getSelection();
-      if (!selection) return;
-
-      let target = null;
-
-      if (preference === 'start') {
-        target = 0;
-      } else if (preference === 'end') {
-        target = element?.textContent?.length ?? 0;
-      } else if (
-        preference
-        && typeof preference === 'object'
-        && preference.type === 'offset'
-        && typeof preference.value === 'number'
-      ) {
-        const length = element?.textContent?.length ?? 0;
-        target = Math.max(0, Math.min(preference.value, length));
-      } else if (
-        preference
-        && typeof preference === 'object'
-        && preference.type === 'caret-column'
-        && typeof preference.x === 'number'
-      ) {
-        this.placeCaretByPoint(element, preference);
-        return;
-      }
-
-      if (target == null) {
-        this.placeCaret(element, null);
-        return;
-      }
-
-      const textNode = element?.firstChild;
-      const doc = element?.ownerDocument ?? document;
-      const range = doc.createRange();
-
-      if (textNode && textNode.nodeType === 3) {
-        const clamped = Math.min(target, textNode.textContent.length);
-        range.setStart(textNode, clamped);
-        range.collapse(true);
-      } else {
-        range.selectNodeContents(element);
-        const length = element?.textContent?.length ?? 0;
-        const collapseToEnd = target >= length;
-        range.collapse(collapseToEnd);
-      }
-
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-
-    finishEditing(textEl, skipCallback = false) {
-      if (!textEl || this.editingEl !== textEl) return;
-
-      const previousText = this.initialTextValue;
-      textEl.removeEventListener('blur', this.handleBlur);
-      textEl.removeEventListener('keydown', this.handleKeyDown);
-      textEl.removeAttribute('contenteditable');
-      textEl.removeAttribute('spellcheck');
-
-      textEl.dataset.originalText = textEl.textContent;
-      const newText = textEl.textContent;
-
-      const li = textEl.closest('li');
-      if (li) {
-        li.classList.remove('editing');
-        if (li.dataset.wasDraggable) {
-          li.setAttribute('draggable', 'true');
-          delete li.dataset.wasDraggable;
-        }
-      }
-
-      this.editingEl = null;
-      this.initialTextValue = '';
-
-      if (!skipCallback && typeof this.options.onCommit === 'function') {
-        this.options.onCommit({
-          element: textEl,
-          previousText,
-          newText
-        });
-      }
-    }
-  }
-
-  class EditController {
-    constructor({ getListElement, getInlineEditor }) {
-      this.getListElement = typeof getListElement === 'function' ? getListElement : () => null;
-      this.getInlineEditor = typeof getInlineEditor === 'function' ? getInlineEditor : () => null;
-      this.pendingItemId = null;
-      this.pendingCaret = null;
-    }
-
-    queue(itemId, caretPreference = null) {
-      if (typeof itemId === 'string' && itemId.length) {
-        this.pendingItemId = itemId;
-        this.pendingCaret = caretPreference ?? null;
-      }
-    }
-
-    clear() {
-      this.pendingItemId = null;
-      this.pendingCaret = null;
-    }
-
-    hasPending() {
-      return typeof this.pendingItemId === 'string' && this.pendingItemId.length > 0;
-    }
-
-    isPendingItem(itemId) {
-      if (!this.hasPending()) return false;
-      return this.pendingItemId === itemId;
-    }
-
-    getPendingEdit() {
-      if (!this.hasPending()) return null;
-      return {
-        itemId: this.pendingItemId,
-        caret: this.pendingCaret
-      };
-    }
-
-    getForceVisibleIds() {
-      if (!this.hasPending()) return null;
-      return new Set([this.pendingItemId]);
-    }
-
-    applyPendingEdit() {
-      if (!this.hasPending()) return false;
-      const listEl = this.getListElement();
-      const inlineEditor = this.getInlineEditor();
-      if (!listEl || !inlineEditor) return false;
-
-      const selectorId = escapeSelectorId(this.pendingItemId);
-      const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
-      const textEl = targetLi?.querySelector('.text') ?? null;
-      if (!textEl) {
-        return false;
-      }
-
-      inlineEditor.startEditing(textEl, null, this.pendingCaret);
-      this.clear();
-      return true;
-    }
-  }
-
-  class TaskListView {
-    constructor({ getListElement }) {
-      this.getListElement = typeof getListElement === 'function' ? getListElement : () => null;
-    }
-
-    captureFocus() {
-      const listEl = this.getListElement();
-      if (!listEl) return null;
-      const activeElement = document.activeElement;
-      if (!activeElement || !listEl.contains(activeElement)) return null;
-      const activeLi = activeElement.closest('li');
-      if (!activeLi?.dataset?.itemId) return null;
-      const role = activeElement.classList.contains('done-toggle')
-        ? 'toggle'
-        : activeElement.classList.contains('text')
-          ? 'text'
-          : null;
-      return role ? { itemId: activeLi.dataset.itemId, role } : null;
-    }
-
-    syncItems(items, { createItem, updateItem }) {
-      const listEl = this.getListElement();
-      if (!listEl || !Array.isArray(items)) return;
-      const existingNodes = Array.from(listEl.children).filter(li => !li.classList.contains('placeholder'));
-      const byId = new Map(existingNodes.map(li => [li.dataset.itemId, li]));
-      const usedNodes = new Set();
-      let previous = null;
-
-      const nextNonPlaceholder = (node) => {
-        while (node && node.classList?.contains('placeholder')) {
-          node = node.nextSibling;
-        }
-        return node;
-      };
-
-      items.forEach(item => {
-        let li = byId.get(item.id);
-        if (!li) {
-          li = createItem(item);
-        } else {
-          updateItem(li, item);
-        }
-        usedNodes.add(li);
-        const desired = previous
-          ? nextNonPlaceholder(previous.nextSibling)
-          : nextNonPlaceholder(listEl.firstChild);
-        if (li !== desired) {
-          listEl.insertBefore(li, desired || null);
-        }
-        previous = li;
-      });
-
-      existingNodes.forEach(li => {
-        if (!usedNodes.has(li)) {
-          li.remove();
-        }
-      });
-    }
-
-    restoreFocus(preservedFocus, { skip } = {}) {
-      if (skip || !preservedFocus) return;
-      const listEl = this.getListElement();
-      if (!listEl) return;
-      const selectorId = escapeSelectorId(preservedFocus.itemId);
-      const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
-      if (!targetLi) return;
-      const focusTarget = preservedFocus.role === 'toggle'
-        ? targetLi.querySelector('.done-toggle')
-        : preservedFocus.role === 'text'
-          ? targetLi.querySelector('.text')
-          : null;
-      focusTarget?.focus();
-    }
-  }
-
-  class A4TaskList extends HTMLElement {
-    constructor() {
-      super();
-      this.listEl = null;
-      this.dragBehavior = null;
-      this.inlineEditor = null;
-      this.headerEl = null;
-      this.titleEl = null;
-      this.searchInput = null;
-      this.addButton = null;
-      this.showDoneCheckbox = null;
-      this.searchTimer = null;
-      this.searchQuery = '';
-      this.showDone = false;
-      this.store = null;
-      this.unsubscribe = null;
-      this.suppressNameSync = false;
-      this._initialState = null;
-      this.patternConfig = this.normalizePatternDefs([
-        { regex: /@[A-Za-z0-9_]+/g, className: 'task-token-mention', priority: 2 },
-        { regex: /#[A-Za-z0-9_]+/g, className: 'task-token-tag', priority: 2 }
-      ]);
-
-      this.handleSearchInput = this.handleSearchInput.bind(this);
-      this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
-      this.handleSearchClear = this.handleSearchClear.bind(this);
-      this.handleItemBlur = this.handleItemBlur.bind(this);
-      this.handleToggle = this.handleToggle.bind(this);
-      this.handleStoreChange = this.handleStoreChange.bind(this);
-      this.handleEditCommit = this.handleEditCommit.bind(this);
-      this.handleEditSplit = this.handleEditSplit.bind(this);
-      this.handleEditMerge = this.handleEditMerge.bind(this);
-      this.handleEditRemove = this.handleEditRemove.bind(this);
-      this.handleEditMove = this.handleEditMove.bind(this);
-      this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
-      this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
-      this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
-
-      this.editController = new EditController({
-        getListElement: () => this.listEl,
-        getInlineEditor: () => this.inlineEditor
-      });
-      this.view = new TaskListView({
-        getListElement: () => this.listEl
-      });
-    }
-
-    static get observedAttributes() {
-      return ['name'];
-    }
-
-    get initialState() {
-      return this._initialState;
-    }
-
-    set initialState(value) {
-      const next = cloneListState(value);
-      this._initialState = next;
-      if (this.store) {
-        this.store.dispatch({
-          type: LIST_ACTIONS.replaceAll,
-          payload: next
-        });
-      } else if (this.isConnected) {
-        this.initializeStore();
-      }
-    }
-
-    connectedCallback() {
-      this.ensureList();
-      if (!this.listEl) return;
-
-      this.ensureHeader();
-      if (this.searchInput) {
-        this.searchInput.value = this.searchQuery;
-      }
-      if (this.showDoneCheckbox) {
-        this.showDoneCheckbox.checked = this.showDone;
-      }
-
-      this.initializeStore();
-
-      if (!this.dragBehavior) {
-        this.dragBehavior = new DraggableBehavior(this.listEl, {
-          handleClass: 'handle',
-          onReorder: (fromIndex, toIndex) => {
-            const detail = { fromIndex, toIndex };
-            this.listEl.dispatchEvent(new CustomEvent('reorder', { detail }));
-            this.dispatchEvent(new CustomEvent('reorder', {
-              detail,
-              bubbles: true,
-              composed: true
-            }));
-            this.scheduleReorderUpdate();
-          },
-          animator: new FlipAnimator()
-        });
-      }
-      this.dragBehavior.enable();
-
-      if (!this.inlineEditor) {
-        this.inlineEditor = new InlineTextEditor(this.listEl, {
-          onCommit: this.handleEditCommit,
-          onSplit: this.handleEditSplit,
-          onMerge: this.handleEditMerge,
-          onRemove: this.handleEditRemove,
-          onMove: this.handleEditMove
-        });
-      }
-
-      this.listEl.removeEventListener('blur', this.handleItemBlur, true);
-      this.listEl.addEventListener('blur', this.handleItemBlur, true);
-      this.listEl.removeEventListener('change', this.handleToggle);
-      this.listEl.addEventListener('change', this.handleToggle);
-      this.performSearch(this.searchQuery);
-    }
-
-    initializeStore() {
-      const baseState = this.buildInitialState();
-      if (!this.store) {
-        this.store = createStore(listReducer, baseState);
-      }
-      if (this.store && baseState) {
-        this.store.dispatch({
-          type: LIST_ACTIONS.replaceAll,
-          payload: baseState
-        });
-      }
-      if (!this.unsubscribe && this.store) {
-        this.unsubscribe = this.store.subscribe(this.handleStoreChange);
-      }
-      if (this.store) {
-        this.handleStoreChange();
-      }
-    }
-
-    buildInitialState() {
-      const fallback = {
-        title: this.getAttribute('name') ?? '',
-        items: []
-      };
-      const source = this._initialState ?? fallback;
-      const baseState = cloneListState(source);
-      const attrTitle = this.getAttribute('name');
-      if (typeof attrTitle === 'string' && attrTitle.length) {
-        baseState.title = attrTitle;
-      }
-      return baseState;
-    }
-
-    disconnectedCallback() {
-      this.dragBehavior?.destroy();
-      this.dragBehavior = null;
-      this.inlineEditor?.destroy();
-      this.inlineEditor = null;
-      this.listEl?.removeEventListener('blur', this.handleItemBlur, true);
-      this.listEl?.removeEventListener('change', this.handleToggle);
-      if (this.searchInput) {
-        this.searchInput.removeEventListener('input', this.handleSearchInput);
-        this.searchInput.removeEventListener('keydown', this.handleSearchKeyDown);
-      }
-      this.showDoneCheckbox?.removeEventListener('change', this.handleShowDoneChange);
-      clearTimeout(this.searchTimer);
-      this.searchTimer = null;
-      this.unsubscribe?.();
-      this.unsubscribe = null;
-    }
-
-    attributeChangedCallback(name, oldValue, newValue) {
-      if (name === 'name' && oldValue !== newValue) {
-        if (this.suppressNameSync) return;
-        if (this.store) {
-          this.store.dispatch({
-            type: LIST_ACTIONS.setTitle,
-            payload: { title: newValue ?? '' }
-          });
-        } else {
-          this.syncTitle();
-        }
-      }
-    }
-
-    ensureList() {
-      if (this.listEl && this.contains(this.listEl)) return;
-
-      let list = this.querySelector('ol.tasklist');
-      if (!list) {
-        list = document.createElement('ol');
-        list.classList.add('tasklist');
-        const listItems = Array.from(this.querySelectorAll(':scope > li'));
-        if (listItems.length) {
-          listItems.forEach(li => list.appendChild(li));
-        }
-        this.appendChild(list);
-      }
-      this.listEl = list;
-    }
-
-    ensureHeader() {
-      if (!this.headerEl || !this.contains(this.headerEl)) {
-        const header = document.createElement('div');
-        header.className = 'tasklist-header';
-
-        const title = document.createElement('h2');
-        title.className = 'tasklist-title';
-        header.appendChild(title);
-
-        const controls = document.createElement('div');
-        controls.className = 'tasklist-controls';
-
-        const searchInput = document.createElement('input');
-        searchInput.type = 'search';
-        searchInput.className = 'tasklist-search-input';
-        searchInput.placeholder = 'Search tasks...';
-        searchInput.setAttribute('aria-label', 'Search tasks');
-
-        const addButton = document.createElement('button');
-        addButton.type = 'button';
-        addButton.className = 'tasklist-add-button';
-        addButton.setAttribute('aria-label', 'Add task');
-        const addIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        addIcon.setAttribute('viewBox', '0 0 16 16');
-        addIcon.setAttribute('aria-hidden', 'true');
-        addIcon.setAttribute('focusable', 'false');
-        const addPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        addPath.setAttribute('fill', 'currentColor');
-        addPath.setAttribute('d', 'M7 1h2v6h6v2H9v6H7V9H1V7h6z');
-        addIcon.appendChild(addPath);
-        const addLabel = document.createElement('span');
-        addLabel.textContent = 'Add';
-        addButton.append(addIcon, addLabel);
-
-        const showDoneLabel = document.createElement('label');
-        showDoneLabel.className = 'tasklist-show-done';
-        const showDoneCheckbox = document.createElement('input');
-        showDoneCheckbox.type = 'checkbox';
-        showDoneCheckbox.className = 'tasklist-show-done-toggle';
-        showDoneCheckbox.checked = this.showDone;
-        const showDoneText = document.createElement('span');
-        showDoneText.textContent = 'Show done';
-        showDoneLabel.append(showDoneCheckbox, showDoneText);
-
-        controls.append(searchInput, showDoneLabel, addButton);
-        header.append(controls);
-
-        this.insertBefore(header, this.listEl);
-
-        this.headerEl = header;
-        this.titleEl = title;
-        this.searchInput = searchInput;
-        this.showDoneCheckbox = showDoneCheckbox;
-        this.addButton = addButton;
-      }
-
-      if (this.searchInput) {
-        this.searchInput.removeEventListener('input', this.handleSearchInput);
-        this.searchInput.removeEventListener('keydown', this.handleSearchKeyDown);
-        this.searchInput.addEventListener('input', this.handleSearchInput);
-        this.searchInput.addEventListener('keydown', this.handleSearchKeyDown);
-      }
-      if (this.showDoneCheckbox) {
-        this.showDoneCheckbox.removeEventListener('change', this.handleShowDoneChange);
-        this.showDoneCheckbox.addEventListener('change', this.handleShowDoneChange);
-      }
-      if (this.addButton) {
-        this.addButton.removeEventListener('click', this.handleAddButtonClick);
-        this.addButton.addEventListener('click', this.handleAddButtonClick);
-      }
-    }
-
-    syncTitle() {
-      if (!this.titleEl) return;
-      const value = this.getAttribute('name');
-      this.titleEl.textContent = value ?? '';
-    }
-
-    normalizePatternDefs(defs) {
-      if (!Array.isArray(defs)) return [];
-      const normalized = [];
-      defs.forEach(def => {
-        if (!def) return;
-        let { regex, className, priority } = def;
-        if (typeof regex === 'string') {
-          try {
-            regex = new RegExp(regex, 'g');
-          } catch (err) {
-            return;
-          }
-        } else if (regex instanceof RegExp) {
-          const flags = regex.flags.includes('g') ? regex.flags : regex.flags + 'g';
-          regex = new RegExp(regex.source, flags);
-        } else {
-          return;
-        }
-
-        const safeClass = typeof className === 'string' && className.trim().length
-          ? className.trim()
-          : 'task-token';
-        const prio = Number.isFinite(priority) ? priority : 2;
-        normalized.push({
-          regexSource: regex.source,
-          regexFlags: regex.flags,
-          className: safeClass,
-          priority: prio,
-          key: `pattern:${safeClass}`
-        });
-      });
-      return normalized;
-    }
-
-    setPatternHighlighters(defs) {
-      this.patternConfig = this.normalizePatternDefs(defs);
-      this.performSearch(this.searchQuery);
-    }
-
-    get patternHighlighters() {
-      return this.patternConfig.map(def => ({
-        regex: new RegExp(def.regexSource, def.regexFlags),
-        className: def.className,
-        priority: def.priority
-      }));
-    }
-
-    set patternHighlighters(defs) {
-      this.setPatternHighlighters(defs);
-    }
-
-    handleSearchInput() {
-      if (!this.searchInput) return;
-      const value = this.searchInput.value;
-      clearTimeout(this.searchTimer);
-      this.searchTimer = setTimeout(() => {
-        this.performSearch(value);
-        this.searchTimer = null;
-      }, 120);
-    }
-
-    handleSearchKeyDown(e) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        this.clearSearch();
-        this.searchInput?.focus();
-      }
-    }
-
-    handleSearchClear() {
-      this.clearSearch();
-      this.searchInput?.focus();
-    }
-
-    handleShowDoneChange(e) {
-      const isChecked = Boolean(e?.target?.checked);
-      if (this.showDone === isChecked) return;
-      this.showDone = isChecked;
-      this.performSearch(this.searchQuery);
-    }
-
-    clearSearch() {
-      clearTimeout(this.searchTimer);
-      this.searchTimer = null;
-      if (this.searchInput) {
-        this.searchInput.value = '';
-      }
-      this.performSearch('');
-    }
-
-    handleAddButtonClick() {
-      if (!this.store) return;
-      if (this.searchQuery) {
-        this.clearSearch();
-      }
-      const newId = generateItemId();
-      this.editController.queue(newId, 'end');
-      this.store.dispatch({
-        type: LIST_ACTIONS.insertItem,
-        payload: {
-          index: 0,
-          item: { id: newId, text: '', done: false }
-        }
-      });
-    }
-
-    handleEditSplit({ element, beforeText, afterText }) {
-      if (!element || !this.store) return;
-      const li = element.closest('li');
-      const id = li?.dataset?.itemId;
-      if (!id) return;
-
-      const state = this.store.getState();
-      const currentIndex = state.items.findIndex(item => item.id === id);
-      if (currentIndex === -1) return;
-
-      if (typeof beforeText === 'string') {
-        this.store.dispatch({
-          type: LIST_ACTIONS.updateItemText,
-          payload: { id, text: beforeText }
-        });
-      }
-
-      const newId = generateItemId();
-      this.editController.queue(newId, 'start');
-
-      this.store.dispatch({
-        type: LIST_ACTIONS.insertItem,
-        payload: {
-          index: currentIndex + 1,
-          item: {
-            id: newId,
-            text: typeof afterText === 'string' ? afterText : '',
-            done: false
-          }
-        }
-      });
-    }
-
-    handleEditMerge({ currentItemId, previousItemId, currentText, selectionStart }) {
-      if (!this.store || !currentItemId || !previousItemId) return false;
-
-      const state = this.store.getState();
-      const items = Array.isArray(state?.items) ? state.items : [];
-      const currentIndex = items.findIndex(item => item.id === currentItemId);
-      if (currentIndex <= 0) return false;
-
-      const previousIndex = currentIndex - 1;
-      const previousItem = items[previousIndex];
-      if (!previousItem || previousItem.id !== previousItemId) return false;
-
-      const prevText = typeof previousItem.text === 'string' ? previousItem.text : '';
-      const currentTextValue = typeof currentText === 'string' ? currentText : '';
-      const mergedText = prevText + currentTextValue;
-
-      const mergeOffset = prevText.length + (typeof selectionStart === 'number'
-        ? Math.max(0, Math.min(selectionStart, currentTextValue.length))
-        : 0);
-
-      this.editController.queue(previousItem.id, { type: 'offset', value: mergeOffset });
-
-      this.store.dispatch({
-        type: LIST_ACTIONS.updateItemText,
-        payload: { id: previousItem.id, text: mergedText }
-      });
-      this.store.dispatch({
-        type: LIST_ACTIONS.removeItem,
-        payload: { id: currentItemId }
-      });
-
-      return true;
-    }
-
-    handleEditRemove({ element }) {
-      if (!element || !this.store) return;
-      const li = element.closest('li');
-      const id = li?.dataset?.itemId;
-      if (!id) return;
-
-      const state = this.store.getState();
-      const items = state?.items ?? [];
-      const currentIndex = items.findIndex(item => item.id === id);
-      if (currentIndex === -1) return;
-
-      const nextItem = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
-      if (nextItem) {
-        this.editController.queue(nextItem.id, 'end');
-      } else {
-        this.editController.clear();
-      }
-
-      this.store.dispatch({
-        type: LIST_ACTIONS.removeItem,
-        payload: { id }
-      });
-    }
-
-    handleEditMove({ element, direction, selectionStart }) {
-      if (!element || !this.store) return;
-      const li = element.closest('li');
-      const id = li?.dataset?.itemId;
-      if (!id) return;
-
-      const state = this.store.getState();
-      const items = Array.isArray(state?.items) ? state.items : [];
-      const fromIndex = items.findIndex(item => item.id === id);
-      if (fromIndex === -1) return;
-      const delta = direction === 'down' ? 1 : -1;
-      const toIndex = fromIndex + delta;
-      if (toIndex < 0 || toIndex >= items.length) return;
-
-      const order = items.map(item => item.id);
-      const [moved] = order.splice(fromIndex, 1);
-      order.splice(toIndex, 0, moved);
-
-      const caretOffset = typeof selectionStart === 'number'
-        ? Math.max(0, selectionStart)
-        : 0;
-      this.editController.queue(id, { type: 'offset', value: caretOffset });
-      this.inlineEditor?.finishEditing(element, true);
-
-      this.store.dispatch({
-        type: LIST_ACTIONS.reorderItems,
-        payload: { order }
-      });
-    }
-
-    handleStoreChange() {
-      if (!this.store) return;
-      this.renderFromState(this.store.getState());
-    }
-
-    renderFromState(state) {
-      if (!this.listEl || !state) return;
-
-      const preservedFocus = this.view.captureFocus();
-
-      this.view.syncItems(state.items, {
-        createItem: (item) => this.createItemElement(item),
-        updateItem: (li, item) => this.updateItemElement(li, item)
-      });
-
-      const nextTitle = state.title ?? '';
-      if (this.titleEl) {
-        this.titleEl.textContent = nextTitle;
-      }
-
-      const attrTitle = this.getAttribute('name');
-      if (attrTitle !== nextTitle) {
-        this.suppressNameSync = true;
-        if (nextTitle) {
-          this.setAttribute('name', nextTitle);
-        } else {
-          this.removeAttribute('name');
-        }
-        this.suppressNameSync = false;
-      }
-
-      const forceVisible = this.editController.getForceVisibleIds();
-      let hasPendingEdit = this.editController.hasPending();
-
-      this.performSearch(this.searchQuery, { forceVisible });
-
-      if (hasPendingEdit) {
-        this.editController.applyPendingEdit();
-        hasPendingEdit = this.editController.hasPending();
-      }
-
-      this.view.restoreFocus(preservedFocus, { skip: hasPendingEdit });
-    }
-
-    createItemElement(item) {
-      const li = document.createElement('li');
-      li.setAttribute('draggable', 'true');
-      li.dataset.itemId = item.id;
-      li.dataset.done = item.done ? 'true' : 'false';
-
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.className = 'done-toggle';
-      checkbox.checked = Boolean(item.done);
-
-      const textSpan = document.createElement('span');
-      textSpan.className = 'text';
-      textSpan.textContent = item.text;
-      textSpan.dataset.originalText = item.text;
-
-      const handle = document.createElement('span');
-      handle.className = 'handle';
-      handle.setAttribute('aria-hidden', 'true');
-
-      li.append(checkbox, textSpan, handle);
-      return li;
-    }
-
-    updateItemElement(li, item) {
-      li.dataset.itemId = item.id;
-      li.dataset.done = item.done ? 'true' : 'false';
-      if (li.getAttribute('draggable') !== 'true') {
-        li.setAttribute('draggable', 'true');
-      }
-
-      const checkbox = li.querySelector('.done-toggle');
-      if (checkbox && checkbox.checked !== Boolean(item.done)) {
-        checkbox.checked = Boolean(item.done);
-      }
-
-      const textSpan = li.querySelector('.text');
-      if (textSpan) {
-        const isEditing = textSpan.isContentEditable;
-        if (textSpan.dataset.originalText !== item.text) {
-          textSpan.dataset.originalText = item.text;
-          if (!isEditing) {
-            textSpan.textContent = item.text;
-          }
-        }
-      }
-    }
-
-    handleToggle(e) {
-      if (!e.target.classList?.contains('done-toggle')) return;
-      const li = e.target.closest('li');
-      const id = li?.dataset?.itemId;
-      if (!id || !this.store) return;
-      this.store.dispatch({
-        type: LIST_ACTIONS.setItemDone,
-        payload: { id, done: e.target.checked }
-      });
-    }
-
-    handleEditCommit({ element, newText, previousText }) {
-      if (!element || !this.store) {
-        this.performSearch(this.searchQuery);
-        return;
-      }
-      const li = element.closest('li');
-      const id = li?.dataset?.itemId;
-      if (!id) {
-        this.performSearch(this.searchQuery);
-        return;
-      }
-      if (typeof newText !== 'string') {
-        this.performSearch(this.searchQuery);
-        return;
-      }
-      const currentState = this.store.getState();
-      const stateItem = currentState?.items?.find(item => item.id === id);
-      if (stateItem && stateItem.text !== previousText) {
-        const authoritativeText = stateItem.text ?? '';
-        element.textContent = authoritativeText;
-        element.dataset.originalText = authoritativeText;
-        this.performSearch(this.searchQuery);
-        return;
-      }
-      if (newText === previousText) {
-        this.performSearch(this.searchQuery);
-        return;
-      }
-      this.store.dispatch({
-        type: LIST_ACTIONS.updateItemText,
-        payload: { id, text: newText }
-      });
-    }
-
-    scheduleReorderUpdate() {
-      if (!this.store || !this.listEl) return;
-      Promise.resolve().then(() => {
-        if (!this.store || !this.listEl) return;
-        const order = Array.from(this.listEl.children)
-          .filter(li => !li.classList.contains('placeholder'))
-          .map(li => li.dataset.itemId)
-          .filter(Boolean);
-        if (!order.length) return;
-        this.store.dispatch({
-          type: LIST_ACTIONS.reorderItems,
-          payload: { order }
-        });
-      });
-    }
-
-    handleItemBlur(e) {
-      const textEl = e.target.classList?.contains('text') ? e.target : null;
-      if (!textEl) return;
-      textEl.dataset.originalText = textEl.textContent;
-      this.performSearch(this.searchQuery);
-    }
-
-    performSearch(query, options = {}) {
-      if (!this.listEl) return;
-      this.searchQuery = query;
-      const tokens = tokenizeSearchQuery(query);
-      const forceVisible = options?.forceVisible ?? null;
-
-      this.listEl.querySelectorAll('li').forEach(li => {
-        if (li.classList.contains('placeholder')) return;
-        const textEl = li.querySelector('.text');
-        if (!textEl) return;
-        const isEditing = textEl.isContentEditable;
-        const isDone = li.dataset.done === 'true';
-
-        const original = textEl.dataset.originalText != null
-          ? textEl.dataset.originalText
-          : (textEl.dataset.originalText = textEl.textContent);
-
-        if (isEditing) {
-          li.hidden = false;
-          return;
-        }
-
-        if (forceVisible && li.dataset.itemId && forceVisible.has(li.dataset.itemId)) {
-          li.hidden = false;
-          textEl.textContent = original;
-          return;
-        }
-
-        const result = evaluateSearchEntry({
-          originalText: original,
-          tokens,
-          patternConfig: this.patternConfig,
-          showDone: this.showDone,
-          isDone
-        });
-
-        li.hidden = result.hidden;
-        if (result.hidden || result.markup == null) {
-          textEl.textContent = original;
-          return;
-        }
-        textEl.innerHTML = result.markup;
-      });
-
-      this.dragBehavior?.invalidateItemsCache();
-    }
-
-    get name() {
-      return this.getAttribute('name') ?? '';
-    }
-
-    set name(value) {
-      if (value == null) {
-        this.removeAttribute('name');
-      } else {
-        this.setAttribute('name', String(value));
-      }
-    }
-  }
-
-  customElements.define('a4-tasklist', A4TaskList);
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const demoList = document.querySelector('a4-tasklist');
-    if (!demoList) return;
-    if (!demoList.initialState || !demoList.initialState.items?.length) {
-      demoList.initialState = PROTOTYPE_TASK_LIST;
-    }
-  });
-</script>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Prototype Lists</title>
+        <style>
+            :root {
+                --font-family-base: "Inter", sans-serif;
+                --font-size-base: 18px;
+                --font-size-title: 20px;
+                --color-background: #f5f5f5;
+                --color-surface: #fff;
+                --color-text: #333;
+                --color-muted: #7a7a7a;
+                --color-border: #a1a1a1;
+                --color-border-strong: #4d4d4d;
+                --color-highlight: #ffec99;
+                --color-mention: #333;
+                --color-tag: #333;
+                --color-handle: #999;
+                --outline-color: #4d4d4d;
+                --shadow-drag: 0 8px 24px rgba(0, 0, 0, 0.18);
+                --radius-sm: 4px;
+                --space-xs: 6px;
+                --space-sm: 8px;
+                --space-md: 12px;
+                --space-lg: 16px;
+                --space-xl: 20px;
+                --transition-fast: 0.2s ease;
+                --drop-duration: 0.3s;
+                --list-width: 70ch;
+                --search-width: 250px;
+                --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4K");
+            }
+
+            body {
+                font-family: var(--font-family-base);
+                font-size: var(--font-size-base);
+                background-color: var(--color-background);
+                color: var(--color-text);
+                padding: 0;
+
+                main {
+                    max-width: var(--list-width);
+                    margin: 0 auto;
+                }
+            }
+
+            a4-tasklist {
+                display: block;
+            }
+
+            .tasklist-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--space-lg);
+                margin-bottom: var(--space-md);
+
+                .tasklist-title {
+                    margin: 0;
+                    font-size: var(--font-size-title);
+                    font-weight: 600;
+                    color: var(--color-text);
+
+                    &:empty {
+                        display: none;
+                    }
+                }
+
+                .tasklist-controls {
+                    display: flex;
+                    align-items: center;
+                    gap: var(--space-sm);
+                    flex-wrap: wrap;
+
+                    input[type="search"] {
+                        font: inherit;
+                        padding: var(--space-xs);
+                        border: 1px solid var(--color-border);
+                        border-radius: var(--radius-sm);
+                        background-color: var(--color-surface);
+                        color: var(--color-text);
+                        width: var(--search-width);
+                        max-width: 100%;
+
+                        &:focus {
+                            outline: 2px solid var(--outline-color);
+                            outline-offset: 2px;
+                        }
+                    }
+
+                    .tasklist-show-done {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: var(--space-xs);
+                        font-size: 16px;
+                        color: var(--color-text);
+
+                        input[type="checkbox"] {
+                            width: 16px;
+                            height: 16px;
+                            margin: 0;
+                        }
+                    }
+
+                    .tasklist-add-button {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: var(--space-xs);
+                        font: inherit;
+                        padding: var(--space-xs) var(--space-sm);
+                        border-radius: var(--radius-sm);
+                        border: 1px solid var(--outline-color);
+                        background-color: var(--color-surface);
+                        color: var(--color-text);
+                        cursor: pointer;
+                        transition:
+                            background-color var(--transition-fast),
+                            color var(--transition-fast);
+
+                        svg {
+                            width: 16px;
+                            height: 16px;
+                        }
+
+                        &:hover {
+                            background-color: var(--color-text);
+                            color: var(--color-surface);
+                        }
+
+                        &:focus-visible {
+                            outline: 2px solid var(--outline-color);
+                            outline-offset: 2px;
+                        }
+                    }
+                }
+            }
+
+            ol.tasklist {
+                margin: 0;
+                padding: 0;
+                list-style: none;
+
+                > li {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    gap: var(--space-sm);
+                    padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+                    margin-bottom: var(--space-sm);
+                    background-color: var(--color-surface);
+                    border: 1px solid var(--color-border);
+                    border-bottom: 2px solid var(--color-border-strong);
+                    will-change: transform;
+
+                    &[hidden] {
+                        display: none;
+                    }
+
+                    &.editing {
+                        .text {
+                            background: #f0f0f0;
+                            outline: 2px solid rgba(77, 77, 77, 0.2);
+                            outline-offset: 2px;
+                        }
+                    }
+
+                    .done-toggle {
+                        width: 20px;
+                        height: 20px;
+                        flex-shrink: 0;
+                        cursor: pointer;
+                        margin: 0;
+
+                        &:focus-visible {
+                            outline: 2px solid var(--outline-color);
+                            outline-offset: 2px;
+                        }
+
+                        &:checked + .text {
+                            text-decoration: line-through;
+                            color: var(--color-muted);
+                        }
+                    }
+
+                    .text {
+                        flex: 1;
+
+                        mark {
+                            background-color: var(--color-highlight);
+                            color: inherit;
+                            border-radius: 2px;
+                        }
+                    }
+
+                    .handle {
+                        cursor: grab;
+                        color: var(--color-handle);
+                        user-select: none;
+                        -webkit-user-select: none;
+                        -webkit-touch-callout: none;
+                        touch-action: none;
+                        width: 24px;
+                        height: 24px;
+                        flex-shrink: 0;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        background-repeat: no-repeat;
+                        background-position: center;
+                        background-size: 24px 24px;
+                        background-image: var(--task-handle-icon);
+
+                        &:active {
+                            cursor: grabbing;
+                        }
+                    }
+                }
+
+                > li:active {
+                    cursor: grabbing;
+                }
+
+                > li.dragging {
+                    position: fixed;
+                    z-index: 1000;
+                    pointer-events: none;
+                    box-shadow: var(--shadow-drag);
+                    opacity: 0.98;
+                    color: inherit;
+                    background: var(--color-surface);
+                    border-color: var(--color-border);
+                }
+
+                > li.placeholder {
+                    background: transparent;
+                    border: 2px dashed #bbb;
+                    height: 0;
+                    margin-bottom: var(--space-sm);
+                }
+            }
+
+            .task-token-mention {
+                color: var(--color-mention);
+                font-weight: 600;
+            }
+
+            .task-token-tag {
+                color: var(--color-tag);
+                font-weight: 600;
+            }
+
+            .flip-animating {
+                transition: transform 140ms ease;
+            }
+
+            .drop-animation {
+                animation: dropSlide var(--drop-duration) ease-out;
+            }
+
+            @keyframes dropSlide {
+                0% {
+                    transform: translateX(-8px);
+                    opacity: 0.7;
+                }
+                50% {
+                    transform: translateX(8px);
+                    opacity: 0.7;
+                }
+                100% {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @media (max-width: 640px) {
+                .tasklist-header {
+                    flex-direction: column;
+                    align-items: stretch;
+                    gap: var(--space-md);
+
+                    .tasklist-title {
+                        width: 100%;
+                    }
+
+                    .tasklist-controls {
+                        width: 100%;
+                        justify-content: flex-start;
+                        gap: var(--space-sm);
+
+                        input[type="search"] {
+                            width: 100%;
+                        }
+                    }
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <a4-tasklist name="Prototype Tasks">
+                <ol class="tasklist"></ol>
+            </a4-tasklist>
+        </main>
+
+        <script>
+            const PROTOTYPE_TASK_TEXTS = [
+                "Refill the bird feeder before the sparrows file another formal request.",
+                "Check the fridge light still turns off, preferably without crawling inside again.",
+                "Return the umbrella to the hallway, where it insists it lives.",
+                "Water the fern before it submits another strongly worded letter to the radiator.",
+                "Update the shopping list to include milk, bread, and a moderately sensible hat.",
+                "Verify that the kettle boils water and not, as it occasionally attempts, good intentions.",
+                "Organize the cutlery drawer so the forks don't keep holding union meetings.",
+                "Empty the dishwasher before it begins drafting poetry about neglect.",
+                "Set the alarm clock, reminding it gently that no one enjoys its personality.",
+                "Take the bins out, though they are increasingly insistent they'd rather stay in.",
+                "Test the smoke detector by asking it politely to explain its worldview.",
+                "Send an email to the electricity meter thanking it for its tireless blinking.",
+                "Sharpen pencils so they feel prepared for anything, including international diplomacy.",
+                "Update the calendar to reflect the current year, not the one the cat prefers.",
+                "Polish the windows until they are clear about their long-term career goals.",
+                "Check the washing machine for socks that have declared independence.",
+                "Restock the biscuit tin before negotiations with visitors turn awkward.",
+                "Feed the goldfish, who has recently taken to sighing at odd intervals.",
+                "Write down the Wi-Fi password in case it decides to change its name again.",
+                "Vacuum the carpet before it develops further geological features.",
+            ];
+
+            const PROTOTYPE_TASK_LIST = {
+                title: "Prototype Tasks",
+                items: PROTOTYPE_TASK_TEXTS.map((text, index) => ({
+                    id: `task-${index + 1}`,
+                    text,
+                    done: false,
+                })),
+            };
+
+            const cloneListState = (source) => ({
+                title: typeof source?.title === "string" ? source.title : "",
+                items: Array.isArray(source?.items)
+                    ? source.items.map((item, index) => ({
+                          id:
+                              typeof item?.id === "string" && item.id.length
+                                  ? item.id
+                                  : `item-${index}`,
+                          text: typeof item?.text === "string" ? item.text : "",
+                          done: Boolean(item?.done),
+                      }))
+                    : [],
+            });
+
+            const generateItemId = (() => {
+                let counter = 0;
+                return () => {
+                    counter += 1;
+                    if (
+                        typeof crypto !== "undefined" &&
+                        typeof crypto.randomUUID === "function"
+                    ) {
+                        return `task-${crypto.randomUUID()}`;
+                    }
+                    const salt = Math.random().toString(36).slice(2, 8);
+                    return `task-${Date.now().toString(36)}-${counter.toString(36)}-${salt}`;
+                };
+            })();
+
+            const LIST_ACTIONS = {
+                setTitle: "list/setTitle",
+                setItemDone: "list/setItemDone",
+                updateItemText: "list/updateItemText",
+                reorderItems: "list/reorderItems",
+                replaceAll: "list/replaceAll",
+                insertItem: "list/insertItem",
+                removeItem: "list/removeItem",
+            };
+
+            const listReducer = (
+                state = { title: "", items: [] },
+                action = {},
+            ) => {
+                switch (action.type) {
+                    case LIST_ACTIONS.setTitle: {
+                        const nextTitle =
+                            typeof action.payload?.title === "string"
+                                ? action.payload.title
+                                : state.title;
+                        if (nextTitle === state.title) return state;
+                        return { ...state, title: nextTitle };
+                    }
+                    case LIST_ACTIONS.setItemDone: {
+                        const { id, done } = action.payload ?? {};
+                        if (!id) return state;
+                        const targetDone = Boolean(done);
+                        let changed = false;
+                        const nextItems = state.items.map((item) => {
+                            if (item.id !== id) return item;
+                            if (item.done === targetDone) return item;
+                            changed = true;
+                            return { ...item, done: targetDone };
+                        });
+                        return changed ? { ...state, items: nextItems } : state;
+                    }
+                    case LIST_ACTIONS.updateItemText: {
+                        const { id, text } = action.payload ?? {};
+                        if (!id || typeof text !== "string") return state;
+                        const nextText = text;
+                        let changed = false;
+                        const nextItems = state.items.map((item) => {
+                            if (item.id !== id) return item;
+                            if (item.text === nextText) return item;
+                            changed = true;
+                            return { ...item, text: nextText };
+                        });
+                        return changed ? { ...state, items: nextItems } : state;
+                    }
+                    case LIST_ACTIONS.reorderItems: {
+                        const order = Array.isArray(action.payload?.order)
+                            ? action.payload.order
+                            : null;
+                        if (!order || !order.length) return state;
+                        if (order.length !== state.items.length) return state;
+                        const itemMap = new Map(
+                            state.items.map((item) => [item.id, item]),
+                        );
+                        const nextItems = order
+                            .map((id) => itemMap.get(id))
+                            .filter(Boolean);
+                        if (nextItems.length !== state.items.length)
+                            return state;
+                        const unchanged = nextItems.every(
+                            (item, index) => item === state.items[index],
+                        );
+                        if (unchanged) return state;
+                        return { ...state, items: nextItems };
+                    }
+                    case LIST_ACTIONS.insertItem: {
+                        const { index, item } = action.payload ?? {};
+                        if (
+                            !item ||
+                            typeof item.id !== "string" ||
+                            !item.id.length
+                        )
+                            return state;
+                        if (
+                            state.items.some(
+                                (existing) => existing.id === item.id,
+                            )
+                        )
+                            return state;
+                        const insertionIndex = Number.isInteger(index)
+                            ? Math.max(0, Math.min(index, state.items.length))
+                            : state.items.length;
+                        const nextItem = {
+                            id: item.id,
+                            text:
+                                typeof item.text === "string" ? item.text : "",
+                            done: Boolean(item.done),
+                        };
+                        const nextItems = state.items.slice();
+                        nextItems.splice(insertionIndex, 0, nextItem);
+                        return { ...state, items: nextItems };
+                    }
+                    case LIST_ACTIONS.removeItem: {
+                        const { id } = action.payload ?? {};
+                        if (typeof id !== "string" || !id.length) return state;
+                        const nextItems = state.items.filter(
+                            (item) => item.id !== id,
+                        );
+                        if (nextItems.length === state.items.length)
+                            return state;
+                        return { ...state, items: nextItems };
+                    }
+                    case LIST_ACTIONS.replaceAll: {
+                        const payload = action.payload;
+                        if (!payload) return state;
+                        const next = cloneListState(payload);
+                        return next;
+                    }
+                    default:
+                        return state;
+                }
+            };
+
+            const createStore = (reducer, preloadedState) => {
+                let currentState =
+                    typeof preloadedState === "undefined"
+                        ? reducer(undefined, { type: "@@INIT" })
+                        : reducer(preloadedState, { type: "@@INIT" });
+                let listeners = new Set();
+
+                return {
+                    getState: () => currentState,
+                    dispatch(action) {
+                        const nextState = reducer(currentState, action);
+                        if (nextState !== currentState) {
+                            currentState = nextState;
+                            listeners.forEach((fn) => fn());
+                        }
+                        return action;
+                    },
+                    subscribe(listener) {
+                        if (typeof listener !== "function") return () => {};
+                        listeners.add(listener);
+                        return () => {
+                            listeners.delete(listener);
+                        };
+                    },
+                };
+            };
+
+            const escapeHTML = (str) =>
+                str
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#39;");
+
+            const mergeRanges = (ranges) => {
+                if (!ranges.length) return [];
+                const sorted = ranges.slice().sort((a, b) => {
+                    if (a.start !== b.start) return a.start - b.start;
+                    if (a.priority !== b.priority)
+                        return a.priority - b.priority;
+                    if (a.end !== b.end) return a.end - b.end;
+                    return a.key.localeCompare(b.key);
+                });
+                const merged = [{ ...sorted[0] }];
+                for (let i = 1; i < sorted.length; i++) {
+                    const current = sorted[i];
+                    const last = merged[merged.length - 1];
+                    if (current.start <= last.end && current.key === last.key) {
+                        last.end = Math.max(last.end, current.end);
+                    } else {
+                        merged.push({ ...current });
+                    }
+                }
+                return merged;
+            };
+
+            const buildDecoratedMarkup = (original, tokens, patternConfig) => {
+                const haystack = original.toLowerCase();
+                const ranges = [];
+                const patterns = Array.isArray(patternConfig)
+                    ? patternConfig
+                    : [];
+                let matchesAllTokens = true;
+
+                tokens.forEach((token) => {
+                    let searchIndex = 0;
+                    let foundAny = false;
+                    while (searchIndex <= haystack.length) {
+                        const found = haystack.indexOf(token, searchIndex);
+                        if (found === -1) break;
+                        ranges.push({
+                            start: found,
+                            end: found + token.length,
+                            priority: 1,
+                            open: "<mark>",
+                            close: "</mark>",
+                            key: "mark",
+                        });
+                        searchIndex = found + token.length;
+                        foundAny = true;
+                    }
+                    if (!foundAny) {
+                        matchesAllTokens = false;
+                    }
+                });
+
+                patterns.forEach((def) => {
+                    const patternRegex = new RegExp(
+                        def.regexSource,
+                        def.regexFlags,
+                    );
+                    let match;
+                    while ((match = patternRegex.exec(original)) !== null) {
+                        if (!match[0].length) {
+                            patternRegex.lastIndex += 1;
+                            continue;
+                        }
+                        ranges.push({
+                            start: match.index,
+                            end: match.index + match[0].length,
+                            priority: def.priority,
+                            open: `<span class="${def.className}">`,
+                            close: "</span>",
+                            key: def.key,
+                        });
+                        if (!patternRegex.global) break;
+                    }
+                });
+
+                if (!ranges.length) {
+                    return { markup: null, matchesAllTokens };
+                }
+
+                const merged = mergeRanges(ranges);
+                if (!merged.length) {
+                    return { markup: null, matchesAllTokens };
+                }
+
+                const boundaries = new Set([0, original.length]);
+                merged.forEach((range) => {
+                    boundaries.add(range.start);
+                    boundaries.add(range.end);
+                });
+                const sortedBoundaries = Array.from(boundaries).sort(
+                    (a, b) => a - b,
+                );
+
+                let result = "";
+                for (let i = 0; i < sortedBoundaries.length - 1; i++) {
+                    const start = sortedBoundaries[i];
+                    const end = sortedBoundaries[i + 1];
+                    if (start === end) continue;
+                    let segment = escapeHTML(original.slice(start, end));
+                    if (!segment) continue;
+                    const covering = merged.filter(
+                        (range) => range.start <= start && range.end >= end,
+                    );
+                    if (covering.length) {
+                        covering.sort((a, b) => a.priority - b.priority);
+                        for (let j = covering.length - 1; j >= 0; j--) {
+                            const wrapper = covering[j];
+                            segment = wrapper.open + segment + wrapper.close;
+                        }
+                    }
+                    result += segment;
+                }
+
+                return { markup: result, matchesAllTokens };
+            };
+
+            const tokenizeSearchQuery = (query) => {
+                if (typeof query !== "string") return [];
+                return query
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map((token) => token.toLowerCase());
+            };
+
+            const evaluateSearchEntry = ({
+                originalText,
+                tokens,
+                patternConfig,
+                showDone,
+                isDone,
+            }) => {
+                const hiddenByCompletion = !showDone && isDone;
+                if (hiddenByCompletion) {
+                    return { hidden: true, markup: null };
+                }
+
+                const { markup, matchesAllTokens } = buildDecoratedMarkup(
+                    originalText,
+                    tokens,
+                    patternConfig,
+                );
+                if (tokens.length > 0 && !matchesAllTokens) {
+                    return { hidden: true, markup: null };
+                }
+
+                return { hidden: false, markup };
+            };
+
+            const escapeSelectorId = (value) => {
+                if (typeof value !== "string") return "";
+                return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+            };
+
+            // DraggableBehavior - drag & drop with floating dragged item and an optional animator
+            // It assumes it is being applied to a list container as some of the internals assume
+            // li elements
+            class DraggableBehavior {
+                constructor(container, options = {}) {
+                    this.container = container;
+                    this.options = {
+                        handleClass: "handle",
+                        threshold: 10,
+                        onReorder: null,
+                        animator: null,
+                        ...options,
+                    };
+                    this.dragging = null;
+                    this.touchStartY = 0;
+                    this.touchStartX = 0;
+                    this.isTouchDragging = false;
+                    this.rafId = null;
+                    this.cachedItems = null;
+                    this.enabled = false;
+                    this.placeholder = null;
+                    this.originalPosition = null;
+                    this.pointerOffsetY = 0;
+                    this.pointerOffsetX = 0;
+                    this.animator = this.options.animator;
+                    this._currentPlaceholderIndex = null;
+                    this._dropHandled = false;
+
+                    // bind handlers once so removeEventListeners works reliably
+                    this._onDragStart = this.handleDragStart.bind(this);
+                    this._onDragEnd = this.handleDragEnd.bind(this);
+                    this._onDragOver = this.handleDragOver.bind(this);
+                    this._onDrop = this.handleDrop.bind(this);
+
+                    this._onTouchStart = this.handleTouchStart.bind(this);
+                    this._onTouchMove = this.handleTouchMove.bind(this);
+                    this._onTouchEnd = this.handleTouchEnd.bind(this);
+
+                    this.deferFloatingInit = false; // for Chrome: delay init on mouse DnD
+                    this._pendingInitCoords = null; // { x, y } to start floating later
+                }
+
+                enable() {
+                    if (this.enabled) return;
+                    this.enabled = true;
+                    this.setupEventListeners();
+                }
+
+                disable() {
+                    if (!this.enabled) return;
+                    this.enabled = false;
+                    this.removeEventListeners();
+                }
+
+                destroy() {
+                    this.disable();
+                    this.container = null;
+                }
+
+                setupEventListeners() {
+                    // Mouse events
+                    this.container.addEventListener(
+                        "dragstart",
+                        this._onDragStart,
+                    );
+                    this.container.addEventListener("dragend", this._onDragEnd);
+                    this.container.addEventListener(
+                        "dragover",
+                        this._onDragOver,
+                    );
+                    this.container.addEventListener("drop", this._onDrop);
+
+                    // Touch events
+                    this.container.addEventListener(
+                        "touchstart",
+                        this._onTouchStart,
+                        { passive: false },
+                    );
+                    this.container.addEventListener(
+                        "touchmove",
+                        this._onTouchMove,
+                        { passive: false },
+                    );
+                    this.container.addEventListener(
+                        "touchend",
+                        this._onTouchEnd,
+                        { passive: true },
+                    );
+                }
+
+                removeEventListeners() {
+                    this.container.removeEventListener(
+                        "dragstart",
+                        this._onDragStart,
+                    );
+                    this.container.removeEventListener(
+                        "dragend",
+                        this._onDragEnd,
+                    );
+                    this.container.removeEventListener(
+                        "dragover",
+                        this._onDragOver,
+                    );
+                    this.container.removeEventListener("drop", this._onDrop);
+
+                    this.container.removeEventListener(
+                        "touchstart",
+                        this._onTouchStart,
+                    );
+                    this.container.removeEventListener(
+                        "touchmove",
+                        this._onTouchMove,
+                    );
+                    this.container.removeEventListener(
+                        "touchend",
+                        this._onTouchEnd,
+                    );
+                }
+
+                handleDragStart(e) {
+                    const li = e.target.closest("li");
+                    if (!li) return;
+
+                    // Mark that we must delay floating/placeholder until the first dragover
+                    // we do this for desktop browsers, specifically Chrome will abort a drag
+                    // if we create a placeholder element with document.createElement before
+                    // the first dragover event. This workaround delays creating the placeholder
+                    // until that moment
+                    this.deferFloatingInit = true;
+                    this._pendingInitCoords = { x: e.clientX, y: e.clientY };
+
+                    // Just record the drag start; NO DOM changes here
+                    this.startDrag(li /* no coords now */);
+
+                    // suppress default ghost image
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", "");
+                    const emptyImg = document.createElement("img");
+                    emptyImg.src =
+                        "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
+                    e.dataTransfer.setDragImage(emptyImg, 0, 0);
+                }
+
+                handleDragEnd() {
+                    // Chrome/Safari occasionally skip the drop event if the pointer exits the list.
+                    // When that happens the placeholder is still where the user left it, so we
+                    // synthesize the reorder using the last known placeholder index.
+                    if (
+                        this.dragging &&
+                        !this._dropHandled &&
+                        this._currentPlaceholderIndex != null
+                    ) {
+                        const fromIndex = this.getIndex(this.dragging);
+                        const toIndex = this._currentPlaceholderIndex;
+                        if (fromIndex !== toIndex) {
+                            this.options.onReorder?.(fromIndex, toIndex);
+                            this._dropHandled = true;
+                            this.originalPosition = null;
+                        }
+                    }
+                    this.endDrag();
+                    this._dropHandled = false;
+                    this._currentPlaceholderIndex = null;
+                }
+
+                handleDragOver(e) {
+                    e.preventDefault();
+
+                    // If we deferred (for desktop browsers, but specifically Chrome), do the first-time init now
+                    if (this.dragging && this.deferFloatingInit) {
+                        this.deferFloatingInit = false;
+                        const p = this._pendingInitCoords || {
+                            x: e.clientX,
+                            y: e.clientY,
+                        };
+                        this.beginFloating(p.x, p.y); // create placeholder + make item fixed
+                        this._pendingInitCoords = null;
+                    }
+
+                    // Now it’s safe to animate & move
+                    this.updateFloating(e.clientX, e.clientY);
+                    this.debouncedDragOver(e.clientY);
+                    e.dataTransfer.dropEffect = "move";
+                }
+
+                handleDrop(e) {
+                    e.preventDefault();
+                    this.drop(e.clientY);
+                    this.endDrag();
+                }
+
+                // Touch event handlers
+                handleTouchStart(e) {
+                    if (!e.target.classList.contains(this.options.handleClass))
+                        return;
+                    const li = e.target.closest("li");
+                    if (!li) return;
+                    if (e.cancelable) e.preventDefault(); // Safari: stop default to avoid text highlight
+                    this.touchStartY = e.touches[0].clientY;
+                    this.touchStartX = e.touches[0].clientX;
+                    this.isTouchDragging = false;
+                }
+
+                handleTouchMove(e) {
+                    if (!e.target.classList.contains(this.options.handleClass))
+                        return;
+                    // Only start dragging if the touch distance is greater than the threshold
+                    // This prevents accidental dragging when scrolling or tapping
+                    if (!this.isTouchDragging) {
+                        const deltaY = Math.abs(
+                            e.touches[0].clientY - this.touchStartY,
+                        );
+                        const deltaX = Math.abs(
+                            e.touches[0].clientX - this.touchStartX,
+                        );
+                        const totalDistance = Math.hypot(deltaX, deltaY);
+                        if (totalDistance > this.options.threshold) {
+                            const li = e.target.closest("li");
+                            if (li) {
+                                this.isTouchDragging = true;
+                                this.startDrag(
+                                    li,
+                                    e.touches[0].clientX,
+                                    e.touches[0].clientY,
+                                );
+                                if (e.cancelable) e.preventDefault();
+                            }
+                        }
+                    } else if (this.dragging) {
+                        if (e.cancelable) e.preventDefault();
+                        this.updateFloating(
+                            e.touches[0].clientX,
+                            e.touches[0].clientY,
+                        );
+                        this.debouncedDragOver(e.touches[0].clientY);
+                    }
+                }
+
+                handleTouchEnd(e) {
+                    if (this.isTouchDragging && this.dragging) {
+                        this.drop(e.changedTouches[0].clientY);
+                        this.endDrag();
+                    }
+                }
+
+                // Core drag logic
+                startDrag(li, startClientX = null, startClientY = null) {
+                    this.dragging = li;
+                    this.originalPosition = this.getIndex(li);
+                    this.invalidateItemsCache();
+                    this._currentPlaceholderIndex = this.originalPosition;
+                    this._dropHandled = false;
+
+                    // For touch (or any non-deferred start), we may be passed coords:
+                    if (
+                        !this.deferFloatingInit &&
+                        startClientX != null &&
+                        startClientY != null
+                    ) {
+                        this.beginFloating(startClientX, startClientY);
+                    }
+                }
+
+                endDrag() {
+                    if (!this.dragging) return;
+
+                    // If drag was cancelled (no drop), restore to original position via placeholder
+                    if (this.originalPosition !== null && this.placeholder) {
+                        const children = Array.from(
+                            this.container.children,
+                        ).filter((n) => n !== this.dragging);
+                        const targetIndex = Math.min(
+                            this.originalPosition,
+                            children.length,
+                        );
+                        const target = children[targetIndex] || null;
+                        this.container.insertBefore(this.placeholder, target);
+                    }
+
+                    // Place dragged item at placeholder (drop() already positioned placeholder)
+                    if (this.placeholder) {
+                        this.container.insertBefore(
+                            this.dragging,
+                            this.placeholder,
+                        );
+                    }
+
+                    this.endFloating();
+
+                    this.dragging = null;
+                    this.isTouchDragging = false;
+                    this.originalPosition = null;
+                    this.invalidateItemsCache();
+                }
+
+                dragOver(clientY) {
+                    if (!this.dragging) return;
+                    const after = this.getDropTarget(clientY);
+                    this.moveDraggedElement(after);
+                }
+
+                debouncedDragOver(clientY) {
+                    if (this.rafId) cancelAnimationFrame(this.rafId);
+                    this.rafId = requestAnimationFrame(() => {
+                        this.dragOver(clientY);
+                        this.rafId = null;
+                    });
+                }
+
+                drop(clientY) {
+                    if (!this.dragging) return;
+                    const after = this.getDropTarget(clientY);
+                    // Move placeholder to its final spot
+                    this.moveDraggedElement(after);
+                    // mark as successfully dropped so endDrag won't restore
+                    this.originalPosition = null;
+                    // Save a reference to the dragged element so we can access it after the animation
+                    const draggedRef = this.dragging;
+                    // give a short wiggle once it lands (after endDrag puts it in place)
+                    draggedRef.classList.add("drop-animation");
+                    setTimeout(
+                        () => draggedRef.classList.remove("drop-animation"),
+                        300,
+                    );
+                    // notify reorder listeners
+                    if (this.options.onReorder) {
+                        const items = Array.from(this.container.children);
+                        const toIndex = items.indexOf(this.placeholder);
+                        const fromIndex = this.getIndex(draggedRef);
+                        this.options.onReorder(fromIndex, toIndex);
+                    }
+                    this._dropHandled = true;
+                }
+
+                // Floating item + placeholder
+                createPlaceholder(heightPx) {
+                    const ph = document.createElement("li");
+                    ph.className = "placeholder";
+                    ph.style.height = `${heightPx}px`;
+                    return ph;
+                }
+
+                beginFloating(eClientX, eClientY) {
+                    const li = this.dragging;
+                    const rect = li.getBoundingClientRect();
+
+                    // Insert placeholder at current location
+                    this.placeholder = this.createPlaceholder(rect.height);
+                    this.container.insertBefore(this.placeholder, li);
+                    this._currentPlaceholderIndex = this.getIndex(
+                        this.placeholder,
+                    );
+
+                    // Fix the dragged element to the viewport (use existing node)
+                    li.style.width = rect.width + "px";
+                    li.style.left = rect.left + "px";
+                    li.style.top = rect.top + "px";
+                    li.classList.add("dragging");
+
+                    // Remember pointer offset inside the element for a natural grip
+                    this.pointerOffsetY =
+                        eClientY != null
+                            ? eClientY - rect.top
+                            : rect.height / 2;
+                    this.pointerOffsetX =
+                        eClientX != null ? eClientX - rect.left : 16;
+                }
+
+                updateFloating(eClientX, eClientY) {
+                    if (!this.dragging) return;
+                    const y = eClientY - this.pointerOffsetY;
+                    this.dragging.style.top = y + "px";
+                }
+
+                endFloating() {
+                    if (!this.dragging) return;
+                    const li = this.dragging;
+                    li.classList.remove("dragging");
+                    li.style.position = "";
+                    li.style.top = "";
+                    li.style.left = "";
+                    li.style.width = "";
+                    li.style.zIndex = "";
+                    li.style.pointerEvents = "";
+                    li.style.boxShadow = "";
+                    if (this.placeholder?.parentNode) {
+                        this.placeholder.parentNode.removeChild(
+                            this.placeholder,
+                        );
+                    }
+                    this.placeholder = null;
+                }
+
+                getDropTarget(mouseY) {
+                    if (!this.cachedItems) {
+                        // exclude dragging item and placeholder from the search set
+                        this.cachedItems = [
+                            ...this.container.querySelectorAll(
+                                "li:not(.dragging):not(.placeholder)",
+                            ),
+                        ];
+                    }
+                    if (this.cachedItems.length === 0) return null;
+
+                    let left = 0;
+                    let right = this.cachedItems.length;
+
+                    while (left < right) {
+                        const mid = Math.floor((left + right) / 2);
+                        const rect =
+                            this.cachedItems[mid].getBoundingClientRect();
+                        const midY = rect.top + rect.height / 2;
+
+                        if (mouseY < midY) {
+                            right = mid;
+                        } else {
+                            left = mid + 1;
+                        }
+                    }
+
+                    return left < this.cachedItems.length
+                        ? this.cachedItems[left]
+                        : null;
+                }
+
+                getIndex(element) {
+                    return Array.from(this.container.children).indexOf(element);
+                }
+
+                invalidateItemsCache() {
+                    this.cachedItems = null;
+                }
+
+                // Move the placeholder (not the dragged element) and hand over animations
+                moveDraggedElement(after) {
+                    if (!this.dragging || !this.placeholder) return;
+
+                    const prev = this.animator?.snapshot(
+                        this.container,
+                        this.dragging,
+                    );
+
+                    if (after == null) {
+                        this.container.appendChild(this.placeholder);
+                    } else {
+                        this.container.insertBefore(this.placeholder, after);
+                    }
+
+                    this.invalidateItemsCache();
+                    this._currentPlaceholderIndex = this.getIndex(
+                        this.placeholder,
+                    );
+                    // Apply the configured animation (if any) immediately so the browser
+                    // never paints the target layout before we invert it, avoiding flicker.
+                    this.animator?.play(this.container, this.dragging, prev);
+                }
+            }
+
+            // FLIPAnimator isolates the animation concerns from the drag logic so a
+            // different animator can be supplied if desired.
+            class FlipAnimator {
+                snapshot(container, dragging) {
+                    const map = new Map();
+                    [...container.querySelectorAll("li")].forEach((li) => {
+                        if (li !== dragging) {
+                            map.set(li, li.getBoundingClientRect().top);
+                        }
+                    });
+                    return map;
+                }
+
+                play(container, dragging, prevTops) {
+                    if (!prevTops) return;
+                    [...container.querySelectorAll("li")].forEach((li) => {
+                        if (li === dragging) return;
+                        const prevTop = prevTops.get(li);
+                        if (prevTop == null) return;
+
+                        const nowTop = li.getBoundingClientRect().top;
+                        const dy = prevTop - nowTop;
+                        if (dy === 0) return;
+
+                        li.style.transform = `translateY(${dy}px)`;
+                        // force reflow so the browser picks up the initial transform before
+                        // transitioning back to zero
+                        // eslint-disable-next-line no-unused-expressions
+                        li.offsetHeight;
+
+                        li.classList.add("flip-animating");
+                        li.style.transform = "translateY(0)";
+
+                        const done = () => {
+                            li.classList.remove("flip-animating");
+                            li.style.transform = "";
+                            li.removeEventListener("transitionend", done);
+                        };
+                        li.addEventListener("transitionend", done, {
+                            once: true,
+                        });
+                    });
+                }
+            }
+
+            // InlineTextEditor manages single-click editing for list item text content.
+            class InlineTextEditor {
+                constructor(list, options = {}) {
+                    this.list = list;
+                    this.options = options;
+                    this.editingEl = null;
+                    this.initialTextValue = "";
+
+                    this.handleClick = this.handleClick.bind(this);
+                    this.handleBlur = this.handleBlur.bind(this);
+                    this.handleKeyDown = this.handleKeyDown.bind(this);
+
+                    this.list.addEventListener("click", this.handleClick);
+                }
+
+                destroy() {
+                    this.list.removeEventListener("click", this.handleClick);
+                    if (this.editingEl) {
+                        this.finishEditing(this.editingEl, true);
+                    }
+                    this.list = null;
+                }
+
+                handleClick(e) {
+                    const text = e.target.closest(".text");
+                    if (!text || !this.list.contains(text)) return;
+                    this.startEditing(text, e);
+                }
+
+                startEditing(
+                    textEl,
+                    triggerEvent = null,
+                    caretPreference = null,
+                ) {
+                    if (this.editingEl === textEl) return;
+
+                    if (this.editingEl) {
+                        this.finishEditing(this.editingEl);
+                    }
+
+                    if (textEl.dataset.originalText != null) {
+                        textEl.textContent = textEl.dataset.originalText;
+                    } else {
+                        textEl.dataset.originalText = textEl.textContent;
+                    }
+
+                    this.initialTextValue =
+                        textEl.dataset.originalText ?? textEl.textContent;
+                    this.editingEl = textEl;
+                    const li = textEl.closest("li");
+                    if (li) {
+                        if (li.getAttribute("draggable") !== "false") {
+                            li.dataset.wasDraggable = "true";
+                            li.setAttribute("draggable", "false");
+                        }
+                        li.classList.add("editing");
+                    }
+
+                    textEl.setAttribute("contenteditable", "true");
+                    textEl.setAttribute("spellcheck", "false");
+                    textEl.addEventListener("blur", this.handleBlur);
+                    textEl.addEventListener("keydown", this.handleKeyDown);
+
+                    // focus after listeners to ensure we capture the blur that follows
+                    textEl.focus();
+                    if (caretPreference) {
+                        this.applyCaretPreference(textEl, caretPreference);
+                    } else {
+                        this.placeCaret(textEl, triggerEvent);
+                    }
+                }
+
+                placeCaret(element, triggerEvent) {
+                    const selection = window.getSelection();
+                    if (!selection) return;
+                    // Try to put the caret at the click position
+                    let range = null;
+                    if (
+                        triggerEvent &&
+                        typeof triggerEvent.clientX === "number" &&
+                        typeof triggerEvent.clientY === "number"
+                    ) {
+                        const doc = element.ownerDocument;
+                        if (doc.caretPositionFromPoint) {
+                            const pos = doc.caretPositionFromPoint(
+                                triggerEvent.clientX,
+                                triggerEvent.clientY,
+                            );
+                            if (pos) {
+                                range = doc.createRange();
+                                range.setStart(pos.offsetNode, pos.offset);
+                                range.collapse(true);
+                            }
+                        } else if (doc.caretRangeFromPoint) {
+                            range = doc.caretRangeFromPoint(
+                                triggerEvent.clientX,
+                                triggerEvent.clientY,
+                            );
+                            if (range && !range.collapsed) {
+                                range.collapse(true);
+                            }
+                        }
+
+                        if (range && !element.contains(range.startContainer)) {
+                            range = null;
+                        }
+                    }
+
+                    if (!range) {
+                        // If that fails, just select the entire content
+                        range = element.ownerDocument.createRange();
+                        range.selectNodeContents(element);
+                        range.collapse(false);
+                    }
+
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+
+                handleBlur(e) {
+                    this.finishEditing(e.target);
+                }
+
+                handleKeyDown(e) {
+                    const textEl = e.target;
+                    if (!textEl) return;
+                    const fullText = textEl.textContent ?? "";
+
+                    const isMoveShortcut =
+                        (e.key === "ArrowDown" || e.key === "ArrowUp") &&
+                        !e.altKey &&
+                        (e.metaKey || e.ctrlKey);
+                    if (isMoveShortcut) {
+                        e.preventDefault();
+                        const { start, end } = this.getSelectionOffsets(textEl);
+                        this.options.onMove?.({
+                            element: textEl,
+                            direction: e.key === "ArrowDown" ? "down" : "up",
+                            selectionStart: start,
+                            selectionEnd: end,
+                        });
+                        return;
+                    }
+
+                    const isVerticalNav =
+                        (e.key === "ArrowDown" || e.key === "ArrowUp") &&
+                        !e.altKey &&
+                        !e.metaKey &&
+                        !e.ctrlKey;
+                    if (isVerticalNav) {
+                        const direction = e.key === "ArrowDown" ? "down" : "up";
+                        if (this.tryMoveVertical(textEl, direction)) {
+                            e.preventDefault();
+                            return;
+                        }
+                    }
+
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        const { start, end } = this.getSelectionOffsets(textEl);
+                        const beforeText = fullText.slice(0, start);
+                        const afterText = fullText.slice(end);
+                        if (typeof this.options.onSplit === "function") {
+                            this.options.onSplit({
+                                element: textEl,
+                                beforeText,
+                                afterText,
+                                previousText: this.initialTextValue,
+                                splitIndex: start,
+                            });
+                        }
+                        textEl.textContent = beforeText;
+                        textEl.dataset.originalText = beforeText;
+                        textEl.blur();
+                        return;
+                    }
+
+                    if (e.key === "Escape") {
+                        e.preventDefault();
+                        textEl.blur();
+                        return;
+                    }
+
+                    const { start, end } = this.getSelectionOffsets(textEl);
+                    const selectionCollapsed = start === end;
+                    const isModKey = e.metaKey || e.ctrlKey;
+                    const isShortcutRemove =
+                        isModKey && !e.altKey && e.key === "Backspace";
+                    if (
+                        !isModKey &&
+                        !e.altKey &&
+                        e.key === "Backspace" &&
+                        selectionCollapsed &&
+                        start === 0 &&
+                        fullText.length > 0
+                    ) {
+                        const li = textEl.closest("li");
+                        let previousLi = li?.previousElementSibling ?? null;
+                        while (
+                            previousLi &&
+                            previousLi.classList?.contains("placeholder")
+                        ) {
+                            previousLi =
+                                previousLi.previousElementSibling ?? null;
+                        }
+                        const previousItemId =
+                            previousLi?.dataset?.itemId ?? null;
+                        if (
+                            previousItemId &&
+                            typeof this.options.onMerge === "function"
+                        ) {
+                            e.preventDefault();
+                            this.finishEditing(textEl, true);
+                            textEl.blur();
+                            const handled =
+                                this.options.onMerge({
+                                    element: textEl,
+                                    currentItemId: li?.dataset?.itemId ?? null,
+                                    previousItemId,
+                                    currentText: fullText,
+                                    previousText: this.initialTextValue,
+                                    selectionStart: start,
+                                    selectionEnd: end,
+                                    reason: "backspace-merge",
+                                }) === true;
+                            if (!handled) {
+                                this.startEditing(textEl);
+                            }
+                            return;
+                        }
+                    }
+                    const shouldRemoveEmptyBackspace =
+                        e.key === "Backspace" &&
+                        !isModKey &&
+                        !e.altKey &&
+                        fullText.length === 0 &&
+                        selectionCollapsed;
+                    const shouldRemoveByShortcut = isShortcutRemove;
+
+                    if (shouldRemoveEmptyBackspace || shouldRemoveByShortcut) {
+                        e.preventDefault();
+                        const reason = shouldRemoveByShortcut
+                            ? "shortcut"
+                            : "empty-backspace";
+                        this.finishEditing(textEl, true);
+                        textEl.blur();
+                        if (typeof this.options.onRemove === "function") {
+                            this.options.onRemove({
+                                element: textEl,
+                                previousText: this.initialTextValue,
+                                currentText: fullText,
+                                selectionStart: start,
+                                selectionEnd: end,
+                                reason,
+                            });
+                        }
+                        return;
+                    }
+                }
+
+                getSelectionOffsets(element) {
+                    const fallbackLength = element?.textContent?.length ?? 0;
+                    const selection = window.getSelection();
+                    if (!selection || selection.rangeCount === 0) {
+                        return { start: fallbackLength, end: fallbackLength };
+                    }
+                    const range = selection.getRangeAt(0);
+                    if (
+                        !element.contains(range.startContainer) ||
+                        !element.contains(range.endContainer)
+                    ) {
+                        return { start: fallbackLength, end: fallbackLength };
+                    }
+                    const preStartRange = range.cloneRange();
+                    preStartRange.selectNodeContents(element);
+                    preStartRange.setEnd(
+                        range.startContainer,
+                        range.startOffset,
+                    );
+                    const start = preStartRange.toString().length;
+
+                    const preEndRange = range.cloneRange();
+                    preEndRange.selectNodeContents(element);
+                    preEndRange.setEnd(range.endContainer, range.endOffset);
+                    const end = preEndRange.toString().length;
+
+                    return { start, end };
+                }
+
+                getCaretRect(element) {
+                    const selection = window.getSelection();
+                    if (!selection || selection.rangeCount === 0) return null;
+                    const range = selection.getRangeAt(0);
+                    if (!range.collapsed) return null;
+                    if (!element.contains(range.startContainer)) return null;
+                    let rect = range.getBoundingClientRect();
+                    if (rect && (rect.width > 0 || rect.height > 0)) {
+                        return rect;
+                    }
+                    const probe = range.cloneRange();
+                    const { startContainer, startOffset } = range;
+                    if (startContainer.nodeType === Node.TEXT_NODE) {
+                        const textLength =
+                            startContainer.textContent?.length ?? 0;
+                        if (startOffset < textLength) {
+                            probe.setEnd(startContainer, startOffset + 1);
+                        } else if (startOffset > 0) {
+                            probe.setStart(startContainer, startOffset - 1);
+                        } else {
+                            return element.getBoundingClientRect();
+                        }
+                    } else if (startContainer.childNodes[startOffset]) {
+                        probe.selectNode(
+                            startContainer.childNodes[startOffset],
+                        );
+                    } else {
+                        probe.selectNodeContents(element);
+                    }
+                    rect = probe.getBoundingClientRect();
+                    probe.detach?.();
+                    return rect;
+                }
+
+                tryMoveVertical(textEl, direction) {
+                    const selection = window.getSelection();
+                    if (!selection || selection.rangeCount === 0) return false;
+                    const range = selection.getRangeAt(0);
+                    if (
+                        !range.collapsed ||
+                        !textEl.contains(range.startContainer)
+                    )
+                        return false;
+
+                    const caretRect = this.getCaretRect(textEl);
+                    if (!caretRect) return false;
+                    const elementRect = textEl.getBoundingClientRect();
+                    const tolerance = 2;
+
+                    if (
+                        direction === "down" &&
+                        caretRect.bottom < elementRect.bottom - tolerance
+                    )
+                        return false;
+                    if (
+                        direction === "up" &&
+                        caretRect.top > elementRect.top + tolerance
+                    )
+                        return false;
+
+                    const li = textEl.closest("li");
+                    if (!li) return false;
+
+                    let sibling =
+                        direction === "down"
+                            ? li.nextElementSibling
+                            : li.previousElementSibling;
+                    while (
+                        sibling &&
+                        sibling.classList?.contains("placeholder")
+                    ) {
+                        sibling =
+                            direction === "down"
+                                ? sibling.nextElementSibling
+                                : sibling.previousElementSibling;
+                    }
+                    const targetText =
+                        sibling?.querySelector?.(".text") ?? null;
+                    if (!targetText) return false;
+
+                    const caretPref = {
+                        type: "caret-column",
+                        x: caretRect.left,
+                        bias: direction === "down" ? "start" : "end",
+                    };
+
+                    this.finishEditing(textEl);
+                    textEl.blur();
+
+                    if (typeof this.options.onNavigate === "function") {
+                        this.options.onNavigate({
+                            direction,
+                            targetElement: targetText,
+                            preference: caretPref,
+                        });
+                    }
+
+                    this.startEditing(targetText, null, caretPref);
+                    return true;
+                }
+
+                placeCaretByPoint(element, preference) {
+                    const selection = window.getSelection();
+                    if (!selection) return;
+
+                    const rect = element.getBoundingClientRect();
+                    const doc = element.ownerDocument ?? document;
+                    const bias = preference.bias === "end" ? "end" : "start";
+                    const xCoord = preference.x;
+                    const yCoord =
+                        bias === "end" ? rect.bottom - 2 : rect.top + 2;
+                    let range = null;
+
+                    if (doc.caretPositionFromPoint) {
+                        const pos = doc.caretPositionFromPoint(xCoord, yCoord);
+                        if (pos && element.contains(pos.offsetNode)) {
+                            range = doc.createRange();
+                            range.setStart(pos.offsetNode, pos.offset);
+                            range.collapse(true);
+                        }
+                    } else if (doc.caretRangeFromPoint) {
+                        const tentative = doc.caretRangeFromPoint(
+                            xCoord,
+                            yCoord,
+                        );
+                        if (tentative) {
+                            tentative.collapse(true);
+                            if (element.contains(tentative.startContainer)) {
+                                range = tentative;
+                            }
+                        }
+                    }
+
+                    if (!range || !element.contains(range.startContainer)) {
+                        range = doc.createRange();
+                        range.selectNodeContents(element);
+                        range.collapse(bias === "end");
+                    }
+
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+
+                applyCaretPreference(element, preference) {
+                    const selection = window.getSelection();
+                    if (!selection) return;
+
+                    let target = null;
+
+                    if (preference === "start") {
+                        target = 0;
+                    } else if (preference === "end") {
+                        target = element?.textContent?.length ?? 0;
+                    } else if (
+                        preference &&
+                        typeof preference === "object" &&
+                        preference.type === "offset" &&
+                        typeof preference.value === "number"
+                    ) {
+                        const length = element?.textContent?.length ?? 0;
+                        target = Math.max(
+                            0,
+                            Math.min(preference.value, length),
+                        );
+                    } else if (
+                        preference &&
+                        typeof preference === "object" &&
+                        preference.type === "caret-column" &&
+                        typeof preference.x === "number"
+                    ) {
+                        this.placeCaretByPoint(element, preference);
+                        return;
+                    }
+
+                    if (target == null) {
+                        this.placeCaret(element, null);
+                        return;
+                    }
+
+                    const textNode = element?.firstChild;
+                    const doc = element?.ownerDocument ?? document;
+                    const range = doc.createRange();
+
+                    if (textNode && textNode.nodeType === 3) {
+                        const clamped = Math.min(
+                            target,
+                            textNode.textContent.length,
+                        );
+                        range.setStart(textNode, clamped);
+                        range.collapse(true);
+                    } else {
+                        range.selectNodeContents(element);
+                        const length = element?.textContent?.length ?? 0;
+                        const collapseToEnd = target >= length;
+                        range.collapse(collapseToEnd);
+                    }
+
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+
+                finishEditing(textEl, skipCallback = false) {
+                    if (!textEl || this.editingEl !== textEl) return;
+
+                    const previousText = this.initialTextValue;
+                    textEl.removeEventListener("blur", this.handleBlur);
+                    textEl.removeEventListener("keydown", this.handleKeyDown);
+                    textEl.removeAttribute("contenteditable");
+                    textEl.removeAttribute("spellcheck");
+
+                    textEl.dataset.originalText = textEl.textContent;
+                    const newText = textEl.textContent;
+
+                    const li = textEl.closest("li");
+                    if (li) {
+                        li.classList.remove("editing");
+                        if (li.dataset.wasDraggable) {
+                            li.setAttribute("draggable", "true");
+                            delete li.dataset.wasDraggable;
+                        }
+                    }
+
+                    this.editingEl = null;
+                    this.initialTextValue = "";
+
+                    if (
+                        !skipCallback &&
+                        typeof this.options.onCommit === "function"
+                    ) {
+                        this.options.onCommit({
+                            element: textEl,
+                            previousText,
+                            newText,
+                        });
+                    }
+                }
+            }
+
+            class EditController {
+                constructor({ getListElement, getInlineEditor }) {
+                    this.getListElement =
+                        typeof getListElement === "function"
+                            ? getListElement
+                            : () => null;
+                    this.getInlineEditor =
+                        typeof getInlineEditor === "function"
+                            ? getInlineEditor
+                            : () => null;
+                    this.pendingItemId = null;
+                    this.pendingCaret = null;
+                }
+
+                queue(itemId, caretPreference = null) {
+                    if (typeof itemId === "string" && itemId.length) {
+                        this.pendingItemId = itemId;
+                        this.pendingCaret = caretPreference ?? null;
+                    }
+                }
+
+                clear() {
+                    this.pendingItemId = null;
+                    this.pendingCaret = null;
+                }
+
+                hasPending() {
+                    return (
+                        typeof this.pendingItemId === "string" &&
+                        this.pendingItemId.length > 0
+                    );
+                }
+
+                isPendingItem(itemId) {
+                    if (!this.hasPending()) return false;
+                    return this.pendingItemId === itemId;
+                }
+
+                getPendingEdit() {
+                    if (!this.hasPending()) return null;
+                    return {
+                        itemId: this.pendingItemId,
+                        caret: this.pendingCaret,
+                    };
+                }
+
+                getForceVisibleIds() {
+                    if (!this.hasPending()) return null;
+                    return new Set([this.pendingItemId]);
+                }
+
+                applyPendingEdit() {
+                    if (!this.hasPending()) return false;
+                    const listEl = this.getListElement();
+                    const inlineEditor = this.getInlineEditor();
+                    if (!listEl || !inlineEditor) return false;
+
+                    const selectorId = escapeSelectorId(this.pendingItemId);
+                    const targetLi = listEl.querySelector(
+                        `li[data-item-id="${selectorId}"]`,
+                    );
+                    const textEl = targetLi?.querySelector(".text") ?? null;
+                    if (!textEl) {
+                        return false;
+                    }
+
+                    inlineEditor.startEditing(textEl, null, this.pendingCaret);
+                    this.clear();
+                    return true;
+                }
+            }
+
+            class TaskListView {
+                constructor({ getListElement }) {
+                    this.getListElement =
+                        typeof getListElement === "function"
+                            ? getListElement
+                            : () => null;
+                }
+
+                captureFocus() {
+                    const listEl = this.getListElement();
+                    if (!listEl) return null;
+                    const activeElement = document.activeElement;
+                    if (!activeElement || !listEl.contains(activeElement))
+                        return null;
+                    const activeLi = activeElement.closest("li");
+                    if (!activeLi?.dataset?.itemId) return null;
+                    const role = activeElement.classList.contains("done-toggle")
+                        ? "toggle"
+                        : activeElement.classList.contains("text")
+                          ? "text"
+                          : null;
+                    return role
+                        ? { itemId: activeLi.dataset.itemId, role }
+                        : null;
+                }
+
+                syncItems(items, { createItem, updateItem }) {
+                    const listEl = this.getListElement();
+                    if (!listEl || !Array.isArray(items)) return;
+                    const existingNodes = Array.from(listEl.children).filter(
+                        (li) => !li.classList.contains("placeholder"),
+                    );
+                    const byId = new Map(
+                        existingNodes.map((li) => [li.dataset.itemId, li]),
+                    );
+                    const usedNodes = new Set();
+                    let previous = null;
+
+                    const nextNonPlaceholder = (node) => {
+                        while (
+                            node &&
+                            node.classList?.contains("placeholder")
+                        ) {
+                            node = node.nextSibling;
+                        }
+                        return node;
+                    };
+
+                    items.forEach((item) => {
+                        let li = byId.get(item.id);
+                        if (!li) {
+                            li = createItem(item);
+                        } else {
+                            updateItem(li, item);
+                        }
+                        usedNodes.add(li);
+                        const desired = previous
+                            ? nextNonPlaceholder(previous.nextSibling)
+                            : nextNonPlaceholder(listEl.firstChild);
+                        if (li !== desired) {
+                            listEl.insertBefore(li, desired || null);
+                        }
+                        previous = li;
+                    });
+
+                    existingNodes.forEach((li) => {
+                        if (!usedNodes.has(li)) {
+                            li.remove();
+                        }
+                    });
+                }
+
+                restoreFocus(preservedFocus, { skip } = {}) {
+                    if (skip || !preservedFocus) return;
+                    const listEl = this.getListElement();
+                    if (!listEl) return;
+                    const selectorId = escapeSelectorId(preservedFocus.itemId);
+                    const targetLi = listEl.querySelector(
+                        `li[data-item-id="${selectorId}"]`,
+                    );
+                    if (!targetLi) return;
+                    const focusTarget =
+                        preservedFocus.role === "toggle"
+                            ? targetLi.querySelector(".done-toggle")
+                            : preservedFocus.role === "text"
+                              ? targetLi.querySelector(".text")
+                              : null;
+                    focusTarget?.focus();
+                }
+            }
+
+            class A4TaskList extends HTMLElement {
+                constructor() {
+                    super();
+                    this.listEl = null;
+                    this.dragBehavior = null;
+                    this.inlineEditor = null;
+                    this.headerEl = null;
+                    this.titleEl = null;
+                    this.searchInput = null;
+                    this.addButton = null;
+                    this.showDoneCheckbox = null;
+                    this.searchTimer = null;
+                    this.searchQuery = "";
+                    this.showDone = false;
+                    this.store = null;
+                    this.unsubscribe = null;
+                    this.suppressNameSync = false;
+                    this._initialState = null;
+                    this.patternConfig = this.normalizePatternDefs([
+                        {
+                            regex: /@[A-Za-z0-9_]+/g,
+                            className: "task-token-mention",
+                            priority: 2,
+                        },
+                        {
+                            regex: /#[A-Za-z0-9_]+/g,
+                            className: "task-token-tag",
+                            priority: 2,
+                        },
+                    ]);
+
+                    this.handleSearchInput = this.handleSearchInput.bind(this);
+                    this.handleSearchKeyDown =
+                        this.handleSearchKeyDown.bind(this);
+                    this.handleSearchClear = this.handleSearchClear.bind(this);
+                    this.handleItemBlur = this.handleItemBlur.bind(this);
+                    this.handleToggle = this.handleToggle.bind(this);
+                    this.handleStoreChange = this.handleStoreChange.bind(this);
+                    this.handleEditCommit = this.handleEditCommit.bind(this);
+                    this.handleEditSplit = this.handleEditSplit.bind(this);
+                    this.handleEditMerge = this.handleEditMerge.bind(this);
+                    this.handleEditRemove = this.handleEditRemove.bind(this);
+                    this.handleEditMove = this.handleEditMove.bind(this);
+                    this.handleAddButtonClick =
+                        this.handleAddButtonClick.bind(this);
+                    this.handleShowDoneChange =
+                        this.handleShowDoneChange.bind(this);
+                    this.scheduleReorderUpdate =
+                        this.scheduleReorderUpdate.bind(this);
+
+                    this.editController = new EditController({
+                        getListElement: () => this.listEl,
+                        getInlineEditor: () => this.inlineEditor,
+                    });
+                    this.view = new TaskListView({
+                        getListElement: () => this.listEl,
+                    });
+                }
+
+                static get observedAttributes() {
+                    return ["name"];
+                }
+
+                get initialState() {
+                    return this._initialState;
+                }
+
+                set initialState(value) {
+                    const next = cloneListState(value);
+                    this._initialState = next;
+                    if (this.store) {
+                        this.store.dispatch({
+                            type: LIST_ACTIONS.replaceAll,
+                            payload: next,
+                        });
+                    } else if (this.isConnected) {
+                        this.initializeStore();
+                    }
+                }
+
+                connectedCallback() {
+                    this.ensureList();
+                    if (!this.listEl) return;
+
+                    this.ensureHeader();
+                    if (this.searchInput) {
+                        this.searchInput.value = this.searchQuery;
+                    }
+                    if (this.showDoneCheckbox) {
+                        this.showDoneCheckbox.checked = this.showDone;
+                    }
+
+                    this.initializeStore();
+
+                    if (!this.dragBehavior) {
+                        this.dragBehavior = new DraggableBehavior(this.listEl, {
+                            handleClass: "handle",
+                            onReorder: (fromIndex, toIndex) => {
+                                const detail = { fromIndex, toIndex };
+                                this.listEl.dispatchEvent(
+                                    new CustomEvent("reorder", { detail }),
+                                );
+                                this.dispatchEvent(
+                                    new CustomEvent("reorder", {
+                                        detail,
+                                        bubbles: true,
+                                        composed: true,
+                                    }),
+                                );
+                                this.scheduleReorderUpdate();
+                            },
+                            animator: new FlipAnimator(),
+                        });
+                    }
+                    this.dragBehavior.enable();
+
+                    if (!this.inlineEditor) {
+                        this.inlineEditor = new InlineTextEditor(this.listEl, {
+                            onCommit: this.handleEditCommit,
+                            onSplit: this.handleEditSplit,
+                            onMerge: this.handleEditMerge,
+                            onRemove: this.handleEditRemove,
+                            onMove: this.handleEditMove,
+                        });
+                    }
+
+                    this.listEl.removeEventListener(
+                        "blur",
+                        this.handleItemBlur,
+                        true,
+                    );
+                    this.listEl.addEventListener(
+                        "blur",
+                        this.handleItemBlur,
+                        true,
+                    );
+                    this.listEl.removeEventListener(
+                        "change",
+                        this.handleToggle,
+                    );
+                    this.listEl.addEventListener("change", this.handleToggle);
+                    this.performSearch(this.searchQuery);
+                }
+
+                initializeStore() {
+                    const baseState = this.buildInitialState();
+                    if (!this.store) {
+                        this.store = createStore(listReducer, baseState);
+                    }
+                    if (this.store && baseState) {
+                        this.store.dispatch({
+                            type: LIST_ACTIONS.replaceAll,
+                            payload: baseState,
+                        });
+                    }
+                    if (!this.unsubscribe && this.store) {
+                        this.unsubscribe = this.store.subscribe(
+                            this.handleStoreChange,
+                        );
+                    }
+                    if (this.store) {
+                        this.handleStoreChange();
+                    }
+                }
+
+                buildInitialState() {
+                    const fallback = {
+                        title: this.getAttribute("name") ?? "",
+                        items: [],
+                    };
+                    const source = this._initialState ?? fallback;
+                    const baseState = cloneListState(source);
+                    const attrTitle = this.getAttribute("name");
+                    if (typeof attrTitle === "string" && attrTitle.length) {
+                        baseState.title = attrTitle;
+                    }
+                    return baseState;
+                }
+
+                disconnectedCallback() {
+                    this.dragBehavior?.destroy();
+                    this.dragBehavior = null;
+                    this.inlineEditor?.destroy();
+                    this.inlineEditor = null;
+                    this.listEl?.removeEventListener(
+                        "blur",
+                        this.handleItemBlur,
+                        true,
+                    );
+                    this.listEl?.removeEventListener(
+                        "change",
+                        this.handleToggle,
+                    );
+                    if (this.searchInput) {
+                        this.searchInput.removeEventListener(
+                            "input",
+                            this.handleSearchInput,
+                        );
+                        this.searchInput.removeEventListener(
+                            "keydown",
+                            this.handleSearchKeyDown,
+                        );
+                    }
+                    this.showDoneCheckbox?.removeEventListener(
+                        "change",
+                        this.handleShowDoneChange,
+                    );
+                    clearTimeout(this.searchTimer);
+                    this.searchTimer = null;
+                    this.unsubscribe?.();
+                    this.unsubscribe = null;
+                }
+
+                attributeChangedCallback(name, oldValue, newValue) {
+                    if (name === "name" && oldValue !== newValue) {
+                        if (this.suppressNameSync) return;
+                        if (this.store) {
+                            this.store.dispatch({
+                                type: LIST_ACTIONS.setTitle,
+                                payload: { title: newValue ?? "" },
+                            });
+                        } else {
+                            this.syncTitle();
+                        }
+                    }
+                }
+
+                ensureList() {
+                    if (this.listEl && this.contains(this.listEl)) return;
+
+                    let list = this.querySelector("ol.tasklist");
+                    if (!list) {
+                        list = document.createElement("ol");
+                        list.classList.add("tasklist");
+                        const listItems = Array.from(
+                            this.querySelectorAll(":scope > li"),
+                        );
+                        if (listItems.length) {
+                            listItems.forEach((li) => list.appendChild(li));
+                        }
+                        this.appendChild(list);
+                    }
+                    this.listEl = list;
+                }
+
+                ensureHeader() {
+                    if (!this.headerEl || !this.contains(this.headerEl)) {
+                        const header = document.createElement("div");
+                        header.className = "tasklist-header";
+
+                        const title = document.createElement("h2");
+                        title.className = "tasklist-title";
+                        header.appendChild(title);
+
+                        const controls = document.createElement("div");
+                        controls.className = "tasklist-controls";
+
+                        const searchInput = document.createElement("input");
+                        searchInput.type = "search";
+                        searchInput.className = "tasklist-search-input";
+                        searchInput.placeholder = "Search tasks...";
+                        searchInput.setAttribute("aria-label", "Search tasks");
+
+                        const addButton = document.createElement("button");
+                        addButton.type = "button";
+                        addButton.className = "tasklist-add-button";
+                        addButton.setAttribute("aria-label", "Add task");
+                        const addIcon = document.createElementNS(
+                            "http://www.w3.org/2000/svg",
+                            "svg",
+                        );
+                        addIcon.setAttribute("viewBox", "0 0 16 16");
+                        addIcon.setAttribute("aria-hidden", "true");
+                        addIcon.setAttribute("focusable", "false");
+                        const addPath = document.createElementNS(
+                            "http://www.w3.org/2000/svg",
+                            "path",
+                        );
+                        addPath.setAttribute("fill", "currentColor");
+                        addPath.setAttribute(
+                            "d",
+                            "M7 1h2v6h6v2H9v6H7V9H1V7h6z",
+                        );
+                        addIcon.appendChild(addPath);
+                        const addLabel = document.createElement("span");
+                        addLabel.textContent = "Add";
+                        addButton.append(addIcon, addLabel);
+
+                        const showDoneLabel = document.createElement("label");
+                        showDoneLabel.className = "tasklist-show-done";
+                        const showDoneCheckbox =
+                            document.createElement("input");
+                        showDoneCheckbox.type = "checkbox";
+                        showDoneCheckbox.className =
+                            "tasklist-show-done-toggle";
+                        showDoneCheckbox.checked = this.showDone;
+                        const showDoneText = document.createElement("span");
+                        showDoneText.textContent = "Show done";
+                        showDoneLabel.append(showDoneCheckbox, showDoneText);
+
+                        controls.append(searchInput, showDoneLabel, addButton);
+                        header.append(controls);
+
+                        this.insertBefore(header, this.listEl);
+
+                        this.headerEl = header;
+                        this.titleEl = title;
+                        this.searchInput = searchInput;
+                        this.showDoneCheckbox = showDoneCheckbox;
+                        this.addButton = addButton;
+                    }
+
+                    if (this.searchInput) {
+                        this.searchInput.removeEventListener(
+                            "input",
+                            this.handleSearchInput,
+                        );
+                        this.searchInput.removeEventListener(
+                            "keydown",
+                            this.handleSearchKeyDown,
+                        );
+                        this.searchInput.addEventListener(
+                            "input",
+                            this.handleSearchInput,
+                        );
+                        this.searchInput.addEventListener(
+                            "keydown",
+                            this.handleSearchKeyDown,
+                        );
+                    }
+                    if (this.showDoneCheckbox) {
+                        this.showDoneCheckbox.removeEventListener(
+                            "change",
+                            this.handleShowDoneChange,
+                        );
+                        this.showDoneCheckbox.addEventListener(
+                            "change",
+                            this.handleShowDoneChange,
+                        );
+                    }
+                    if (this.addButton) {
+                        this.addButton.removeEventListener(
+                            "click",
+                            this.handleAddButtonClick,
+                        );
+                        this.addButton.addEventListener(
+                            "click",
+                            this.handleAddButtonClick,
+                        );
+                    }
+                }
+
+                syncTitle() {
+                    if (!this.titleEl) return;
+                    const value = this.getAttribute("name");
+                    this.titleEl.textContent = value ?? "";
+                }
+
+                normalizePatternDefs(defs) {
+                    if (!Array.isArray(defs)) return [];
+                    const normalized = [];
+                    defs.forEach((def) => {
+                        if (!def) return;
+                        let { regex, className, priority } = def;
+                        if (typeof regex === "string") {
+                            try {
+                                regex = new RegExp(regex, "g");
+                            } catch (err) {
+                                return;
+                            }
+                        } else if (regex instanceof RegExp) {
+                            const flags = regex.flags.includes("g")
+                                ? regex.flags
+                                : regex.flags + "g";
+                            regex = new RegExp(regex.source, flags);
+                        } else {
+                            return;
+                        }
+
+                        const safeClass =
+                            typeof className === "string" &&
+                            className.trim().length
+                                ? className.trim()
+                                : "task-token";
+                        const prio = Number.isFinite(priority) ? priority : 2;
+                        normalized.push({
+                            regexSource: regex.source,
+                            regexFlags: regex.flags,
+                            className: safeClass,
+                            priority: prio,
+                            key: `pattern:${safeClass}`,
+                        });
+                    });
+                    return normalized;
+                }
+
+                setPatternHighlighters(defs) {
+                    this.patternConfig = this.normalizePatternDefs(defs);
+                    this.performSearch(this.searchQuery);
+                }
+
+                get patternHighlighters() {
+                    return this.patternConfig.map((def) => ({
+                        regex: new RegExp(def.regexSource, def.regexFlags),
+                        className: def.className,
+                        priority: def.priority,
+                    }));
+                }
+
+                set patternHighlighters(defs) {
+                    this.setPatternHighlighters(defs);
+                }
+
+                handleSearchInput() {
+                    if (!this.searchInput) return;
+                    const value = this.searchInput.value;
+                    clearTimeout(this.searchTimer);
+                    this.searchTimer = setTimeout(() => {
+                        this.performSearch(value);
+                        this.searchTimer = null;
+                    }, 120);
+                }
+
+                handleSearchKeyDown(e) {
+                    if (e.key === "Escape") {
+                        e.preventDefault();
+                        this.clearSearch();
+                        this.searchInput?.focus();
+                    }
+                }
+
+                handleSearchClear() {
+                    this.clearSearch();
+                    this.searchInput?.focus();
+                }
+
+                handleShowDoneChange(e) {
+                    const isChecked = Boolean(e?.target?.checked);
+                    if (this.showDone === isChecked) return;
+                    this.showDone = isChecked;
+                    this.performSearch(this.searchQuery);
+                }
+
+                clearSearch() {
+                    clearTimeout(this.searchTimer);
+                    this.searchTimer = null;
+                    if (this.searchInput) {
+                        this.searchInput.value = "";
+                    }
+                    this.performSearch("");
+                }
+
+                handleAddButtonClick() {
+                    if (!this.store) return;
+                    if (this.searchQuery) {
+                        this.clearSearch();
+                    }
+                    const newId = generateItemId();
+                    this.editController.queue(newId, "end");
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.insertItem,
+                        payload: {
+                            index: 0,
+                            item: { id: newId, text: "", done: false },
+                        },
+                    });
+                }
+
+                handleEditSplit({ element, beforeText, afterText }) {
+                    if (!element || !this.store) return;
+                    const li = element.closest("li");
+                    const id = li?.dataset?.itemId;
+                    if (!id) return;
+
+                    const state = this.store.getState();
+                    const currentIndex = state.items.findIndex(
+                        (item) => item.id === id,
+                    );
+                    if (currentIndex === -1) return;
+
+                    if (typeof beforeText === "string") {
+                        this.store.dispatch({
+                            type: LIST_ACTIONS.updateItemText,
+                            payload: { id, text: beforeText },
+                        });
+                    }
+
+                    const newId = generateItemId();
+                    this.editController.queue(newId, "start");
+
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.insertItem,
+                        payload: {
+                            index: currentIndex + 1,
+                            item: {
+                                id: newId,
+                                text:
+                                    typeof afterText === "string"
+                                        ? afterText
+                                        : "",
+                                done: false,
+                            },
+                        },
+                    });
+                }
+
+                handleEditMerge({
+                    currentItemId,
+                    previousItemId,
+                    currentText,
+                    selectionStart,
+                }) {
+                    if (!this.store || !currentItemId || !previousItemId)
+                        return false;
+
+                    const state = this.store.getState();
+                    const items = Array.isArray(state?.items)
+                        ? state.items
+                        : [];
+                    const currentIndex = items.findIndex(
+                        (item) => item.id === currentItemId,
+                    );
+                    if (currentIndex <= 0) return false;
+
+                    const previousIndex = currentIndex - 1;
+                    const previousItem = items[previousIndex];
+                    if (!previousItem || previousItem.id !== previousItemId)
+                        return false;
+
+                    const prevText =
+                        typeof previousItem.text === "string"
+                            ? previousItem.text
+                            : "";
+                    const currentTextValue =
+                        typeof currentText === "string" ? currentText : "";
+                    const mergedText = prevText + currentTextValue;
+
+                    const mergeOffset =
+                        prevText.length +
+                        (typeof selectionStart === "number"
+                            ? Math.max(
+                                  0,
+                                  Math.min(
+                                      selectionStart,
+                                      currentTextValue.length,
+                                  ),
+                              )
+                            : 0);
+
+                    this.editController.queue(previousItem.id, {
+                        type: "offset",
+                        value: mergeOffset,
+                    });
+
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.updateItemText,
+                        payload: { id: previousItem.id, text: mergedText },
+                    });
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.removeItem,
+                        payload: { id: currentItemId },
+                    });
+
+                    return true;
+                }
+
+                handleEditRemove({ element }) {
+                    if (!element || !this.store) return;
+                    const li = element.closest("li");
+                    const id = li?.dataset?.itemId;
+                    if (!id) return;
+
+                    const state = this.store.getState();
+                    const items = state?.items ?? [];
+                    const currentIndex = items.findIndex(
+                        (item) => item.id === id,
+                    );
+                    if (currentIndex === -1) return;
+
+                    const nextItem =
+                        items[currentIndex + 1] ??
+                        items[currentIndex - 1] ??
+                        null;
+                    if (nextItem) {
+                        this.editController.queue(nextItem.id, "end");
+                    } else {
+                        this.editController.clear();
+                    }
+
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.removeItem,
+                        payload: { id },
+                    });
+                }
+
+                handleEditMove({ element, direction, selectionStart }) {
+                    if (!element || !this.store) return;
+                    const li = element.closest("li");
+                    const id = li?.dataset?.itemId;
+                    if (!id) return;
+
+                    const state = this.store.getState();
+                    const items = Array.isArray(state?.items)
+                        ? state.items
+                        : [];
+                    const fromIndex = items.findIndex((item) => item.id === id);
+                    if (fromIndex === -1) return;
+                    const delta = direction === "down" ? 1 : -1;
+                    const toIndex = fromIndex + delta;
+                    if (toIndex < 0 || toIndex >= items.length) return;
+
+                    const order = items.map((item) => item.id);
+                    const [moved] = order.splice(fromIndex, 1);
+                    order.splice(toIndex, 0, moved);
+
+                    const caretOffset =
+                        typeof selectionStart === "number"
+                            ? Math.max(0, selectionStart)
+                            : 0;
+                    this.editController.queue(id, {
+                        type: "offset",
+                        value: caretOffset,
+                    });
+                    this.inlineEditor?.finishEditing(element, true);
+
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.reorderItems,
+                        payload: { order },
+                    });
+                }
+
+                handleStoreChange() {
+                    if (!this.store) return;
+                    this.renderFromState(this.store.getState());
+                }
+
+                renderFromState(state) {
+                    if (!this.listEl || !state) return;
+
+                    const preservedFocus = this.view.captureFocus();
+
+                    this.view.syncItems(state.items, {
+                        createItem: (item) => this.createItemElement(item),
+                        updateItem: (li, item) =>
+                            this.updateItemElement(li, item),
+                    });
+
+                    const nextTitle = state.title ?? "";
+                    if (this.titleEl) {
+                        this.titleEl.textContent = nextTitle;
+                    }
+
+                    const attrTitle = this.getAttribute("name");
+                    if (attrTitle !== nextTitle) {
+                        this.suppressNameSync = true;
+                        if (nextTitle) {
+                            this.setAttribute("name", nextTitle);
+                        } else {
+                            this.removeAttribute("name");
+                        }
+                        this.suppressNameSync = false;
+                    }
+
+                    const forceVisible =
+                        this.editController.getForceVisibleIds();
+                    let hasPendingEdit = this.editController.hasPending();
+
+                    this.performSearch(this.searchQuery, { forceVisible });
+
+                    if (hasPendingEdit) {
+                        this.editController.applyPendingEdit();
+                        hasPendingEdit = this.editController.hasPending();
+                    }
+
+                    this.view.restoreFocus(preservedFocus, {
+                        skip: hasPendingEdit,
+                    });
+                }
+
+                createItemElement(item) {
+                    const li = document.createElement("li");
+                    li.setAttribute("draggable", "true");
+                    li.dataset.itemId = item.id;
+                    li.dataset.done = item.done ? "true" : "false";
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.className = "done-toggle";
+                    checkbox.checked = Boolean(item.done);
+
+                    const textSpan = document.createElement("span");
+                    textSpan.className = "text";
+                    textSpan.textContent = item.text;
+                    textSpan.dataset.originalText = item.text;
+
+                    const handle = document.createElement("span");
+                    handle.className = "handle";
+                    handle.setAttribute("aria-hidden", "true");
+
+                    li.append(checkbox, textSpan, handle);
+                    return li;
+                }
+
+                updateItemElement(li, item) {
+                    li.dataset.itemId = item.id;
+                    li.dataset.done = item.done ? "true" : "false";
+                    if (li.getAttribute("draggable") !== "true") {
+                        li.setAttribute("draggable", "true");
+                    }
+
+                    const checkbox = li.querySelector(".done-toggle");
+                    if (checkbox && checkbox.checked !== Boolean(item.done)) {
+                        checkbox.checked = Boolean(item.done);
+                    }
+
+                    const textSpan = li.querySelector(".text");
+                    if (textSpan) {
+                        const isEditing = textSpan.isContentEditable;
+                        if (textSpan.dataset.originalText !== item.text) {
+                            textSpan.dataset.originalText = item.text;
+                            if (!isEditing) {
+                                textSpan.textContent = item.text;
+                            }
+                        }
+                    }
+                }
+
+                handleToggle(e) {
+                    if (!e.target.classList?.contains("done-toggle")) return;
+                    const li = e.target.closest("li");
+                    const id = li?.dataset?.itemId;
+                    if (!id || !this.store) return;
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.setItemDone,
+                        payload: { id, done: e.target.checked },
+                    });
+                }
+
+                handleEditCommit({ element, newText, previousText }) {
+                    if (!element || !this.store) {
+                        this.performSearch(this.searchQuery);
+                        return;
+                    }
+                    const li = element.closest("li");
+                    const id = li?.dataset?.itemId;
+                    if (!id) {
+                        this.performSearch(this.searchQuery);
+                        return;
+                    }
+                    if (typeof newText !== "string") {
+                        this.performSearch(this.searchQuery);
+                        return;
+                    }
+                    const currentState = this.store.getState();
+                    const stateItem = currentState?.items?.find(
+                        (item) => item.id === id,
+                    );
+                    if (stateItem && stateItem.text !== previousText) {
+                        const authoritativeText = stateItem.text ?? "";
+                        element.textContent = authoritativeText;
+                        element.dataset.originalText = authoritativeText;
+                        this.performSearch(this.searchQuery);
+                        return;
+                    }
+                    if (newText === previousText) {
+                        this.performSearch(this.searchQuery);
+                        return;
+                    }
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.updateItemText,
+                        payload: { id, text: newText },
+                    });
+                }
+
+                scheduleReorderUpdate() {
+                    if (!this.store || !this.listEl) return;
+                    Promise.resolve().then(() => {
+                        if (!this.store || !this.listEl) return;
+                        const order = Array.from(this.listEl.children)
+                            .filter(
+                                (li) => !li.classList.contains("placeholder"),
+                            )
+                            .map((li) => li.dataset.itemId)
+                            .filter(Boolean);
+                        if (!order.length) return;
+                        this.store.dispatch({
+                            type: LIST_ACTIONS.reorderItems,
+                            payload: { order },
+                        });
+                    });
+                }
+
+                handleItemBlur(e) {
+                    const textEl = e.target.classList?.contains("text")
+                        ? e.target
+                        : null;
+                    if (!textEl) return;
+                    textEl.dataset.originalText = textEl.textContent;
+                    this.performSearch(this.searchQuery);
+                }
+
+                performSearch(query, options = {}) {
+                    if (!this.listEl) return;
+                    this.searchQuery = query;
+                    const tokens = tokenizeSearchQuery(query);
+                    const forceVisible = options?.forceVisible ?? null;
+
+                    this.listEl.querySelectorAll("li").forEach((li) => {
+                        if (li.classList.contains("placeholder")) return;
+                        const textEl = li.querySelector(".text");
+                        if (!textEl) return;
+                        const isEditing = textEl.isContentEditable;
+                        const isDone = li.dataset.done === "true";
+
+                        const original =
+                            textEl.dataset.originalText != null
+                                ? textEl.dataset.originalText
+                                : (textEl.dataset.originalText =
+                                      textEl.textContent);
+
+                        if (isEditing) {
+                            li.hidden = false;
+                            return;
+                        }
+
+                        if (
+                            forceVisible &&
+                            li.dataset.itemId &&
+                            forceVisible.has(li.dataset.itemId)
+                        ) {
+                            li.hidden = false;
+                            textEl.textContent = original;
+                            return;
+                        }
+
+                        const result = evaluateSearchEntry({
+                            originalText: original,
+                            tokens,
+                            patternConfig: this.patternConfig,
+                            showDone: this.showDone,
+                            isDone,
+                        });
+
+                        li.hidden = result.hidden;
+                        if (result.hidden || result.markup == null) {
+                            textEl.textContent = original;
+                            return;
+                        }
+                        textEl.innerHTML = result.markup;
+                    });
+
+                    this.dragBehavior?.invalidateItemsCache();
+                }
+
+                get name() {
+                    return this.getAttribute("name") ?? "";
+                }
+
+                set name(value) {
+                    if (value == null) {
+                        this.removeAttribute("name");
+                    } else {
+                        this.setAttribute("name", String(value));
+                    }
+                }
+            }
+
+            customElements.define("a4-tasklist", A4TaskList);
+
+            document.addEventListener("DOMContentLoaded", () => {
+                const demoList = document.querySelector("a4-tasklist");
+                if (!demoList) return;
+                if (
+                    !demoList.initialState ||
+                    !demoList.initialState.items?.length
+                ) {
+                    demoList.initialState = PROTOTYPE_TASK_LIST;
+                }
+            });
+        </script>
+    </body>
 </html>
