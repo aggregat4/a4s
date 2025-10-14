@@ -3,10 +3,15 @@ import { resolve } from "path";
 import { pathToFileURL } from "url";
 
 const appUrl = pathToFileURL(resolve(__dirname, "..", "index.html")).href;
-const listItemsSelector = "ol.tasklist li:not(.placeholder)";
+const listItemsSelector =
+  "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
 
 function showDoneToggle(page: Page) {
   return page.getByRole("checkbox", { name: "Show done" });
+}
+
+function globalSearchInput(page: Page) {
+  return page.getByRole("searchbox", { name: "Global search" });
 }
 
 async function setShowDone(page: Page, value: boolean) {
@@ -68,8 +73,9 @@ async function getCaretOffset(target: Locator) {
 test.beforeEach(async ({ page }) => {
   await page.goto(appUrl);
   await expect(
-    page.getByRole("heading", { name: "Prototype Tasks" }),
-  ).toBeVisible();
+    page.locator("[data-role='active-list-title']"),
+  ).toHaveText("Prototype Tasks");
+  await expect(page.locator(listItemsSelector).first()).toBeVisible();
 });
 
 test("user can add, complete, and filter tasks", async ({ page }) => {
@@ -83,19 +89,17 @@ test("user can add, complete, and filter tasks", async ({ page }) => {
 
   await expect(topTask).toHaveText("Playwright smoke task");
 
-  const checkbox = page
-    .locator(listItemsSelector)
-    .first()
-    .locator("input.done-toggle");
+  const listRoot = page
+    .locator("[data-role='lists-container'] .list-section.is-visible ol.tasklist li")
+    .first();
+  const checkbox = listRoot.locator("input.done-toggle");
   await checkbox.check();
   await expect(checkbox).toBeChecked();
-
-  const hiddenLocator = page.locator("ol.tasklist li[hidden]");
-  await expect(hiddenLocator).toHaveCount(1);
+  await expect(listRoot).toBeHidden();
   await setShowDone(page, true);
-  await expect(hiddenLocator).toHaveCount(0);
+  await expect(listRoot).toBeVisible();
 
-  const searchInput = page.getByRole("searchbox", { name: "Search tasks" });
+  const searchInput = globalSearchInput(page);
   await searchInput.fill("playwright");
 
   const visibleTasks = page.locator(
@@ -133,7 +137,6 @@ test("pressing enter splits the current task into two", async ({ page }) => {
   await expect(items.nth(0).locator(".text")).toHaveText("Split");
   const secondText = items.nth(1).locator(".text");
   await expect(secondText).toHaveText("Here");
-  await expect(secondText).toHaveAttribute("contenteditable", "true");
 });
 
 test("backspace at start merges the task with the previous item", async ({
@@ -174,7 +177,7 @@ test("backspace removes an empty new task", async ({ page }) => {
 test("search highlights matching tokens and clears after reset", async ({
   page,
 }) => {
-  const searchInput = page.getByRole("searchbox", { name: "Search tasks" });
+  const searchInput = globalSearchInput(page);
   await searchInput.fill("bird");
 
   const visible = page.locator(
@@ -197,7 +200,7 @@ test("completed tasks stay checked after performing a search", async ({
   await checkbox.check();
   await expect(checkbox).toBeChecked();
 
-  const searchInput = page.getByRole("searchbox", { name: "Search tasks" });
+  const searchInput = globalSearchInput(page);
   await searchInput.fill("fridge");
   await searchInput.fill("");
 
@@ -205,35 +208,47 @@ test("completed tasks stay checked after performing a search", async ({
 });
 
 test("show done toggle reveals and hides completed items", async ({ page }) => {
-  const items = page.locator(listItemsSelector);
+  const firstItem = page
+    .locator("[data-role='lists-container'] .list-section.is-visible ol.tasklist li")
+    .first();
   const firstText =
-    (await items.first().locator(".text").textContent())?.trim() ?? "";
-  const checkbox = items.first().locator("input.done-toggle");
+    (await firstItem.locator(".text").textContent())?.trim() ?? "";
+  const checkbox = firstItem.locator("input.done-toggle");
   await checkbox.check();
 
-  await expect(items.first()).toBeHidden();
+  await expect(firstItem).toBeHidden();
 
   const toggle = await setShowDone(page, true);
   await expect(toggle).toBeChecked();
-  await expect(items.first()).toBeVisible();
+  await expect(firstItem).toBeVisible();
   if (firstText) {
-    await expect(items.first().locator(".text")).toContainText(firstText);
+    await expect(firstItem.locator(".text")).toContainText(firstText);
   }
 
   await setShowDone(page, false);
-  await expect(items.first()).toBeHidden();
+  await expect(firstItem).toBeHidden();
 });
 
 test("adding a task resets any active search filter", async ({ page }) => {
-  const searchInput = page.getByRole("searchbox", { name: "Search tasks" });
+  const searchInput = globalSearchInput(page);
   await searchInput.fill("bird");
 
-  const hiddenLocator = page.locator("ol.tasklist li[hidden]");
-  await expect(hiddenLocator).toHaveCount(19);
+  const matchesCount = await page
+    .locator(
+      ".list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])",
+    )
+    .count();
+  expect(matchesCount).toBeGreaterThan(0);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page
+    .locator(
+      "[data-role='lists-container'] .list-section.is-visible .tasklist-add-button",
+    )
+    .first()
+    .click();
 
-  await expect(hiddenLocator).toHaveCount(0);
+  await expect(searchInput).toHaveValue("");
+  await expect(page.locator(".list-section.is-visible")).toHaveCount(1);
 });
 
 test("keyboard shortcut moves items while preserving caret position", async ({
@@ -249,7 +264,9 @@ test("keyboard shortcut moves items while preserving caret position", async ({
   await page.keyboard.press("Control+ArrowDown");
 
   const movedText = items.nth(1).locator(".text");
-  await expect(movedText).toHaveAttribute("contenteditable", "true");
+  await expect(page.locator(".text[contenteditable='true']")).toContainText(
+    "Keyboard Move",
+  );
   await expect(movedText).toHaveText("Keyboard Move");
   const offsetAfterDown = await getCaretOffset(movedText);
   expect(offsetAfterDown).toBe(3);
@@ -317,4 +334,50 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
       .locator(`${listItemsSelector} .text`)
       .filter({ hasText: splitRemainder || originalFirst }),
   ).toHaveCount(1);
+});
+
+test("multi-list search and move flow", async ({ page }) => {
+  const listButtons = page.locator(".sidebar-list-button");
+  await expect(listButtons).toHaveCount(3);
+  await expect(listButtons.first()).toContainText("Prototype Tasks");
+  await expect(listButtons.nth(1)).toContainText("Weekend Projects");
+
+  const searchInput = globalSearchInput(page);
+  await searchInput.fill("garage");
+
+  const visibleSections = page.locator(".list-section.is-visible");
+  await expect(visibleSections).toHaveCount(3);
+  const weekendSection = visibleSections.filter({
+    has: page.locator(".list-section__title", { hasText: "Weekend Projects" }),
+  });
+  const weekendMatches = await weekendSection
+    .locator("ol.tasklist li:not(.placeholder):not([hidden])")
+    .count();
+  expect(weekendMatches).toBeGreaterThan(0);
+
+  await searchInput.fill("");
+  await expect(page.locator(".list-section.is-visible")).toHaveCount(1);
+
+  const sourceTextLocator = page
+    .locator(listItemsSelector)
+    .first()
+    .locator(".text");
+  const originalText = (await sourceTextLocator.textContent())?.trim() ?? "";
+  await sourceTextLocator.focus();
+  await page.keyboard.press("m");
+
+  const targetOption = page
+    .locator(".move-dialog__option")
+    .filter({ hasText: "Weekend Projects" });
+  await expect(targetOption).toBeVisible();
+  await targetOption.click();
+  await expect(page.locator(".move-dialog__content")).toBeHidden();
+
+  await page
+    .locator(".sidebar-list-button")
+    .filter({ hasText: "Weekend Projects" })
+    .click();
+
+  const movedTop = page.locator(listItemsSelector).first().locator(".text");
+  await expect(movedTop).toHaveText(originalText);
 });

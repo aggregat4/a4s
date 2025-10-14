@@ -40,10 +40,240 @@
                 background-color: var(--color-background);
                 color: var(--color-text);
                 padding: 0;
+                margin: 0;
+                min-height: 100vh;
+                display: flex;
+            }
 
-                main {
-                    max-width: var(--list-width);
-                    margin: 0 auto;
+            .lists-app {
+                display: grid;
+                grid-template-columns: 280px minmax(0, 1fr);
+                width: 100%;
+                max-width: 1200px;
+                margin: 0 auto;
+                min-height: 100vh;
+                background-color: var(--color-background);
+            }
+
+            .lists-sidebar {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-lg);
+                padding: var(--space-xl);
+                background-color: #e7e7e7;
+                border-right: 1px solid var(--color-border);
+            }
+
+            .sidebar-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .sidebar-title {
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+            }
+
+            .sidebar-section {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-sm);
+            }
+
+            .sidebar-field {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-xs);
+                font-weight: 500;
+                color: var(--color-muted);
+            }
+
+            .sidebar-search-input {
+                font: inherit;
+                padding: var(--space-sm);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-sm);
+                background-color: var(--color-surface);
+                color: var(--color-text);
+
+                &:focus {
+                    outline: 2px solid var(--outline-color);
+                    outline-offset: 2px;
+                }
+            }
+
+            .sidebar-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-xs);
+            }
+
+            .sidebar-list-button {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                gap: var(--space-sm);
+                padding: var(--space-sm) var(--space-md);
+                border: 1px solid transparent;
+                border-radius: var(--radius-sm);
+                background-color: transparent;
+                color: inherit;
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+                transition: background-color var(--transition-fast);
+
+                &:hover,
+                &:focus-visible {
+                    background-color: rgba(0, 0, 0, 0.05);
+                    outline: none;
+                    border-color: var(--outline-color);
+                }
+
+                &.is-active {
+                    background-color: var(--color-surface);
+                    border-color: var(--outline-color);
+                    box-shadow: inset 0 0 0 1px var(--outline-color);
+                }
+
+                &.is-drop-target {
+                    border-color: #1c7ed6;
+                    box-shadow: inset 0 0 0 2px rgba(28, 126, 214, 0.6);
+                }
+            }
+
+            .sidebar-list-label {
+                flex: 1;
+                display: inline-flex;
+                align-items: center;
+                gap: var(--space-xs);
+                font-weight: 600;
+            }
+
+            .sidebar-list-count {
+                font-size: 14px;
+                color: var(--color-muted);
+                white-space: nowrap;
+            }
+
+            .sidebar-actions {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-sm);
+            }
+
+            .sidebar-action {
+                font: inherit;
+                padding: var(--space-sm) var(--space-md);
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--outline-color);
+                background-color: var(--color-surface);
+                color: var(--color-text);
+                cursor: pointer;
+                transition:
+                    background-color var(--transition-fast),
+                    color var(--transition-fast);
+
+                &:hover,
+                &:focus-visible {
+                    background-color: var(--color-text);
+                    color: var(--color-surface);
+                    outline: none;
+                }
+            }
+
+            .sidebar-action--danger {
+                border-color: #c92a2a;
+                color: #c92a2a;
+
+                &:hover,
+                &:focus-visible {
+                    background-color: #c92a2a;
+                    color: var(--color-surface);
+                }
+            }
+
+            .lists-main {
+                padding: var(--space-xl);
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-xl);
+            }
+
+            .lists-main-header {
+                display: flex;
+                align-items: baseline;
+                justify-content: space-between;
+                gap: var(--space-md);
+            }
+
+            .lists-main-title {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 600;
+            }
+
+            .lists-container {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-xl);
+            }
+
+            .list-section {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-md);
+            }
+
+            .list-section:not(.is-visible) {
+                display: none;
+            }
+
+            .lists-main.search-mode .list-section {
+                display: flex;
+            }
+
+            .list-section__header {
+                display: none;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--space-sm);
+            }
+
+            .lists-main.search-mode .list-section__header {
+                display: flex;
+            }
+
+            .list-section__title {
+                margin: 0;
+                font-size: 22px;
+                font-weight: 600;
+            }
+
+            .list-section__matches {
+                font-size: 14px;
+                color: var(--color-muted);
+            }
+
+            .list-section--flash {
+                animation: targetFlash 0.8s ease;
+            }
+
+            @keyframes targetFlash {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(28, 126, 214, 0.4);
+                }
+                50% {
+                    box-shadow: 0 0 0 6px rgba(28, 126, 214, 0.2);
+                }
+                100% {
+                    box-shadow: 0 0 0 0 rgba(28, 126, 214, 0);
                 }
             }
 
@@ -89,6 +319,10 @@
                             outline: 2px solid var(--outline-color);
                             outline-offset: 2px;
                         }
+                    }
+
+                    input.tasklist-search-input {
+                        display: none;
                     }
 
                     .tasklist-show-done {
@@ -187,11 +421,34 @@
 
                     .text {
                         flex: 1;
+                        min-width: 0;
+                        outline: none;
 
                         mark {
                             background-color: var(--color-highlight);
                             color: inherit;
                             border-radius: 2px;
+                        }
+                    }
+
+                    .task-move-button {
+                        font: inherit;
+                        padding: var(--space-xs) var(--space-sm);
+                        border-radius: var(--radius-sm);
+                        border: 1px solid var(--outline-color);
+                        background-color: var(--color-surface);
+                        color: var(--color-text);
+                        cursor: pointer;
+                        flex-shrink: 0;
+                        transition:
+                            background-color var(--transition-fast),
+                            color var(--transition-fast);
+
+                        &:hover,
+                        &:focus-visible {
+                            background-color: var(--color-text);
+                            color: var(--color-surface);
+                            outline: none;
                         }
                     }
 
@@ -275,7 +532,121 @@
                 }
             }
 
+            .move-dialog {
+                position: fixed;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 2000;
+            }
+
+            .move-dialog[hidden] {
+                display: none;
+            }
+
+            .move-dialog__backdrop {
+                position: absolute;
+                inset: 0;
+                background-color: rgba(0, 0, 0, 0.3);
+            }
+
+            .move-dialog__content {
+                position: relative;
+                background-color: var(--color-surface);
+                border-radius: 8px;
+                padding: var(--space-xl);
+                min-width: min(420px, calc(100vw - 40px));
+                max-width: 520px;
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-md);
+                box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+            }
+
+            .move-dialog__title {
+                margin: 0;
+                font-size: 22px;
+                font-weight: 600;
+            }
+
+            .move-dialog__description {
+                margin: 0;
+                font-size: 16px;
+                color: var(--color-muted);
+            }
+
+            .move-dialog__options {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-sm);
+            }
+
+            .move-dialog__option {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: var(--space-sm) var(--space-md);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-sm);
+                background-color: transparent;
+                font: inherit;
+                cursor: pointer;
+                transition:
+                    background-color var(--transition-fast),
+                    border-color var(--transition-fast);
+
+                &:hover,
+                &:focus-visible {
+                    background-color: rgba(0, 0, 0, 0.05);
+                    border-color: var(--outline-color);
+                    outline: none;
+                }
+            }
+
+            .move-dialog__option-name {
+                font-weight: 600;
+            }
+
+            .move-dialog__option-count {
+                font-size: 14px;
+                color: var(--color-muted);
+            }
+
+            .move-dialog__actions {
+                display: flex;
+                justify-content: flex-end;
+            }
+
+            .move-dialog__cancel {
+                font: inherit;
+                padding: var(--space-sm) var(--space-md);
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--outline-color);
+                background-color: transparent;
+                cursor: pointer;
+
+                &:hover,
+                &:focus-visible {
+                    background-color: var(--color-text);
+                    color: var(--color-surface);
+                    outline: none;
+                }
+            }
+
             @media (max-width: 640px) {
+                .lists-app {
+                    grid-template-columns: 1fr;
+                }
+
+                .lists-sidebar {
+                    border-right: none;
+                    border-bottom: 1px solid var(--color-border);
+                }
+
                 .tasklist-header {
                     flex-direction: column;
                     align-items: stretch;
@@ -299,11 +670,68 @@
         </style>
     </head>
     <body>
-        <main>
-            <a4-tasklist name="Prototype Tasks">
-                <ol class="tasklist"></ol>
-            </a4-tasklist>
-        </main>
+        <div class="lists-app" data-role="lists-app">
+            <aside class="lists-sidebar" data-role="sidebar">
+                <div class="sidebar-header">
+                    <h1 class="sidebar-title">Task Collections</h1>
+                </div>
+                <div class="sidebar-section sidebar-search">
+                    <label class="sidebar-field">
+                        <span class="sidebar-label">Global search</span>
+                        <input
+                            type="search"
+                            class="sidebar-search-input"
+                            placeholder="Search across all lists…"
+                            aria-label="Global search"
+                            data-role="global-search"
+                        />
+                    </label>
+                </div>
+                <nav class="sidebar-section sidebar-lists" aria-label="Available lists">
+                    <ul class="sidebar-list" data-role="sidebar-list"></ul>
+                </nav>
+                <div class="sidebar-section sidebar-actions">
+                    <button type="button" class="sidebar-action" data-role="add-list">
+                        Add list
+                    </button>
+                    <button type="button" class="sidebar-action" data-role="rename-list">
+                        Rename list
+                    </button>
+                    <button type="button" class="sidebar-action sidebar-action--danger" data-role="delete-list">
+                        Delete list
+                    </button>
+                </div>
+            </aside>
+            <main class="lists-main" data-role="main">
+                <header class="lists-main-header">
+                    <h2 class="lists-main-title" data-role="active-list-title"></h2>
+                </header>
+                <div class="lists-container" data-role="lists-container"></div>
+            </main>
+        </div>
+
+        <div class="move-dialog" data-role="move-dialog" hidden>
+            <div class="move-dialog__backdrop" data-role="move-dialog-backdrop"></div>
+            <div
+                class="move-dialog__content"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="move-dialog-title"
+                aria-describedby="move-dialog-description"
+                tabindex="-1"
+            >
+                <h2 id="move-dialog-title" class="move-dialog__title">Move Task</h2>
+                <p id="move-dialog-description" class="move-dialog__description">
+                    Select a destination list for this task. Use the arrow keys to choose, then press Enter.
+                </p>
+                <ul class="move-dialog__options" data-role="move-dialog-options"></ul>
+                <div class="move-dialog__actions">
+                    <button type="button" class="move-dialog__cancel" data-role="move-dialog-cancel">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <script>
             const PROTOTYPE_TASK_TEXTS = [
@@ -329,14 +757,82 @@
                 "Vacuum the carpet before it develops further geological features.",
             ];
 
-            const PROTOTYPE_TASK_LIST = {
-                title: "Prototype Tasks",
-                items: PROTOTYPE_TASK_TEXTS.map((text, index) => ({
-                    id: `task-${index + 1}`,
+            const WEEKEND_PROJECT_TEXTS = [
+                "Patch the garden fence before the neighbor's cat launches another inspection.",
+                "Clear the garage path so the bikes stop living under a tarp monarchy.",
+                "Label the mystery cables basket before it becomes household folklore.",
+                "Sand the coffee table so splinters stop campaigning for attention.",
+                "Plan the herb bed before the mint declares full sovereignty.",
+                "Paint the hallway sample squares to convince the walls to commit.",
+                "Wash the car until it remembers it's actually blue.",
+                "Tighten the wobbly chairs before guests develop sea legs.",
+                "Test the fire pit so marshmallows can renew their contract.",
+                "Replace the porch light bulb before the moth council files grievances.",
+                "Organize board games so the dice stop backpacking through the house.",
+                "Clean the aquarium filter before the fish union organizes a strike.",
+                "Inventory the toolbox to confirm the 14mm socket still exists.",
+                "Fix the squeaky door that narrates every midnight snack.",
+                "Trim the hedges before they audition as stage curtains.",
+                "Sort camping gear into piles of 'useful' and 'optimistic'.",
+                "Re-string the clothesline before the laundry takes flight.",
+                "Tune the piano so middle C stops sounding philosophical.",
+                "Swap batteries in the fairy lights before they become existential.",
+                "Back up family photos before the cloud picks favorites.",
+            ];
+
+            const WORK_FOLLOWUP_TEXTS = [
+                "Email the design draft to Isla before the mockups develop sentience.",
+                "Confirm sprint goals with DevOps so the servers stay optimistic.",
+                "Schedule the retro while memories of the bugs are still polite.",
+                "Review the analytics deck before stakeholders wield highlighters.",
+                "Update the roadmap to reflect the features marketing already announced.",
+                "Ping legal about the release notes before we ship interpretive poetry.",
+                "Organize user interviews so transcripts arrive before next quarter.",
+                "Check in with QA about flaky tests that believe in free will.",
+                "Draft the onboarding doc so newcomers stop learning via treasure hunt.",
+                "Refresh the team wiki links that redirect to archaeological findings.",
+                "Finalize the budget sheet before finance asks for interpretive dance.",
+                "Reply to the vendor with polite enthusiasm and three clarifying bullets.",
+                "Plan a knowledge share on the feature nobody admits to understanding.",
+                "Pair with analytics to translate dashboards into mortal speech.",
+                "Collect status updates without summoning another mega-thread.",
+                "Approve the icon set before UI sneaks in mysterious hieroglyphs.",
+                "Prep the release checklist so launch day doesn't improvise.",
+                "Ask security about the alert that keeps waving politely.",
+                "Sync with support on the ticket queue before it becomes folklore.",
+                "Send a kudos round-up so everyone remembers we're on the same team.",
+            ];
+
+            const createSeedItems = (slug, texts) =>
+                texts.map((text, index) => ({
+                    id: `${slug}-task-${index + 1}`,
                     text,
                     done: false,
-                })),
+                }));
+
+            const PROTOTYPE_TASK_LIST = {
+                id: "list-prototype",
+                title: "Prototype Tasks",
+                items: createSeedItems("prototype", PROTOTYPE_TASK_TEXTS),
             };
+
+            const WEEKEND_PROJECT_LIST = {
+                id: "list-weekend",
+                title: "Weekend Projects",
+                items: createSeedItems("weekend", WEEKEND_PROJECT_TEXTS),
+            };
+
+            const WORK_FOLLOWUP_LIST = {
+                id: "list-work",
+                title: "Work Follow-ups",
+                items: createSeedItems("work", WORK_FOLLOWUP_TEXTS),
+            };
+
+            const SEED_LIST_CONFIGS = [
+                PROTOTYPE_TASK_LIST,
+                WEEKEND_PROJECT_LIST,
+                WORK_FOLLOWUP_LIST,
+            ];
 
             const cloneListState = (source) => ({
                 title: typeof source?.title === "string" ? source.title : "",
@@ -361,6 +857,18 @@
                     }
                     const salt = Math.random().toString(36).slice(2, 8);
                     return `task-${Date.now().toString(36)}-${counter.toString(36)}-${salt}`;
+                };
+            })();
+
+            const generateListId = (() => {
+                let counter = 0;
+                return (prefix = "list") => {
+                    counter += 1;
+                    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+                        return `${prefix}-${crypto.randomUUID()}`;
+                    }
+                    const salt = Math.random().toString(36).slice(2, 8);
+                    return `${prefix}-${Date.now().toString(36)}-${counter.toString(36)}-${salt}`;
                 };
             })();
 
@@ -1735,6 +2243,12 @@
                         },
                     ]);
 
+                    this.listIdentifier = this.dataset.listId ?? null;
+                    this.lastFocusedItemId = null;
+                    this.lastReportedMatches = null;
+                    this.lastReportedTotal = null;
+                    this.lastReportedQuery = "";
+
                     this.handleSearchInput = this.handleSearchInput.bind(this);
                     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
                     this.handleSearchClear = this.handleSearchClear.bind(this);
@@ -1749,6 +2263,10 @@
                     this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
                     this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
                     this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
+                    this.handleMoveButtonClick = this.handleMoveButtonClick.bind(this);
+                    this.handleItemKeyDown = this.handleItemKeyDown.bind(this);
+                    this.handleFocusIn = this.handleFocusIn.bind(this);
+                    this.handleListDragStart = this.handleListDragStart.bind(this);
 
                     this.editController = new EditController({
                         getListElement: () => this.listEl,
@@ -1828,6 +2346,15 @@
                     this.listEl.addEventListener("blur", this.handleItemBlur, true);
                     this.listEl.removeEventListener("change", this.handleToggle);
                     this.listEl.addEventListener("change", this.handleToggle);
+                    this.listEl.removeEventListener("keydown", this.handleItemKeyDown, true);
+                    this.listEl.addEventListener("keydown", this.handleItemKeyDown, true);
+                    this.listEl.removeEventListener("focusin", this.handleFocusIn);
+                    this.listEl.addEventListener("focusin", this.handleFocusIn);
+                    this.listEl.removeEventListener("dragstart", this.handleListDragStart);
+                    this.listEl.addEventListener("dragstart", this.handleListDragStart);
+                    if (this.listIdentifier) {
+                        this.dataset.listId = this.listIdentifier;
+                    }
                     this.performSearch(this.searchQuery);
                 }
 
@@ -1871,6 +2398,9 @@
                     this.inlineEditor = null;
                     this.listEl?.removeEventListener("blur", this.handleItemBlur, true);
                     this.listEl?.removeEventListener("change", this.handleToggle);
+                    this.listEl?.removeEventListener("keydown", this.handleItemKeyDown, true);
+                    this.listEl?.removeEventListener("focusin", this.handleFocusIn);
+                    this.listEl?.removeEventListener("dragstart", this.handleListDragStart);
                     if (this.searchInput) {
                         this.searchInput.removeEventListener("input", this.handleSearchInput);
                         this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
@@ -2257,6 +2787,18 @@
                         updateItem: (li, item) => this.updateItemElement(li, item),
                     });
 
+                    const totalCount = Array.isArray(state.items) ? state.items.length : 0;
+                    if (totalCount !== this.lastReportedTotal) {
+                        this.lastReportedTotal = totalCount;
+                        this.dispatchEvent(
+                            new CustomEvent("itemcountchange", {
+                                detail: { total: totalCount },
+                                bubbles: true,
+                                composed: true,
+                            }),
+                        );
+                    }
+
                     const nextTitle = state.title ?? "";
                     if (this.titleEl) {
                         this.titleEl.textContent = nextTitle;
@@ -2303,12 +2845,22 @@
                     textSpan.className = "text";
                     textSpan.textContent = item.text;
                     textSpan.dataset.originalText = item.text;
+                    textSpan.tabIndex = 0;
+                    textSpan.setAttribute("role", "textbox");
+                    textSpan.setAttribute("aria-label", "Task");
+
+                    const moveButton = document.createElement("button");
+                    moveButton.type = "button";
+                    moveButton.className = "task-move-button";
+                    moveButton.textContent = "Move";
+                    moveButton.title = "Move this task to another list (shortcut: M)";
+                    moveButton.addEventListener("click", this.handleMoveButtonClick);
 
                     const handle = document.createElement("span");
                     handle.className = "handle";
                     handle.setAttribute("aria-hidden", "true");
 
-                    li.append(checkbox, textSpan, handle);
+                    li.append(checkbox, textSpan, moveButton, handle);
                     return li;
                 }
 
@@ -2327,11 +2879,30 @@
                     const textSpan = li.querySelector(".text");
                     if (textSpan) {
                         const isEditing = textSpan.isContentEditable;
+                        if (!textSpan.hasAttribute("tabindex")) {
+                            textSpan.tabIndex = 0;
+                        }
                         if (textSpan.dataset.originalText !== item.text) {
                             textSpan.dataset.originalText = item.text;
                             if (!isEditing) {
                                 textSpan.textContent = item.text;
                             }
+                        }
+                    }
+
+                    let moveButton = li.querySelector(".task-move-button");
+                    if (!moveButton) {
+                        moveButton = document.createElement("button");
+                        moveButton.type = "button";
+                        moveButton.className = "task-move-button";
+                        moveButton.textContent = "Move";
+                        moveButton.title = "Move this task to another list (shortcut: M)";
+                        moveButton.addEventListener("click", this.handleMoveButtonClick);
+                        const handle = li.querySelector(".handle");
+                        if (handle) {
+                            li.insertBefore(moveButton, handle);
+                        } else {
+                            li.appendChild(moveButton);
                         }
                     }
                 }
@@ -2345,6 +2916,102 @@
                         type: LIST_ACTIONS.setItemDone,
                         payload: { id, done: e.target.checked },
                     });
+                }
+
+                handleMoveButtonClick(event) {
+                    const button = event.currentTarget;
+                    const li = button?.closest("li");
+                    const itemId = li?.dataset?.itemId ?? null;
+                    if (!itemId) return;
+                    const snapshot = this.getItemSnapshot(itemId);
+                    if (!snapshot) return;
+                    this.dispatchEvent(
+                        new CustomEvent("taskMoveRequest", {
+                            detail: {
+                                itemId,
+                                item: snapshot,
+                                sourceListId: this.listId,
+                                trigger: "button",
+                            },
+                            bubbles: true,
+                            composed: true,
+                        }),
+                    );
+                }
+
+                handleItemKeyDown(event) {
+                    if (!event || event.defaultPrevented) return;
+                    if (event.isComposing) return;
+                    const key = event.key?.toLowerCase?.() ?? "";
+                    if (key !== "m") return;
+                    if (event.metaKey || event.ctrlKey || event.altKey) return;
+                    const target = event.target;
+                    if (!target) return;
+                    if (target.isContentEditable) return;
+                    const li = target.closest?.("li");
+                    if (!li) return;
+                    const itemId = li.dataset?.itemId ?? null;
+                    if (!itemId) return;
+                    const snapshot = this.getItemSnapshot(itemId);
+                    if (!snapshot) return;
+                    event.preventDefault();
+                    this.dispatchEvent(
+                        new CustomEvent("taskMoveRequest", {
+                            detail: {
+                                itemId,
+                                item: snapshot,
+                                sourceListId: this.listId,
+                                trigger: "shortcut",
+                            },
+                            bubbles: true,
+                            composed: true,
+                        }),
+                    );
+                }
+
+                handleFocusIn(event) {
+                    const target = event.target;
+                    const li = target?.closest?.("li");
+                    const itemId = li?.dataset?.itemId ?? null;
+                    if (!itemId) return;
+                    this.lastFocusedItemId = itemId;
+                    this.dispatchEvent(
+                        new CustomEvent("taskFocus", {
+                            detail: {
+                                itemId,
+                                sourceListId: this.listId,
+                            },
+                            bubbles: true,
+                            composed: true,
+                        }),
+                    );
+                }
+
+                handleListDragStart(event) {
+                    const li = event?.target?.closest?.("li");
+                    const itemId = li?.dataset?.itemId ?? null;
+                    if (!itemId) return;
+                    const snapshot = this.getItemSnapshot(itemId);
+                    if (!snapshot) return;
+                    const transfer = event.dataTransfer;
+                    if (!transfer) return;
+                    const payload = {
+                        itemId,
+                        item: snapshot,
+                        sourceListId: this.listId,
+                        trigger: "drag",
+                    };
+                    try {
+                        transfer.setData("application/x-a4-task", JSON.stringify(payload));
+                    } catch (err) {
+                        // Ignore inability to set custom data
+                    }
+                    try {
+                        transfer.setData("text/plain", snapshot.text ?? "");
+                    } catch (err) {
+                        // ignore
+                    }
+                    transfer.effectAllowed = "move";
                 }
 
                 handleEditCommit({ element, newText, previousText }) {
@@ -2412,6 +3079,8 @@
                     const tokens = tokenizeSearchQuery(query);
                     const forceVisible = options?.forceVisible ?? null;
 
+                    let visibleCount = 0;
+
                     this.listEl.querySelectorAll("li").forEach((li) => {
                         if (li.classList.contains("placeholder")) return;
                         const textEl = li.querySelector(".text");
@@ -2426,6 +3095,7 @@
 
                         if (isEditing) {
                             li.hidden = false;
+                            visibleCount += 1;
                             return;
                         }
 
@@ -2436,6 +3106,7 @@
                         ) {
                             li.hidden = false;
                             textEl.textContent = original;
+                            visibleCount += 1;
                             return;
                         }
 
@@ -2453,9 +3124,132 @@
                             return;
                         }
                         textEl.innerHTML = result.markup;
+                        if (!li.hidden) {
+                            visibleCount += 1;
+                        }
                     });
 
                     this.dragBehavior?.invalidateItemsCache();
+
+                    if (
+                        visibleCount !== this.lastReportedMatches ||
+                        query !== this.lastReportedQuery
+                    ) {
+                        this.lastReportedMatches = visibleCount;
+                        this.lastReportedQuery = query;
+                        this.dispatchEvent(
+                            new CustomEvent("searchresultschange", {
+                                detail: {
+                                    matches: visibleCount,
+                                    query,
+                                },
+                                bubbles: true,
+                                composed: true,
+                            }),
+                        );
+                    }
+                }
+
+                applyFilter(query) {
+                    const value = typeof query === "string" ? query : "";
+                    if (this.searchInput) {
+                        this.searchInput.value = value;
+                    }
+                    this.performSearch(value);
+                }
+
+                clearFilter() {
+                    this.applyFilter("");
+                }
+
+                getItemSnapshot(itemId) {
+                    if (!this.store || !itemId) return null;
+                    const state = this.store.getState();
+                    const items = Array.isArray(state?.items) ? state.items : [];
+                    const found = items.find((item) => item.id === itemId);
+                    return found ? { ...found } : null;
+                }
+
+                removeItemById(itemId) {
+                    if (!this.store || !itemId) return false;
+                    const state = this.store.getState();
+                    if (!state?.items?.some((item) => item.id === itemId)) {
+                        return false;
+                    }
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.removeItem,
+                        payload: { id: itemId },
+                    });
+                    return true;
+                }
+
+                prependItem(item) {
+                    if (!this.store || !item || !item.id) return false;
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.insertItem,
+                        payload: {
+                            index: 0,
+                            item: {
+                                id: item.id,
+                                text: typeof item.text === "string" ? item.text : "",
+                                done: Boolean(item.done),
+                            },
+                        },
+                    });
+                    return true;
+                }
+
+                focusItem(itemId) {
+                    if (!this.listEl || !itemId) return false;
+                    const selectorId = escapeSelectorId(itemId);
+                    const targetLi = this.listEl.querySelector(`li[data-item-id="${selectorId}"]`);
+                    if (!targetLi) return false;
+                    const textEl = targetLi.querySelector(".text");
+                    if (textEl) {
+                        textEl.focus();
+                        return true;
+                    }
+                    return false;
+                }
+
+                setListName(name) {
+                    const nextTitle = typeof name === "string" ? name : "";
+                    if (this.store) {
+                        this.store.dispatch({
+                            type: LIST_ACTIONS.setTitle,
+                            payload: { title: nextTitle },
+                        });
+                    } else {
+                        this.setAttribute("name", nextTitle);
+                        this.syncTitle();
+                    }
+                }
+
+                getTotalItemCount() {
+                    if (!this.store) return 0;
+                    const state = this.store.getState();
+                    return Array.isArray(state?.items) ? state.items.length : 0;
+                }
+
+                getSearchMatchCount() {
+                    if (typeof this.lastReportedMatches === "number") {
+                        return this.lastReportedMatches;
+                    }
+                    return this.getTotalItemCount();
+                }
+
+                get listId() {
+                    return this.listIdentifier;
+                }
+
+                set listId(value) {
+                    if (value == null) {
+                        this.listIdentifier = null;
+                        delete this.dataset.listId;
+                        return;
+                    }
+                    this.listIdentifier = String(value);
+                    this.dataset.listId = this.listIdentifier;
                 }
 
                 get name() {
@@ -2473,12 +3267,847 @@
 
             customElements.define("a4-tasklist", A4TaskList);
 
-            document.addEventListener("DOMContentLoaded", () => {
-                const demoList = document.querySelector("a4-tasklist");
-                if (!demoList) return;
-                if (!demoList.initialState || !demoList.initialState.items?.length) {
-                    demoList.initialState = PROTOTYPE_TASK_LIST;
+            class Sidebar {
+                constructor(element, handlers = {}) {
+                    this.element = element;
+                    this.handlers = handlers;
+                    this.searchInput =
+                        element?.querySelector("[data-role='global-search']") ?? null;
+                    this.listContainer =
+                        element?.querySelector("[data-role='sidebar-list']") ?? null;
+                    this.addButton = element?.querySelector("[data-role='add-list']") ?? null;
+                    this.renameButton =
+                        element?.querySelector("[data-role='rename-list']") ?? null;
+                    this.deleteButton =
+                        element?.querySelector("[data-role='delete-list']") ?? null;
+                    this.searchDebounceId = null;
+                    this.currentLists = [];
+                    this.activeListId = null;
+                    this.currentSearch = "";
+                    this.handleSearchInput = this.handleSearchInput.bind(this);
+                    this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
+                    this.handleListDragEnter = this.handleListDragEnter.bind(this);
+                    this.handleListDragOver = this.handleListDragOver.bind(this);
+                    this.handleListDragLeave = this.handleListDragLeave.bind(this);
+                    this.handleListDrop = this.handleListDrop.bind(this);
                 }
+
+                init() {
+                    this.searchInput?.addEventListener("input", this.handleSearchInput);
+                    this.searchInput?.addEventListener("keydown", this.handleSearchKeyDown);
+                    this.addButton?.addEventListener("click", () =>
+                        this.handlers.onAddList?.(),
+                    );
+                    this.renameButton?.addEventListener("click", () =>
+                        this.handlers.onRenameList?.(),
+                    );
+                    this.deleteButton?.addEventListener("click", () =>
+                        this.handlers.onDeleteList?.(),
+                    );
+                    this.renderLists();
+                    this.updateActionStates();
+                }
+
+                destroy() {
+                    this.searchInput?.removeEventListener("input", this.handleSearchInput);
+                    this.searchInput?.removeEventListener("keydown", this.handleSearchKeyDown);
+                    clearTimeout(this.searchDebounceId);
+                }
+
+                setSearchValue(value) {
+                    const next = value ?? "";
+                    if (this.searchInput && this.searchInput.value !== next) {
+                        this.searchInput.value = next;
+                    }
+                    this.currentSearch = next;
+                }
+
+                setLists(lists, { activeListId, searchQuery } = {}) {
+                    this.currentLists = Array.isArray(lists) ? lists : [];
+                    this.activeListId = activeListId ?? null;
+                    if (typeof searchQuery === "string") {
+                        this.setSearchValue(searchQuery);
+                    }
+                    this.renderLists();
+                    this.updateActionStates();
+                }
+
+                updateActionStates() {
+                    const listCount = this.currentLists.length;
+                    if (this.renameButton) {
+                        this.renameButton.disabled = !this.activeListId;
+                    }
+                    if (this.deleteButton) {
+                        this.deleteButton.disabled = listCount <= 1 || !this.activeListId;
+                    }
+                }
+
+                renderLists() {
+                    if (!this.listContainer) return;
+                    this.listContainer.textContent = "";
+                    const fragment = document.createDocumentFragment();
+                    this.currentLists.forEach((list) => {
+                        const li = document.createElement("li");
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.className = "sidebar-list-button";
+                        button.dataset.listId = list.id;
+                        button.classList.toggle("is-active", list.id === this.activeListId);
+                        if (list.id === this.activeListId) {
+                            button.setAttribute("aria-current", "true");
+                        } else {
+                            button.removeAttribute("aria-current");
+                        }
+                        const label = document.createElement("span");
+                        label.className = "sidebar-list-label";
+                        label.textContent = list.name;
+                        const count = document.createElement("span");
+                        count.className = "sidebar-list-count";
+                        count.textContent = list.countLabel ?? "";
+                        button.append(label, count);
+                        button.addEventListener("click", () => {
+                            this.handlers.onSelectList?.(list.id);
+                        });
+                        button.addEventListener("dragenter", this.handleListDragEnter);
+                        button.addEventListener("dragover", this.handleListDragOver);
+                        button.addEventListener("dragleave", this.handleListDragLeave);
+                        button.addEventListener("drop", this.handleListDrop);
+                        li.appendChild(button);
+                        fragment.appendChild(li);
+                    });
+                    this.listContainer.appendChild(fragment);
+                }
+
+                handleSearchInput(event) {
+                    const value = event?.target?.value ?? "";
+                    clearTimeout(this.searchDebounceId);
+                    this.searchDebounceId = setTimeout(() => {
+                        this.handlers.onSearchChange?.(value);
+                    }, 150);
+                }
+
+                handleSearchKeyDown(event) {
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        if (this.searchInput) {
+                            this.searchInput.value = "";
+                        }
+                        this.handlers.onSearchChange?.("");
+                    }
+                }
+
+                parseTaskData(dataTransfer) {
+                    if (!dataTransfer) return null;
+                    const types = Array.from(dataTransfer.types ?? []);
+                    if (!types.includes("application/x-a4-task")) return null;
+                    try {
+                        const payload = dataTransfer.getData("application/x-a4-task");
+                        if (!payload) return null;
+                        return JSON.parse(payload);
+                    } catch (err) {
+                        return null;
+                    }
+                }
+
+                handleListDragEnter(event) {
+                    const button = event.currentTarget;
+                    const payload = this.parseTaskData(event.dataTransfer);
+                    if (!payload) return;
+                    if (payload.sourceListId === button.dataset.listId) return;
+                    event.preventDefault();
+                    button.classList.add("is-drop-target");
+                }
+
+                handleListDragOver(event) {
+                    const button = event.currentTarget;
+                    const payload = this.parseTaskData(event.dataTransfer);
+                    if (!payload) return;
+                    if (payload.sourceListId === button.dataset.listId) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                }
+
+                handleListDragLeave(event) {
+                    const button = event.currentTarget;
+                    button.classList.remove("is-drop-target");
+                }
+
+                handleListDrop(event) {
+                    const button = event.currentTarget;
+                    const payload = this.parseTaskData(event.dataTransfer);
+                    button.classList.remove("is-drop-target");
+                    if (!payload) return;
+                    const targetListId = button.dataset.listId;
+                    if (!targetListId || payload.sourceListId === targetListId) return;
+                    event.preventDefault();
+                    this.handlers.onItemDropped?.(payload, targetListId);
+                }
+            }
+
+            class KeyboardMoveDialog {
+                constructor(element) {
+                    this.root = element ?? null;
+                    this.backdropEl =
+                        element?.querySelector("[data-role='move-dialog-backdrop']") ?? null;
+                    this.contentEl = element?.querySelector(".move-dialog__content") ?? null;
+                    this.optionsListEl =
+                        element?.querySelector("[data-role='move-dialog-options']") ?? null;
+                    this.cancelButton =
+                        element?.querySelector("[data-role='move-dialog-cancel']") ?? null;
+                    this.optionButtons = [];
+                    this.isOpen = false;
+                    this.currentContext = null;
+
+                    this.handleKeyDown = this.handleKeyDown.bind(this);
+                    this.handleCancel = this.handleCancel.bind(this);
+                    this.handleBackdropClick = this.handleBackdropClick.bind(this);
+                    this.handleOptionClick = this.handleOptionClick.bind(this);
+
+                    this.cancelButton?.addEventListener("click", this.handleCancel);
+                    this.backdropEl?.addEventListener("click", this.handleBackdropClick);
+                }
+
+                open(options = {}) {
+                    if (!this.root || !this.optionsListEl) return;
+                    const targets = Array.isArray(options.targets) ? options.targets : [];
+                    if (!targets.length) return;
+                    this.close({ restoreFocus: false });
+                    this.currentContext = { ...options };
+                    this.optionButtons = [];
+                    this.optionsListEl.textContent = "";
+                    const fragment = document.createDocumentFragment();
+                    targets.forEach((target) => {
+                        const li = document.createElement("li");
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.className = "move-dialog__option";
+                        button.dataset.listId = target.id;
+                        const nameSpan = document.createElement("span");
+                        nameSpan.className = "move-dialog__option-name";
+                        nameSpan.textContent = target.name;
+                        const countSpan = document.createElement("span");
+                        countSpan.className = "move-dialog__option-count";
+                        countSpan.textContent = target.countLabel ?? "";
+                        button.append(nameSpan, countSpan);
+                        button.addEventListener("click", this.handleOptionClick);
+                        this.optionButtons.push(button);
+                        li.appendChild(button);
+                        fragment.appendChild(li);
+                    });
+                    this.optionsListEl.appendChild(fragment);
+                    this.root.hidden = false;
+                    this.root.setAttribute("aria-hidden", "false");
+                    this.isOpen = true;
+                    this.contentEl?.addEventListener("keydown", this.handleKeyDown);
+                    requestAnimationFrame(() => {
+                        if (this.optionButtons[0]) {
+                            this.optionButtons[0].focus();
+                        } else if (this.cancelButton) {
+                            this.cancelButton.focus();
+                        }
+                    });
+                }
+
+                close({ restoreFocus = true } = {}) {
+                    if (!this.isOpen) {
+                        if (!restoreFocus) {
+                            this.currentContext = null;
+                        }
+                        return;
+                    }
+                    this.isOpen = false;
+                    this.contentEl?.removeEventListener("keydown", this.handleKeyDown);
+                    this.optionButtons.forEach((button) =>
+                        button.removeEventListener("click", this.handleOptionClick),
+                    );
+                    this.optionButtons = [];
+                    if (this.root) {
+                        this.root.hidden = true;
+                        this.root.setAttribute("aria-hidden", "true");
+                    }
+                    const context = this.currentContext;
+                    this.currentContext = null;
+                    if (restoreFocus && context?.restoreFocus) {
+                        try {
+                            context.restoreFocus();
+                        } catch (err) {
+                            // ignore focus errors
+                        }
+                    }
+                }
+
+                handleOptionClick(event) {
+                    const button = event.currentTarget;
+                    const listId = button?.dataset?.listId;
+                    if (!listId) return;
+                    const context = this.currentContext;
+                    if (!context) return;
+                    this.close({ restoreFocus: false });
+                    context.onConfirm?.({ ...context, targetListId: listId });
+                }
+
+                handleCancel() {
+                    const context = this.currentContext;
+                    context?.onCancel?.(context);
+                    this.close({ restoreFocus: true });
+                }
+
+                handleBackdropClick() {
+                    this.handleCancel();
+                }
+
+                handleKeyDown(event) {
+                    if (!this.isOpen) return;
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        this.handleCancel();
+                        return;
+                    }
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                        const forward = event.key === "ArrowDown" ? 1 : -1;
+                        const focusables = this.getFocusableElements();
+                        if (!focusables.length) return;
+                        event.preventDefault();
+                        const currentIndex = focusables.indexOf(document.activeElement);
+                        let nextIndex = currentIndex + forward;
+                        if (nextIndex < 0) nextIndex = focusables.length - 1;
+                        if (nextIndex >= focusables.length) nextIndex = 0;
+                        focusables[nextIndex].focus();
+                        return;
+                    }
+                    if (event.key === "Tab") {
+                        const focusables = this.getFocusableElements();
+                        if (!focusables.length) return;
+                        event.preventDefault();
+                        const direction = event.shiftKey ? -1 : 1;
+                        const currentIndex = focusables.indexOf(document.activeElement);
+                        let nextIndex = currentIndex + direction;
+                        if (nextIndex < 0) nextIndex = focusables.length - 1;
+                        if (nextIndex >= focusables.length) nextIndex = 0;
+                        focusables[nextIndex].focus();
+                    }
+                }
+
+                getFocusableElements() {
+                    const focusables = [];
+                    this.optionButtons.forEach((button) => focusables.push(button));
+                    if (this.cancelButton) {
+                        focusables.push(this.cancelButton);
+                    }
+                    return focusables;
+                }
+            }
+
+            class ListsApp {
+                constructor(options = {}) {
+                    this.sidebarElement = options.sidebarElement ?? null;
+                    this.mainElement = options.mainElement ?? null;
+                    this.listsContainer = options.listsContainer ?? null;
+                    this.mainTitleEl = options.mainTitleElement ?? null;
+                    this.moveDialogElement = options.moveDialogElement ?? null;
+
+                    this.listRegistry = new Map();
+                    this.listOrder = [];
+                    this.activeListId = null;
+                    this.searchQuery = "";
+                    this.isApplyingSearch = false;
+                    this.lastFocused = null;
+
+                    this.handleSearchChange = this.handleSearchChange.bind(this);
+                    this.handleListSelection = this.handleListSelection.bind(this);
+                    this.handleAddList = this.handleAddList.bind(this);
+                    this.handleRenameList = this.handleRenameList.bind(this);
+                    this.handleDeleteList = this.handleDeleteList.bind(this);
+                    this.handleSidebarDrop = this.handleSidebarDrop.bind(this);
+                    this.handleTaskMoveRequest = this.handleTaskMoveRequest.bind(this);
+                    this.handleItemCountChange = this.handleItemCountChange.bind(this);
+                    this.handleSearchResultsChange = this.handleSearchResultsChange.bind(this);
+                    this.handleListFocus = this.handleListFocus.bind(this);
+
+                    this.sidebar = new Sidebar(this.sidebarElement, {
+                        onSearchChange: this.handleSearchChange,
+                        onSelectList: this.handleListSelection,
+                        onAddList: this.handleAddList,
+                        onRenameList: this.handleRenameList,
+                        onDeleteList: this.handleDeleteList,
+                        onItemDropped: this.handleSidebarDrop,
+                    });
+
+                    this.moveDialog = new KeyboardMoveDialog(this.moveDialogElement);
+                }
+
+                initialize() {
+                    this.sidebar.init();
+                    SEED_LIST_CONFIGS.forEach((config, index) => {
+                        this.createList(
+                            {
+                                id: config.id,
+                                title: config.title,
+                                items: config.items,
+                            },
+                            { makeActive: index === 0 },
+                        );
+                    });
+                    if (!this.activeListId && this.listOrder.length) {
+                        this.activeListId = this.listOrder[0];
+                    }
+                    if (this.activeListId) {
+                        this.setActiveList(this.activeListId);
+                    } else {
+                        this.updateListVisibility();
+                    }
+                    this.applySearchToLists();
+                    this.sidebar.setSearchValue(this.searchQuery);
+                    this.refreshSidebar();
+                    this.updateMainHeading();
+                }
+
+                createList(config, { makeActive = false } = {}) {
+                    if (!this.listsContainer) return null;
+                    const id = config.id ?? generateListId("list");
+                    const name =
+                        typeof config.title === "string" && config.title.length
+                            ? config.title
+                            : "Untitled List";
+                    const wrapper = document.createElement("section");
+                    wrapper.className = "list-section";
+                    wrapper.dataset.listId = id;
+
+                    const header = document.createElement("div");
+                    header.className = "list-section__header";
+                    const titleEl = document.createElement("h3");
+                    titleEl.className = "list-section__title";
+                    titleEl.textContent = name;
+                    const matchesEl = document.createElement("span");
+                    matchesEl.className = "list-section__matches";
+                    header.append(titleEl, matchesEl);
+                    wrapper.appendChild(header);
+
+                    const listElement = document.createElement("a4-tasklist");
+                    listElement.setAttribute("name", name);
+                    listElement.listId = id;
+                    listElement.initialState = {
+                        title: name,
+                        items: Array.isArray(config.items)
+                            ? config.items.map((item) => ({ ...item }))
+                            : [],
+                    };
+                    wrapper.appendChild(listElement);
+                    this.listsContainer.appendChild(wrapper);
+
+                    const record = {
+                        id,
+                        name,
+                        element: listElement,
+                        wrapper,
+                        headerEl: header,
+                        headerTitleEl: titleEl,
+                        matchLabelEl: matchesEl,
+                        totalCount: listElement.getTotalItemCount(),
+                        matchCount: listElement.getSearchMatchCount(),
+                        flashTimer: null,
+                    };
+
+                    this.listRegistry.set(id, record);
+                    this.listOrder.push(id);
+                    this.registerListEvents(record);
+
+                    if (makeActive || !this.activeListId) {
+                        this.activeListId = id;
+                    }
+                    this.updateListVisibility();
+                    this.updateListMatchLabel(record);
+                    return record;
+                }
+
+                registerListEvents(record) {
+                    const element = record.element;
+                    element.addEventListener("taskMoveRequest", this.handleTaskMoveRequest);
+                    element.addEventListener("itemcountchange", this.handleItemCountChange);
+                    element.addEventListener(
+                        "searchresultschange",
+                        this.handleSearchResultsChange,
+                    );
+                    element.addEventListener("taskFocus", this.handleListFocus);
+                }
+
+                removeList(listId) {
+                    const record = this.listRegistry.get(listId);
+                    if (!record) return;
+                    const element = record.element;
+                    element.removeEventListener("taskMoveRequest", this.handleTaskMoveRequest);
+                    element.removeEventListener("itemcountchange", this.handleItemCountChange);
+                    element.removeEventListener(
+                        "searchresultschange",
+                        this.handleSearchResultsChange,
+                    );
+                    element.removeEventListener("taskFocus", this.handleListFocus);
+                    if (record.flashTimer) {
+                        clearTimeout(record.flashTimer);
+                        record.flashTimer = null;
+                    }
+                    record.wrapper.remove();
+                    this.listRegistry.delete(listId);
+                    this.listOrder = this.listOrder.filter((id) => id !== listId);
+                }
+
+                handleSearchChange(value) {
+                    const next = typeof value === "string" ? value : "";
+                    if (next === this.searchQuery) return;
+                    this.searchQuery = next;
+                    this.applySearchToLists();
+                    this.refreshSidebar();
+                    this.updateMainHeading();
+                }
+
+                handleListSelection(listId) {
+                    if (!listId) return;
+                    this.setActiveList(listId);
+                }
+
+                handleAddList() {
+                    const response = window.prompt?.("Name for the new list", "New List");
+                    if (response == null) return;
+                    const trimmed = response.trim();
+                    if (!trimmed.length) return;
+                    const id = generateListId("list");
+                    const record = this.createList(
+                        { id, title: trimmed, items: [] },
+                        { makeActive: true },
+                    );
+                    if (record) {
+                        this.setActiveList(record.id);
+                        this.refreshSidebar();
+                        this.updateMainHeading();
+                    }
+                }
+
+                handleRenameList() {
+                    if (!this.activeListId) return;
+                    const record = this.listRegistry.get(this.activeListId);
+                    if (!record) return;
+                    const response = window.prompt?.("Rename list", record.name);
+                    if (response == null) return;
+                    const trimmed = response.trim();
+                    if (!trimmed.length) return;
+                    record.name = trimmed;
+                    record.element.setListName(trimmed);
+                    record.headerTitleEl.textContent = trimmed;
+                    this.refreshSidebar();
+                    this.updateMainHeading();
+                }
+
+                handleDeleteList() {
+                    if (!this.activeListId) return;
+                    if (this.listOrder.length <= 1) {
+                        window.alert?.("At least one list must remain.");
+                        return;
+                    }
+                    const record = this.listRegistry.get(this.activeListId);
+                    if (!record) return;
+                    const confirmed = window.confirm?.(
+                        `Delete "${record.name}" and all of its tasks?`,
+                    );
+                    if (!confirmed) return;
+                    const removeId = record.id;
+                    const removeIndex = this.listOrder.indexOf(removeId);
+                    this.removeList(removeId);
+                    if (this.listOrder.length) {
+                        const fallbackIndex = Math.min(
+                            Math.max(removeIndex, 0),
+                            this.listOrder.length - 1,
+                        );
+                        this.activeListId = this.listOrder[fallbackIndex];
+                    } else {
+                        this.activeListId = null;
+                    }
+                    if (this.activeListId) {
+                        this.setActiveList(this.activeListId);
+                    } else {
+                        this.updateListVisibility();
+                        this.refreshSidebar();
+                        this.updateMainHeading();
+                    }
+                }
+
+                handleSidebarDrop(payload, targetListId) {
+                    const sourceListId = payload?.sourceListId;
+                    const itemId = payload?.itemId;
+                    const item = payload?.item ?? null;
+                    if (!sourceListId || !targetListId || !itemId) return;
+                    if (sourceListId === targetListId) return;
+                    this.moveTask(sourceListId, targetListId, itemId, {
+                        snapshot: item,
+                        focus: false,
+                    });
+                }
+
+                handleTaskMoveRequest(event) {
+                    const detail = event.detail ?? {};
+                    const sourceListId =
+                        detail.sourceListId ?? event.currentTarget?.listId ?? null;
+                    const itemId = detail.itemId ?? null;
+                    if (!sourceListId || !itemId) return;
+                    const record = this.listRegistry.get(sourceListId);
+                    if (!record) return;
+                    const snapshot = detail.item ?? record.element.getItemSnapshot(itemId);
+                    if (!snapshot) return;
+                    const searchActive = this.isSearchMode();
+                    const targets = this.listOrder
+                        .map((id) => this.listRegistry.get(id))
+                        .filter((rec) => rec && rec.id !== sourceListId)
+                        .map((rec) => ({
+                            id: rec.id,
+                            name: rec.name,
+                            countLabel: searchActive
+                                ? this.formatMatchCount(
+                                      rec.matchCount ?? rec.element.getSearchMatchCount(),
+                                  )
+                                : this.formatTotalCount(
+                                      rec.totalCount ?? rec.element.getTotalItemCount(),
+                                  ),
+                        }));
+                    if (!targets.length) return;
+                    const restoreFocus = () => {
+                        record.element.focusItem(itemId);
+                    };
+                    this.moveDialog.open({
+                        sourceListId,
+                        itemId,
+                        task: snapshot,
+                        trigger: detail.trigger ?? "button",
+                        targets,
+                        restoreFocus: detail.trigger === "shortcut" ? restoreFocus : null,
+                        onConfirm: ({ targetListId }) => {
+                            this.moveTask(sourceListId, targetListId, itemId, {
+                                snapshot,
+                                focus: detail.trigger === "shortcut",
+                            });
+                        },
+                        onCancel: () => {
+                            if (detail.trigger === "shortcut") {
+                                restoreFocus();
+                            }
+                        },
+                    });
+                }
+
+                handleItemCountChange(event) {
+                    const listId = event.currentTarget?.listId ?? null;
+                    const record = this.listRegistry.get(listId);
+                    if (!record) return;
+                    const total = Number(event.detail?.total);
+                    if (Number.isFinite(total)) {
+                        record.totalCount = total;
+                    } else {
+                        record.totalCount = record.element.getTotalItemCount();
+                    }
+                    this.updateListMatchLabel(record);
+                    if (!this.isApplyingSearch) {
+                        this.refreshSidebar();
+                    }
+                }
+
+                handleSearchResultsChange(event) {
+                    const listId = event.currentTarget?.listId ?? null;
+                    const record = this.listRegistry.get(listId);
+                    if (!record) return;
+                    const matches = Number(event.detail?.matches);
+                    if (Number.isFinite(matches)) {
+                        record.matchCount = matches;
+                    } else {
+                        record.matchCount = record.element.getSearchMatchCount();
+                    }
+                    this.updateListMatchLabel(record);
+                    if (!this.isApplyingSearch) {
+                        this.refreshSidebar();
+                    }
+                }
+
+                handleListFocus(event) {
+                    const detail = event.detail ?? {};
+                    this.lastFocused = {
+                        listId: detail.sourceListId ?? event.currentTarget?.listId ?? null,
+                        itemId: detail.itemId ?? null,
+                    };
+                }
+
+                setActiveList(listId) {
+                    if (!listId || !this.listRegistry.has(listId)) return;
+                    if (this.activeListId === listId && !this.isSearchMode()) {
+                        return;
+                    }
+                    this.activeListId = listId;
+                    this.updateListVisibility();
+                    this.refreshSidebar();
+                    this.updateMainHeading();
+                }
+
+                applySearchToLists() {
+                    this.isApplyingSearch = true;
+                    this.listOrder.forEach((id) => {
+                        const record = this.listRegistry.get(id);
+                        if (!record) return;
+                        record.element.applyFilter(this.searchQuery);
+                        record.matchCount = record.element.getSearchMatchCount();
+                    });
+                    this.isApplyingSearch = false;
+                    this.updateSearchMode();
+                }
+
+                moveTask(sourceListId, targetListId, itemId, options = {}) {
+                    if (!itemId || sourceListId === targetListId) return;
+                    const sourceRecord = this.listRegistry.get(sourceListId);
+                    const targetRecord = this.listRegistry.get(targetListId);
+                    if (!sourceRecord || !targetRecord) return;
+                    const snapshot =
+                        options.snapshot ?? sourceRecord.element.getItemSnapshot(itemId);
+                    if (!snapshot) return;
+                    const removed = sourceRecord.element.removeItemById(itemId);
+                    if (!removed) return;
+                    targetRecord.element.prependItem(snapshot);
+                    this.refreshMetrics(sourceRecord);
+                    this.refreshMetrics(targetRecord);
+                    if (options.focus) {
+                        targetRecord.element.focusItem(itemId);
+                    }
+                    this.flashList(targetListId);
+                    this.refreshSidebar();
+                }
+
+                refreshMetrics(record) {
+                    if (!record) return;
+                    record.totalCount = record.element.getTotalItemCount();
+                    record.matchCount = record.element.getSearchMatchCount();
+                    this.updateListMatchLabel(record);
+                }
+
+                refreshSidebar() {
+                    const data = this.getSidebarListData();
+                    this.sidebar.setLists(data, {
+                        activeListId: this.activeListId,
+                        searchQuery: this.searchQuery,
+                    });
+                }
+
+                getSidebarListData() {
+                    const searchActive = this.isSearchMode();
+                    return this.listOrder
+                        .map((id) => {
+                            const record = this.listRegistry.get(id);
+                            if (!record) return null;
+                            return {
+                                id: record.id,
+                                name: record.name,
+                                totalCount: record.totalCount,
+                                matchCount: record.matchCount,
+                                countLabel: searchActive
+                                    ? this.formatMatchCount(record.matchCount)
+                                    : this.formatTotalCount(record.totalCount),
+                            };
+                        })
+                        .filter(Boolean);
+                }
+
+                updateSearchMode() {
+                    const searchMode = this.isSearchMode();
+                    if (this.mainElement) {
+                        this.mainElement.classList.toggle("search-mode", searchMode);
+                    }
+                    this.updateListVisibility();
+                    this.listOrder.forEach((id) => {
+                        const record = this.listRegistry.get(id);
+                        if (!record) return;
+                        this.updateListMatchLabel(record);
+                    });
+                }
+
+                updateListVisibility() {
+                    const searchMode = this.isSearchMode();
+                    this.listOrder.forEach((id) => {
+                        const record = this.listRegistry.get(id);
+                        if (!record) return;
+                        const isActive = id === this.activeListId;
+                        const shouldShow = searchMode || isActive;
+                        record.wrapper.classList.toggle("is-visible", shouldShow);
+                        record.wrapper.classList.toggle("is-active", isActive);
+                        if (record.matchLabelEl) {
+                            record.matchLabelEl.hidden = !searchMode;
+                        }
+                    });
+                }
+
+                updateListMatchLabel(record) {
+                    if (!record || !record.matchLabelEl) return;
+                    record.headerTitleEl.textContent = record.name;
+                    const searchMode = this.isSearchMode();
+                    record.matchLabelEl.hidden = !searchMode;
+                    const label = searchMode
+                        ? this.formatMatchCount(record.matchCount)
+                        : this.formatTotalCount(record.totalCount);
+                    record.matchLabelEl.textContent = label;
+                }
+
+                updateMainHeading() {
+                    if (!this.mainTitleEl) return;
+                    if (this.isSearchMode()) {
+                        if (this.searchQuery.trim().length) {
+                            this.mainTitleEl.textContent = `Search: "${this.searchQuery}"`;
+                        } else {
+                            this.mainTitleEl.textContent = "Search Results";
+                        }
+                        return;
+                    }
+                    const active = this.listRegistry.get(this.activeListId);
+                    this.mainTitleEl.textContent = active ? active.name : "Task Collections";
+                }
+
+                flashList(listId) {
+                    const record = this.listRegistry.get(listId);
+                    if (!record) return;
+                    if (record.flashTimer) {
+                        clearTimeout(record.flashTimer);
+                    }
+                    record.wrapper.classList.add("list-section--flash");
+                    record.flashTimer = setTimeout(() => {
+                        record.wrapper.classList.remove("list-section--flash");
+                        record.flashTimer = null;
+                    }, 600);
+                }
+
+                isSearchMode() {
+                    return this.searchQuery.trim().length > 0;
+                }
+
+                formatMatchCount(count) {
+                    if (!count) return "No matches";
+                    return count === 1 ? "1 match" : `${count} matches`;
+                }
+
+                formatTotalCount(count) {
+                    if (!count) return "No items";
+                    return count === 1 ? "1 item" : `${count} items`;
+                }
+            }
+
+            document.addEventListener("DOMContentLoaded", () => {
+                const appRoot = document.querySelector("[data-role='lists-app']");
+                if (!appRoot) return;
+                const sidebarElement = appRoot.querySelector("[data-role='sidebar']");
+                const mainElement = appRoot.querySelector("[data-role='main']");
+                const listsContainer = appRoot.querySelector("[data-role='lists-container']");
+                const mainTitleElement =
+                    mainElement?.querySelector("[data-role='active-list-title']") ?? null;
+                const moveDialogElement = document.querySelector("[data-role='move-dialog']");
+                const app = new ListsApp({
+                    sidebarElement,
+                    mainElement,
+                    listsContainer,
+                    mainTitleElement,
+                    moveDialogElement,
+                });
+                app.initialize();
+                window.listsApp = app;
             });
         </script>
     </body>
