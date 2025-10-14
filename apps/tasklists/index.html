@@ -374,6 +374,8 @@
                 removeItem: "list/removeItem",
             };
 
+            // Centralizes allowed list mutations so the UI can ignore no-op actions and keep
+            // state transitions predictable, which helps us skip redundant DOM work.
             const listReducer = (state = { title: "", items: [] }, action = {}) => {
                 switch (action.type) {
                     case LIST_ACTIONS.setTitle: {
@@ -459,6 +461,8 @@
                 }
             };
 
+            // Lightweight Redux-style store keeps the prototype dependency-free while still
+            // allowing multiple collaborators (view, editor, drag) to react to one state source.
             const createStore = (reducer, preloadedState) => {
                 let currentState =
                     typeof preloadedState === "undefined"
@@ -494,6 +498,8 @@
                     .replace(/"/g, "&quot;")
                     .replace(/'/g, "&#39;");
 
+            // Flattens overlapping highlight ranges so decoration stays deterministic when
+            // multiple matchers target the same characters.
             const mergeRanges = (ranges) => {
                 if (!ranges.length) return [];
                 const sorted = ranges.slice().sort((a, b) => {
@@ -515,6 +521,8 @@
                 return merged;
             };
 
+            // Produces highlighted markup only when every search token matches, so the UI
+            // reinforces the filter semantics instead of showing partial hits.
             const buildDecoratedMarkup = (original, tokens, patternConfig) => {
                 const haystack = original.toLowerCase();
                 const ranges = [];
@@ -640,9 +648,8 @@
                 return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
             };
 
-            // DraggableBehavior - drag & drop with floating dragged item and an optional animator
-            // It assumes it is being applied to a list container as some of the internals assume
-            // li elements
+            // Orchestrates drag interactions so mouse and touch behave consistently, and delays
+            // placeholder creation to sidestep browser quirks that would otherwise cancel drags.
             class DraggableBehavior {
                 constructor(container, options = {}) {
                     this.container = container;
@@ -1028,6 +1035,7 @@
 
             // FLIPAnimator isolates the animation concerns from the drag logic so a
             // different animator can be supplied if desired.
+            // Keeps reorder operations feeling instantaneous by masking layout jumps with FLIP.
             class FlipAnimator {
                 snapshot(container, dragging) {
                     const map = new Map();
@@ -1072,6 +1080,7 @@
             }
 
             // InlineTextEditor manages single-click editing for list item text content.
+            // We keep it custom so we can honor task keyboard shortcuts without fighting native inputs.
             class InlineTextEditor {
                 constructor(list, options = {}) {
                     this.list = list;
@@ -1547,6 +1556,8 @@
                 }
             }
 
+            // EditController queues follow-up edits so caret placement survives rerenders that
+            // happen between an action (merge, move) and the next paint.
             class EditController {
                 constructor({ getListElement, getInlineEditor }) {
                     this.getListElement =
@@ -1610,6 +1621,8 @@
                 }
             }
 
+            // TaskListView keeps DOM reconciliation separate from state changes so we can reuse
+            // focused nodes and avoid churn when the reducer reorders items.
             class TaskListView {
                 constructor({ getListElement }) {
                     this.getListElement =
@@ -1689,6 +1702,8 @@
                 }
             }
 
+            // Custom element binds the store, view, and behaviors together so the prototype
+            // remains drop-in embeddable without a framework runtime.
             class A4TaskList extends HTMLElement {
                 constructor() {
                     super();
@@ -1985,6 +2000,8 @@
                 }
 
                 normalizePatternDefs(defs) {
+                    // Accepts both literal regexes and plain objects so embedding pages can
+                    // configure highlights without worrying about flag safety or class naming.
                     if (!Array.isArray(defs)) return [];
                     const normalized = [];
                     defs.forEach((def) => {
@@ -2126,6 +2143,7 @@
                     });
                 }
 
+                // Re-stitches adjacent tasks on Backspace so users can treat the list like a text editor without losing content.
                 handleEditMerge({ currentItemId, previousItemId, currentText, selectionStart }) {
                     if (!this.store || !currentItemId || !previousItemId) return false;
 
@@ -2165,6 +2183,7 @@
                     return true;
                 }
 
+                // Redirects focus when a task is deleted so keyboard users land on a sensible neighbor instead of losing their place.
                 handleEditRemove({ element }) {
                     if (!element || !this.store) return;
                     const li = element.closest("li");
@@ -2189,6 +2208,7 @@
                     });
                 }
 
+                // Supports ctrl/cmd + arrow reordering while preserving caret placement, matching expectations from native outliners.
                 handleEditMove({ element, direction, selectionStart }) {
                     if (!element || !this.store) return;
                     const li = element.closest("li");
@@ -2226,6 +2246,7 @@
                     this.renderFromState(this.store.getState());
                 }
 
+                // Acts as the single render pass so focus management and search updates happen in a predictable order after each state change.
                 renderFromState(state) {
                     if (!this.listEl || !state) return;
 
@@ -2383,6 +2404,8 @@
                     this.performSearch(this.searchQuery);
                 }
 
+                // Keeps filtering and highlighting in sync with state changes so users never see
+                // stale markup, while forcing certain ids visible when edits demand it.
                 performSearch(query, options = {}) {
                     if (!this.listEl) return;
                     this.searchQuery = query;
