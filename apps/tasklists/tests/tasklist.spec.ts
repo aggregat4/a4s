@@ -76,6 +76,7 @@ test.beforeEach(async ({ page }) => {
     page.locator("[data-role='active-list-title']"),
   ).toHaveText("Prototype Tasks");
   await expect(page.locator(listItemsSelector).first()).toBeVisible();
+  await expect(page.locator(".lists-main-header")).toBeHidden();
 });
 
 test("user can add, complete, and filter tasks", async ({ page }) => {
@@ -182,6 +183,8 @@ test("search highlights matching tokens and clears after reset", async ({
 }) => {
   const searchInput = globalSearchInput(page);
   await searchInput.fill("bird");
+  const pageHeader = page.locator(".lists-main-header");
+  await expect(pageHeader).toBeVisible();
 
   const visible = page.locator(
     "ol.tasklist li:not(.placeholder):not([hidden])",
@@ -192,13 +195,16 @@ test("search highlights matching tokens and clears after reset", async ({
 
   await searchInput.fill("");
   await expect(page.locator("ol.tasklist mark")).toHaveCount(0);
+  await expect(pageHeader).toBeHidden();
 
   await searchInput.fill("no-such-term");
+  await expect(pageHeader).toBeVisible();
   const emptyMessages = page.locator(".tasklist-empty:not([hidden])");
   await expect(emptyMessages).toHaveCount(3);
   await expect(emptyMessages.first()).toHaveText("No matching items");
   await searchInput.fill("");
   await expect(page.locator("a4-tasklist.tasklist-no-matches")).toHaveCount(0);
+  await expect(pageHeader).toBeHidden();
 });
 
 test("completed tasks stay checked after performing a search", async ({
