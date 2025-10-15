@@ -289,9 +289,29 @@
                     font-size: var(--font-size-title);
                     font-weight: 600;
                     color: var(--color-text);
+                    padding: 0 var(--space-xs);
+                    border: 1px solid transparent;
+                    border-radius: var(--radius-sm);
+                    cursor: text;
+                    transition:
+                        border-color var(--transition-fast),
+                        background-color var(--transition-fast),
+                        box-shadow var(--transition-fast);
+                    outline: none;
 
                     &:empty {
                         display: none;
+                    }
+
+                    &:focus-visible {
+                        border-color: var(--outline-color);
+                        box-shadow: 0 0 0 2px rgba(77, 77, 77, 0.25);
+                    }
+
+                    &.is-editing {
+                        border-color: var(--outline-color);
+                        background-color: var(--color-surface);
+                        box-shadow: 0 0 0 2px rgba(77, 77, 77, 0.25);
                     }
                 }
 
@@ -669,9 +689,6 @@
                 <div class="sidebar-section sidebar-actions">
                     <button type="button" data-role="add-list">
                         Add list
-                    </button>
-                    <button type="button" data-role="rename-list">
-                        Rename list
                     </button>
                     <button type="button" class="danger" data-role="delete-list">
                         Delete list
@@ -2234,7 +2251,10 @@
                     this.lastReportedMatches = null;
                     this.lastReportedTotal = null;
                     this.lastReportedQuery = "";
+                    this.lastReportedTitle = null;
                     this.emptyStateEl = null;
+                    this.isTitleEditing = false;
+                    this.titleOriginalValue = "";
 
                     this.handleSearchInput = this.handleSearchInput.bind(this);
                     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -2254,6 +2274,9 @@
                     this.handleItemKeyDown = this.handleItemKeyDown.bind(this);
                     this.handleFocusIn = this.handleFocusIn.bind(this);
                     this.handleListDragStart = this.handleListDragStart.bind(this);
+                    this.handleTitleClick = this.handleTitleClick.bind(this);
+                    this.handleTitleKeyDown = this.handleTitleKeyDown.bind(this);
+                    this.handleTitleBlur = this.handleTitleBlur.bind(this);
 
                     this.editController = new EditController({
                         getListElement: () => this.listEl,
@@ -2501,6 +2524,15 @@
                         this.addButton = addButton;
                     }
 
+                    if (this.titleEl) {
+                        this.titleEl.setAttribute("tabindex", "0");
+                        this.titleEl.setAttribute("title", "Click to rename");
+                        this.titleEl.removeEventListener("click", this.handleTitleClick);
+                        this.titleEl.addEventListener("click", this.handleTitleClick);
+                        this.titleEl.removeEventListener("keydown", this.handleTitleKeyDown);
+                        this.titleEl.addEventListener("keydown", this.handleTitleKeyDown);
+                    }
+
                     if (this.searchInput) {
                         this.searchInput.removeEventListener("input", this.handleSearchInput);
                         this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
@@ -2520,8 +2552,128 @@
                     }
                 }
 
-                syncTitle() {
+                startTitleEditing() {
+                    if (!this.titleEl || this.isTitleEditing) return;
+                    this.isTitleEditing = true;
+                    this.titleOriginalValue = this.titleEl.textContent ?? "";
+                    this.titleEl.classList.add("is-editing");
+                    this.titleEl.setAttribute("contenteditable", "true");
+                    this.titleEl.setAttribute("spellcheck", "false");
+                    this.titleEl.setAttribute("role", "textbox");
+                    this.titleEl.setAttribute("aria-multiline", "false");
+                    this.titleEl.setAttribute("aria-label", "List title");
+                    this.titleEl.addEventListener("blur", this.handleTitleBlur);
+                    this.titleEl.focus();
+                    const selection = document.getSelection();
+                    if (selection) {
+                        const range = document.createRange();
+                        range.selectNodeContents(this.titleEl);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }
+                }
+
+                finishTitleEditing() {
                     if (!this.titleEl) return;
+                    this.titleEl.classList.remove("is-editing");
+                    this.titleEl.removeAttribute("contenteditable");
+                    this.titleEl.removeAttribute("spellcheck");
+                    this.titleEl.removeAttribute("role");
+                    this.titleEl.removeAttribute("aria-multiline");
+                    this.titleEl.removeAttribute("aria-label");
+                    this.titleEl.removeEventListener("blur", this.handleTitleBlur);
+                    this.isTitleEditing = false;
+                    this.titleOriginalValue = "";
+                }
+
+                commitTitleEditing({ restoreFocus = true } = {}) {
+                    if (!this.titleEl || !this.isTitleEditing) return;
+                    const rawValue = this.titleEl.textContent ?? "";
+                    const trimmed = rawValue.trim();
+                    const previousValue = this.titleOriginalValue ?? "";
+
+                    if (!trimmed.length) {
+                        this.titleEl.textContent = previousValue;
+                        this.finishTitleEditing();
+                        if (restoreFocus) {
+                            this.titleEl.focus();
+                        }
+                        return;
+                    }
+
+                    this.titleEl.textContent = trimmed;
+                    this.finishTitleEditing();
+
+                    if (trimmed === previousValue) {
+                        if (restoreFocus) {
+                            this.titleEl.focus();
+                        }
+                        return;
+                    }
+
+                    if (this.store) {
+                        this.store.dispatch({
+                            type: LIST_ACTIONS.setTitle,
+                            payload: { title: trimmed },
+                        });
+                    } else {
+                        this.setAttribute("name", trimmed);
+                        this.syncTitle();
+                        this.dispatchEvent(
+                            new CustomEvent("titlechange", {
+                                detail: { title: trimmed },
+                                bubbles: true,
+                                composed: true,
+                            }),
+                        );
+                    }
+
+                    if (restoreFocus) {
+                        this.titleEl.focus();
+                    }
+                }
+
+                cancelTitleEditing({ restoreFocus = true } = {}) {
+                    if (!this.titleEl || !this.isTitleEditing) return;
+                    const previousValue = this.titleOriginalValue ?? "";
+                    this.titleEl.textContent = previousValue;
+                    this.finishTitleEditing();
+                    if (restoreFocus) {
+                        this.titleEl.focus();
+                    }
+                }
+
+                handleTitleClick() {
+                    if (this.isTitleEditing) return;
+                    this.startTitleEditing();
+                }
+
+                handleTitleKeyDown(event) {
+                    if (!this.titleEl) return;
+                    if (this.isTitleEditing) {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            this.commitTitleEditing();
+                        } else if (event.key === "Escape") {
+                            event.preventDefault();
+                            this.cancelTitleEditing();
+                        }
+                        return;
+                    }
+
+                    if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+                        event.preventDefault();
+                        this.startTitleEditing();
+                    }
+                }
+
+                handleTitleBlur() {
+                    if (!this.isTitleEditing) return;
+                    this.commitTitleEditing({ restoreFocus: false });
+                }
+
+                syncTitle() {
+                    if (!this.titleEl || this.isTitleEditing) return;
                     const value = this.getAttribute("name");
                     this.titleEl.textContent = value ?? "";
                 }
@@ -2797,7 +2949,7 @@
                     }
 
                     const nextTitle = state.title ?? "";
-                    if (this.titleEl) {
+                    if (this.titleEl && !this.isTitleEditing) {
                         this.titleEl.textContent = nextTitle;
                     }
 
@@ -2810,6 +2962,17 @@
                             this.removeAttribute("name");
                         }
                         this.suppressNameSync = false;
+                    }
+
+                    if (nextTitle !== this.lastReportedTitle) {
+                        this.lastReportedTitle = nextTitle;
+                        this.dispatchEvent(
+                            new CustomEvent("titlechange", {
+                                detail: { title: nextTitle },
+                                bubbles: true,
+                                composed: true,
+                            }),
+                        );
                     }
 
                     const forceVisible = this.editController.getForceVisibleIds();
@@ -3287,7 +3450,6 @@
                     this.listContainer =
                         element?.querySelector("[data-role='sidebar-list']") ?? null;
                     this.addButton = element?.querySelector("[data-role='add-list']") ?? null;
-                    this.renameButton = element?.querySelector("[data-role='rename-list']") ?? null;
                     this.deleteButton = element?.querySelector("[data-role='delete-list']") ?? null;
                     this.searchDebounceId = null;
                     this.currentLists = [];
@@ -3307,9 +3469,6 @@
                     this.searchInput?.addEventListener("input", this.handleSearchInput);
                     this.searchInput?.addEventListener("keydown", this.handleSearchKeyDown);
                     this.addButton?.addEventListener("click", () => this.handlers.onAddList?.());
-                    this.renameButton?.addEventListener("click", () =>
-                        this.handlers.onRenameList?.(),
-                    );
                     this.deleteButton?.addEventListener("click", () =>
                         this.handlers.onDeleteList?.(),
                     );
@@ -3345,9 +3504,6 @@
 
                 updateActionStates() {
                     const listCount = this.currentLists.length;
-                    if (this.renameButton) {
-                        this.renameButton.disabled = !this.activeListId;
-                    }
                     if (this.deleteButton) {
                         this.deleteButton.disabled = listCount <= 1 || !this.activeListId;
                     }
@@ -3656,19 +3812,18 @@
                     this.handleSearchChange = this.handleSearchChange.bind(this);
                     this.handleListSelection = this.handleListSelection.bind(this);
                     this.handleAddList = this.handleAddList.bind(this);
-                    this.handleRenameList = this.handleRenameList.bind(this);
                     this.handleDeleteList = this.handleDeleteList.bind(this);
                     this.handleSidebarDrop = this.handleSidebarDrop.bind(this);
                     this.handleTaskMoveRequest = this.handleTaskMoveRequest.bind(this);
                     this.handleItemCountChange = this.handleItemCountChange.bind(this);
                     this.handleSearchResultsChange = this.handleSearchResultsChange.bind(this);
                     this.handleListFocus = this.handleListFocus.bind(this);
+                    this.handleListTitleChange = this.handleListTitleChange.bind(this);
 
                     this.sidebar = new Sidebar(this.sidebarElement, {
                         onSearchChange: this.handleSearchChange,
                         onSelectList: this.handleListSelection,
                         onAddList: this.handleAddList,
-                        onRenameList: this.handleRenameList,
                         onDeleteList: this.handleDeleteList,
                         onItemDropped: this.handleSidebarDrop,
                     });
@@ -3752,6 +3907,7 @@
                     element.addEventListener("itemcountchange", this.handleItemCountChange);
                     element.addEventListener("searchresultschange", this.handleSearchResultsChange);
                     element.addEventListener("taskFocus", this.handleListFocus);
+                    element.addEventListener("titlechange", this.handleListTitleChange);
                 }
 
                 removeList(listId) {
@@ -3765,6 +3921,7 @@
                         this.handleSearchResultsChange,
                     );
                     element.removeEventListener("taskFocus", this.handleListFocus);
+                    element.removeEventListener("titlechange", this.handleListTitleChange);
                     if (record.flashTimer) {
                         clearTimeout(record.flashTimer);
                         record.flashTimer = null;
@@ -3805,18 +3962,21 @@
                     }
                 }
 
-                handleRenameList() {
-                    if (!this.activeListId) return;
-                    const record = this.listRegistry.get(this.activeListId);
-                    if (!record) return;
-                    const response = window.prompt?.("Rename list", record.name);
-                    if (response == null) return;
-                    const trimmed = response.trim();
-                    if (!trimmed.length) return;
-                    record.name = trimmed;
-                    record.element.setListName(trimmed);
+                handleListTitleChange(event) {
+                    const element = event.currentTarget ?? null;
+                    const listId = element?.listId ?? element?.dataset?.listId ?? null;
+                    const detailTitle =
+                        typeof event.detail?.title === "string" ? event.detail.title : "";
+                    if (!listId) return;
+                    const trimmed = detailTitle.trim();
+                    const nextName = trimmed.length ? trimmed : "Untitled List";
+                    const record = this.listRegistry.get(listId);
+                    if (!record || record.name === nextName) return;
+                    record.name = nextName;
                     this.refreshSidebar();
-                    this.updateMainHeading();
+                    if (this.activeListId === listId) {
+                        this.updateMainHeading();
+                    }
                 }
 
                 handleDeleteList() {
