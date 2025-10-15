@@ -45,7 +45,7 @@ async function setCaretPosition(target: Locator, position: number) {
     if (!textNode) return;
     const safeOffset = Math.max(
       0,
-      Math.min(offset ?? 0, textNode.textContent?.length ?? 0),
+      Math.min(offset ?? 0, textNode.textContent?.length ?? 0)
     );
     const range = el.ownerDocument.createRange();
     range.setStart(textNode, safeOffset);
@@ -72,9 +72,9 @@ async function getCaretOffset(target: Locator) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto(appUrl);
-  await expect(
-    page.locator("[data-role='active-list-title']"),
-  ).toHaveText("Prototype Tasks");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Prototype Tasks"
+  );
   await expect(page.locator(listItemsSelector).first()).toBeVisible();
   await expect(page.locator(".lists-main-header")).toBeHidden();
 });
@@ -91,7 +91,9 @@ test("user can add, complete, and filter tasks", async ({ page }) => {
   await expect(topTask).toHaveText("Playwright smoke task");
 
   const listRoot = page
-    .locator("[data-role='lists-container'] .list-section.is-visible ol.tasklist li")
+    .locator(
+      "[data-role='lists-container'] .list-section.is-visible ol.tasklist li"
+    )
     .first();
   const checkbox = listRoot.locator("input.done-toggle");
   await checkbox.check();
@@ -104,11 +106,11 @@ test("user can add, complete, and filter tasks", async ({ page }) => {
   await searchInput.fill("playwright");
 
   const visibleTasks = page.locator(
-    "ol.tasklist li:not(.placeholder):not([hidden])",
+    "ol.tasklist li:not(.placeholder):not([hidden])"
   );
   await expect(visibleTasks).toHaveCount(1);
   await expect(visibleTasks.first().locator(".text")).toContainText(
-    "Playwright smoke task",
+    "Playwright smoke task"
   );
 });
 
@@ -139,7 +141,7 @@ test("pressing enter splits the current task into two", async ({ page }) => {
   const secondText = items.nth(1).locator(".text");
   await expect(secondText).toHaveText("Here");
   await expect(
-    page.locator(".text[contenteditable='true']").filter({ hasText: "Here" }),
+    page.locator(".text[contenteditable='true']").filter({ hasText: "Here" })
   ).toHaveCount(1);
 });
 
@@ -187,7 +189,7 @@ test("search highlights matching tokens and clears after reset", async ({
   await expect(pageHeader).toBeVisible();
 
   const visible = page.locator(
-    "ol.tasklist li:not(.placeholder):not([hidden])",
+    "ol.tasklist li:not(.placeholder):not([hidden])"
   );
   await expect(visible).toHaveCount(1);
   await expect(page.locator("ol.tasklist mark")).toHaveCount(1);
@@ -225,7 +227,9 @@ test("completed tasks stay checked after performing a search", async ({
 
 test("show done toggle reveals and hides completed items", async ({ page }) => {
   const firstItem = page
-    .locator("[data-role='lists-container'] .list-section.is-visible ol.tasklist li")
+    .locator(
+      "[data-role='lists-container'] .list-section.is-visible ol.tasklist li"
+    )
     .first();
   const firstText =
     (await firstItem.locator(".text").textContent())?.trim() ?? "";
@@ -251,15 +255,13 @@ test("adding a task resets any active search filter", async ({ page }) => {
 
   const matchesCount = await page
     .locator(
-      ".list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])",
+      ".list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])"
     )
     .count();
   expect(matchesCount).toBeGreaterThan(0);
 
   await page
-    .locator(
-      "[data-role='lists-container'] .list-section.is-visible .tasklist-add-button",
-    )
+    .locator("[data-role='lists-container'] .list-section.is-visible button")
     .first()
     .click();
 
@@ -281,7 +283,7 @@ test("keyboard shortcut moves items while preserving caret position", async ({
 
   const movedText = items.nth(1).locator(".text");
   await expect(page.locator(".text[contenteditable='true']")).toContainText(
-    "Keyboard Move",
+    "Keyboard Move"
   );
   await expect(movedText).toHaveText("Keyboard Move");
   const offsetAfterDown = await getCaretOffset(movedText);
@@ -312,7 +314,7 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(secondTextLocator).not.toHaveAttribute(
     "contenteditable",
-    "true",
+    "true"
   );
 
   await expect(items.first().locator(".text")).toHaveText("Fresh");
@@ -335,7 +337,7 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
   expect(stateAfter?.state?.items?.[0]?.text).toBe("Fresh");
   const remainderCount =
     stateAfter?.state?.items?.filter(
-      (item: any) => item?.text === splitRemainder,
+      (item: any) => item?.text === splitRemainder
     )?.length ?? 0;
   expect(remainderCount).toBe(1);
 
@@ -348,7 +350,7 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
   await expect(
     page
       .locator(`${listItemsSelector} .text`)
-      .filter({ hasText: splitRemainder || originalFirst }),
+      .filter({ hasText: splitRemainder || originalFirst })
   ).toHaveCount(1);
 });
 
@@ -357,7 +359,13 @@ test("dragging task to sidebar leaves no placeholders", async ({ page }) => {
     .locator(".sidebar-list-button")
     .filter({ hasText: "Weekend Projects" });
   const originalText =
-    (await page.locator(listItemsSelector).first().locator(".text").textContent())?.trim() ?? "";
+    (
+      await page
+        .locator(listItemsSelector)
+        .first()
+        .locator(".text")
+        .textContent()
+    )?.trim() ?? "";
 
   await page.locator(listItemsSelector).first().dragTo(destinationButton);
 
@@ -367,7 +375,9 @@ test("dragging task to sidebar leaves no placeholders", async ({ page }) => {
   await destinationButton.click();
   if (originalText) {
     await expect(
-      page.locator("ol.tasklist li:not(.placeholder) .text").filter({ hasText: originalText }),
+      page
+        .locator("ol.tasklist li:not(.placeholder) .text")
+        .filter({ hasText: originalText })
     ).toHaveCount(1);
   }
 });
@@ -384,13 +394,11 @@ test("deleting a list removes it and selects a fallback list", async ({
   await page.getByRole("button", { name: "Delete list" }).click();
 
   await expect(
-    page
-      .locator(".sidebar-list-button")
-      .filter({ hasText: "Weekend Projects" }),
+    page.locator(".sidebar-list-button").filter({ hasText: "Weekend Projects" })
   ).toHaveCount(0);
-  await expect(
-    page.locator("[data-role='active-list-title']"),
-  ).toHaveText("Work Follow-ups");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Work Follow-ups"
+  );
   await expect(page.locator(listItemsSelector).first()).toBeVisible();
 });
 
