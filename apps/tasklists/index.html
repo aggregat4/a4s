@@ -4186,17 +4186,28 @@
                     wrapper.className = "list-section";
                     wrapper.dataset.listId = id;
 
-                    const listElement = document.createElement("a4-tasklist");
-                    listElement.setAttribute("name", name);
+                    const items = Array.isArray(config.items)
+                        ? config.items.map((item) => ({ ...item }))
+                        : [];
+
+                    render(
+                        html`
+                            <a4-tasklist name=${name}></a4-tasklist>
+                        `,
+                        wrapper,
+                    );
+                    this.listsContainer.appendChild(wrapper);
+
+                    const listElement = wrapper.querySelector("a4-tasklist");
+                    if (!listElement) {
+                        wrapper.remove();
+                        return null;
+                    }
                     listElement.listId = id;
                     listElement.initialState = {
                         title: name,
-                        items: Array.isArray(config.items)
-                            ? config.items.map((item) => ({ ...item }))
-                            : [],
+                        items,
                     };
-                    wrapper.appendChild(listElement);
-                    this.listsContainer.appendChild(wrapper);
 
                     const record = {
                         id,
