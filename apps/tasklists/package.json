@@ -2,6 +2,7 @@
   "name": "prototype-lists",
   "version": "1.0.0",
   "scripts": {
+    "start": "npx http-server . -p 8000 -c-1",
     "test": "npm run test:e2e",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed"
