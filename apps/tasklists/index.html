@@ -3799,6 +3799,7 @@
                     this.handleListDragLeave = this.handleListDragLeave.bind(this);
                     this.handleListDrop = this.handleListDrop.bind(this);
                     this.handleGlobalDragEnd = this.handleGlobalDragEnd.bind(this);
+                    this.handleSidebarButtonClick = this.handleSidebarButtonClick.bind(this);
                 }
 
                 init() {
@@ -3847,38 +3848,40 @@
 
                 renderLists() {
                     if (!this.listContainer) return;
-                    this.listContainer.textContent = "";
-                    const fragment = document.createDocumentFragment();
-                    this.currentLists.forEach((list) => {
-                        const li = document.createElement("li");
-                        const button = document.createElement("button");
-                        button.type = "button";
-                        button.className = "sidebar-list-button";
-                        button.dataset.listId = list.id;
-                        button.classList.toggle("is-active", list.id === this.activeListId);
-                        if (list.id === this.activeListId) {
-                            button.setAttribute("aria-current", "true");
-                        } else {
-                            button.removeAttribute("aria-current");
-                        }
-                        const label = document.createElement("span");
-                        label.className = "sidebar-list-label";
-                        label.textContent = list.name;
-                        const count = document.createElement("span");
-                        count.className = "sidebar-list-count";
-                        count.textContent = list.countLabel ?? "";
-                        button.append(label, count);
-                        button.addEventListener("click", () => {
-                            this.handlers.onSelectList?.(list.id);
-                        });
-                        button.addEventListener("dragenter", this.handleListDragEnter);
-                        button.addEventListener("dragover", this.handleListDragOver);
-                        button.addEventListener("dragleave", this.handleListDragLeave);
-                        button.addEventListener("drop", this.handleListDrop);
-                        li.appendChild(button);
-                        fragment.appendChild(li);
-                    });
-                    this.listContainer.appendChild(fragment);
+                    render(
+                        html`${this.currentLists.map((list) => {
+                            const isActive = list.id === this.activeListId;
+                            const buttonClass = isActive
+                                ? "sidebar-list-button is-active"
+                                : "sidebar-list-button";
+                            return html`
+                                <li>
+                                    <button
+                                        type="button"
+                                        class=${buttonClass}
+                                        data-list-id=${list.id}
+                                        aria-current=${isActive ? "true" : undefined}
+                                        @click=${this.handleSidebarButtonClick}
+                                        @dragenter=${this.handleListDragEnter}
+                                        @dragover=${this.handleListDragOver}
+                                        @dragleave=${this.handleListDragLeave}
+                                        @drop=${this.handleListDrop}
+                                    >
+                                        <span class="sidebar-list-label">${list.name}</span>
+                                        <span class="sidebar-list-count">${list.countLabel ?? ""}</span>
+                                    </button>
+                                </li>
+                            `;
+                        })}`,
+                        this.listContainer,
+                    );
+                }
+
+                handleSidebarButtonClick(event) {
+                    const button = event.currentTarget;
+                    const listId = button?.dataset?.listId;
+                    if (!listId) return;
+                    this.handlers.onSelectList?.(listId);
                 }
 
                 handleSearchInput(event) {
