@@ -275,6 +275,83 @@ test("task action menu toggles inline controls", async ({ page }) => {
   await expect(actions).toHaveAttribute("aria-hidden", "true");
 });
 
+test("task action menu move triggers move dialog and closes tray", async ({
+  page,
+}) => {
+  const items = page.locator(listItemsSelector);
+  const firstItem = items.first();
+  const toggle = firstItem.locator(".task-item__toggle");
+  await toggle.click();
+
+  const moveButton = firstItem
+    .locator(".task-item__actions")
+    .locator("button", { hasText: "Move" });
+  await expect(moveButton).toBeVisible();
+
+  const originalText =
+    (await firstItem.locator(".text").textContent())?.trim() ?? "";
+
+  await moveButton.click();
+
+  const moveDialog = page.locator(".move-dialog__content");
+  await expect(moveDialog).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    firstItem.locator(".task-item__actions")
+  ).toHaveAttribute("aria-hidden", "true");
+
+  const destination = moveDialog
+    .locator(".move-dialog__option")
+    .filter({ hasText: "Weekend Projects" });
+  await destination.click();
+  await expect(moveDialog).toBeHidden();
+
+  await page
+    .locator(".sidebar-list-button")
+    .filter({ hasText: "Weekend Projects" })
+    .click();
+
+  if (originalText) {
+    await expect(
+      page
+        .locator(listItemsSelector)
+        .first()
+        .locator(".text")
+        .filter({ hasText: originalText })
+    ).toBeVisible();
+  }
+});
+
+test("task action menu delete prompts confirmation and removes task", async ({
+  page,
+}) => {
+  const items = page.locator(listItemsSelector);
+  const itemCount = await items.count();
+  const firstItem = items.first();
+  const toggle = firstItem.locator(".task-item__toggle");
+  await toggle.click();
+
+  const deleteButton = firstItem
+    .locator(".task-item__actions")
+    .locator("button", { hasText: "Delete" });
+  await expect(deleteButton).toBeVisible();
+
+  const itemText = (await firstItem.locator(".text").textContent())?.trim();
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain(itemText ?? "");
+    await dialog.accept();
+  });
+
+  await deleteButton.click();
+
+  await expect(
+    firstItem.locator(".task-item__actions")
+  ).toHaveAttribute("aria-hidden", "true");
+  await expect(firstItem).not.toHaveClass(/task-item--actions/);
+  await expect(page.locator(listItemsSelector)).toHaveCount(itemCount - 1);
+});
+
 test("adding a task resets any active search filter", async ({ page }) => {
   const searchInput = globalSearchInput(page);
   await searchInput.fill("bird");
