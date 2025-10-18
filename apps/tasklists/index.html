@@ -2591,63 +2591,76 @@
                     if (!this.headerEl || !this.contains(this.headerEl)) {
                         const header = document.createElement("div");
                         header.className = "tasklist-header";
-
-                        const title = document.createElement("h2");
-                        title.className = "tasklist-title";
-                        header.appendChild(title);
-
-                        const controls = document.createElement("div");
-                        controls.className = "tasklist-controls";
-
-                        const searchInput = document.createElement("input");
-                        searchInput.type = "search";
-                        searchInput.className = "tasklist-search-input";
-                        searchInput.placeholder = "Search tasks...";
-                        searchInput.setAttribute("aria-label", "Search tasks");
-
-                        const addButton = document.createElement("button");
-                        addButton.type = "button";
-                        addButton.setAttribute("aria-label", "Add task");
-                        addButton.className = "iconlabel";
-                        const addIcon = document.createElementNS(
-                            "http://www.w3.org/2000/svg",
-                            "svg",
-                        );
-                        addIcon.setAttribute("viewBox", "0 0 16 16");
-                        addIcon.setAttribute("aria-hidden", "true");
-                        addIcon.setAttribute("focusable", "false");
-                        const addPath = document.createElementNS(
-                            "http://www.w3.org/2000/svg",
-                            "path",
-                        );
-                        addPath.setAttribute("fill", "currentColor");
-                        addPath.setAttribute("d", "M7 1h2v6h6v2H9v6H7V9H1V7h6z");
-                        addIcon.appendChild(addPath);
-                        const addLabel = document.createElement("span");
-                        addLabel.textContent = "Add";
-                        addButton.append(addIcon, addLabel);
-
-                        const showDoneLabel = document.createElement("label");
-                        showDoneLabel.className = "tasklist-show-done";
-                        const showDoneCheckbox = document.createElement("input");
-                        showDoneCheckbox.type = "checkbox";
-                        showDoneCheckbox.className = "tasklist-show-done-toggle";
-                        showDoneCheckbox.checked = this.showDone;
-                        const showDoneText = document.createElement("span");
-                        showDoneText.textContent = "Show done";
-                        showDoneLabel.append(showDoneCheckbox, showDoneText);
-
-                        controls.append(searchInput, showDoneLabel, addButton);
-                        header.append(controls);
-
-                        this.insertBefore(header, this.listEl);
-
+                        if (this.listEl && this.contains(this.listEl)) {
+                            this.insertBefore(header, this.listEl);
+                        } else {
+                            this.appendChild(header);
+                        }
                         this.headerEl = header;
-                        this.titleEl = title;
-                        this.searchInput = searchInput;
-                        this.showDoneCheckbox = showDoneCheckbox;
-                        this.addButton = addButton;
                     }
+
+                    const currentTitle = this.getAttribute("name") ?? "";
+                    const currentSearch =
+                        this.searchInput?.value ?? this.searchQuery ?? "";
+                    const showDoneChecked =
+                        typeof this.showDone === "boolean" ? this.showDone : false;
+
+                    render(
+                        html`
+                            <h2
+                                class="tasklist-title"
+                                tabindex="0"
+                                title="Click to rename"
+                            >
+                                ${currentTitle}
+                            </h2>
+                            <div class="tasklist-controls">
+                                <input
+                                    type="search"
+                                    class="tasklist-search-input"
+                                    placeholder="Search tasks..."
+                                    aria-label="Search tasks"
+                                    .value=${currentSearch}
+                                />
+                                <label class="tasklist-show-done">
+                                    <input
+                                        type="checkbox"
+                                        class="tasklist-show-done-toggle"
+                                        ?checked=${showDoneChecked}
+                                    />
+                                    <span>Show done</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    class="iconlabel"
+                                    aria-label="Add task"
+                                    data-role="tasklist-add"
+                                >
+                                    <svg
+                                        viewBox="0 0 16 16"
+                                        aria-hidden="true"
+                                        focusable="false"
+                                    >
+                                        <path
+                                            fill="currentColor"
+                                            d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"
+                                        ></path>
+                                    </svg>
+                                    <span>Add</span>
+                                </button>
+                            </div>
+                        `,
+                        this.headerEl,
+                    );
+
+                    this.titleEl =
+                        this.headerEl.querySelector(".tasklist-title") ?? null;
+                    this.searchInput =
+                        this.headerEl.querySelector(".tasklist-search-input") ?? null;
+                    this.showDoneCheckbox =
+                        this.headerEl.querySelector(".tasklist-show-done-toggle") ?? null;
+                    this.addButton =
+                        this.headerEl.querySelector("[data-role='tasklist-add']") ?? null;
 
                     if (this.titleEl) {
                         this.titleEl.setAttribute("tabindex", "0");
