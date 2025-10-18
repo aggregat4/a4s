@@ -32,6 +32,8 @@
                 --list-width: 70ch;
                 --search-width: 250px;
                 --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4K");
+                --task-options-icon-left: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1sZWZ0IiB2aWV3Qm94PSIwIDAgMTYgMTYiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkuMjI0IDEuNTUzYS41LjUgMCAwIDEgLjIyMy42N0w2LjU2IDhsMi44ODggNS43NzZhLjUuNSAwIDEgMS0uODk0LjQ0OGwtMy02YS41LjUgMCAwIDEgMC0uNDQ4bDMtNmEuNS41IDAgMCAxIC42Ny0uMjIzIi8+Cjwvc3ZnPg==");
+                --task-options-icon-right: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1yaWdodCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik02Ljc3NiAxLjU1M2EuNS41IDAgMCAxIC42NzEuMjIzbDMgNmEuNS41IDAgMCAxIDAgLjQ0OGwtMyA2YS41LjUgMCAxIDEtLjg5NC0uNDQ4TDkuNDQgOCA2LjU1MyAyLjIyNGEuNS41IDAgMCAxIC4yMjMtLjY3MSIvPgo8L3N2Zz4=");
             }
 
             body {
@@ -109,7 +111,7 @@
                 display: flex;
                 flex-direction: column;
                 gap: var(--space-lg);
-                padding: var(--space-xl);
+                padding: var(--space-lg);
                 background-color: #e7e7e7;
                 border-right: 1px solid var(--color-border);
             }
@@ -214,7 +216,7 @@
             }
 
             .lists-main {
-                padding: var(--space-xl);
+                padding: var(--space-lg);
                 display: flex;
                 flex-direction: column;
                 gap: var(--space-xl);
@@ -366,14 +368,19 @@
                 > li {
                     position: relative;
                     display: flex;
-                    align-items: center;
-                    gap: var(--space-sm);
-                    padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+                    align-items: stretch;
+                    gap: 0;
+                    padding: 0;
+                    padding-left: var(--space-sm);
                     margin-bottom: var(--space-sm);
                     background-color: var(--color-surface);
                     border: 1px solid var(--color-border);
                     border-bottom: 2px solid var(--color-border-strong);
+                    overflow: hidden;
                     will-change: transform;
+                    transition:
+                        background-color var(--transition-fast),
+                        box-shadow var(--transition-fast);
 
                     &[hidden] {
                         display: none;
@@ -385,6 +392,14 @@
                             outline: 2px solid rgba(77, 77, 77, 0.2);
                             outline-offset: 2px;
                         }
+                    }
+
+                    .task-item__main {
+                        flex: 1 1 auto;
+                        display: flex;
+                        align-items: center;
+                        gap: var(--space-sm);
+                        min-height: 44px;
                     }
 
                     .done-toggle {
@@ -406,6 +421,7 @@
                     }
 
                     .text {
+                        padding: var(--space-xs) 0;
                         flex: 1;
                         min-width: 0;
                         outline: none;
@@ -414,27 +430,6 @@
                             background-color: var(--color-highlight);
                             color: inherit;
                             border-radius: 2px;
-                        }
-                    }
-
-                    .task-move-button {
-                        font: inherit;
-                        padding: var(--space-xs) var(--space-sm);
-                        border-radius: var(--radius-sm);
-                        border: 1px solid var(--outline-color);
-                        background-color: var(--color-surface);
-                        color: var(--color-text);
-                        cursor: pointer;
-                        flex-shrink: 0;
-                        transition:
-                            background-color var(--transition-fast),
-                            color var(--transition-fast);
-
-                        &:hover,
-                        &:focus-visible {
-                            background-color: var(--color-text);
-                            color: var(--color-surface);
-                            outline: none;
                         }
                     }
 
@@ -455,10 +450,88 @@
                         background-position: center;
                         background-size: 24px 24px;
                         background-image: var(--task-handle-icon);
+                        margin-left: var(--space-sm);
 
                         &:active {
                             cursor: grabbing;
                         }
+                    }
+                    
+                    .task-item__toggle {
+                        border-radius: 0;;
+                        align-self: stretch;
+                        flex: 0 0 auto;
+                        min-width: 24px;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0 var(--space-sm);
+                        margin-right: 0;
+                        border: none;
+                        background-repeat: no-repeat;
+                        background-position: center;
+                        
+                        background-size: 24px 24px;
+
+                        cursor: pointer;
+                        transition:
+                            background-color var(--transition-fast),
+                            color var(--transition-fast);
+
+                        &:hover,
+                        &:focus-visible {
+                            background-color: var(--color-text);
+                            color: var(--color-surface);
+                            outline: none;
+                        }
+                    }
+
+                    .task-item__toggle--active {
+                        background-color: rgba(0, 0, 0, 0.05);
+                        color: var(--color-text);
+                    }
+
+                    .task-item__actions {
+                        --task-actions-max-width: 220px;
+                        flex: 0 0 auto;
+                        display: flex;
+                        align-items: center;
+                        gap: var(--space-xs);
+                        padding: 0;
+                        margin: 0;
+                        background-color: var(--color-surface);
+                        max-width: 0;
+                        opacity: 0;
+                        pointer-events: none;
+                        overflow: hidden;
+                        white-space: nowrap;
+                        transition:
+                            max-width var(--transition-fast),
+                            opacity var(--transition-fast),
+                            padding var(--transition-fast),
+                            margin var(--transition-fast);
+
+                        .task-move-button,
+                        .task-delete-button {
+                            flex: 0 0 auto;
+                        }
+                    }
+
+                    &.task-item--actions {
+                        .task-item__actions {
+                            border-left: 1px solid rgba(0, 0, 0, 0.08);
+                            max-width: var(--task-actions-max-width);
+                            padding: 0 var(--space-sm);
+                            opacity: 1;
+                            pointer-events: auto;
+                        }
+                    }
+
+                    .task-item__toggle.task-item__toggle--active {
+                        background-image: var(--task-options-icon-right);
+                    }
+                    .task-item__toggle:not(.task-item__toggle--active) {
+                        background-image: var(--task-options-icon-left);
                     }
                 }
 
@@ -585,23 +658,13 @@
             .move-dialog__option {
                 display: flex;
                 align-items: center;
+                gap: var(--space-sm);
                 justify-content: space-between;
                 padding: var(--space-sm) var(--space-md);
-                border: 1px solid var(--color-border);
                 border-radius: var(--radius-sm);
-                background-color: transparent;
                 font: inherit;
                 cursor: pointer;
-                transition:
-                    background-color var(--transition-fast),
-                    border-color var(--transition-fast);
-
-                &:hover,
-                &:focus-visible {
-                    background-color: rgba(0, 0, 0, 0.05);
-                    border-color: var(--outline-color);
-                    outline: none;
-                }
+                width: 100%;
             }
 
             .move-dialog__option-name {
@@ -661,6 +724,16 @@
                         input[type="search"] {
                             width: 100%;
                         }
+                    }
+                }
+
+                ol.tasklist > li {
+                    .task-item__toggle {
+                        display: none;
+                    }
+
+                    .task-item__actions {
+                        --task-actions-max-width: 260px;
                     }
                 }
             }
@@ -2255,6 +2328,8 @@
                     this.emptyStateEl = null;
                     this.isTitleEditing = false;
                     this.titleOriginalValue = "";
+                    this.openActionsItem = null;
+                    this.touchGestureState = new Map();
 
                     this.handleSearchInput = this.handleSearchInput.bind(this);
                     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -2271,12 +2346,20 @@
                     this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
                     this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
                     this.handleMoveButtonClick = this.handleMoveButtonClick.bind(this);
+                    this.handleDeleteButtonClick = this.handleDeleteButtonClick.bind(this);
+                    this.handleActionToggleClick = this.handleActionToggleClick.bind(this);
                     this.handleItemKeyDown = this.handleItemKeyDown.bind(this);
                     this.handleFocusIn = this.handleFocusIn.bind(this);
                     this.handleListDragStart = this.handleListDragStart.bind(this);
                     this.handleTitleClick = this.handleTitleClick.bind(this);
                     this.handleTitleKeyDown = this.handleTitleKeyDown.bind(this);
                     this.handleTitleBlur = this.handleTitleBlur.bind(this);
+                    this.handleDocumentPointerDown =
+                        this.handleDocumentPointerDown.bind(this);
+                    this.handleTouchGestureStart = this.handleTouchGestureStart.bind(this);
+                    this.handleTouchGestureEnd = this.handleTouchGestureEnd.bind(this);
+                    this.handleTouchGestureCancel =
+                        this.handleTouchGestureCancel.bind(this);
 
                     this.editController = new EditController({
                         getListElement: () => this.listEl,
@@ -2362,10 +2445,37 @@
                     this.listEl.addEventListener("focusin", this.handleFocusIn);
                     this.listEl.removeEventListener("dragstart", this.handleListDragStart);
                     this.listEl.addEventListener("dragstart", this.handleListDragStart);
+                    this.listEl.removeEventListener(
+                        "touchstart",
+                        this.handleTouchGestureStart,
+                    );
+                    this.listEl.addEventListener("touchstart", this.handleTouchGestureStart, {
+                        passive: true,
+                    });
+                    this.listEl.removeEventListener("touchend", this.handleTouchGestureEnd);
+                    this.listEl.addEventListener("touchend", this.handleTouchGestureEnd, {
+                        passive: true,
+                    });
+                    this.listEl.removeEventListener(
+                        "touchcancel",
+                        this.handleTouchGestureCancel,
+                    );
+                    this.listEl.addEventListener(
+                        "touchcancel",
+                        this.handleTouchGestureCancel,
+                        {
+                            passive: true,
+                        },
+                    );
                     if (this.listIdentifier) {
                         this.dataset.listId = this.listIdentifier;
                     }
                     this.performSearch(this.searchQuery);
+                    document.removeEventListener(
+                        "pointerdown",
+                        this.handleDocumentPointerDown,
+                    );
+                    document.addEventListener("pointerdown", this.handleDocumentPointerDown);
                 }
 
                 initializeStore() {
@@ -2411,6 +2521,15 @@
                     this.listEl?.removeEventListener("keydown", this.handleItemKeyDown, true);
                     this.listEl?.removeEventListener("focusin", this.handleFocusIn);
                     this.listEl?.removeEventListener("dragstart", this.handleListDragStart);
+                    this.listEl?.removeEventListener(
+                        "touchstart",
+                        this.handleTouchGestureStart,
+                    );
+                    this.listEl?.removeEventListener("touchend", this.handleTouchGestureEnd);
+                    this.listEl?.removeEventListener(
+                        "touchcancel",
+                        this.handleTouchGestureCancel,
+                    );
                     if (this.searchInput) {
                         this.searchInput.removeEventListener("input", this.handleSearchInput);
                         this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
@@ -2421,6 +2540,12 @@
                     this.unsubscribe?.();
                     this.unsubscribe = null;
                     this.classList.remove("tasklist-no-matches");
+                    document.removeEventListener(
+                        "pointerdown",
+                        this.handleDocumentPointerDown,
+                    );
+                    this.touchGestureState.clear();
+                    this.openActionsItem = null;
                 }
 
                 attributeChangedCallback(name, oldValue, newValue) {
@@ -2881,6 +3006,8 @@
                         this.editController.clear();
                     }
 
+                    this.closeActionsForItem(li);
+
                     this.store.dispatch({
                         type: LIST_ACTIONS.removeItem,
                         payload: { id },
@@ -2989,55 +3116,67 @@
                     this.view.restoreFocus(preservedFocus, {
                         skip: hasPendingEdit || appliedPendingEdit,
                     });
+
+                    if (this.openActionsItem && !this.listEl.contains(this.openActionsItem)) {
+                        this.openActionsItem = null;
+                    }
                 }
 
-                createItemElement(item) {
-                    const li = document.createElement("li");
-                    li.setAttribute("draggable", "true");
-                    li.dataset.itemId = item.id;
-                    li.dataset.done = item.done ? "true" : "false";
-
-                    const checkbox = document.createElement("input");
-                    checkbox.type = "checkbox";
-                    checkbox.className = "done-toggle";
-                    checkbox.checked = Boolean(item.done);
-
-                    const textSpan = document.createElement("span");
-                    textSpan.className = "text";
-                    textSpan.textContent = item.text;
-                    textSpan.dataset.originalText = item.text;
-                    textSpan.tabIndex = 0;
-                    textSpan.setAttribute("role", "textbox");
-                    textSpan.setAttribute("aria-label", "Task");
-
-                    const moveButton = document.createElement("button");
-                    moveButton.type = "button";
-                    moveButton.className = "task-move-button";
-                    moveButton.textContent = "Move";
-                    moveButton.title = "Move this task to another list (shortcut: M)";
-                    moveButton.addEventListener("click", this.handleMoveButtonClick);
-
-                    const handle = document.createElement("span");
-                    handle.className = "handle";
-                    handle.setAttribute("aria-hidden", "true");
-
-                    li.append(checkbox, textSpan, moveButton, handle);
-                    return li;
-                }
-
-                updateItemElement(li, item) {
+                populateItemElement(li, item) {
+                    if (!li) return;
+                    li.classList.add("task-item");
                     li.dataset.itemId = item.id;
                     li.dataset.done = item.done ? "true" : "false";
                     if (li.getAttribute("draggable") !== "true") {
                         li.setAttribute("draggable", "true");
                     }
 
-                    const checkbox = li.querySelector(".done-toggle");
+                    let main = li.querySelector(".task-item__main");
+                    if (!main) {
+                        li.textContent = "";
+                        main = document.createElement("div");
+                        main.className = "task-item__main";
+                        li.appendChild(main);
+                    }
+
+                    let actions = li.querySelector(".task-item__actions");
+                    if (!actions) {
+                        actions = document.createElement("div");
+                        actions.className = "task-item__actions";
+                        actions.setAttribute(
+                            "aria-hidden",
+                            li.classList.contains("task-item--actions") ? "false" : "true",
+                        );
+                        li.appendChild(actions);
+                    } else if (actions.previousElementSibling !== main) {
+                        li.appendChild(actions);
+                    }
+
+                    let checkbox = main.querySelector(".done-toggle");
+                    if (!checkbox) {
+                        checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.className = "done-toggle";
+                        main.insertAdjacentElement("afterbegin", checkbox);
+                    }
                     if (checkbox && checkbox.checked !== Boolean(item.done)) {
                         checkbox.checked = Boolean(item.done);
                     }
 
-                    const textSpan = li.querySelector(".text");
+                    let textSpan = main.querySelector(".text");
+                    if (!textSpan) {
+                        textSpan = document.createElement("span");
+                        textSpan.className = "text";
+                        textSpan.tabIndex = 0;
+                        textSpan.setAttribute("role", "textbox");
+                        textSpan.setAttribute("aria-label", "Task");
+                        const referenceNode = checkbox?.nextSibling ?? null;
+                        if (referenceNode) {
+                            main.insertBefore(textSpan, referenceNode);
+                        } else {
+                            main.appendChild(textSpan);
+                        }
+                    }
                     if (textSpan) {
                         const isEditing = textSpan.isContentEditable;
                         if (!textSpan.hasAttribute("tabindex")) {
@@ -3051,20 +3190,111 @@
                         }
                     }
 
-                    let moveButton = li.querySelector(".task-move-button");
+                    let handle = main.querySelector(".handle");
+                    if (!handle) {
+                        handle = document.createElement("span");
+                        handle.className = "handle";
+                        handle.setAttribute("aria-hidden", "true");
+                        main.appendChild(handle);
+                    }
+
+                    let toggle = li.querySelector(".task-item__toggle");
+                    if (!toggle) {
+                        toggle = document.createElement("button");
+                        toggle.type = "button";
+                        toggle.className = "task-item__toggle closed";
+                        toggle.addEventListener("click", this.handleActionToggleClick);
+                    }
+
+                    const isActionsOpen = li.classList.contains("task-item--actions");
+
+                    if (toggle.parentElement !== li || toggle.previousElementSibling !== main) {
+                        if (actions) {
+                            li.insertBefore(toggle, actions);
+                        } else {
+                            li.appendChild(toggle);
+                        }
+                    }
+
+                    this.updateActionToggleState(toggle, isActionsOpen);
+
+                    let moveButton = actions.querySelector(".task-move-button");
                     if (!moveButton) {
                         moveButton = document.createElement("button");
                         moveButton.type = "button";
                         moveButton.className = "task-move-button";
-                        moveButton.textContent = "Move";
-                        moveButton.title = "Move this task to another list (shortcut: M)";
                         moveButton.addEventListener("click", this.handleMoveButtonClick);
-                        const handle = li.querySelector(".handle");
-                        if (handle) {
-                            li.insertBefore(moveButton, handle);
-                        } else {
-                            li.appendChild(moveButton);
-                        }
+                    }
+                    moveButton.textContent = "Move";
+                    moveButton.title = "Move this task to another list (shortcut: M)";
+
+                    let deleteButton = actions.querySelector(".task-delete-button");
+                    if (!deleteButton) {
+                        deleteButton = document.createElement("button");
+                        deleteButton.type = "button";
+                        deleteButton.className = "task-delete-button danger";
+                        deleteButton.addEventListener("click", this.handleDeleteButtonClick);
+                        actions.appendChild(deleteButton);
+                    }
+                    deleteButton.textContent = "Delete";
+                    deleteButton.title = "Delete this task";
+
+                    if (!actions.contains(moveButton)) {
+                        actions.insertBefore(moveButton, actions.firstChild);
+                    }
+
+                    actions.setAttribute(
+                        "aria-hidden",
+                        li.classList.contains("task-item--actions") ? "false" : "true",
+                    );
+                }
+
+                createItemElement(item) {
+                    const li = document.createElement("li");
+                    this.populateItemElement(li, item);
+                    return li;
+                }
+
+                updateItemElement(li, item) {
+                    this.populateItemElement(li, item);
+                }
+
+                updateActionToggleState(toggle, isOpen) {
+                    if (!toggle) return;
+                    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                    toggle.setAttribute(
+                        "aria-label",
+                        isOpen
+                            ? "Hide task actions for this task"
+                            : "Show task actions for this task",
+                    );
+                    toggle.title = isOpen ? "Hide task actions" : "Show task actions";
+                    // toggle.textContent = isOpen ? "»" : "«";
+                    toggle.classList.toggle("task-item__toggle--active", Boolean(isOpen));
+                }
+
+                openActionsForItem(li) {
+                    if (!li) return;
+                    if (this.openActionsItem && this.openActionsItem !== li) {
+                        this.closeActionsForItem(this.openActionsItem);
+                    }
+                    li.classList.add("task-item--actions");
+                    const actions = li.querySelector(".task-item__actions");
+                    const toggle = li.querySelector(".task-item__toggle");
+                    actions?.setAttribute("aria-hidden", "false");
+                    this.updateActionToggleState(toggle, true);
+                    this.openActionsItem = li;
+                }
+
+                closeActionsForItem(li) {
+                    if (!li) return;
+                    li.classList.remove("task-item--actions");
+                    const actions = li.querySelector(".task-item__actions");
+                    const toggle = li.querySelector(".task-item__toggle");
+                    actions?.setAttribute("aria-hidden", "true");
+                    this.updateActionToggleState(toggle, false);
+                    if (this.openActionsItem === li) {
+                        this.openActionsItem = null;
                     }
                 }
 
@@ -3098,6 +3328,104 @@
                             composed: true,
                         }),
                     );
+                    if (li) {
+                        this.closeActionsForItem(li);
+                    }
+                }
+
+                handleDeleteButtonClick(event) {
+                    const button = event.currentTarget;
+                    const li = button?.closest("li");
+                    const itemId = li?.dataset?.itemId ?? null;
+                    if (!itemId || !this.store) return;
+
+                    const state = this.store.getState();
+                    const items = Array.isArray(state?.items) ? state.items : [];
+                    const currentIndex = items.findIndex((item) => item.id === itemId);
+                    if (currentIndex === -1) return;
+
+                    const nextItem = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
+                    if (nextItem) {
+                        this.editController.queue(nextItem.id, "end");
+                    } else {
+                        this.editController.clear();
+                    }
+
+                    this.store.dispatch({
+                        type: LIST_ACTIONS.removeItem,
+                        payload: { id: itemId },
+                    });
+                    if (li) {
+                        this.closeActionsForItem(li);
+                    }
+                }
+
+                handleActionToggleClick(event) {
+                    const button = event.currentTarget;
+                    const li = button?.closest("li");
+                    if (!li) return;
+                    if (li.classList.contains("task-item--actions")) {
+                        this.closeActionsForItem(li);
+                    } else {
+                        this.openActionsForItem(li);
+                    }
+                }
+
+                handleDocumentPointerDown(event) {
+                    if (!this.openActionsItem) return;
+                    const target = event.target;
+                    if (!target) return;
+                    if (this.openActionsItem.contains(target)) return;
+                    this.closeActionsForItem(this.openActionsItem);
+                }
+
+                handleTouchGestureStart(event) {
+                    if (!event?.changedTouches) return;
+                    Array.from(event.changedTouches).forEach((touch) => {
+                        const target = touch.target;
+                        const element =
+                            target instanceof Element ? target : event.target instanceof Element ? event.target : null;
+                        if (this.openActionsItem && element && !this.openActionsItem.contains(element)) {
+                            this.closeActionsForItem(this.openActionsItem);
+                        }
+                        const li = element?.closest?.("li") ?? null;
+                        if (!li) return;
+                        if (element.closest(".handle")) return;
+                        if (element.closest(".task-item__actions")) return;
+                        if (element.closest(".task-item__toggle")) return;
+                        this.touchGestureState.set(touch.identifier, {
+                            startX: touch.clientX,
+                            startY: touch.clientY,
+                            target: li,
+                        });
+                    });
+                }
+
+                handleTouchGestureEnd(event) {
+                    if (!event?.changedTouches) return;
+                    Array.from(event.changedTouches).forEach((touch) => {
+                        const state = this.touchGestureState.get(touch.identifier);
+                        if (!state) return;
+                        this.touchGestureState.delete(touch.identifier);
+                        const li = state.target;
+                        if (!li || !li.isConnected) return;
+                        const deltaX = touch.clientX - state.startX;
+                        const deltaY = touch.clientY - state.startY;
+                        if (Math.abs(deltaX) < 30) return;
+                        if (Math.abs(deltaX) < Math.abs(deltaY)) return;
+                        if (deltaX < 0) {
+                            this.openActionsForItem(li);
+                        } else {
+                            this.closeActionsForItem(li);
+                        }
+                    });
+                }
+
+                handleTouchGestureCancel(event) {
+                    if (!event?.changedTouches) return;
+                    Array.from(event.changedTouches).forEach((touch) => {
+                        this.touchGestureState.delete(touch.identifier);
+                    });
                 }
 
                 handleItemKeyDown(event) {
