@@ -3339,6 +3339,14 @@
                     const itemId = li?.dataset?.itemId ?? null;
                     if (!itemId || !this.store) return;
 
+                    const snapshot = this.getItemSnapshot(itemId);
+                    const confirmationMessage = snapshot?.text
+                        ? `Delete "${snapshot.text}"?`
+                        : "Delete this task?";
+                    if (!window.confirm(confirmationMessage)) {
+                        return;
+                    }
+
                     const state = this.store.getState();
                     const items = Array.isArray(state?.items) ? state.items : [];
                     const currentIndex = items.findIndex((item) => item.id === itemId);
