@@ -3137,129 +3137,82 @@
 
                 populateItemElement(li, item) {
                     if (!li) return;
+                    const isOpen = li.classList.contains("task-item--actions");
+                    const isDone = Boolean(item.done);
+                    const itemId = item.id;
+                    const text = typeof item.text === "string" ? item.text : "";
+
+                    render(
+                        html`
+                            <div class="task-item__main">
+                                <input
+                                    type="checkbox"
+                                    class="done-toggle"
+                                    ?checked=${isDone}
+                                />
+                                <span
+                                    class="text"
+                                    tabindex="0"
+                                    role="textbox"
+                                    aria-label="Task"
+                                ></span>
+                                <span class="handle" aria-hidden="true"></span>
+                            </div>
+                            <button
+                                type="button"
+                                class=${`task-item__toggle ${isOpen ? "task-item__toggle--active" : "closed"}`}
+                                aria-expanded=${isOpen ? "true" : "false"}
+                                aria-label=${isOpen
+                                    ? "Hide task actions for this task"
+                                    : "Show task actions for this task"}
+                                title=${isOpen ? "Hide task actions" : "Show task actions"}
+                                @click=${this.handleActionToggleClick}
+                            ></button>
+                            <div
+                                class="task-item__actions"
+                                aria-hidden=${isOpen ? "false" : "true"}
+                            >
+                                <button
+                                    type="button"
+                                    class="task-move-button"
+                                    title="Move this task to another list (shortcut: M)"
+                                    @click=${this.handleMoveButtonClick}
+                                >
+                                    Move
+                                </button>
+                                <button
+                                    type="button"
+                                    class="task-delete-button danger"
+                                    title="Delete this task"
+                                    @click=${this.handleDeleteButtonClick}
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        `,
+                        li,
+                    );
+
                     li.classList.add("task-item");
-                    li.dataset.itemId = item.id;
-                    li.dataset.done = item.done ? "true" : "false";
+                    li.dataset.itemId = itemId;
+                    li.dataset.done = isDone ? "true" : "false";
                     if (li.getAttribute("draggable") !== "true") {
                         li.setAttribute("draggable", "true");
                     }
 
-                    let main = li.querySelector(".task-item__main");
-                    if (!main) {
-                        li.textContent = "";
-                        main = document.createElement("div");
-                        main.className = "task-item__main";
-                        li.appendChild(main);
-                    }
+                    const toggle = li.querySelector(".task-item__toggle");
+                    this.updateActionToggleState(toggle, isOpen);
 
-                    let actions = li.querySelector(".task-item__actions");
-                    if (!actions) {
-                        actions = document.createElement("div");
-                        actions.className = "task-item__actions";
-                        actions.setAttribute(
-                            "aria-hidden",
-                            li.classList.contains("task-item--actions") ? "false" : "true",
-                        );
-                        li.appendChild(actions);
-                    } else if (actions.previousElementSibling !== main) {
-                        li.appendChild(actions);
-                    }
-
-                    let checkbox = main.querySelector(".done-toggle");
-                    if (!checkbox) {
-                        checkbox = document.createElement("input");
-                        checkbox.type = "checkbox";
-                        checkbox.className = "done-toggle";
-                        main.insertAdjacentElement("afterbegin", checkbox);
-                    }
-                    if (checkbox && checkbox.checked !== Boolean(item.done)) {
-                        checkbox.checked = Boolean(item.done);
-                    }
-
-                    let textSpan = main.querySelector(".text");
-                    if (!textSpan) {
-                        textSpan = document.createElement("span");
-                        textSpan.className = "text";
-                        textSpan.tabIndex = 0;
-                        textSpan.setAttribute("role", "textbox");
-                        textSpan.setAttribute("aria-label", "Task");
-                        const referenceNode = checkbox?.nextSibling ?? null;
-                        if (referenceNode) {
-                            main.insertBefore(textSpan, referenceNode);
-                        } else {
-                            main.appendChild(textSpan);
-                        }
-                    }
+                    const textSpan = li.querySelector(".text");
                     if (textSpan) {
-                        const isEditing = textSpan.isContentEditable;
+                        textSpan.dataset.originalText = text;
                         if (!textSpan.hasAttribute("tabindex")) {
                             textSpan.tabIndex = 0;
                         }
-                        if (textSpan.dataset.originalText !== item.text) {
-                            textSpan.dataset.originalText = item.text;
-                            if (!isEditing) {
-                                textSpan.textContent = item.text;
-                            }
+                        if (!textSpan.isContentEditable && textSpan.textContent !== text) {
+                            textSpan.textContent = text;
                         }
                     }
-
-                    let handle = main.querySelector(".handle");
-                    if (!handle) {
-                        handle = document.createElement("span");
-                        handle.className = "handle";
-                        handle.setAttribute("aria-hidden", "true");
-                        main.appendChild(handle);
-                    }
-
-                    let toggle = li.querySelector(".task-item__toggle");
-                    if (!toggle) {
-                        toggle = document.createElement("button");
-                        toggle.type = "button";
-                        toggle.className = "task-item__toggle closed";
-                        toggle.addEventListener("click", this.handleActionToggleClick);
-                    }
-
-                    const isActionsOpen = li.classList.contains("task-item--actions");
-
-                    if (toggle.parentElement !== li || toggle.previousElementSibling !== main) {
-                        if (actions) {
-                            li.insertBefore(toggle, actions);
-                        } else {
-                            li.appendChild(toggle);
-                        }
-                    }
-
-                    this.updateActionToggleState(toggle, isActionsOpen);
-
-                    let moveButton = actions.querySelector(".task-move-button");
-                    if (!moveButton) {
-                        moveButton = document.createElement("button");
-                        moveButton.type = "button";
-                        moveButton.className = "task-move-button";
-                        moveButton.addEventListener("click", this.handleMoveButtonClick);
-                    }
-                    moveButton.textContent = "Move";
-                    moveButton.title = "Move this task to another list (shortcut: M)";
-
-                    let deleteButton = actions.querySelector(".task-delete-button");
-                    if (!deleteButton) {
-                        deleteButton = document.createElement("button");
-                        deleteButton.type = "button";
-                        deleteButton.className = "task-delete-button danger";
-                        deleteButton.addEventListener("click", this.handleDeleteButtonClick);
-                        actions.appendChild(deleteButton);
-                    }
-                    deleteButton.textContent = "Delete";
-                    deleteButton.title = "Delete this task";
-
-                    if (!actions.contains(moveButton)) {
-                        actions.insertBefore(moveButton, actions.firstChild);
-                    }
-
-                    actions.setAttribute(
-                        "aria-hidden",
-                        li.classList.contains("task-item--actions") ? "false" : "true",
-                    );
                 }
 
                 createItemElement(item) {
