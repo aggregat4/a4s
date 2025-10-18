@@ -803,8 +803,8 @@
                 </div>
             </div>
         </div>
-
-        <script>
+        <script type="module">
+            import { html, render } from "./vendor/lit-html.js";
             const PROTOTYPE_TASK_TEXTS = [
                 "Refill the bird feeder before the sparrows file another formal request.",
                 "Check the fridge light still turns off, preferably without crawling inside again.",
@@ -4005,28 +4005,7 @@
                     if (!targets.length) return;
                     this.close({ restoreFocus: false });
                     this.currentContext = { ...options };
-                    this.optionButtons = [];
-                    this.optionsListEl.textContent = "";
-                    const fragment = document.createDocumentFragment();
-                    targets.forEach((target) => {
-                        const li = document.createElement("li");
-                        const button = document.createElement("button");
-                        button.type = "button";
-                        button.className = "move-dialog__option";
-                        button.dataset.listId = target.id;
-                        const nameSpan = document.createElement("span");
-                        nameSpan.className = "move-dialog__option-name";
-                        nameSpan.textContent = target.name;
-                        const countSpan = document.createElement("span");
-                        countSpan.className = "move-dialog__option-count";
-                        countSpan.textContent = target.countLabel ?? "";
-                        button.append(nameSpan, countSpan);
-                        button.addEventListener("click", this.handleOptionClick);
-                        this.optionButtons.push(button);
-                        li.appendChild(button);
-                        fragment.appendChild(li);
-                    });
-                    this.optionsListEl.appendChild(fragment);
+                    this.renderOptions(targets);
                     this.root.hidden = false;
                     this.root.setAttribute("aria-hidden", "false");
                     this.isOpen = true;
@@ -4040,6 +4019,43 @@
                     });
                 }
 
+                renderOptions(targets) {
+                    if (!this.optionsListEl) {
+                        this.optionButtons = [];
+                        return;
+                    }
+                    render(
+                        html`${targets.map(
+                            (target) => html`
+                                <li>
+                                    <button
+                                        type="button"
+                                        class="move-dialog__option"
+                                        data-list-id=${target.id}
+                                        @click=${this.handleOptionClick}
+                                    >
+                                        <span class="move-dialog__option-name">${target.name}</span>
+                                        <span class="move-dialog__option-count">${target.countLabel ?? ""}</span>
+                                    </button>
+                                </li>
+                            `,
+                        )}`,
+                        this.optionsListEl,
+                    );
+                    this.optionButtons = Array.from(
+                        this.optionsListEl.querySelectorAll(".move-dialog__option"),
+                    );
+                }
+
+                clearOptions() {
+                    if (!this.optionsListEl) {
+                        this.optionButtons = [];
+                        return;
+                    }
+                    render(html``, this.optionsListEl);
+                    this.optionButtons = [];
+                }
+
                 close({ restoreFocus = true } = {}) {
                     if (!this.isOpen) {
                         if (!restoreFocus) {
@@ -4049,10 +4065,7 @@
                     }
                     this.isOpen = false;
                     this.contentEl?.removeEventListener("keydown", this.handleKeyDown);
-                    this.optionButtons.forEach((button) =>
-                        button.removeEventListener("click", this.handleOptionClick),
-                    );
-                    this.optionButtons = [];
+                    this.clearOptions();
                     if (this.root) {
                         this.root.hidden = true;
                         this.root.setAttribute("aria-hidden", "true");
