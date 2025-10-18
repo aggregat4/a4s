@@ -2566,24 +2566,37 @@
                     if (this.listEl && this.contains(this.listEl)) return;
 
                     let list = this.querySelector("ol.tasklist");
+                    const existingItems = Array.from(this.querySelectorAll(":scope > li"));
                     if (!list) {
-                        list = document.createElement("ol");
-                        list.classList.add("tasklist");
-                        const listItems = Array.from(this.querySelectorAll(":scope > li"));
-                        if (listItems.length) {
-                            listItems.forEach((li) => list.appendChild(li));
-                        }
-                        this.appendChild(list);
+                        render(
+                            html`
+                                <ol class="tasklist"></ol>
+                            `,
+                            this,
+                        );
+                        list = this.querySelector("ol.tasklist");
+                    }
+                    if (list && existingItems.length) {
+                        existingItems.forEach((li) => list.appendChild(li));
                     }
                     this.listEl = list;
 
                     if (!this.emptyStateEl || !this.contains(this.emptyStateEl)) {
-                        const empty = document.createElement("div");
-                        empty.className = "tasklist-empty";
-                        empty.textContent = "No matching items";
-                        empty.hidden = true;
-                        this.insertBefore(empty, this.listEl.nextSibling);
-                        this.emptyStateEl = empty;
+                        const emptyTemplate = html`
+                            <div class="tasklist-empty" hidden>No matching items</div>
+                        `;
+                        if (this.listEl?.nextSibling) {
+                            const fragment = document.createElement("div");
+                            render(emptyTemplate, fragment);
+                            const emptyElement = fragment.firstElementChild;
+                            if (emptyElement) {
+                                this.insertBefore(emptyElement, this.listEl.nextSibling);
+                                this.emptyStateEl = emptyElement;
+                            }
+                        } else {
+                            render(emptyTemplate, this);
+                            this.emptyStateEl = this.querySelector(".tasklist-empty");
+                        }
                     }
                 }
 
