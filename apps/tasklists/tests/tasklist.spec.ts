@@ -249,6 +249,32 @@ test("show done toggle reveals and hides completed items", async ({ page }) => {
   await expect(firstItem).toBeHidden();
 });
 
+test("task action menu toggles inline controls", async ({ page }) => {
+  const firstItem = page.locator(listItemsSelector).first();
+  const toggle = firstItem.locator(".task-item__toggle");
+  const actions = firstItem.locator(".task-item__actions");
+
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(actions).toHaveAttribute("aria-hidden", "true");
+
+  await toggle.click();
+
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(actions).toHaveAttribute("aria-hidden", "false");
+  await expect(actions.locator("button")).toHaveCount(2);
+  await expect(
+    actions.locator("button").filter({ hasText: "Move" })
+  ).toBeVisible();
+  await expect(
+    actions.locator("button").filter({ hasText: "Delete" })
+  ).toBeVisible();
+
+  await toggle.click();
+
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(actions).toHaveAttribute("aria-hidden", "true");
+});
+
 test("adding a task resets any active search filter", async ({ page }) => {
   const searchInput = globalSearchInput(page);
   await searchInput.fill("bird");
