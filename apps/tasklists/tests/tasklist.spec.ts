@@ -1,8 +1,5 @@
 import { test, expect, Page, Locator } from "@playwright/test";
-import { resolve } from "path";
-import { pathToFileURL } from "url";
 
-const appUrl = pathToFileURL(resolve(__dirname, "..", "index.html")).href;
 const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
 
@@ -71,7 +68,7 @@ async function getCaretOffset(target: Locator) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto(appUrl);
+  await page.goto("/");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -296,9 +293,10 @@ test("task action menu move triggers move dialog and closes tray", async ({
   const moveDialog = page.locator(".move-dialog__content");
   await expect(moveDialog).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(
-    firstItem.locator(".task-item__actions")
-  ).toHaveAttribute("aria-hidden", "true");
+  await expect(firstItem.locator(".task-item__actions")).toHaveAttribute(
+    "aria-hidden",
+    "true"
+  );
 
   const destination = moveDialog
     .locator(".move-dialog__option")
@@ -345,9 +343,10 @@ test("task action menu delete prompts confirmation and removes task", async ({
 
   await deleteButton.click();
 
-  await expect(
-    firstItem.locator(".task-item__actions")
-  ).toHaveAttribute("aria-hidden", "true");
+  await expect(firstItem.locator(".task-item__actions")).toHaveAttribute(
+    "aria-hidden",
+    "true"
+  );
   await expect(firstItem).not.toHaveClass(/task-item--actions/);
   await expect(page.locator(listItemsSelector)).toHaveCount(itemCount - 1);
 });

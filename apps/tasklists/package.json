@@ -4,8 +4,8 @@
   "scripts": {
     "start": "npx http-server . -p 8000 -c-1",
     "test": "npm run test:e2e",
-    "test:e2e": "HOST=127.0.0.1 PORT=8000 npx http-server . -p 8000 -c-1 --silent & server_pid=$!; sleep 1; npx playwright test; code=$?; if kill -0 $server_pid 2>/dev/null; then kill $server_pid; wait $server_pid 2>/dev/null; fi; exit $code",
-    "test:e2e:headed": "HOST=127.0.0.1 PORT=8000 npx http-server . -p 8000 -c-1 --silent & server_pid=$!; sleep 1; npx playwright test --headed; code=$?; if kill -0 $server_pid 2>/dev/null; then kill $server_pid; wait $server_pid 2>/dev/null; fi; exit $code"
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed"
   },
   "license": "Apache-2.0",
   "type": "commonjs",
