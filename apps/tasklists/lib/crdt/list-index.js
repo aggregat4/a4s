@@ -1,7 +1,6 @@
-import { ensureActorId, LamportClock } from "./ids.js";
-import { between, clonePosition, comparePositions, normalizePosition } from "./position.js";
+import { ORDERED_SET_OPERATIONS, OrderedSetCRDT } from "./ordered-set-crdt.js";
 
-const OP_TYPES = {
+const LIST_INDEX_OPERATIONS = {
     createList: "createList",
     renameList: "renameList",
     removeList: "removeList",
@@ -12,23 +11,53 @@ function sanitizeText(value) {
     return typeof value === "string" ? value : "";
 }
 
-function makeOperationKey(op) {
-    const actor = typeof op?.actor === "string" ? op.actor : "";
-    const clock = Number.isFinite(op?.clock) ? Math.floor(op.clock) : 0;
-    return `${actor}:${clock}`;
+function toBaseInsert(operation) {
+    const payload = operation.payload ?? {};
+    return {
+        ...operation,
+        type: ORDERED_SET_OPERATIONS.insert,
+        payload: {
+            data: { title: sanitizeText(payload.title) },
+            pos: payload.pos,
+        },
+    };
 }
 
-function sortRecords(left, right) {
-    return comparePositions(left.pos, right.pos);
+function toBaseUpdate(operation) {
+    const payload = operation.payload ?? {};
+    return {
+        ...operation,
+        type: ORDERED_SET_OPERATIONS.update,
+        payload: {
+            data: { title: sanitizeText(payload.title) },
+        },
+    };
 }
 
-export class ListIndexCRDT {
+export class ListIndexCRDT extends OrderedSetCRDT {
     constructor(options = {}) {
-        this.actorId = options.actorId ?? ensureActorId(options.identityOptions);
-        this.clock = options.clock instanceof LamportClock ? options.clock : new LamportClock();
-        this.records = new Map();
-        this.seenOps = new Set();
+        super(options);
         this.listeners = new Set();
+    }
+
+    sanitizeInsertPayload(data) {
+        return { title: sanitizeText(data?.title) };
+    }
+
+    sanitizeUpdatePayload(data) {
+        const result = {};
+        if (data && Object.prototype.hasOwnProperty.call(data, "title")) {
+            result.title = sanitizeText(data.title);
+        }
+        return result;
+    }
+
+    sanitizeSnapshotData(data) {
+        return { title: sanitizeText(data?.title) };
+    }
+
+    cloneData(data) {
+        return { title: sanitizeText(data?.title) };
     }
 
     subscribe(handler) {
@@ -46,187 +75,80 @@ export class ListIndexCRDT {
             try {
                 handler(snapshot);
             } catch (err) {
-                // Ignore listener errors to avoid breaking the CRDT core.
+                // Ignore listener errors.
             }
         });
     }
 
     resetFromSnapshot(snapshot = [], metadata = {}) {
-        this.records.clear();
-        if (Array.isArray(snapshot)) {
-            snapshot.forEach((entry) => {
-                if (!entry || typeof entry.id !== "string") return;
-                const position = normalizePosition(entry.pos);
-                if (!position.length) return;
-                this.records.set(entry.id, {
-                    id: entry.id,
-                    title: sanitizeText(entry.title),
-                    pos: position,
-                    createdAt: Number.isFinite(entry.createdAt) ? Math.floor(entry.createdAt) : 0,
-                    updatedAt: Number.isFinite(entry.updatedAt) ? Math.floor(entry.updatedAt) : 0,
-                    deletedAt: Number.isFinite(entry.deletedAt)
-                        ? Math.floor(entry.deletedAt)
-                        : null,
-                });
-            });
-        }
+        const entries = Array.isArray(snapshot)
+            ? snapshot.map((entry) => ({
+                  id: entry.id,
+                  pos: entry.pos,
+                  data: { title: sanitizeText(entry.title) },
+                  createdAt: entry.createdAt,
+                  updatedAt: entry.updatedAt,
+                  deletedAt: entry.deletedAt,
+              }))
+            : [];
+        this.importRecords(entries);
         if (Number.isFinite(metadata.clock)) {
             this.clock.merge(metadata.clock);
         }
         this.emitChange();
     }
 
-    getRecord(id) {
-        const record = this.records.get(id);
-        if (!record) return null;
-        return {
-            id: record.id,
-            title: record.title,
-            pos: clonePosition(record.pos),
-            createdAt: record.createdAt,
-            updatedAt: record.updatedAt,
-            deletedAt: record.deletedAt,
-        };
-    }
-
-    getVisibleLists() {
-        return Array.from(this.records.values())
-            .filter((record) => record.deletedAt == null)
-            .sort(sortRecords)
-            .map((record) => ({
-                id: record.id,
-                title: record.title,
-                pos: clonePosition(record.pos),
-            }));
-    }
-
     applyOperation(operation) {
         if (!operation || typeof operation !== "object") return false;
-        const opKey = makeOperationKey(operation);
-        if (this.seenOps.has(opKey)) {
-            return false;
-        }
-        const clock = Number.isFinite(operation.clock) ? Math.floor(operation.clock) : 0;
-        if (clock > 0) {
-            this.clock.merge(clock);
-        }
-
-        let changed = false;
+        let baseOp = operation;
         switch (operation.type) {
-            case OP_TYPES.createList:
-                changed = this.applyCreate(operation);
+            case LIST_INDEX_OPERATIONS.createList:
+                baseOp = toBaseInsert(operation);
                 break;
-            case OP_TYPES.renameList:
-                changed = this.applyRename(operation);
+            case LIST_INDEX_OPERATIONS.renameList:
+                baseOp = toBaseUpdate(operation);
                 break;
-            case OP_TYPES.removeList:
-                changed = this.applyRemove(operation);
+            case LIST_INDEX_OPERATIONS.removeList:
+                baseOp = { ...operation, type: ORDERED_SET_OPERATIONS.remove };
                 break;
-            case OP_TYPES.reorderList:
-                changed = this.applyReorder(operation);
+            case LIST_INDEX_OPERATIONS.reorderList:
+                baseOp = {
+                    ...operation,
+                    type: ORDERED_SET_OPERATIONS.move,
+                    payload: { pos: operation.payload?.pos },
+                };
                 break;
             default:
                 break;
         }
-
-        this.seenOps.add(opKey);
+        const changed = super.applyOperation(baseOp);
         if (changed) {
             this.emitChange();
         }
         return changed;
     }
 
-    applyCreate(operation) {
-        const listId = operation.listId;
-        if (typeof listId !== "string" || !listId.length) return false;
-        const payload = operation.payload ?? {};
-        const position = normalizePosition(payload.pos);
-        if (!position.length) return false;
-        const title = sanitizeText(payload.title);
-        const clock = Number.isFinite(operation.clock) ? Math.floor(operation.clock) : 0;
-
-        const existing = this.records.get(listId);
-        if (!existing) {
-            this.records.set(listId, {
-                id: listId,
-                title,
-                pos: position,
-                createdAt: clock,
-                updatedAt: clock,
-                deletedAt: null,
-            });
-            return true;
-        }
-
-        let mutated = false;
-        if (existing.deletedAt != null && clock > existing.deletedAt) {
-            existing.deletedAt = null;
-            mutated = true;
-        }
-        if (clock > existing.updatedAt && existing.title !== title) {
-            existing.title = title;
-            existing.updatedAt = clock;
-            mutated = true;
-        }
-        return mutated;
+    getRecord(id) {
+        const entry = super.getItem(id);
+        if (!entry) return null;
+        return {
+            id: entry.id,
+            title: entry.data.title,
+            pos: entry.pos,
+            createdAt: entry.createdAt,
+            updatedAt: entry.updatedAt,
+            deletedAt: entry.deletedAt,
+        };
     }
 
-    applyRename(operation) {
-        const listId = operation.listId;
-        if (typeof listId !== "string" || !listId.length) return false;
-        const record = this.records.get(listId);
-        if (!record || record.deletedAt != null) return false;
-        const title = sanitizeText(operation.payload?.title);
-        const clock = Number.isFinite(operation.clock) ? Math.floor(operation.clock) : 0;
-        if (clock <= record.updatedAt && title === record.title) return false;
-        if (title === record.title) {
-            record.updatedAt = Math.max(record.updatedAt, clock);
-            return false;
-        }
-        if (clock < record.updatedAt) return false;
-        record.title = title;
-        record.updatedAt = clock;
-        return true;
-    }
-
-    applyRemove(operation) {
-        const listId = operation.listId;
-        if (typeof listId !== "string" || !listId.length) return false;
-        const record = this.records.get(listId);
-        if (!record) return false;
-        const clock = Number.isFinite(operation.clock) ? Math.floor(operation.clock) : 0;
-        if (record.deletedAt != null && clock <= record.deletedAt) return false;
-        record.deletedAt = clock;
-        if (clock > record.updatedAt) {
-            record.updatedAt = clock;
-        }
-        return true;
-    }
-
-    applyReorder(operation) {
-        const listId = operation.listId;
-        if (typeof listId !== "string" || !listId.length) return false;
-        const record = this.records.get(listId);
-        if (!record || record.deletedAt != null) return false;
-        const position = normalizePosition(operation.payload?.pos);
-        if (!position.length) return false;
-        const clock = Number.isFinite(operation.clock) ? Math.floor(operation.clock) : 0;
-        if (clock <= record.updatedAt) return false;
-        record.pos = position;
-        record.updatedAt = clock;
-        return true;
-    }
-
-    nextClock(remoteTime) {
-        return this.clock.tick(remoteTime);
-    }
-
-    ensurePositionBetween(leftId, rightId) {
-        const left = leftId ? this.records.get(leftId) : null;
-        const right = rightId ? this.records.get(rightId) : null;
-        const leftPos = left ? left.pos : null;
-        const rightPos = right ? right.pos : null;
-        return between(leftPos, rightPos, { actor: this.actorId });
+    getVisibleLists() {
+        return super
+            .getSnapshot()
+            .map((entry) => ({
+                id: entry.id,
+                title: entry.data.title,
+                pos: entry.pos,
+            }));
     }
 
     generateCreate(options = {}) {
@@ -234,52 +156,61 @@ export class ListIndexCRDT {
         if (!listId) {
             throw new Error("generateCreate requires a listId");
         }
-        const position =
-            options.position && normalizePosition(options.position).length
-                ? normalizePosition(options.position)
-                : this.ensurePositionBetween(options.afterId, options.beforeId);
-        const title = sanitizeText(options.title);
-        const clock = this.nextClock();
+        const result = super.generateInsert({
+            itemId: listId,
+            data: { title: sanitizeText(options.title) },
+            position: options.position,
+            afterId: options.afterId,
+            beforeId: options.beforeId,
+        });
         const op = {
-            type: OP_TYPES.createList,
-            listId,
-            payload: { title, pos: clonePosition(position) },
-            clock,
-            actor: this.actorId,
+            ...result.op,
+            type: LIST_INDEX_OPERATIONS.createList,
+            payload: {
+                title: result.op.payload.data.title,
+                pos: result.op.payload.pos,
+            },
         };
-        this.applyOperation(op);
-        return { op, snapshot: this.getVisibleLists() };
+        this.emitChange();
+        return {
+            op,
+            snapshot: this.getVisibleLists(),
+        };
     }
 
     generateRename(listId, title) {
-        if (typeof listId !== "string" || !this.records.has(listId)) {
+        if (typeof listId !== "string" || !this.items.has(listId)) {
             throw new Error(`Cannot rename missing list "${listId}"`);
         }
-        const clock = this.nextClock();
+        const result = super.generateUpdate({
+            itemId: listId,
+            data: { title: sanitizeText(title) },
+        });
         const op = {
-            type: OP_TYPES.renameList,
-            listId,
-            payload: { title: sanitizeText(title) },
-            clock,
-            actor: this.actorId,
+            ...result.op,
+            type: LIST_INDEX_OPERATIONS.renameList,
+            payload: {
+                title: result.op.payload.data.title,
+            },
         };
-        this.applyOperation(op);
-        return { op, snapshot: this.getVisibleLists() };
+        this.emitChange();
+        return {
+            op,
+            snapshot: this.getVisibleLists(),
+        };
     }
 
     generateRemove(listId) {
-        if (typeof listId !== "string" || !this.records.has(listId)) {
-            throw new Error(`Cannot remove missing list "${listId}"`);
-        }
-        const clock = this.nextClock();
+        const result = super.generateRemove(listId);
         const op = {
-            type: OP_TYPES.removeList,
-            listId,
-            clock,
-            actor: this.actorId,
+            ...result.op,
+            type: LIST_INDEX_OPERATIONS.removeList,
         };
-        this.applyOperation(op);
-        return { op, snapshot: this.getVisibleLists() };
+        this.emitChange();
+        return {
+            op,
+            snapshot: this.getVisibleLists(),
+        };
     }
 
     generateReorder(options = {}) {
@@ -287,24 +218,25 @@ export class ListIndexCRDT {
         if (!listId) {
             throw new Error("generateReorder requires a listId");
         }
-        if (!this.records.has(listId)) {
-            throw new Error(`Cannot reorder missing list "${listId}"`);
-        }
-        const position =
-            options.position && normalizePosition(options.position).length
-                ? normalizePosition(options.position)
-                : this.ensurePositionBetween(options.afterId, options.beforeId);
-        const clock = this.nextClock();
+        const result = super.generateMove({
+            itemId: listId,
+            position: options.position,
+            afterId: options.afterId,
+            beforeId: options.beforeId,
+        });
         const op = {
-            type: OP_TYPES.reorderList,
-            listId,
-            payload: { pos: clonePosition(position) },
-            clock,
-            actor: this.actorId,
+            ...result.op,
+            type: LIST_INDEX_OPERATIONS.reorderList,
+            payload: {
+                pos: result.op.payload.pos,
+            },
         };
-        this.applyOperation(op);
-        return { op, snapshot: this.getVisibleLists() };
+        this.emitChange();
+        return {
+            op,
+            snapshot: this.getVisibleLists(),
+        };
     }
 }
 
-export { OP_TYPES as LIST_INDEX_OPERATIONS };
+export { LIST_INDEX_OPERATIONS };
