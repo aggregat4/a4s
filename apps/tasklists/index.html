@@ -7,7 +7,7 @@
         <style>
             :root {
                 --font-family-base: "Inter", sans-serif;
-                --font-size-base: 18px;
+                --font-size-base: 16px;
                 --font-size-title: 20px;
                 --color-background: #f5f5f5;
                 --color-surface: #fff;
@@ -399,7 +399,7 @@
                         display: flex;
                         align-items: center;
                         gap: var(--space-sm);
-                        min-height: 44px;
+                        min-height: 38px;
                     }
 
                     .done-toggle {
@@ -486,11 +486,6 @@
                         }
                     }
 
-                    .task-item__toggle--active {
-                        background-color: rgba(0, 0, 0, 0.05);
-                        color: var(--color-text);
-                    }
-
                     .task-item__actions {
                         --task-actions-max-width: 220px;
                         flex: 0 0 auto;
@@ -519,7 +514,6 @@
 
                     &.task-item--actions {
                         .task-item__actions {
-                            border-left: 1px solid rgba(0, 0, 0, 0.08);
                             max-width: var(--task-actions-max-width);
                             padding: 0 var(--space-sm);
                             opacity: 1;
@@ -3680,8 +3674,8 @@
                 }
 
                 formatTotalCount(count) {
-                    if (!count) return "No items";
-                    return count === 1 ? "1 item" : `${count} items`;
+                    if (!count) return "Empty";
+                    return count === 1 ? "1" : `${count}`;
                 }
             }
 
