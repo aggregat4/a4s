@@ -177,6 +177,28 @@ test("backspace removes an empty new task", async ({ page }) => {
   await expect(itemsAfter).toHaveCount(initialCount);
 });
 
+test("arrow keys move between tasks while editing", async ({ page }) => {
+  const items = page.locator(listItemsSelector);
+  const firstText = items.nth(0).locator(".text");
+  const secondText = items.nth(1).locator(".text");
+
+  await firstText.click();
+  await expect(firstText).toHaveAttribute("contenteditable", "true");
+
+  const firstTextLength = ((await firstText.textContent()) ?? "").length;
+  await setCaretPosition(firstText, firstTextLength);
+  await page.keyboard.press("ArrowDown");
+
+  await expect(firstText).not.toHaveAttribute("contenteditable", "true");
+  await expect(secondText).toHaveAttribute("contenteditable", "true");
+
+  const caretInSecond = await getCaretOffset(secondText);
+  expect(caretInSecond).not.toBeNull();
+
+  await page.keyboard.press("ArrowUp");
+  await expect(firstText).toHaveAttribute("contenteditable", "true");
+});
+
 test("search highlights matching tokens and clears after reset", async ({
   page,
 }) => {

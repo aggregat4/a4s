@@ -300,13 +300,24 @@ export default class InlineTextEditor {
     const caretRect = this.getCaretRect(textEl);
     if (!caretRect) return false;
     const elementRect = textEl.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle
+      ? window.getComputedStyle(textEl)
+      : null;
+    const paddingTop = computedStyle
+      ? parseFloat(computedStyle.paddingTop) || 0
+      : 0;
+    const paddingBottom = computedStyle
+      ? parseFloat(computedStyle.paddingBottom) || 0
+      : 0;
+    const contentTop = elementRect.top + paddingTop;
+    const contentBottom = elementRect.bottom - paddingBottom;
     const tolerance = 2;
     if (
       direction === "down" &&
-      caretRect.bottom < elementRect.bottom - tolerance
+      caretRect.bottom < contentBottom - tolerance
     )
       return false;
-    if (direction === "up" && caretRect.top > elementRect.top + tolerance)
+    if (direction === "up" && caretRect.top > contentTop + tolerance)
       return false;
     const li = textEl.closest("li");
     if (!li) return false;
