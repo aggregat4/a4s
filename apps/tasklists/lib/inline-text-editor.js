@@ -331,6 +331,8 @@ export default class InlineTextEditor {
     }
     const targetText = sibling?.querySelector?.(".text") ?? null;
     if (!targetText) return false;
+    // Capture both the visual column (`x`) and the logical offset so we can restore
+    // the caret precisely even after DOM reshuffles (e.g. search highlighting).
     const offsets = this.getSelectionOffsets(textEl);
     const caretPref = {
       type: "caret-column",
@@ -353,6 +355,7 @@ export default class InlineTextEditor {
     return true;
   }
 
+  // Places the caret at a specific text offset within an element regardless of nested markup.
   setSelectionAtOffset(element, offset, bias = "start") {
     const selection = window.getSelection();
     if (!selection || !element) return false;
@@ -362,6 +365,8 @@ export default class InlineTextEditor {
       typeof offset === "number"
         ? Math.max(0, Math.min(offset, totalLength))
         : 0;
+    // Walk text nodes so we can stop on the exact character, even if the task text
+    // is wrapped in additional spans (highlights, mentions, etc.).
     const walker =
       doc.createTreeWalker?.(element, NodeFilter.SHOW_TEXT) ?? null;
     if (!walker) {
@@ -405,6 +410,7 @@ export default class InlineTextEditor {
     return true;
   }
 
+  // Attempts to position the caret using screen coordinates, mirroring native editors.
   placeCaretByPoint(element, preference) {
     const selection = window.getSelection();
     if (!selection || !element) return false;
@@ -449,6 +455,8 @@ export default class InlineTextEditor {
     return true;
   }
 
+  // Restores the caret based on a serialized preference, preferring geometry but
+  // falling back to logical offsets to stay resilient across DOM churn.
   applyCaretPreference(element, preference) {
     if (preference === "start") {
       this.setSelectionAtOffset(element, 0, "start");
@@ -491,6 +499,7 @@ export default class InlineTextEditor {
           }
         }
       }
+      // Fallback to the logical offset captured before navigation when geometry fails.
       if (this.setSelectionAtOffset(element, fallbackOffset, preference.bias)) {
         return;
       }
