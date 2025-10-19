@@ -184,9 +184,18 @@ test("arrow keys move between tasks while editing", async ({ page }) => {
 
   await firstText.click();
   await expect(firstText).toHaveAttribute("contenteditable", "true");
+  await firstText.fill("First column retention");
+  await page.keyboard.press("Escape");
 
-  const firstTextLength = ((await firstText.textContent()) ?? "").length;
-  await setCaretPosition(firstText, firstTextLength);
+  await secondText.click();
+  await expect(secondText).toHaveAttribute("contenteditable", "true");
+  await secondText.fill("Second column retention");
+  await page.keyboard.press("Escape");
+
+  await firstText.click();
+  await expect(firstText).toHaveAttribute("contenteditable", "true");
+  const targetOffset = 6;
+  await setCaretPosition(firstText, targetOffset);
   await page.keyboard.press("ArrowDown");
 
   await expect(firstText).not.toHaveAttribute("contenteditable", "true");
@@ -194,9 +203,30 @@ test("arrow keys move between tasks while editing", async ({ page }) => {
 
   const caretInSecond = await getCaretOffset(secondText);
   expect(caretInSecond).not.toBeNull();
+  expect(caretInSecond).toBe(targetOffset);
 
   await page.keyboard.press("ArrowUp");
   await expect(firstText).toHaveAttribute("contenteditable", "true");
+  const caretBackInFirst = await getCaretOffset(firstText);
+  expect(caretBackInFirst).toBe(targetOffset);
+
+  await page.keyboard.press("ArrowDown");
+  await expect(secondText).toHaveAttribute("contenteditable", "true");
+  const caretAfterReturn = await getCaretOffset(secondText);
+  expect(caretAfterReturn).toBe(targetOffset);
+
+  const shortText = "Hi";
+  await secondText.fill(shortText);
+  await page.keyboard.press("Escape");
+
+  await firstText.click();
+  await expect(firstText).toHaveAttribute("contenteditable", "true");
+  await setCaretPosition(firstText, targetOffset);
+  await page.keyboard.press("ArrowDown");
+
+  await expect(secondText).toHaveAttribute("contenteditable", "true");
+  const caretAfterClamp = await getCaretOffset(secondText);
+  expect(caretAfterClamp).toBe(shortText.length);
 });
 
 test("search highlights matching tokens and clears after reset", async ({

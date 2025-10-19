@@ -331,10 +331,13 @@ export default class InlineTextEditor {
     }
     const targetText = sibling?.querySelector?.(".text") ?? null;
     if (!targetText) return false;
+    const offsets = this.getSelectionOffsets(textEl);
     const caretPref = {
       type: "caret-column",
       x: caretRect.left,
       bias: direction === "down" ? "start" : "end",
+      fallbackOffset:
+        typeof offsets?.start === "number" ? offsets.start : null,
     };
     // Remember current x so the next item can restore the caret column.
     this.finishEditing(textEl);
@@ -350,13 +353,76 @@ export default class InlineTextEditor {
     return true;
   }
 
+  setSelectionAtOffset(element, offset, bias = "start") {
+    const selection = window.getSelection();
+    if (!selection || !element) return false;
+    const doc = element.ownerDocument ?? document;
+    const totalLength = element.textContent?.length ?? 0;
+    const desiredOffset =
+      typeof offset === "number"
+        ? Math.max(0, Math.min(offset, totalLength))
+        : 0;
+    const walker =
+      doc.createTreeWalker?.(element, NodeFilter.SHOW_TEXT) ?? null;
+    if (!walker) {
+      const range = doc.createRange();
+      range.selectNodeContents(element);
+      range.collapse(bias === "end");
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return true;
+    }
+    let remaining = desiredOffset;
+    let textNode = walker.nextNode();
+    let lastTextNode = null;
+    const range = doc.createRange();
+    while (textNode) {
+      const length = textNode.textContent?.length ?? 0;
+      if (remaining <= length) {
+        const finalOffset = Math.min(remaining, length);
+        range.setStart(textNode, finalOffset);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return true;
+      }
+      remaining -= length;
+      lastTextNode = textNode;
+      textNode = walker.nextNode();
+    }
+    if (lastTextNode) {
+      const length = lastTextNode.textContent?.length ?? 0;
+      range.setStart(lastTextNode, length);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return true;
+    }
+    range.selectNodeContents(element);
+    range.collapse(bias === "end");
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  }
+
   placeCaretByPoint(element, preference) {
     const selection = window.getSelection();
-    if (!selection) return;
+    if (!selection || !element) return false;
     const rect = element.getBoundingClientRect();
+    if (!rect) return false;
     const doc = element.ownerDocument ?? document;
-    const bias = preference.bias === "end" ? "end" : "start";
-    const xCoord = preference.x;
+    const bias = preference?.bias === "end" ? "end" : "start";
+    const fallbackX = rect.left + rect.width / 2;
+    const rawX =
+      preference && typeof preference.x === "number"
+        ? preference.x
+        : fallbackX;
+    const clampLeft = rect.left + 1;
+    const clampRight = rect.right - 1;
+    const xCoord =
+      clampLeft < clampRight
+        ? Math.min(Math.max(rawX, clampLeft), clampRight)
+        : rect.left;
     const yCoord = bias === "end" ? rect.bottom - 2 : rect.top + 2;
     let range = null;
     if (doc.caretPositionFromPoint) {
@@ -376,58 +442,60 @@ export default class InlineTextEditor {
       }
     }
     if (!range || !element.contains(range.startContainer)) {
-      range = doc.createRange();
-      range.selectNodeContents(element);
-      range.collapse(bias === "end");
+      return false;
     }
     selection.removeAllRanges();
     selection.addRange(range);
+    return true;
   }
 
   applyCaretPreference(element, preference) {
-    const selection = window.getSelection();
-    if (!selection) return;
-    let target = null;
     if (preference === "start") {
-      target = 0;
-    } else if (preference === "end") {
-      target = element?.textContent?.length ?? 0;
-    } else if (
+      this.setSelectionAtOffset(element, 0, "start");
+      return;
+    }
+    if (preference === "end") {
+      const length = element?.textContent?.length ?? 0;
+      this.setSelectionAtOffset(element, length, "end");
+      return;
+    }
+    if (
       preference &&
       typeof preference === "object" &&
       preference.type === "offset" &&
       typeof preference.value === "number"
     ) {
-      const length = element?.textContent?.length ?? 0;
-      target = Math.max(0, Math.min(preference.value, length));
-    } else if (
+      this.setSelectionAtOffset(element, preference.value, preference.bias);
+      return;
+    }
+    if (
       preference &&
       typeof preference === "object" &&
-      preference.type === "caret-column" &&
-      typeof preference.x === "number"
+      preference.type === "caret-column"
     ) {
-      this.placeCaretByPoint(element, preference);
-      return;
-    }
-    if (target == null) {
-      this.placeCaret(element, null);
-      return;
-    }
-    const textNode = element?.firstChild;
-    const doc = element?.ownerDocument ?? document;
-    const range = doc.createRange();
-    if (textNode && textNode.nodeType === 3) {
-      const clamped = Math.min(target, textNode.textContent.length);
-      range.setStart(textNode, clamped);
-      range.collapse(true);
-    } else {
-      range.selectNodeContents(element);
       const length = element?.textContent?.length ?? 0;
-      const collapseToEnd = target >= length;
-      range.collapse(collapseToEnd);
+      const desiredX =
+        typeof preference.x === "number" ? preference.x : null;
+      const fallbackOffset =
+        typeof preference.fallbackOffset === "number"
+          ? Math.max(0, Math.min(preference.fallbackOffset, length))
+          : preference.bias === "end"
+            ? length
+            : 0;
+      if (desiredX != null) {
+        const placed = this.placeCaretByPoint(element, preference);
+        if (placed) {
+          const caretRect = this.getCaretRect(element);
+          if (caretRect && Math.abs(caretRect.left - desiredX) <= 2) {
+            return;
+          }
+        }
+      }
+      if (this.setSelectionAtOffset(element, fallbackOffset, preference.bias)) {
+        return;
+      }
     }
-    selection.removeAllRanges();
-    selection.addRange(range);
+    this.placeCaret(element, null);
   }
 
   finishEditing(textEl, skipCallback = false) {
