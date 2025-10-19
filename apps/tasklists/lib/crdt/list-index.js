@@ -11,11 +11,23 @@ function sanitizeText(value) {
     return typeof value === "string" ? value : "";
 }
 
+function resolveTargetId(operation) {
+    if (typeof operation.itemId === "string" && operation.itemId.length) {
+        return operation.itemId;
+    }
+    if (typeof operation.listId === "string" && operation.listId.length) {
+        return operation.listId;
+    }
+    return null;
+}
+
 function toBaseInsert(operation) {
     const payload = operation.payload ?? {};
+    const itemId = resolveTargetId(operation);
     return {
         ...operation,
         type: ORDERED_SET_OPERATIONS.insert,
+        itemId,
         payload: {
             data: { title: sanitizeText(payload.title) },
             pos: payload.pos,
@@ -25,9 +37,11 @@ function toBaseInsert(operation) {
 
 function toBaseUpdate(operation) {
     const payload = operation.payload ?? {};
+    const itemId = resolveTargetId(operation);
     return {
         ...operation,
         type: ORDERED_SET_OPERATIONS.update,
+        itemId,
         payload: {
             data: { title: sanitizeText(payload.title) },
         },
@@ -38,6 +52,10 @@ export class ListIndexCRDT extends OrderedSetCRDT {
     constructor(options = {}) {
         super(options);
         this.listeners = new Set();
+    }
+
+    exportState() {
+        return super.exportState();
     }
 
     sanitizeInsertPayload(data) {
@@ -98,22 +116,45 @@ export class ListIndexCRDT extends OrderedSetCRDT {
         this.emitChange();
     }
 
+    resetFromState(state = {}) {
+        const entries = Array.isArray(state.entries)
+            ? state.entries.map((entry) => ({
+                  ...entry,
+                  data: { title: sanitizeText(entry?.data?.title) },
+              }))
+            : [];
+        this.importRecords(entries);
+        if (Number.isFinite(state.clock)) {
+            this.clock.merge(state.clock);
+        }
+        this.emitChange();
+    }
+
     applyOperation(operation) {
         if (!operation || typeof operation !== "object") return false;
         let baseOp = operation;
         switch (operation.type) {
             case LIST_INDEX_OPERATIONS.createList:
+                if (!resolveTargetId(operation)) return false;
                 baseOp = toBaseInsert(operation);
                 break;
             case LIST_INDEX_OPERATIONS.renameList:
+                if (!resolveTargetId(operation)) return false;
                 baseOp = toBaseUpdate(operation);
                 break;
             case LIST_INDEX_OPERATIONS.removeList:
-                baseOp = { ...operation, type: ORDERED_SET_OPERATIONS.remove };
-                break;
-            case LIST_INDEX_OPERATIONS.reorderList:
+                if (!resolveTargetId(operation)) return false;
                 baseOp = {
                     ...operation,
+                    itemId: resolveTargetId(operation),
+                    type: ORDERED_SET_OPERATIONS.remove,
+                };
+                break;
+            case LIST_INDEX_OPERATIONS.reorderList:
+                if (!resolveTargetId(operation)) return false;
+                baseOp = {
+                    ...operation,
+                    itemId: resolveTargetId(operation),
                     type: ORDERED_SET_OPERATIONS.move,
                     payload: { pos: operation.payload?.pos },
                 };
@@ -166,6 +207,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
         const op = {
             ...result.op,
             type: LIST_INDEX_OPERATIONS.createList,
+            listId,
             payload: {
                 title: result.op.payload.data.title,
                 pos: result.op.payload.pos,
@@ -189,6 +231,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
         const op = {
             ...result.op,
             type: LIST_INDEX_OPERATIONS.renameList,
+            listId,
             payload: {
                 title: result.op.payload.data.title,
             },
@@ -205,6 +248,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
         const op = {
             ...result.op,
             type: LIST_INDEX_OPERATIONS.removeList,
+            listId,
         };
         this.emitChange();
         return {
@@ -227,6 +271,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
         const op = {
             ...result.op,
             type: LIST_INDEX_OPERATIONS.reorderList,
+            listId,
             payload: {
                 pos: result.op.payload.pos,
             },

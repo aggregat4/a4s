@@ -51,6 +51,10 @@ export class OrderedSetCRDT {
         this._snapshotCache = null;
     }
 
+    getClockValue() {
+        return this.clock.value();
+    }
+
     invalidateSnapshotCache() {
         this._snapshotCache = null;
     }
@@ -159,6 +163,13 @@ export class OrderedSetCRDT {
         }
 
         return entries;
+    }
+
+    exportState() {
+        return {
+            clock: this.getClockValue(),
+            entries: this.getSnapshot({ includeDeleted: true }),
+        };
     }
 
     applyOperation(operation) {

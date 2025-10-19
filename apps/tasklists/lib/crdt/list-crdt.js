@@ -70,6 +70,15 @@ export class ListCRDT extends OrderedSetCRDT {
             : 0;
     }
 
+    exportState() {
+        const base = super.exportState();
+        return {
+            ...base,
+            title: this.title,
+            titleUpdatedAt: this.titleUpdatedAt,
+        };
+    }
+
     sanitizeInsertPayload(data) {
         return {
             text: sanitizeText(data?.text),
@@ -100,6 +109,26 @@ export class ListCRDT extends OrderedSetCRDT {
             text: sanitizeText(data?.text),
             done: sanitizeBoolean(data?.done, false),
         };
+    }
+
+    resetFromState(state = {}) {
+        const entries = Array.isArray(state.entries)
+            ? state.entries.map((entry) => ({
+                  ...entry,
+                  data: {
+                      text: sanitizeText(entry?.data?.text),
+                      done: sanitizeBoolean(entry?.data?.done, false),
+                  },
+              }))
+            : [];
+        this.importRecords(entries);
+        this.title = sanitizeText(state.title);
+        this.titleUpdatedAt = Number.isFinite(state.titleUpdatedAt)
+            ? Math.floor(state.titleUpdatedAt)
+            : 0;
+        if (Number.isFinite(state.clock)) {
+            this.clock.merge(state.clock);
+        }
     }
 
     resetFromSnapshot(snapshot = [], metadata = {}) {
