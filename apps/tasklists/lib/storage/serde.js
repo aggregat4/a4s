@@ -117,12 +117,26 @@ const mapRegistryDataEncode = (data) => ({
 const mapRegistryDataDecode = mapRegistryDataEncode;
 
 export function serializeListState(state = {}) {
+    const normalizedEntries = Array.isArray(state.entries)
+        ? state.entries.map((entry) => {
+              const data =
+                  entry?.data ??
+                  {
+                      text: sanitizeText(entry?.text),
+                      done: sanitizeBoolean(entry?.done),
+                  };
+              return {
+                  ...entry,
+                  data,
+              };
+          })
+        : [];
     return {
         version: SERIALIZATION_VERSION,
         clock: encodeTimestamp(state.clock),
         title: sanitizeText(state.title),
         titleUpdatedAt: encodeTimestamp(state.titleUpdatedAt),
-        entries: serializeOrderedSetSnapshot(state.entries, mapListDataEncode),
+        entries: serializeOrderedSetSnapshot(normalizedEntries, mapListDataEncode),
     };
 }
 
@@ -137,10 +151,23 @@ export function deserializeListState(encoded = {}) {
 }
 
 export function serializeRegistryState(state = {}) {
+    const normalizedEntries = Array.isArray(state.entries)
+        ? state.entries.map((entry) => {
+              const data =
+                  entry?.data ??
+                  {
+                      title: sanitizeText(entry?.title),
+                  };
+              return {
+                  ...entry,
+                  data,
+              };
+          })
+        : [];
     return {
         version: SERIALIZATION_VERSION,
         clock: encodeTimestamp(state.clock),
-        entries: serializeOrderedSetSnapshot(state.entries, mapRegistryDataEncode),
+        entries: serializeOrderedSetSnapshot(normalizedEntries, mapRegistryDataEncode),
     };
 }
 
