@@ -67,58 +67,34 @@ function makeBaseUpdateOp(operation) {
   };
 }
 
-export class ListCRDT extends OrderedSetCRDT {
+export class ListCRDT {
   constructor(options = {}) {
-    super(options);
+    this._orderedSet = new OrderedSetCRDT(options);
     this.title = sanitizeText(options.title);
     this.titleUpdatedAt = Number.isFinite(options.titleUpdatedAt)
       ? Math.floor(options.titleUpdatedAt)
       : 0;
   }
 
+  get actorId() {
+    return this._orderedSet.actorId;
+  }
+
+  get clock() {
+    return this._orderedSet.clock;
+  }
+
+  get items() {
+    return this._orderedSet.items;
+  }
+
   exportState() {
-    const base = super.exportState();
+    const base = this._orderedSet.exportState();
     return {
       ...base,
       title: this.title,
       titleUpdatedAt: this.titleUpdatedAt,
     };
-  }
-
-  sanitizeInsertPayload(data) {
-    return {
-      text: sanitizeText(data?.text),
-      done: sanitizeBoolean(data?.done, false),
-    };
-  }
-
-  sanitizeUpdatePayload(data) {
-    const result = {};
-    if (data && Object.prototype.hasOwnProperty.call(data, "text")) {
-      result.text = sanitizeText(data.text);
-    }
-    if (data && Object.prototype.hasOwnProperty.call(data, "done")) {
-      result.done = sanitizeBoolean(data.done, false);
-    }
-    return result;
-  }
-
-  sanitizeSnapshotData(data) {
-    return {
-      text: sanitizeText(data?.text),
-      done: sanitizeBoolean(data?.done, false),
-    };
-  }
-
-  cloneData(data) {
-    const result = {};
-    if (data && Object.prototype.hasOwnProperty.call(data, "text")) {
-      result.text = sanitizeText(data.text);
-    }
-    if (data && Object.prototype.hasOwnProperty.call(data, "done")) {
-      result.done = sanitizeBoolean(data.done, false);
-    }
-    return result;
   }
 
   resetFromState(state = {}) {
@@ -131,13 +107,13 @@ export class ListCRDT extends OrderedSetCRDT {
           },
         }))
       : [];
-    this.importRecords(entries);
+    this._orderedSet.importRecords(entries);
     this.title = sanitizeText(state.title);
     this.titleUpdatedAt = Number.isFinite(state.titleUpdatedAt)
       ? Math.floor(state.titleUpdatedAt)
       : 0;
     if (Number.isFinite(state.clock)) {
-      this.clock.merge(state.clock);
+      this._orderedSet.clock.merge(state.clock);
     }
   }
 
@@ -155,7 +131,7 @@ export class ListCRDT extends OrderedSetCRDT {
           deletedAt: item.deletedAt,
         }))
       : [];
-    this.importRecords(entries);
+    this._orderedSet.importRecords(entries);
     if (typeof metadata.title === "string") {
       this.title = sanitizeText(metadata.title);
     }
@@ -163,7 +139,7 @@ export class ListCRDT extends OrderedSetCRDT {
       this.titleUpdatedAt = Math.floor(metadata.titleUpdatedAt);
     }
     if (Number.isFinite(metadata.clock)) {
-      this.clock.merge(metadata.clock);
+      this._orderedSet.clock.merge(metadata.clock);
     }
   }
 
@@ -173,12 +149,12 @@ export class ListCRDT extends OrderedSetCRDT {
       return this.applyRename(operation);
     }
     if (operation.type === ORDERED_SET_OPERATIONS.insert) {
-      return super.applyOperation(makeBaseInsertOp(operation));
+      return this._orderedSet.applyOperation(makeBaseInsertOp(operation));
     }
     if (operation.type === ORDERED_SET_OPERATIONS.update) {
-      return super.applyOperation(makeBaseUpdateOp(operation));
+      return this._orderedSet.applyOperation(makeBaseUpdateOp(operation));
     }
-    return super.applyOperation(operation);
+    return this._orderedSet.applyOperation(operation);
   }
 
   applyRename(operation) {
@@ -195,17 +171,17 @@ export class ListCRDT extends OrderedSetCRDT {
     }
     this.title = title;
     this.titleUpdatedAt = clock;
-    this.invalidateSnapshotCache();
+    this._orderedSet.invalidateSnapshotCache();
     return true;
   }
 
   getItem(id) {
-    const entry = super.getItem(id);
+    const entry = this._orderedSet.getItem(id);
     return entry ? cloneRecordEntry(entry) : null;
   }
 
   getSnapshot(options = {}) {
-    const baseSnapshot = super.getSnapshot(options);
+    const baseSnapshot = this._orderedSet.getSnapshot(options);
     return baseSnapshot.map(cloneRecordEntry);
   }
 
@@ -221,6 +197,10 @@ export class ListCRDT extends OrderedSetCRDT {
     };
   }
 
+  nextClock(remoteTime) {
+    return this._orderedSet.nextClock(remoteTime);
+  }
+
   generateInsert(options = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
@@ -230,7 +210,7 @@ export class ListCRDT extends OrderedSetCRDT {
       text: sanitizeText(options.text),
       done: options.done != null ? sanitizeBoolean(options.done, false) : false,
     };
-    const result = super.generateInsert({
+    const result = this._orderedSet.generateInsert({
       itemId,
       data,
       position: options.position,
@@ -263,7 +243,7 @@ export class ListCRDT extends OrderedSetCRDT {
     if (options.done != null) {
       data.done = sanitizeBoolean(options.done, false);
     }
-    const result = super.generateUpdate({
+    const result = this._orderedSet.generateUpdate({
       itemId,
       data,
     });
@@ -285,10 +265,10 @@ export class ListCRDT extends OrderedSetCRDT {
   }
 
   generateToggle(itemId, explicitState = null) {
-    if (typeof itemId !== "string" || !this.items.has(itemId)) {
+    if (typeof itemId !== "string" || !this._orderedSet.items.has(itemId)) {
       throw new Error(`Cannot toggle missing item "${itemId}"`);
     }
-    const record = this.items.get(itemId);
+    const record = this._orderedSet.items.get(itemId);
     const nextDone =
       explicitState == null
         ? !record.data.done
@@ -301,7 +281,7 @@ export class ListCRDT extends OrderedSetCRDT {
     if (!itemId) {
       throw new Error("generateMove requires an itemId");
     }
-    const result = super.generateMove({
+    const result = this._orderedSet.generateMove({
       itemId,
       position: options.position,
       afterId: options.afterId,
@@ -314,7 +294,7 @@ export class ListCRDT extends OrderedSetCRDT {
   }
 
   generateRemove(itemId) {
-    const result = super.generateRemove(itemId);
+    const result = this._orderedSet.generateRemove(itemId);
     return {
       op: result.op,
       resultingSnapshot: this.getSnapshot(),
@@ -330,9 +310,7 @@ export class ListCRDT extends OrderedSetCRDT {
       clock,
       actor: this.actorId,
     };
-    if (this.applyRename(op)) {
-      this.invalidateSnapshotCache();
-    }
+    this.applyRename(op);
     return {
       op,
       resultingSnapshot: this.getSnapshot(),

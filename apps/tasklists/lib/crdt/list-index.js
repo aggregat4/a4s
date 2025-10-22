@@ -48,34 +48,26 @@ function toBaseUpdate(operation) {
     };
 }
 
-export class ListIndexCRDT extends OrderedSetCRDT {
+export class ListIndexCRDT {
     constructor(options = {}) {
-        super(options);
+        this._orderedSet = new OrderedSetCRDT(options);
         this.listeners = new Set();
     }
 
+    get actorId() {
+        return this._orderedSet.actorId;
+    }
+
+    get clock() {
+        return this._orderedSet.clock;
+    }
+
+    get items() {
+        return this._orderedSet.items;
+    }
+
     exportState() {
-        return super.exportState();
-    }
-
-    sanitizeInsertPayload(data) {
-        return { title: sanitizeText(data?.title) };
-    }
-
-    sanitizeUpdatePayload(data) {
-        const result = {};
-        if (data && Object.prototype.hasOwnProperty.call(data, "title")) {
-            result.title = sanitizeText(data.title);
-        }
-        return result;
-    }
-
-    sanitizeSnapshotData(data) {
-        return { title: sanitizeText(data?.title) };
-    }
-
-    cloneData(data) {
-        return { title: sanitizeText(data?.title) };
+        return this._orderedSet.exportState();
     }
 
     subscribe(handler) {
@@ -109,9 +101,9 @@ export class ListIndexCRDT extends OrderedSetCRDT {
                   deletedAt: entry.deletedAt,
               }))
             : [];
-        this.importRecords(entries);
+        this._orderedSet.importRecords(entries);
         if (Number.isFinite(metadata.clock)) {
-            this.clock.merge(metadata.clock);
+            this._orderedSet.clock.merge(metadata.clock);
         }
         this.emitChange();
     }
@@ -123,9 +115,9 @@ export class ListIndexCRDT extends OrderedSetCRDT {
                   data: { title: sanitizeText(entry?.data?.title) },
               }))
             : [];
-        this.importRecords(entries);
+        this._orderedSet.importRecords(entries);
         if (Number.isFinite(state.clock)) {
-            this.clock.merge(state.clock);
+            this._orderedSet.clock.merge(state.clock);
         }
         this.emitChange();
     }
@@ -162,7 +154,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
             default:
                 break;
         }
-        const changed = super.applyOperation(baseOp);
+        const changed = this._orderedSet.applyOperation(baseOp);
         if (changed) {
             this.emitChange();
         }
@@ -170,7 +162,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
     }
 
     getRecord(id) {
-        const entry = super.getItem(id);
+        const entry = this._orderedSet.getItem(id);
         if (!entry) return null;
         return {
             id: entry.id,
@@ -183,13 +175,11 @@ export class ListIndexCRDT extends OrderedSetCRDT {
     }
 
     getVisibleLists() {
-        return super
-            .getSnapshot()
-            .map((entry) => ({
-                id: entry.id,
-                title: entry.data.title,
-                pos: entry.pos,
-            }));
+        return this._orderedSet.getSnapshot().map((entry) => ({
+            id: entry.id,
+            title: entry.data.title,
+            pos: entry.pos,
+        }));
     }
 
     generateCreate(options = {}) {
@@ -197,7 +187,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
         if (!listId) {
             throw new Error("generateCreate requires a listId");
         }
-        const result = super.generateInsert({
+        const result = this._orderedSet.generateInsert({
             itemId: listId,
             data: { title: sanitizeText(options.title) },
             position: options.position,
@@ -221,10 +211,10 @@ export class ListIndexCRDT extends OrderedSetCRDT {
     }
 
     generateRename(listId, title) {
-        if (typeof listId !== "string" || !this.items.has(listId)) {
+        if (typeof listId !== "string" || !this._orderedSet.items.has(listId)) {
             throw new Error(`Cannot rename missing list "${listId}"`);
         }
-        const result = super.generateUpdate({
+        const result = this._orderedSet.generateUpdate({
             itemId: listId,
             data: { title: sanitizeText(title) },
         });
@@ -244,7 +234,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
     }
 
     generateRemove(listId) {
-        const result = super.generateRemove(listId);
+        const result = this._orderedSet.generateRemove(listId);
         const op = {
             ...result.op,
             type: LIST_INDEX_OPERATIONS.removeList,
@@ -262,7 +252,7 @@ export class ListIndexCRDT extends OrderedSetCRDT {
         if (!listId) {
             throw new Error("generateReorder requires a listId");
         }
-        const result = super.generateMove({
+        const result = this._orderedSet.generateMove({
             itemId: listId,
             position: options.position,
             afterId: options.afterId,
