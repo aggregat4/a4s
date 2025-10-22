@@ -2,7 +2,6 @@ import { ORDERED_SET_OPERATIONS, OrderedSetCRDT } from "./ordered-set-crdt.js";
 
 const LIST_INDEX_OPERATIONS = {
     createList: "createList",
-    renameList: "renameList",
     removeList: "removeList",
     reorderList: "reorderList",
 };
@@ -31,19 +30,6 @@ function toBaseInsert(operation) {
         payload: {
             data: { title: sanitizeText(payload.title) },
             pos: payload.pos,
-        },
-    };
-}
-
-function toBaseUpdate(operation) {
-    const payload = operation.payload ?? {};
-    const itemId = resolveTargetId(operation);
-    return {
-        ...operation,
-        type: ORDERED_SET_OPERATIONS.update,
-        itemId,
-        payload: {
-            data: { title: sanitizeText(payload.title) },
         },
     };
 }
@@ -130,10 +116,6 @@ export class ListIndexCRDT {
                 if (!resolveTargetId(operation)) return false;
                 baseOp = toBaseInsert(operation);
                 break;
-            case LIST_INDEX_OPERATIONS.renameList:
-                if (!resolveTargetId(operation)) return false;
-                baseOp = toBaseUpdate(operation);
-                break;
             case LIST_INDEX_OPERATIONS.removeList:
                 if (!resolveTargetId(operation)) return false;
                 baseOp = {
@@ -201,29 +183,6 @@ export class ListIndexCRDT {
             payload: {
                 title: result.op.payload.data.title,
                 pos: result.op.payload.pos,
-            },
-        };
-        this.emitChange();
-        return {
-            op,
-            snapshot: this.getVisibleLists(),
-        };
-    }
-
-    generateRename(listId, title) {
-        if (typeof listId !== "string" || !this._orderedSet.items.has(listId)) {
-            throw new Error(`Cannot rename missing list "${listId}"`);
-        }
-        const result = this._orderedSet.generateUpdate({
-            itemId: listId,
-            data: { title: sanitizeText(title) },
-        });
-        const op = {
-            ...result.op,
-            type: LIST_INDEX_OPERATIONS.renameList,
-            listId,
-            payload: {
-                title: result.op.payload.data.title,
             },
         };
         this.emitChange();

@@ -25,9 +25,6 @@ test("list index CRDT creates, reorders, and removes lists", () => {
     });
     assert.equal(reorder.snapshot[0].id, "beta");
 
-    const rename = index.generateRename("beta", "Renamed");
-    assert.equal(rename.snapshot[0].title, "Renamed");
-
     const remove = index.generateRemove("beta");
     assert.equal(remove.snapshot.length, 1);
     assert.equal(remove.snapshot[0].id, "alpha");

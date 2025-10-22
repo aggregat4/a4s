@@ -45,7 +45,7 @@
 3. **List registry CRDT**
    - Add `lib/crdt/list-index.js` for managing multiple lists.
      - Use an Observed-Remove Map keyed by `listId` with values `{ title, createdAt, updatedAt, pos }`.
-     - Support operations: `createList`, `renameList`, `removeList`, `reorderList`.
+     - Support operations: `createList`, `removeList`, `reorderList`.
      - Use the same fractional positions to order lists in the sidebar.
    - Ensure registry emits change events so `ListsApp` can refresh sidebar order without direct access to CRDT internals.
 
@@ -115,7 +115,7 @@
    - Update metrics (`itemcountchange`, `searchresultschange`) to rely on CRDT-derived counts so sidebar stays in sync.
 
 4. **Saving list titles & order**
-   - When `titlechange` fires from `A4TaskList`, call repository `renameList` which issues a `renameList` operation on the registry CRDT and persists.
+  - When `titlechange` fires from `A4TaskList`, call repository `renameList` which updates the list's `ListCRDT` title register and persists.
    - For list deletion, emit registry operation marking list as removed; cascade to delete per-list storage after a grace period to support undo later.
 
 5. **Graceful degradation**
