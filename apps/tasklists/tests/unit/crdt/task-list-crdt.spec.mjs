@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ListCRDT } from "../../../lib/crdt/list-crdt.js";
+import { TaskListCRDT } from "../../../lib/crdt/task-list-crdt.js";
 
-test("list CRDT inserts, toggles, and updates tasks", () => {
-    const crdt = new ListCRDT({ actorId: "actor-1", title: "Inbox" });
+test("task list CRDT inserts, toggles, and updates tasks", () => {
+    const crdt = new TaskListCRDT({ actorId: "actor-1", title: "Inbox" });
 
     const insert = crdt.generateInsert({
         itemId: "task-1",
@@ -27,8 +27,8 @@ test("list CRDT inserts, toggles, and updates tasks", () => {
     assert.equal(snapshot[0].done, true);
 });
 
-test("list CRDT rename propagates and survives serialization round-trip", () => {
-    const crdt = new ListCRDT({ actorId: "actor-1", title: "Inbox" });
+test("task list CRDT rename propagates and survives serialization round-trip", () => {
+    const crdt = new TaskListCRDT({ actorId: "actor-1", title: "Inbox" });
     const rename = crdt.generateRename("Updated Inbox");
     assert.equal(rename.op.type, "renameList");
     assert.equal(crdt.title, "Updated Inbox");
@@ -36,7 +36,7 @@ test("list CRDT rename propagates and survives serialization round-trip", () => 
     const exported = crdt.exportState();
     assert.equal(exported.title, "Updated Inbox");
 
-    const restored = new ListCRDT({ actorId: "actor-2" });
+    const restored = new TaskListCRDT({ actorId: "actor-2" });
     restored.resetFromState(exported);
     assert.equal(restored.title, "Updated Inbox");
     assert.equal(restored.getSnapshot().length, 0);

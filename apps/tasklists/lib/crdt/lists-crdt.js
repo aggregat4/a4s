@@ -1,6 +1,6 @@
 import { ORDERED_SET_OPERATIONS, OrderedSetCRDT } from "./ordered-set-crdt.js";
 
-const LIST_INDEX_OPERATIONS = {
+const LISTS_CRDT_OPERATIONS = {
     createList: "createList",
     removeList: "removeList",
     reorderList: "reorderList",
@@ -34,7 +34,7 @@ function toBaseInsert(operation) {
     };
 }
 
-export class ListIndexCRDT {
+export class ListsCRDT {
     constructor(options = {}) {
         this._orderedSet = new OrderedSetCRDT(options);
         this.listeners = new Set();
@@ -112,11 +112,11 @@ export class ListIndexCRDT {
         if (!operation || typeof operation !== "object") return false;
         let baseOp = operation;
         switch (operation.type) {
-            case LIST_INDEX_OPERATIONS.createList:
+            case LISTS_CRDT_OPERATIONS.createList:
                 if (!resolveTargetId(operation)) return false;
                 baseOp = toBaseInsert(operation);
                 break;
-            case LIST_INDEX_OPERATIONS.removeList:
+            case LISTS_CRDT_OPERATIONS.removeList:
                 if (!resolveTargetId(operation)) return false;
                 baseOp = {
                     ...operation,
@@ -124,7 +124,7 @@ export class ListIndexCRDT {
                     type: ORDERED_SET_OPERATIONS.remove,
                 };
                 break;
-            case LIST_INDEX_OPERATIONS.reorderList:
+            case LISTS_CRDT_OPERATIONS.reorderList:
                 if (!resolveTargetId(operation)) return false;
                 baseOp = {
                     ...operation,
@@ -178,7 +178,7 @@ export class ListIndexCRDT {
         });
         const op = {
             ...result.op,
-            type: LIST_INDEX_OPERATIONS.createList,
+            type: LISTS_CRDT_OPERATIONS.createList,
             listId,
             payload: {
                 title: result.op.payload.data.title,
@@ -196,7 +196,7 @@ export class ListIndexCRDT {
         const result = this._orderedSet.generateRemove(listId);
         const op = {
             ...result.op,
-            type: LIST_INDEX_OPERATIONS.removeList,
+            type: LISTS_CRDT_OPERATIONS.removeList,
             listId,
         };
         this.emitChange();
@@ -219,7 +219,7 @@ export class ListIndexCRDT {
         });
         const op = {
             ...result.op,
-            type: LIST_INDEX_OPERATIONS.reorderList,
+            type: LISTS_CRDT_OPERATIONS.reorderList,
             listId,
             payload: {
                 pos: result.op.payload.pos,
@@ -233,4 +233,4 @@ export class ListIndexCRDT {
     }
 }
 
-export { LIST_INDEX_OPERATIONS };
+export { LISTS_CRDT_OPERATIONS };

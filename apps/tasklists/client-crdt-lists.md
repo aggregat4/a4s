@@ -18,7 +18,7 @@
      - Provide `between(left, right, { base = 1024, depth = 6 })` to create dense positions with deterministic tie-breaking by actor.
 
 2. **Model list items as a CRDT**
-   - Create `lib/crdt/list-crdt.js` exporting a `ListCRDT` class.
+   - Create `lib/crdt/task-list-crdt.js` exporting a `TaskListCRDT` class.
      - Internal state: `items` map keyed by `itemId`, storing `{ id, pos, content, done, createdAt, updatedAt, deletedAt }`.
      - Track `tombstones` implicitly via `deletedAt !== null`.
      - Maintain `clock` (Lamport) and `actorId` references.
@@ -43,7 +43,7 @@
    - Implement mutation helpers that generate operations (`generateInsert`, `generateToggle`, etc.) for local UI events; helpers should return `{ op, resultingSnapshot }`.
 
 3. **List registry CRDT**
-   - Add `lib/crdt/list-index.js` for managing multiple lists.
+   - Add `lib/crdt/lists-crdt.js` for managing multiple lists.
      - Use an Observed-Remove Map keyed by `listId` with values `{ title, createdAt, updatedAt, pos }`.
      - Support operations: `createList`, `removeList`, `reorderList`.
      - Use the same fractional positions to order lists in the sidebar.
@@ -67,7 +67,7 @@
 
    - Backend: IndexedDB (`window.indexedDB`) with a database `protoLists` containing:
      - `store lists`: key `listId`, value `{ metadata, snapshotVersion }`.
-     - `store listSnapshots`: key `listId`, value serialized `ListCRDT` state.
+     - `store listSnapshots`: key `listId`, value serialized `TaskListCRDT` state.
      - `store operations`: compound key `[listId, clock, actor]` for merge-friendly logs.
 
 2. **Serialization**
@@ -115,7 +115,7 @@
    - Update metrics (`itemcountchange`, `searchresultschange`) to rely on CRDT-derived counts so sidebar stays in sync.
 
 4. **Saving list titles & order**
-  - When `titlechange` fires from `A4TaskList`, call repository `renameList` which updates the list's `ListCRDT` title register and persists.
+  - When `titlechange` fires from `A4TaskList`, call repository `renameList` which updates the list's `TaskListCRDT` title register and persists.
    - For list deletion, emit registry operation marking list as removed; cascade to delete per-list storage after a grace period to support undo later.
 
 5. **Graceful degradation**

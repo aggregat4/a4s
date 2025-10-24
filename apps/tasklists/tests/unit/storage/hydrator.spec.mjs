@@ -2,18 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createListStorage } from "../../../lib/storage/list-storage.js";
 import { seedDefaultsIfEmpty, hydrateFromStorage } from "../../../lib/storage/hydrator.js";
-import { ListIndexCRDT } from "../../../lib/crdt/list-index.js";
-import { ListCRDT } from "../../../lib/crdt/list-crdt.js";
+import { ListsCRDT } from "../../../lib/crdt/lists-crdt.js";
+import { TaskListCRDT } from "../../../lib/crdt/task-list-crdt.js";
 
 test("hydrator seeds defaults and hydrates stored lists", async () => {
     const storage = await createListStorage({ forceFallback: true });
     await storage.clear();
 
-    const index = new ListIndexCRDT({ actorId: "seed-index" });
+    const index = new ListsCRDT({ actorId: "seed-index" });
     const seeded = await seedDefaultsIfEmpty({
         storage,
-        listIndexCrdt: index,
-        createListCrdt: () => new ListCRDT({ actorId: "seed-list" }),
+        listsCrdt: index,
+        createListCrdt: () => new TaskListCRDT({ actorId: "seed-list" }),
         seedConfigs: [
             {
                 id: "alpha",
@@ -30,17 +30,17 @@ test("hydrator seeds defaults and hydrates stored lists", async () => {
 
     const seededAgain = await seedDefaultsIfEmpty({
         storage,
-        listIndexCrdt: index,
+        listsCrdt: index,
         seedConfigs: [{ title: "Should not apply" }],
     });
     assert.equal(seededAgain, false);
 
-    const newIndex = new ListIndexCRDT({ actorId: "hydrate-index" });
+    const newIndex = new ListsCRDT({ actorId: "hydrate-index" });
     const hydrateResult = await hydrateFromStorage({
         storage,
-        listIndexCrdt: newIndex,
+        listsCrdt: newIndex,
         createListCrdt: (listId, state) =>
-            new ListCRDT({ actorId: `hydrate-${listId}`, title: state?.title }),
+            new TaskListCRDT({ actorId: `hydrate-${listId}`, title: state?.title }),
     });
 
     const lists = newIndex.getVisibleLists();

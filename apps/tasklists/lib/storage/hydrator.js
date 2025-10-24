@@ -1,4 +1,4 @@
-import { ListCRDT } from "../crdt/list-crdt.js";
+import { TaskListCRDT } from "../crdt/task-list-crdt.js";
 import { requestPersistentStorage } from "./list-storage.js";
 
 const randomString = () => Math.random().toString(36).slice(2, 10);
@@ -13,7 +13,7 @@ function generateItemId(listId, index) {
 function ensureListFactory(factory) {
     if (typeof factory === "function") return factory;
     return (listId, initialState = {}) =>
-        new ListCRDT({
+        new TaskListCRDT({
             title: initialState.title ?? "",
             titleUpdatedAt: initialState.titleUpdatedAt ?? 0,
         });
@@ -21,26 +21,26 @@ function ensureListFactory(factory) {
 
 export async function hydrateFromStorage({
     storage,
-    listIndexCrdt,
+    listsCrdt,
     createListCrdt,
 } = {}) {
     if (!storage || typeof storage.loadRegistry !== "function") {
         throw new Error("hydrateFromStorage requires a storage instance with loadRegistry");
     }
-    if (!listIndexCrdt || typeof listIndexCrdt.resetFromState !== "function") {
-        throw new Error("hydrateFromStorage requires a valid ListIndexCRDT instance");
+    if (!listsCrdt || typeof listsCrdt.resetFromState !== "function") {
+        throw new Error("hydrateFromStorage requires a valid ListsCRDT instance");
     }
     const listFactory = ensureListFactory(createListCrdt);
 
     await storage.ready?.();
     const registryPayload = await storage.loadRegistry();
     if (registryPayload?.state) {
-        listIndexCrdt.resetFromState(registryPayload.state);
+        listsCrdt.resetFromState(registryPayload.state);
     } else {
-        listIndexCrdt.resetFromState({ entries: [], clock: 0 });
+        listsCrdt.resetFromState({ entries: [], clock: 0 });
     }
     (registryPayload?.operations || []).forEach((operation) => {
-        listIndexCrdt.applyOperation?.(operation);
+        listsCrdt.applyOperation?.(operation);
     });
 
     const listPayloads = await storage.loadAllLists();
@@ -80,15 +80,15 @@ export async function hydrateFromStorage({
 
 export async function seedDefaultsIfEmpty({
     storage,
-    listIndexCrdt,
+    listsCrdt,
     createListCrdt,
     seedConfigs = [],
 } = {}) {
     if (!storage || typeof storage.loadRegistry !== "function") {
         throw new Error("seedDefaultsIfEmpty requires a storage instance");
     }
-    if (!listIndexCrdt || typeof listIndexCrdt.generateCreate !== "function") {
-        throw new Error("seedDefaultsIfEmpty requires a valid ListIndexCRDT instance");
+    if (!listsCrdt || typeof listsCrdt.generateCreate !== "function") {
+        throw new Error("seedDefaultsIfEmpty requires a valid ListsCRDT instance");
     }
     if (!Array.isArray(seedConfigs) || !seedConfigs.length) {
         return false;
@@ -159,7 +159,7 @@ export async function seedDefaultsIfEmpty({
             }),
         );
 
-        const createResult = listIndexCrdt.generateCreate({
+        const createResult = listsCrdt.generateCreate({
             listId,
             title: seedConfig.title ?? "",
             afterId: previousListId,
@@ -173,7 +173,7 @@ export async function seedDefaultsIfEmpty({
     await Promise.all(persistPromises);
     await storage.persistRegistry({
         operations: registryOps,
-        snapshot: listIndexCrdt.exportState(),
+        snapshot: listsCrdt.exportState(),
     });
     return true;
 }

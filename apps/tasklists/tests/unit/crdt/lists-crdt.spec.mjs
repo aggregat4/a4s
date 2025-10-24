@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ListIndexCRDT } from "../../../lib/crdt/list-index.js";
+import { ListsCRDT } from "../../../lib/crdt/lists-crdt.js";
 
-test("list index CRDT creates, reorders, and removes lists", () => {
-    const index = new ListIndexCRDT({ actorId: "actor-idx" });
+test("lists CRDT creates, reorders, and removes lists", () => {
+    const index = new ListsCRDT({ actorId: "actor-idx" });
 
     const first = index.generateCreate({ listId: "alpha", title: "Alpha" });
     const second = index.generateCreate({

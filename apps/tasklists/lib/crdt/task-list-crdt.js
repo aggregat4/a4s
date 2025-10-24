@@ -1,6 +1,6 @@
 import { ORDERED_SET_OPERATIONS, OrderedSetCRDT } from "./ordered-set-crdt.js";
 
-const LIST_CRDT_OPERATIONS = {
+const TASK_LIST_OPERATIONS = {
   ...ORDERED_SET_OPERATIONS,
   renameList: "renameList",
 };
@@ -67,7 +67,7 @@ function makeBaseUpdateOp(operation) {
   };
 }
 
-export class ListCRDT {
+export class TaskListCRDT {
   constructor(options = {}) {
     this._orderedSet = new OrderedSetCRDT(options);
     this.title = sanitizeText(options.title);
@@ -145,7 +145,7 @@ export class ListCRDT {
 
   applyOperation(operation) {
     if (!operation || typeof operation !== "object") return false;
-    if (operation.type === LIST_CRDT_OPERATIONS.renameList) {
+    if (operation.type === TASK_LIST_OPERATIONS.renameList) {
       return this.applyRename(operation);
     }
     if (operation.type === ORDERED_SET_OPERATIONS.insert) {
@@ -305,7 +305,7 @@ export class ListCRDT {
     const nextTitle = sanitizeText(title);
     const clock = this.nextClock();
     const op = {
-      type: LIST_CRDT_OPERATIONS.renameList,
+      type: TASK_LIST_OPERATIONS.renameList,
       payload: { title: nextTitle },
       clock,
       actor: this.actorId,
@@ -318,4 +318,4 @@ export class ListCRDT {
   }
 }
 
-export { LIST_CRDT_OPERATIONS };
+export { TASK_LIST_OPERATIONS };
