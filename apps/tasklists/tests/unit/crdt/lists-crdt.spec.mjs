@@ -29,3 +29,16 @@ test("lists CRDT creates, reorders, and removes lists", () => {
     assert.equal(remove.snapshot.length, 1);
     assert.equal(remove.snapshot[0].id, "alpha");
 });
+
+test("lists CRDT rename updates title metadata", () => {
+    const index = new ListsCRDT({ actorId: "actor-idx" });
+    index.generateCreate({ listId: "alpha", title: "Alpha" });
+
+    const result = index.generateRename("alpha", "Renamed");
+    assert.equal(result.snapshot.length, 1);
+    assert.equal(result.snapshot[0].title, "Renamed");
+
+    const record = index.getRecord("alpha");
+    assert.ok(record);
+    assert.equal(record.title, "Renamed");
+});
