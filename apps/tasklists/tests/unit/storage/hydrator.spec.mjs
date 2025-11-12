@@ -1,12 +1,84 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createListStorage } from "../../../lib/storage/list-storage.js";
 import { seedDefaultsIfEmpty, hydrateFromStorage } from "../../../lib/storage/hydrator.js";
 import { ListsCRDT } from "../../../lib/crdt/lists-crdt.js";
 import { TaskListCRDT } from "../../../lib/crdt/task-list-crdt.js";
 
+const clone = (value) =>
+    value == null ? value : JSON.parse(JSON.stringify(value));
+
+class MemoryListStorage {
+    constructor() {
+        this.lists = new Map();
+        this.registry = { state: null, operations: [], updatedAt: null };
+    }
+
+    async ready() {}
+
+    async clear() {
+        this.lists.clear();
+        this.registry = { state: null, operations: [], updatedAt: null };
+    }
+
+    async loadAllLists() {
+        return Array.from(this.lists.entries()).map(([listId, record]) => ({
+            listId,
+            state: clone(record.state),
+            operations: record.operations.map((op) => clone(op)),
+            updatedAt: record.updatedAt,
+        }));
+    }
+
+    async loadRegistry() {
+        return {
+            state: clone(this.registry.state),
+            operations: this.registry.operations.map((op) => clone(op)),
+            updatedAt: this.registry.updatedAt,
+        };
+    }
+
+    async persistOperations(listId, operations = [], options = {}) {
+        if (typeof listId !== "string" || !listId.length) {
+            throw new Error("persistOperations requires a listId");
+        }
+        const record =
+            this.lists.get(listId) ?? { state: null, operations: [], updatedAt: null };
+        if (Array.isArray(operations) && operations.length) {
+            record.operations.push(...operations.map((op) => clone(op)));
+        }
+        if (options.snapshot) {
+            record.state = clone(options.snapshot);
+        }
+        record.updatedAt = Date.now();
+        this.lists.set(listId, record);
+    }
+
+    async persistRegistry({ operations = [], snapshot = null } = {}) {
+        if (Array.isArray(operations) && operations.length) {
+            this.registry.operations.push(...operations.map((op) => clone(op)));
+        }
+        if (snapshot) {
+            this.registry.state = clone(snapshot);
+        }
+        this.registry.updatedAt = Date.now();
+    }
+
+    async loadList(listId) {
+        const record = this.lists.get(listId);
+        if (!record) {
+            return { listId, state: null, operations: [], updatedAt: null };
+        }
+        return {
+            listId,
+            state: clone(record.state),
+            operations: record.operations.map((op) => clone(op)),
+            updatedAt: record.updatedAt,
+        };
+    }
+}
+
 test("hydrator seeds defaults and hydrates stored lists", async () => {
-    const storage = await createListStorage({ forceFallback: true });
+    const storage = new MemoryListStorage();
     await storage.clear();
 
     const index = new ListsCRDT({ actorId: "seed-index" });

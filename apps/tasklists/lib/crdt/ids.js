@@ -1,38 +1,18 @@
 const DEFAULT_STORAGE_KEY = "prototypeLists.actorId";
 
-/**
- * Attempts to access a persistent storage area (localStorage) while remaining safe when
- * unavailable (server-side rendering, private browsing restrictions, unit tests).
- */
 function resolveStorage(customStorage) {
     if (customStorage) return customStorage;
-    try {
-        if (typeof window !== "undefined" && window.localStorage) {
-            return window.localStorage;
-        }
-    } catch (err) {
-        // Accessing localStorage can throw in certain privacy contexts; fall back to memory store.
+    const storage = globalThis?.localStorage;
+    if (!storage) {
+        throw new Error(
+            "localStorage is required for actor identity persistence; provide options.storage when running outside the browser.",
+        );
     }
-    let memoryStore = null;
-    return {
-        getItem(key) {
-            if (!memoryStore) return null;
-            return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null;
-        },
-        setItem(key, value) {
-            if (!memoryStore) memoryStore = {};
-            memoryStore[key] = value;
-        },
-    };
+    return storage;
 }
 
 function generateActorId() {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-        return `actor-${crypto.randomUUID()}`;
-    }
-    const rand = Math.random().toString(36).slice(2, 10);
-    const time = Date.now().toString(36);
-    return `actor-${time}-${rand}`;
+    return `actor-${crypto.randomUUID()}`;
 }
 
 /**
@@ -57,7 +37,7 @@ export function ensureActorId(options = {}) {
     try {
         storage.setItem(storageKey, next);
     } catch (err) {
-        // Ignore write failures; in-memory fallback keeps the id for session duration.
+        // Ignore write failures; caller-provided storage shims may be read-only in tests.
     }
     return next;
 }

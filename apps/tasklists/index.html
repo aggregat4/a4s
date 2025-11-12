@@ -801,6 +801,7 @@
             import { html, render } from "./vendor/lit-html.js";
             import DraggableBehavior, { FlipAnimator } from "./lib/drag-behavior.js";
             import InlineTextEditor from "./lib/inline-text-editor.js";
+            import { ListRepository } from "./lib/app/list-repository.js";
             const PROTOTYPE_TASK_TEXTS = [
                 "Refill the bird feeder before the sparrows file another formal request.",
                 "Check the fridge light still turns off, preferably without crawling inside again.",
@@ -915,29 +916,9 @@
                     : [],
             });
 
-            const generateItemId = (() => {
-                let counter = 0;
-                return () => {
-                    counter += 1;
-                    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-                        return `task-${crypto.randomUUID()}`;
-                    }
-                    const salt = Math.random().toString(36).slice(2, 8);
-                    return `task-${Date.now().toString(36)}-${counter.toString(36)}-${salt}`;
-                };
-            })();
+            const generateItemId = () => `task-${crypto.randomUUID()}`;
 
-            const generateListId = (() => {
-                let counter = 0;
-                return (prefix = "list") => {
-                    counter += 1;
-                    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-                        return `${prefix}-${crypto.randomUUID()}`;
-                    }
-                    const salt = Math.random().toString(36).slice(2, 8);
-                    return `${prefix}-${Date.now().toString(36)}-${counter.toString(36)}-${salt}`;
-                };
-            })();
+            const generateListId = (prefix = "list") => `${prefix}-${crypto.randomUUID()}`;
 
             const LIST_ACTIONS = {
                 setTitle: "list/setTitle",
@@ -1451,6 +1432,8 @@
                     this.view = new TaskListView({
                         getListElement: () => this.listEl,
                     });
+                    this._repository = null;
+                    this.repositoryUnsubscribe = null;
                 }
 
                 static get observedAttributes() {
@@ -1462,16 +1445,7 @@
                 }
 
                 set initialState(value) {
-                    const next = cloneListState(value);
-                    this._initialState = next;
-                    if (this.store) {
-                        this.store.dispatch({
-                            type: LIST_ACTIONS.replaceAll,
-                            payload: next,
-                        });
-                    } else if (this.isConnected) {
-                        this.initializeStore();
-                    }
+                    this.applyRepositoryState(value ?? { title: "", items: [] });
                 }
 
                 connectedCallback() {
@@ -1487,6 +1461,7 @@
                     }
 
                     this.initializeStore();
+                    this.refreshRepositorySubscription();
 
                     if (!this.dragBehavior) {
                         this.dragBehavior = new DraggableBehavior(this.listEl, {
@@ -1565,19 +1540,79 @@
                     const baseState = this.buildInitialState();
                     if (!this.store) {
                         this.store = createStore(listReducer, baseState);
-                    }
-                    if (this.store && baseState) {
+                        this.unsubscribe = this.store.subscribe(this.handleStoreChange);
+                    } else if (baseState) {
                         this.store.dispatch({
                             type: LIST_ACTIONS.replaceAll,
                             payload: baseState,
                         });
                     }
-                    if (!this.unsubscribe && this.store) {
-                        this.unsubscribe = this.store.subscribe(this.handleStoreChange);
-                    }
                     if (this.store) {
                         this.handleStoreChange();
                     }
+                }
+
+                refreshRepositorySubscription() {
+                    this.repositoryUnsubscribe?.();
+                    this.repositoryUnsubscribe = null;
+                    if (!this._repository || !this.listId) {
+                        return;
+                    }
+                    if (
+                        typeof this._repository.isInitialized === "function" &&
+                        !this._repository.isInitialized()
+                    ) {
+                        const maybePromise = this._repository.initialize?.();
+                        if (maybePromise && typeof maybePromise.then === "function") {
+                            maybePromise.then(() => {
+                                if (this._repository && this.listId) {
+                                    this.refreshRepositorySubscription();
+                                }
+                            });
+                        }
+                        return;
+                    }
+                    const currentState = this._repository.getListState(this.listId);
+                    if (currentState) {
+                        this.applyRepositoryState(currentState);
+                    }
+                    this.repositoryUnsubscribe = this._repository.subscribeList(
+                        this.listId,
+                        (state) => this.applyRepositoryState(state),
+                        { emitCurrent: false },
+                    );
+                }
+
+                applyRepositoryState(state) {
+                    const next = cloneListState(state);
+                    this._initialState = next;
+                    if (this.store) {
+                        this.store.dispatch({
+                            type: LIST_ACTIONS.replaceAll,
+                            payload: next,
+                        });
+                        return;
+                    }
+                    if (this.isConnected) {
+                        this.initializeStore();
+                    }
+                }
+
+                syncFromRepository() {
+                    if (!this._repository || !this.listId) return;
+                    const latest = this._repository.getListState(this.listId);
+                    if (latest) {
+                        this.applyRepositoryState(latest);
+                    }
+                }
+
+                runRepositoryOperation(promise) {
+                    if (!promise || typeof promise.then !== "function") return;
+                    promise
+                        .then(() => {
+                            this.syncFromRepository();
+                        })
+                        .catch(() => {});
                 }
 
                 buildInitialState() {
@@ -1622,6 +1657,8 @@
                     this.searchTimer = null;
                     this.unsubscribe?.();
                     this.unsubscribe = null;
+                    this.repositoryUnsubscribe?.();
+                    this.repositoryUnsubscribe = null;
                     this.classList.remove("tasklist-no-matches");
                     document.removeEventListener(
                         "pointerdown",
@@ -1634,10 +1671,14 @@
                 attributeChangedCallback(name, oldValue, newValue) {
                     if (name === "name" && oldValue !== newValue) {
                         if (this.suppressNameSync) return;
-                        if (this.store) {
+                        const nextTitle = typeof newValue === "string" ? newValue : "";
+                        if (this._repository && this.listId) {
+                            const promise = this._repository.renameList(this.listId, nextTitle);
+                            this.runRepositoryOperation(promise);
+                        } else if (this.store) {
                             this.store.dispatch({
                                 type: LIST_ACTIONS.setTitle,
-                                payload: { title: newValue ?? "" },
+                                payload: { title: nextTitle },
                             });
                         } else {
                             this.syncTitle();
@@ -1853,14 +1894,20 @@
                     } else {
                         this.setAttribute("name", trimmed);
                         this.syncTitle();
-                        this.dispatchEvent(
-                            new CustomEvent("titlechange", {
-                                detail: { title: trimmed },
-                                bubbles: true,
-                                composed: true,
-                            }),
-                        );
                     }
+
+                    if (this._repository && this.listId) {
+                        const promise = this._repository.renameList(this.listId, trimmed);
+                        this.runRepositoryOperation(promise);
+                    }
+
+                    this.dispatchEvent(
+                        new CustomEvent("titlechange", {
+                            detail: { title: trimmed },
+                            bubbles: true,
+                            composed: true,
+                        }),
+                    );
 
                     if (restoreFocus) {
                         this.titleEl.focus();
@@ -2012,6 +2059,11 @@
                     if (this.searchQuery) {
                         this.clearSearch();
                     }
+                    const stateBefore = this.store.getState();
+                    const firstItem =
+                        Array.isArray(stateBefore?.items) && stateBefore.items.length
+                            ? stateBefore.items[0].id
+                            : null;
                     const newId = generateItemId();
                     this.editController.queue(newId, "end");
                     this.store.dispatch({
@@ -2021,6 +2073,15 @@
                             item: { id: newId, text: "", done: false },
                         },
                     });
+                    if (this._repository && this.listId) {
+                        const promise = this._repository.insertTask(this.listId, {
+                            itemId: newId,
+                            text: "",
+                            done: false,
+                            beforeId: firstItem ?? undefined,
+                        });
+                        this.runRepositoryOperation(promise);
+                    }
                 }
 
                 handleEditSplit({ element, beforeText, afterText }) {
@@ -2033,15 +2094,14 @@
                     const currentIndex = state.items.findIndex((item) => item.id === id);
                     if (currentIndex === -1) return;
 
+                    const newId = generateItemId();
+                    this.editController.queue(newId, "start");
                     if (typeof beforeText === "string") {
                         this.store.dispatch({
                             type: LIST_ACTIONS.updateItemText,
                             payload: { id, text: beforeText },
                         });
                     }
-
-                    const newId = generateItemId();
-                    this.editController.queue(newId, "start");
 
                     this.store.dispatch({
                         type: LIST_ACTIONS.insertItem,
@@ -2054,6 +2114,22 @@
                             },
                         },
                     });
+                    if (this._repository && this.listId) {
+                        const promise = (async () => {
+                            if (typeof beforeText === "string") {
+                                await this._repository.updateTask(this.listId, id, {
+                                    text: beforeText,
+                                });
+                            }
+                            await this._repository.insertTask(this.listId, {
+                                itemId: newId,
+                                text: typeof afterText === "string" ? afterText : "",
+                                done: false,
+                                afterId: id,
+                            });
+                        })();
+                        this.runRepositoryOperation(promise);
+                    }
                 }
 
                 // Re-stitches adjacent tasks on Backspace so users can treat the list like a text editor without losing content.
@@ -2093,6 +2169,16 @@
                         payload: { id: currentItemId },
                     });
 
+                    if (this._repository && this.listId) {
+                        const promise = (async () => {
+                            await this._repository.updateTask(this.listId, previousItem.id, {
+                                text: mergedText,
+                            });
+                            await this._repository.removeTask(this.listId, currentItemId);
+                        })();
+                        this.runRepositoryOperation(promise);
+                    }
+
                     return true;
                 }
 
@@ -2121,6 +2207,11 @@
                         type: LIST_ACTIONS.removeItem,
                         payload: { id },
                     });
+
+                    if (this._repository && this.listId) {
+                        const promise = this._repository.removeTask(this.listId, id);
+                        this.runRepositoryOperation(promise);
+                    }
                 }
 
                 // Supports ctrl/cmd + arrow reordering while preserving caret placement, matching expectations from native outliners.
@@ -2154,6 +2245,16 @@
                         type: LIST_ACTIONS.reorderItems,
                         payload: { order },
                     });
+
+                    if (this._repository && this.listId) {
+                        const beforeNeighbor = order[toIndex - 1] ?? null;
+                        const afterNeighbor = order[toIndex + 1] ?? null;
+                        const promise = this._repository.moveTaskWithinList(this.listId, id, {
+                            afterId: beforeNeighbor ?? undefined,
+                            beforeId: afterNeighbor ?? undefined,
+                        });
+                        this.runRepositoryOperation(promise);
+                    }
                 }
 
                 handleStoreChange() {
@@ -2369,6 +2470,14 @@
                         type: LIST_ACTIONS.setItemDone,
                         payload: { id, done: e.target.checked },
                     });
+                    if (this._repository && this.listId) {
+                        const promise = this._repository.toggleTask(
+                            this.listId,
+                            id,
+                            Boolean(e.target.checked),
+                        );
+                        this.runRepositoryOperation(promise);
+                    }
                 }
 
                 handleMoveButtonClick(event) {
@@ -2425,6 +2534,10 @@
                         type: LIST_ACTIONS.removeItem,
                         payload: { id: itemId },
                     });
+                    if (this._repository && this.listId) {
+                        const promise = this._repository.removeTask(this.listId, itemId);
+                        this.runRepositoryOperation(promise);
+                    }
                     if (li) {
                         this.closeActionsForItem(li);
                     }
@@ -2605,12 +2718,22 @@
                         type: LIST_ACTIONS.updateItemText,
                         payload: { id, text: newText },
                     });
+                    if (this._repository && this.listId) {
+                        const promise = this._repository.updateTask(this.listId, id, {
+                            text: newText,
+                        });
+                        this.runRepositoryOperation(promise);
+                    }
                 }
 
                 scheduleReorderUpdate() {
                     if (!this.store || !this.listEl) return;
                     Promise.resolve().then(() => {
                         if (!this.store || !this.listEl) return;
+                        const previousState = this.store.getState();
+                        const prevOrder = Array.isArray(previousState?.items)
+                            ? previousState.items.map((item) => item.id)
+                            : [];
                         const order = Array.from(this.listEl.children)
                             .filter((li) => !li.classList.contains("placeholder"))
                             .map((li) => li.dataset.itemId)
@@ -2620,6 +2743,28 @@
                             type: LIST_ACTIONS.reorderItems,
                             payload: { order },
                         });
+                        if (this._repository && this.listId) {
+                            let movedId = null;
+                            for (let i = 0; i < order.length; i++) {
+                                if (order[i] !== prevOrder[i]) {
+                                    movedId = order[i];
+                                    break;
+                                }
+                            }
+                            if (!movedId) return;
+                            const targetIndex = order.indexOf(movedId);
+                            const beforeNeighbor = order[targetIndex - 1] ?? null;
+                            const afterNeighbor = order[targetIndex + 1] ?? null;
+                            const promise = this._repository.moveTaskWithinList(
+                                this.listId,
+                                movedId,
+                                {
+                                    afterId: beforeNeighbor ?? undefined,
+                                    beforeId: afterNeighbor ?? undefined,
+                                },
+                            );
+                            this.runRepositoryOperation(promise);
+                        }
                     });
                 }
 
@@ -2818,10 +2963,22 @@
                     if (value == null) {
                         this.listIdentifier = null;
                         delete this.dataset.listId;
+                        this.refreshRepositorySubscription();
                         return;
                     }
                     this.listIdentifier = String(value);
                     this.dataset.listId = this.listIdentifier;
+                    this.refreshRepositorySubscription();
+                }
+
+                get listRepository() {
+                    return this._repository;
+                }
+
+                set listRepository(value) {
+                    if (this._repository === value) return;
+                    this._repository = value ?? null;
+                    this.refreshRepositorySubscription();
                 }
 
                 get name() {
@@ -3209,35 +3366,41 @@
             }
 
             class ListsApp {
-                constructor(options = {}) {
-                    this.sidebarElement = options.sidebarElement ?? null;
-                    this.mainElement = options.mainElement ?? null;
-                    this.listsContainer = options.listsContainer ?? null;
-                    this.mainTitleEl = options.mainTitleElement ?? null;
-                    this.moveDialogElement = options.moveDialogElement ?? null;
+            constructor(options = {}) {
+                this.sidebarElement = options.sidebarElement ?? null;
+                this.mainElement = options.mainElement ?? null;
+                this.listsContainer = options.listsContainer ?? null;
+                this.mainTitleEl = options.mainTitleElement ?? null;
+                this.moveDialogElement = options.moveDialogElement ?? null;
 
-                    this.listRegistry = new Map();
-                    this.listOrder = [];
-                    this.activeListId = null;
-                    this.searchQuery = "";
-                    this.isApplyingSearch = false;
-                    this.lastFocused = null;
+                this.listRegistry = new Map();
+                this.listOrder = [];
+                this.activeListId = null;
+                this.searchQuery = "";
+                this.isApplyingSearch = false;
+                this.lastFocused = null;
+                this.pendingActiveListId = null;
 
-                    this.handleSearchChange = this.handleSearchChange.bind(this);
-                    this.handleListSelection = this.handleListSelection.bind(this);
-                    this.handleAddList = this.handleAddList.bind(this);
-                    this.handleDeleteList = this.handleDeleteList.bind(this);
+                this.repository =
+                    options.listRepository ?? new ListRepository({ seedConfigs: SEED_LIST_CONFIGS });
+                this.registryUnsubscribe = null;
+
+                this.handleSearchChange = this.handleSearchChange.bind(this);
+                this.handleListSelection = this.handleListSelection.bind(this);
+                this.handleAddList = this.handleAddList.bind(this);
+                this.handleDeleteList = this.handleDeleteList.bind(this);
                     this.handleSidebarDrop = this.handleSidebarDrop.bind(this);
-                    this.handleTaskMoveRequest = this.handleTaskMoveRequest.bind(this);
-                    this.handleItemCountChange = this.handleItemCountChange.bind(this);
-                    this.handleSearchResultsChange = this.handleSearchResultsChange.bind(this);
-                    this.handleListFocus = this.handleListFocus.bind(this);
-                    this.handleListTitleChange = this.handleListTitleChange.bind(this);
+                this.handleTaskMoveRequest = this.handleTaskMoveRequest.bind(this);
+                this.handleItemCountChange = this.handleItemCountChange.bind(this);
+                this.handleSearchResultsChange = this.handleSearchResultsChange.bind(this);
+                this.handleListFocus = this.handleListFocus.bind(this);
+                this.handleListTitleChange = this.handleListTitleChange.bind(this);
+                this.handleRepositoryRegistryChange = this.handleRepositoryRegistryChange.bind(this);
 
-                    this.sidebar = new Sidebar(this.sidebarElement, {
-                        onSearchChange: this.handleSearchChange,
-                        onSelectList: this.handleListSelection,
-                        onAddList: this.handleAddList,
+                this.sidebar = new Sidebar(this.sidebarElement, {
+                    onSearchChange: this.handleSearchChange,
+                    onSelectList: this.handleListSelection,
+                    onAddList: this.handleAddList,
                         onDeleteList: this.handleDeleteList,
                         onItemDropped: this.handleSidebarDrop,
                     });
@@ -3245,39 +3408,43 @@
                     this.moveDialog = new KeyboardMoveDialog(this.moveDialogElement);
                 }
 
-                initialize() {
+                async initialize() {
                     this.sidebar.init();
-                    SEED_LIST_CONFIGS.forEach((config, index) => {
-                        this.createList(
-                            {
-                                id: config.id,
-                                title: config.title,
-                                items: config.items,
-                            },
-                            { makeActive: index === 0 },
+                    await this.repository.initialize();
+                    if (!this.registryUnsubscribe) {
+                        this.registryUnsubscribe = this.repository.subscribeRegistry(
+                            this.handleRepositoryRegistryChange,
+                            { emitCurrent: false },
                         );
-                    });
-                    if (!this.activeListId && this.listOrder.length) {
-                        this.activeListId = this.listOrder[0];
                     }
-                    if (this.activeListId) {
-                        this.setActiveList(this.activeListId);
-                    } else {
-                        this.updateListVisibility();
-                    }
-                    this.applySearchToLists();
+                    this.handleRepositoryRegistryChange(
+                        this.repository.getRegistrySnapshot(),
+                    );
                     this.sidebar.setSearchValue(this.searchQuery);
-                    this.refreshSidebar();
-                    this.updateMainHeading();
                 }
 
                 createList(config, { makeActive = false } = {}) {
                     if (!this.listsContainer) return null;
                     const id = config.id ?? generateListId("list");
-                    const name =
-                        typeof config.title === "string" && config.title.length
-                            ? config.title
-                            : "Untitled List";
+                    const state = {
+                        title:
+                            typeof config.title === "string" && config.title.length
+                                ? config.title
+                                : "",
+                        items: Array.isArray(config.items) ? config.items : [],
+                    };
+                    const displayName = state.title.length ? state.title : "Untitled List";
+                    const existing = this.listRegistry.get(id);
+                    if (existing) {
+                        existing.name = displayName;
+                        existing.element.listRepository = this.repository;
+                        existing.element.initialState = state;
+                        if (makeActive) {
+                            this.setActiveList(id);
+                        }
+                        return existing;
+                    }
+
                     const wrapper = document.createElement("section");
                     wrapper.className = "list-section";
                     wrapper.dataset.listId = id;
@@ -3300,14 +3467,15 @@
                         return null;
                     }
                     listElement.listId = id;
+                    listElement.listRepository = this.repository;
                     listElement.initialState = {
-                        title: name,
+                        title: state.title,
                         items,
                     };
 
                     const record = {
                         id,
-                        name,
+                        name: displayName,
                         element: listElement,
                         wrapper,
                         totalCount: listElement.getTotalItemCount(),
@@ -3316,7 +3484,6 @@
                     };
 
                     this.listRegistry.set(id, record);
-                    this.listOrder.push(id);
                     this.registerListEvents(record);
 
                     if (makeActive || !this.activeListId) {
@@ -3376,15 +3543,14 @@
                     const trimmed = response.trim();
                     if (!trimmed.length) return;
                     const id = generateListId("list");
-                    const record = this.createList(
-                        { id, title: trimmed, items: [] },
-                        { makeActive: true },
-                    );
-                    if (record) {
-                        this.setActiveList(record.id);
-                        this.refreshSidebar();
-                        this.updateMainHeading();
-                    }
+                    this.pendingActiveListId = id;
+                    Promise.resolve(
+                        this.repository.createList({ listId: id, title: trimmed }),
+                    )
+                        .then(() => {
+                            this.setActiveList(id);
+                        })
+                        .catch(() => {});
                 }
 
                 handleListTitleChange(event) {
@@ -3404,6 +3570,70 @@
                     }
                 }
 
+                handleRepositoryRegistryChange(snapshot = []) {
+                    if (!Array.isArray(snapshot)) return;
+                    const seen = new Set();
+                    snapshot.forEach((entry, index) => {
+                        const listId = entry?.id;
+                        if (!listId) return;
+                        const state = this.repository.getListState(listId);
+                        const titleCandidate = state?.title ?? entry.title ?? "";
+                        const record = this.createList(
+                            {
+                                id: listId,
+                                title: titleCandidate,
+                                items: state?.items ?? [],
+                            },
+                            { makeActive: !this.activeListId && index === 0 },
+                        );
+                        if (record) {
+                            const normalized = titleCandidate?.trim?.() ?? "";
+                            record.name = normalized.length ? normalized : "Untitled List";
+                            record.totalCount = record.element.getTotalItemCount();
+                            record.matchCount = record.element.getSearchMatchCount();
+                        }
+                        seen.add(listId);
+                    });
+
+                    Array.from(this.listRegistry.keys()).forEach((id) => {
+                        if (!seen.has(id)) {
+                            this.removeList(id);
+                        }
+                    });
+
+                    this.listOrder = snapshot
+                        .map((entry) => entry.id)
+                        .filter((id) => this.listRegistry.has(id));
+
+                    if (this.listsContainer) {
+                        this.listOrder.forEach((id) => {
+                            const record = this.listRegistry.get(id);
+                            if (record) {
+                                this.listsContainer.appendChild(record.wrapper);
+                            }
+                        });
+                    }
+
+                    if (this.activeListId && !this.listRegistry.has(this.activeListId)) {
+                        this.activeListId = null;
+                    }
+                    if (!this.activeListId && this.listOrder.length) {
+                        this.activeListId = this.listOrder[0];
+                    }
+
+                    if (
+                        this.pendingActiveListId &&
+                        this.listRegistry.has(this.pendingActiveListId)
+                    ) {
+                        this.setActiveList(this.pendingActiveListId);
+                        this.pendingActiveListId = null;
+                    }
+
+                    this.applySearchToLists();
+                    this.refreshSidebar();
+                    this.updateMainHeading();
+                }
+
                 handleDeleteList() {
                     if (!this.activeListId) return;
                     if (this.listOrder.length <= 1) {
@@ -3417,28 +3647,7 @@
                     );
                     if (!confirmed) return;
                     const removeId = record.id;
-                    const removeIndex = this.listOrder.indexOf(removeId);
-                    const removedActive = removeId === this.activeListId;
-                    this.removeList(removeId);
-                    if (!this.listOrder.length) {
-                        this.activeListId = null;
-                        this.updateListVisibility();
-                        this.refreshSidebar();
-                        this.updateMainHeading();
-                        return;
-                    }
-                    if (removedActive) {
-                        const fallbackIndex = Math.min(
-                            Math.max(removeIndex, 0),
-                            this.listOrder.length - 1,
-                        );
-                        const nextActiveId = this.listOrder[fallbackIndex];
-                        this.setActiveList(nextActiveId);
-                    } else {
-                        this.updateListVisibility();
-                        this.refreshSidebar();
-                        this.updateMainHeading();
-                    }
+                    Promise.resolve(this.repository.removeList(removeId)).catch(() => {});
                 }
 
                 handleSidebarDrop(payload, targetListId) {
@@ -3572,6 +3781,10 @@
                         options.snapshot ?? sourceRecord.element.getItemSnapshot(itemId);
                     if (!snapshot) return;
                     sourceRecord.element.cancelActiveDrag?.();
+                    const targetStateBefore = targetRecord.element.store?.getState?.();
+                    const fallbackBeforeId = Array.isArray(targetStateBefore?.items)
+                        ? targetStateBefore.items[0]?.id ?? undefined
+                        : undefined;
                     const removed = sourceRecord.element.removeItemById(itemId);
                     if (!removed) return;
                     targetRecord.element.prependItem(snapshot);
@@ -3582,6 +3795,21 @@
                     }
                     this.flashList(targetListId);
                     this.refreshSidebar();
+
+                    if (this.repository) {
+                        const beforeId = options.beforeId ?? fallbackBeforeId;
+                        const promise = this.repository.moveTask(
+                            sourceListId,
+                            targetListId,
+                            itemId,
+                            {
+                                snapshot,
+                                beforeId,
+                                afterId: options.afterId,
+                            },
+                        );
+                        this.runRepositoryOperation(promise);
+                    }
                 }
 
                 refreshMetrics(record) {
@@ -3695,7 +3923,7 @@
                     mainTitleElement,
                     moveDialogElement,
                 });
-                app.initialize();
+                app.initialize().catch(() => {});
                 window.listsApp = app;
             });
         </script>

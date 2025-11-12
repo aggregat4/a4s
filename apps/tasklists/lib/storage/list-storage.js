@@ -7,7 +7,6 @@ import {
     deserializeRegistryState,
     serializeOperation,
     deserializeOperation,
-    cleanUndefinedKeys,
 } from "./serde.js";
 
 const DB_NAME = "protoLists";
@@ -17,8 +16,6 @@ const STORE_LIST_STATES = "listStates";
 const STORE_LIST_OPERATIONS = "listOperations";
 const STORE_REGISTRY_STATE = "registryState";
 const STORE_REGISTRY_OPERATIONS = "registryOperations";
-
-const LOCAL_STORAGE_ROOT_KEY = "protoLists.localPersistence";
 
 const toOperationKey = (op) =>
     [
@@ -46,23 +43,20 @@ const sortOperations = (operations) =>
     });
 
 export async function requestPersistentStorage() {
-    if (typeof navigator === "undefined" || !navigator.storage) {
-        return false;
-    }
-    if (typeof navigator.storage.persist !== "function") {
-        return false;
+    const storageManager = globalThis.navigator?.storage;
+    if (!storageManager || typeof storageManager.persist !== "function") {
+        throw new Error(
+            "navigator.storage.persist is required; provide a navigator.storage shim when running outside the browser.",
+        );
     }
     try {
-        return Boolean(await navigator.storage.persist());
+        return Boolean(await storageManager.persist());
     } catch (err) {
         return false;
     }
 }
 
 function openDatabase(options = {}) {
-    if (typeof indexedDB === "undefined") {
-        return Promise.reject(new Error("IndexedDB is not available in this environment"));
-    }
     const name = typeof options.dbName === "string" && options.dbName.length ? options.dbName : DB_NAME;
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(name, DB_VERSION);
@@ -374,243 +368,13 @@ class IndexedDbListStorage {
     }
 }
 
-function resolveStorageOverride(storage) {
-    if (storage) return storage;
-    try {
-        if (typeof window !== "undefined" && window.localStorage) {
-            return window.localStorage;
-        }
-    } catch (err) {
-        // Ignore, fallback to memory.
-    }
-    const memory = new Map();
-    return {
-        getItem(key) {
-            return memory.has(key) ? memory.get(key) : null;
-        },
-        setItem(key, value) {
-            memory.set(key, value);
-        },
-        removeItem(key) {
-            memory.delete(key);
-        },
-    };
-}
-
-class LocalStorageListStorage {
-    constructor(options = {}) {
-        this.storage = resolveStorageOverride(options.storage);
-        this.rootKey =
-            typeof options.storageKey === "string" && options.storageKey.length
-                ? options.storageKey
-                : LOCAL_STORAGE_ROOT_KEY;
-    }
-
-    async ready() {
-        return true;
-    }
-
-    read() {
-        let raw = null;
-        try {
-            raw = this.storage.getItem(this.rootKey);
-        } catch (err) {
-            raw = null;
-        }
-        if (!raw) {
-            return {
-                version: SERIALIZATION_VERSION,
-                lists: {},
-                registry: {
-                    state: null,
-                    operations: [],
-                    updatedAt: null,
-                },
-            };
-        }
-        try {
-            const parsed = JSON.parse(raw);
-            if (!parsed.lists) parsed.lists = {};
-            if (!parsed.registry) {
-                parsed.registry = { state: null, operations: [], updatedAt: null };
-            }
-            if (!parsed.registry.operations) parsed.registry.operations = [];
-            return parsed;
-        } catch (err) {
-            return {
-                version: SERIALIZATION_VERSION,
-                lists: {},
-                registry: { state: null, operations: [], updatedAt: null },
-            };
-        }
-    }
-
-    write(data) {
-        try {
-            this.storage.setItem(this.rootKey, JSON.stringify(data));
-        } catch (err) {
-            // Ignore quota errors in fallback storage.
-        }
-    }
-
-    async loadAllLists() {
-        const data = this.read();
-        return Object.entries(data.lists).map(([listId, record]) => ({
-            listId,
-            state: record.state ? deserializeListState(record.state) : null,
-            operations: sortOperations(
-                (record.operations || []).map((entry) => deserializeOperation(entry)).filter(Boolean),
-            ),
-            updatedAt: record.updatedAt ?? null,
-        }));
-    }
-
-    async loadList(listId) {
-        const data = this.read();
-        const record = data.lists[listId];
-        if (!record) {
-            return { listId, state: null, operations: [], updatedAt: null };
-        }
-        return {
-            listId,
-            state: record.state ? deserializeListState(record.state) : null,
-            operations: sortOperations(
-                (record.operations || []).map((entry) => deserializeOperation(entry)).filter(Boolean),
-            ),
-            updatedAt: record.updatedAt ?? null,
-        };
-    }
-
-    async persistOperations(listId, operations = [], options = {}) {
-        if (typeof listId !== "string" || !listId.length) {
-            throw new Error("persistOperations requires a listId");
-        }
-        const data = this.read();
-        const record = data.lists[listId] ?? {
-            state: null,
-            operations: [],
-            updatedAt: null,
-        };
-        const now = Date.now();
-
-        if (Array.isArray(operations) && operations.length) {
-            const merged = [...record.operations];
-            operations.forEach((operation) => {
-                const serialized = serializeOperation(operation);
-                if (!serialized) return;
-                merged.push(cleanUndefinedKeys(serialized));
-            });
-            const unique = new Map();
-            merged.forEach((op) => {
-                unique.set(toOperationKey(op), op);
-            });
-            record.operations = sortOperations(
-                Array.from(unique.values()).map((entry) => deserializeOperation(entry)).filter(Boolean),
-            ).map((entry) => cleanUndefinedKeys(serializeOperation(entry)));
-        }
-
-        if (options.snapshot) {
-            record.state = serializeListState(options.snapshot);
-        }
-
-        record.updatedAt = now;
-        data.lists[listId] = record;
-        this.write(data);
-    }
-
-    async pruneOperations(listId, beforeClock) {
-        if (!Number.isFinite(beforeClock)) return;
-        const data = this.read();
-        const record = data.lists[listId];
-        if (!record || !Array.isArray(record.operations)) return;
-        record.operations = record.operations
-            .map((entry) => deserializeOperation(entry))
-            .filter((op) => op && op.clock > beforeClock)
-            .map((op) => serializeOperation(op));
-        this.write(data);
-    }
-
-    async loadRegistry() {
-        const data = this.read();
-        return {
-            state: data.registry.state ? deserializeRegistryState(data.registry.state) : null,
-            operations: sortOperations(
-                (data.registry.operations || [])
-                    .map((entry) => deserializeOperation(entry))
-                    .filter(Boolean),
-            ),
-            updatedAt: data.registry.updatedAt ?? null,
-        };
-    }
-
-    async persistRegistry({ operations = [], snapshot = null } = {}) {
-        const data = this.read();
-        const now = Date.now();
-
-        if (Array.isArray(operations) && operations.length) {
-            const merged = [...(data.registry.operations || [])];
-            operations.forEach((operation) => {
-                const serialized = serializeOperation(operation);
-                if (!serialized) return;
-                merged.push(cleanUndefinedKeys(serialized));
-            });
-            const unique = new Map();
-            merged.forEach((op) => {
-                unique.set(toOperationKey(op), op);
-            });
-            data.registry.operations = sortOperations(
-                Array.from(unique.values()).map((entry) => deserializeOperation(entry)).filter(Boolean),
-            ).map((entry) => cleanUndefinedKeys(serializeOperation(entry)));
-        }
-
-        if (snapshot) {
-            data.registry.state = serializeRegistryState(snapshot);
-        }
-
-        data.registry.updatedAt = now;
-        this.write(data);
-    }
-
-    async pruneRegistryOperations(beforeClock) {
-        if (!Number.isFinite(beforeClock)) return;
-        const data = this.read();
-        data.registry.operations = (data.registry.operations || [])
-            .map((entry) => deserializeOperation(entry))
-            .filter((op) => op && op.clock > beforeClock)
-            .map((op) => serializeOperation(op));
-        this.write(data);
-    }
-
-    async clear() {
-        this.write({
-            version: SERIALIZATION_VERSION,
-            lists: {},
-            registry: { state: null, operations: [], updatedAt: null },
-        });
-    }
-}
-
 export async function createListStorage(options = {}) {
-    if (options.forceFallback) {
-        const fallback = new LocalStorageListStorage(options);
-        await fallback.ready();
-        return fallback;
+    const storage = new IndexedDbListStorage(options);
+    await storage.ready();
+    if (options.requestPersistence !== false) {
+        requestPersistentStorage().catch(() => {});
     }
-    if (typeof indexedDB !== "undefined" && !options.forceLocalStorage) {
-        try {
-            const storage = new IndexedDbListStorage(options);
-            await storage.ready();
-            if (options.requestPersistence !== false) {
-                requestPersistentStorage().catch(() => {});
-            }
-            return storage;
-        } catch (err) {
-            // Fallback to local storage.
-        }
-    }
-    const fallback = new LocalStorageListStorage(options);
-    await fallback.ready();
-    return fallback;
+    return storage;
 }
 
-export { IndexedDbListStorage, LocalStorageListStorage };
+export { IndexedDbListStorage };

@@ -4,6 +4,7 @@ const LISTS_CRDT_OPERATIONS = {
     createList: "createList",
     removeList: "removeList",
     reorderList: "reorderList",
+    renameList: "renameList",
 };
 
 function sanitizeText(value) {
@@ -30,6 +31,21 @@ function toBaseInsert(operation) {
         payload: {
             data: { title: sanitizeText(payload.title) },
             pos: payload.pos,
+        },
+    };
+}
+
+function toBaseUpdate(operation) {
+    const payload = operation.payload ?? {};
+    const itemId = resolveTargetId(operation);
+    return {
+        ...operation,
+        type: ORDERED_SET_OPERATIONS.update,
+        itemId,
+        payload: {
+            data: {
+                title: sanitizeText(payload.title),
+            },
         },
     };
 }
@@ -133,6 +149,10 @@ export class ListsCRDT {
                     payload: { pos: operation.payload?.pos },
                 };
                 break;
+            case LISTS_CRDT_OPERATIONS.renameList:
+                if (!resolveTargetId(operation)) return false;
+                baseOp = toBaseUpdate(operation);
+                break;
             default:
                 break;
         }
@@ -223,6 +243,29 @@ export class ListsCRDT {
             listId,
             payload: {
                 pos: result.op.payload.pos,
+            },
+        };
+        this.emitChange();
+        return {
+            op,
+            snapshot: this.getVisibleLists(),
+        };
+    }
+
+    generateRename(listId, title) {
+        if (typeof listId !== "string" || !listId.length) {
+            throw new Error("generateRename requires a listId");
+        }
+        const result = this._orderedSet.generateUpdate({
+            itemId: listId,
+            data: { title: sanitizeText(title) },
+        });
+        const op = {
+            ...result.op,
+            type: LISTS_CRDT_OPERATIONS.renameList,
+            listId,
+            payload: {
+                title: sanitizeText(title),
             },
         };
         this.emitChange();
