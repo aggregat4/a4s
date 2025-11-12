@@ -1,10 +1,7 @@
 import { ListsCRDT } from "../crdt/lists-crdt.js";
 import { TaskListCRDT } from "../crdt/task-list-crdt.js";
 import { createListStorage } from "../storage/list-storage.js";
-import {
-  hydrateFromStorage,
-  seedDefaultsIfEmpty,
-} from "../storage/hydrator.js";
+import { hydrateFromStorage } from "../storage/hydrator.js";
 
 function defaultListFactory(listId, state = {}) {
   return new TaskListCRDT({
@@ -34,9 +31,6 @@ export class ListRepository {
     this._createListCrdt = options.createListCrdt ?? defaultListFactory;
     this._storageFactory = options.storageFactory ?? createListStorage;
     this._storageOptions = options.storageOptions ?? {};
-    this._seedConfigs = Array.isArray(options.seedConfigs)
-      ? options.seedConfigs
-      : [];
 
     this._storage = null;
     this._listMap = new Map();
@@ -68,13 +62,6 @@ export class ListRepository {
 
   async _initializeInternal() {
     this._storage = await this._storageFactory(this._storageOptions);
-    await seedDefaultsIfEmpty({
-      storage: this._storage,
-      listsCrdt: this._listsCrdt,
-      createListCrdt: (listId, state) =>
-        this._createListInstance(listId, state),
-      seedConfigs: this._seedConfigs,
-    });
 
     const hydration = await hydrateFromStorage({
       storage: this._storage,

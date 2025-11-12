@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { seedDefaultsIfEmpty, hydrateFromStorage } from "../../../lib/storage/hydrator.js";
+import { hydrateFromStorage } from "../../../lib/storage/hydrator.js";
 import { ListsCRDT } from "../../../lib/crdt/lists-crdt.js";
 import { TaskListCRDT } from "../../../lib/crdt/task-list-crdt.js";
 
@@ -77,45 +77,68 @@ class MemoryListStorage {
     }
 }
 
-test("hydrator seeds defaults and hydrates stored lists", async () => {
+test("hydrateFromStorage rebuilds CRDT instances from persisted registry and lists", async () => {
     const storage = new MemoryListStorage();
     await storage.clear();
 
-    const index = new ListsCRDT({ actorId: "seed-index" });
-    const seeded = await seedDefaultsIfEmpty({
-        storage,
-        listsCrdt: index,
-        createListCrdt: () => new TaskListCRDT({ actorId: "seed-list" }),
-        seedConfigs: [
-            {
-                id: "alpha",
-                title: "Alpha",
-                items: [
-                    { id: "alpha-1", text: "One", done: false },
-                    { id: "alpha-2", text: "Two", done: true },
-                ],
-            },
-            { id: "beta", title: "Beta", items: [] },
-        ],
-    });
-    assert.equal(seeded, true);
+    const listsCrdt = new ListsCRDT({ actorId: "seed-index" });
+    const seedConfigs = [
+        {
+            id: "alpha",
+            title: "Alpha",
+            items: [
+                { id: "alpha-1", text: "One", done: false },
+                { id: "alpha-2", text: "Two", done: true },
+            ],
+        },
+        { id: "beta", title: "Beta", items: [] },
+    ];
 
-    const seededAgain = await seedDefaultsIfEmpty({
-        storage,
-        listsCrdt: index,
-        seedConfigs: [{ title: "Should not apply" }],
-    });
-    assert.equal(seededAgain, false);
+    let previousId = null;
+    for (const config of seedConfigs) {
+        const createResult = listsCrdt.generateCreate({
+            listId: config.id,
+            title: config.title,
+            afterId: previousId,
+        });
+        previousId = config.id;
 
-    const newIndex = new ListsCRDT({ actorId: "hydrate-index" });
+        const listCrdt = new TaskListCRDT({
+            actorId: `seed-${config.id}`,
+            title: config.title,
+        });
+        const ops = [];
+        const rename = listCrdt.generateRename(config.title);
+        ops.push(rename.op);
+        let afterId = null;
+        config.items.forEach((item) => {
+            const insert = listCrdt.generateInsert({
+                itemId: item.id,
+                text: item.text,
+                done: item.done,
+                afterId,
+            });
+            ops.push(insert.op);
+            afterId = item.id;
+        });
+        await storage.persistOperations(config.id, ops, {
+            snapshot: listCrdt.exportState(),
+        });
+        await storage.persistRegistry({
+            operations: [createResult.op],
+            snapshot: listsCrdt.exportState(),
+        });
+    }
+
+    const hydrationIndex = new ListsCRDT({ actorId: "hydrate-index" });
     const hydrateResult = await hydrateFromStorage({
         storage,
-        listsCrdt: newIndex,
+        listsCrdt: hydrationIndex,
         createListCrdt: (listId, state) =>
             new TaskListCRDT({ actorId: `hydrate-${listId}`, title: state?.title }),
     });
 
-    const lists = newIndex.getVisibleLists();
+    const lists = hydrationIndex.getVisibleLists();
     assert.equal(lists.length, 2);
     assert.deepEqual(
         lists.map((entry) => entry.id).sort(),

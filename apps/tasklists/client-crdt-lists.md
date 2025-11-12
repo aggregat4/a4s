@@ -77,7 +77,7 @@
 3. **Load / Save workflow**
    - On app startup:
      - Open storage, fetch list registry + per-list snapshots.
-     - If storage empty, seed with current `SEED_LIST_CONFIGS` by generating CRDT operations instead of inserting raw arrays (ensures consistent history).
+     - If storage is empty, the UI bootstrapper (in `index.html`) may call into the repository API to create the demo lists defined in `SEED_LIST_CONFIGS`, preserving order via normal CRDT operations.
    - On every local mutation:
      - Generate operation via CRDT helper.
      - Apply to in-memory CRDT.

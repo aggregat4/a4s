@@ -13,7 +13,7 @@ The application is organized around a clear separation between presentation logi
 
 ### Data Flow At A Glance
 
-1. **Bootstrap:** `ListsApp.initialize()` asks `ListRepository.initialize()` to hydrate state. The repository creates an IndexedDB-backed storage instance, seeds demo data via `seedDefaultsIfEmpty`, and replays stored registry + list operations through their CRDTs before notifying the UI through `subscribeRegistry`.
+1. **Bootstrap:** `ListsApp.initialize()` asks `ListRepository.initialize()` to hydrate state. The repository creates an IndexedDB-backed storage instance, and the UI (via `ensureDemoData`) optionally pre-populates demo lists *using only public repository APIs*. After that, stored registry + list operations are replayed through their CRDTs before `subscribeRegistry` notifies the UI.
 2. **Rendering:** For each list reported by the repository, `ListsApp` instantiates `<a4-tasklist>` and injects `listRepository` + `listId`. Each custom element subscribes to live list snapshots (`subscribeList`) and mirrors them into its internal reducer so lit-html reconciliation can diff efficiently.
 3. **User actions:** When a user edits, reorders, or drags a task, the custom element delegates to the repository (`insertTask`, `moveTask`, `renameList`, etc.). The repository updates the relevant CRDT(s), emits change events, and persists the resulting operations/snapshots in the background.
 4. **Feedback loop:** CRDT state changes propagate back to `ListsApp` (for sidebar counts, ordering, and dialogs) and to each `<a4-tasklist>` instance, which rerenders without re-querying storage. Because CRDT operations encode intent + ordering metadata, eventual consistency is preserved even if multiple actors were to apply changes offline.

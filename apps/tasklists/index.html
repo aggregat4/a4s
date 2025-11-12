@@ -902,6 +902,34 @@
                 WORK_FOLLOWUP_LIST,
             ];
 
+            async function ensureDemoData(repository, seedConfigs) {
+                if (!repository || typeof repository.initialize !== "function") {
+                    return false;
+                }
+                await repository.initialize();
+                if (!Array.isArray(seedConfigs) || !seedConfigs.length) {
+                    return false;
+                }
+                if (typeof repository.getListIds === "function" && repository.getListIds().length) {
+                    return false;
+                }
+                let previousId = null;
+                for (const config of seedConfigs) {
+                    const listId =
+                        typeof config.id === "string" && config.id.length
+                            ? config.id
+                            : `seed-${crypto.randomUUID()}`;
+                    await repository.createList({
+                        listId,
+                        title: config.title,
+                        items: Array.isArray(config.items) ? config.items : [],
+                        afterId: previousId,
+                    });
+                    previousId = listId;
+                }
+                return true;
+            }
+
             const cloneListState = (source) => ({
                 title: typeof source?.title === "string" ? source.title : "",
                 items: Array.isArray(source?.items)
@@ -3381,8 +3409,7 @@
                 this.lastFocused = null;
                 this.pendingActiveListId = null;
 
-                this.repository =
-                    options.listRepository ?? new ListRepository({ seedConfigs: SEED_LIST_CONFIGS });
+                this.repository = options.listRepository ?? new ListRepository();
                 this.registryUnsubscribe = null;
 
                 this.handleSearchChange = this.handleSearchChange.bind(this);
@@ -3908,23 +3935,28 @@
             }
 
             document.addEventListener("DOMContentLoaded", () => {
-                const appRoot = document.querySelector("[data-role='lists-app']");
-                if (!appRoot) return;
-                const sidebarElement = appRoot.querySelector("[data-role='sidebar']");
-                const mainElement = appRoot.querySelector("[data-role='main']");
-                const listsContainer = appRoot.querySelector("[data-role='lists-container']");
-                const mainTitleElement =
-                    mainElement?.querySelector("[data-role='active-list-title']") ?? null;
-                const moveDialogElement = document.querySelector("[data-role='move-dialog']");
-                const app = new ListsApp({
-                    sidebarElement,
-                    mainElement,
-                    listsContainer,
-                    mainTitleElement,
-                    moveDialogElement,
-                });
-                app.initialize().catch(() => {});
-                window.listsApp = app;
+                (async () => {
+                    const appRoot = document.querySelector("[data-role='lists-app']");
+                    if (!appRoot) return;
+                    const sidebarElement = appRoot.querySelector("[data-role='sidebar']");
+                    const mainElement = appRoot.querySelector("[data-role='main']");
+                    const listsContainer = appRoot.querySelector("[data-role='lists-container']");
+                    const mainTitleElement =
+                        mainElement?.querySelector("[data-role='active-list-title']") ?? null;
+                    const moveDialogElement = document.querySelector("[data-role='move-dialog']");
+                    const repository = new ListRepository();
+                    await ensureDemoData(repository, SEED_LIST_CONFIGS).catch(() => {});
+                    const app = new ListsApp({
+                        sidebarElement,
+                        mainElement,
+                        listsContainer,
+                        mainTitleElement,
+                        moveDialogElement,
+                        listRepository: repository,
+                    });
+                    await app.initialize();
+                    window.listsApp = app;
+                })().catch(() => {});
             });
         </script>
     </body>
