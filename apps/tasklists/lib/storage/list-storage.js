@@ -10,6 +10,7 @@ import {
 } from "./serde.js";
 
 const DB_NAME = "protoLists";
+export const DEFAULT_DB_NAME = DB_NAME;
 const DB_VERSION = 1;
 
 const STORE_LIST_STATES = "listStates";

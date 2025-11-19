@@ -4,7 +4,9 @@ const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
 
 function showDoneToggle(page: Page) {
-  return page.getByRole("checkbox", { name: "Show done" });
+  return page
+    .locator("[data-role='lists-container'] .list-section.is-active")
+    .locator("input.tasklist-show-done-toggle");
 }
 
 function globalSearchInput(page: Page) {
@@ -68,7 +70,7 @@ async function getCaretOffset(target: Locator) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -93,7 +95,7 @@ test("user can add, complete, and filter tasks", async ({ page }) => {
     )
     .first();
   const checkbox = listRoot.locator("input.done-toggle");
-  await checkbox.check();
+  await checkbox.click();
   await expect(checkbox).toBeChecked();
   await expect(listRoot).toBeHidden();
   await setShowDone(page, true);
@@ -360,14 +362,17 @@ test("task action menu move triggers move dialog and closes tray", async ({
     .locator(".sidebar-list-button")
     .filter({ hasText: "Weekend Projects" })
     .click();
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Weekend Projects"
+  );
 
   if (originalText) {
     await expect(
       page
         .locator(listItemsSelector)
-        .first()
         .locator(".text")
         .filter({ hasText: originalText })
+        .first()
     ).toBeVisible();
   }
 });
