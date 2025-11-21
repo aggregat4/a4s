@@ -1,37 +1,64 @@
 import { html, render } from "../../vendor/lit-html.js";
 
-class KeyboardMoveDialog {
-  constructor(element) {
-    this.root = element ?? null;
-    this.backdropEl =
-      element?.querySelector("[data-role='move-dialog-backdrop']") ?? null;
-    this.contentEl = element?.querySelector(".move-dialog__content") ?? null;
-    this.optionsListEl =
-      element?.querySelector("[data-role='move-dialog-options']") ?? null;
-    this.cancelButton =
-      element?.querySelector("[data-role='move-dialog-cancel']") ?? null;
+class KeyboardMoveDialog extends HTMLElement {
+  constructor() {
+    super();
+    this.backdropEl = null;
+    this.contentEl = null;
+    this.optionsListEl = null;
+    this.cancelButton = null;
     this.optionButtons = [];
     this.isOpen = false;
     this.currentContext = null;
+    this.listenersAttached = false;
 
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleCancel = this.handleCancel.bind(this);
     this.handleBackdropClick = this.handleBackdropClick.bind(this);
     this.handleOptionClick = this.handleOptionClick.bind(this);
+  }
 
+  connectedCallback() {
+    this.cacheElements();
+    this.attachListeners();
+  }
+
+  disconnectedCallback() {
+    this.detachListeners();
+  }
+
+  cacheElements() {
+    this.backdropEl =
+      this.querySelector("[data-role='move-dialog-backdrop']") ?? null;
+    this.contentEl = this.querySelector(".move-dialog__content") ?? null;
+    this.optionsListEl =
+      this.querySelector("[data-role='move-dialog-options']") ?? null;
+    this.cancelButton =
+      this.querySelector("[data-role='move-dialog-cancel']") ?? null;
+  }
+
+  attachListeners() {
+    if (this.listenersAttached) return;
     this.cancelButton?.addEventListener("click", this.handleCancel);
     this.backdropEl?.addEventListener("click", this.handleBackdropClick);
+    this.listenersAttached = true;
+  }
+
+  detachListeners() {
+    this.cancelButton?.removeEventListener("click", this.handleCancel);
+    this.backdropEl?.removeEventListener("click", this.handleBackdropClick);
+    this.listenersAttached = false;
   }
 
   open(options = {}) {
-    if (!this.root || !this.optionsListEl) return;
+    if (!this.optionsListEl) return;
     const targets = Array.isArray(options.targets) ? options.targets : [];
     if (!targets.length) return;
     this.close({ restoreFocus: false });
     this.currentContext = { ...options };
     this.renderOptions(targets);
-    this.root.hidden = false;
-    this.root.setAttribute("aria-hidden", "false");
+    this.hidden = false;
+    this.setAttribute("aria-hidden", "false");
     this.isOpen = true;
     this.contentEl?.addEventListener("keydown", this.handleKeyDown);
     requestAnimationFrame(() => {
@@ -92,10 +119,8 @@ class KeyboardMoveDialog {
     this.isOpen = false;
     this.contentEl?.removeEventListener("keydown", this.handleKeyDown);
     this.clearOptions();
-    if (this.root) {
-      this.root.hidden = true;
-      this.root.setAttribute("aria-hidden", "true");
-    }
+    this.hidden = true;
+    this.setAttribute("aria-hidden", "true");
     const context = this.currentContext;
     this.currentContext = null;
     if (restoreFocus && context?.restoreFocus) {
@@ -168,6 +193,8 @@ class KeyboardMoveDialog {
     return focusables;
   }
 }
+
+customElements.define("a4-move-dialog", KeyboardMoveDialog);
 
 export { KeyboardMoveDialog };
 export default KeyboardMoveDialog;

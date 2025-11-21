@@ -8,7 +8,7 @@
     </head>
     <body>
         <div class="lists-app" data-role="lists-app">
-            <aside class="lists-sidebar" data-role="sidebar">
+            <a4-sidebar class="lists-sidebar" data-role="sidebar">
                 <div class="sidebar-header">
                     <h1 class="sidebar-title">Lists</h1>
                 </div>
@@ -34,7 +34,7 @@
                         Delete list
                     </button>
                 </div>
-            </aside>
+            </a4-sidebar>
             <main class="lists-main" data-role="main">
                 <header class="lists-main-header">
                     <h2 class="lists-main-title" data-role="active-list-title"></h2>
@@ -43,7 +43,7 @@
             </main>
         </div>
 
-        <div class="move-dialog" data-role="move-dialog" hidden>
+        <a4-move-dialog class="move-dialog" data-role="move-dialog" hidden>
             <div class="move-dialog__backdrop" data-role="move-dialog-backdrop"></div>
             <div
                 class="move-dialog__content"
@@ -69,7 +69,7 @@
                     </button>
                 </div>
             </div>
-        </div>
+        </a4-move-dialog>
         <script type="module">
             import { bootstrapListsApp } from "./scripts/main.js";
             import { SEED_LIST_CONFIGS } from "./scripts/demo-seeds.js";

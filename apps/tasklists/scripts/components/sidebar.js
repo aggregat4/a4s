@@ -1,16 +1,13 @@
 import { html, render } from "../../vendor/lit-html.js";
 
-class Sidebar {
-  constructor(element, handlers = {}) {
-    this.element = element;
-    this.handlers = handlers;
-    this.searchInput =
-      element?.querySelector("[data-role='global-search']") ?? null;
-    this.listContainer =
-      element?.querySelector("[data-role='sidebar-list']") ?? null;
-    this.addButton = element?.querySelector("[data-role='add-list']") ?? null;
-    this.deleteButton =
-      element?.querySelector("[data-role='delete-list']") ?? null;
+class SidebarElement extends HTMLElement {
+  constructor() {
+    super();
+    this.handlers = {};
+    this.searchInput = null;
+    this.listContainer = null;
+    this.addButton = null;
+    this.deleteButton = null;
     this.searchDebounceId = null;
     this.currentLists = [];
     this.activeListId = null;
@@ -26,7 +23,30 @@ class Sidebar {
     this.handleSidebarButtonClick = this.handleSidebarButtonClick.bind(this);
   }
 
+  connectedCallback() {
+    this.cacheElements();
+  }
+
+  disconnectedCallback() {
+    this.destroy();
+  }
+
+  setHandlers(handlers = {}) {
+    this.handlers = handlers ?? {};
+  }
+
+  cacheElements() {
+    this.searchInput =
+      this.querySelector("[data-role='global-search']") ?? null;
+    this.listContainer =
+      this.querySelector("[data-role='sidebar-list']") ?? null;
+    this.addButton = this.querySelector("[data-role='add-list']") ?? null;
+    this.deleteButton =
+      this.querySelector("[data-role='delete-list']") ?? null;
+  }
+
   init() {
+    this.cacheElements();
     this.searchInput?.addEventListener("input", this.handleSearchInput);
     this.searchInput?.addEventListener("keydown", this.handleSearchKeyDown);
     this.addButton?.addEventListener("click", () =>
@@ -205,5 +225,7 @@ class Sidebar {
   }
 }
 
-export { Sidebar };
-export default Sidebar;
+customElements.define("a4-sidebar", SidebarElement);
+
+export { SidebarElement as Sidebar };
+export default SidebarElement;

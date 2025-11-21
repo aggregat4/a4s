@@ -1,8 +1,8 @@
 import { html, render } from "../vendor/lit-html.js";
 import { ListRepository } from "../lib/app/list-repository.js";
 import { generateListId } from "./state/list-store.js";
-import Sidebar from "./components/sidebar.js";
-import KeyboardMoveDialog from "./components/move-dialog.js";
+import "./components/sidebar.js";
+import "./components/move-dialog.js";
 import "./components/a4-tasklist.js";
 
 class ListsApp {
@@ -37,19 +37,22 @@ class ListsApp {
     this.handleRepositoryRegistryChange =
       this.handleRepositoryRegistryChange.bind(this);
 
-    this.sidebar = new Sidebar(this.sidebarElement, {
-      onSearchChange: this.handleSearchChange,
-      onSelectList: this.handleListSelection,
-      onAddList: this.handleAddList,
-      onDeleteList: this.handleDeleteList,
-      onItemDropped: this.handleSidebarDrop,
-    });
+    this.sidebar = this.sidebarElement;
+    if (this.sidebar?.setHandlers) {
+      this.sidebar.setHandlers({
+        onSearchChange: this.handleSearchChange,
+        onSelectList: this.handleListSelection,
+        onAddList: this.handleAddList,
+        onDeleteList: this.handleDeleteList,
+        onItemDropped: this.handleSidebarDrop,
+      });
+    }
 
-    this.moveDialog = new KeyboardMoveDialog(this.moveDialogElement);
+    this.moveDialog = this.moveDialogElement;
   }
 
   async initialize() {
-    this.sidebar.init();
+    this.sidebar?.init?.();
     await this.repository.initialize();
     if (!this.registryUnsubscribe) {
       this.registryUnsubscribe = this.repository.subscribeRegistry(
@@ -58,7 +61,7 @@ class ListsApp {
       );
     }
     this.handleRepositoryRegistryChange(this.repository.getRegistrySnapshot());
-    this.sidebar.setSearchValue(this.searchQuery);
+    this.sidebar?.setSearchValue?.(this.searchQuery);
   }
 
   createList(config, { makeActive = false } = {}) {
