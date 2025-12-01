@@ -499,17 +499,16 @@ class A4TaskList extends HTMLElement {
       const emptyTemplate = html`
         <div class="tasklist-empty" hidden>No matching items</div>
       `;
-      if (this.listEl?.nextSibling) {
-        const fragment = document.createElement("div");
-        render(emptyTemplate, fragment);
-        const emptyElement = fragment.firstElementChild;
-        if (emptyElement) {
+      const fragment = document.createElement("div");
+      render(emptyTemplate, fragment);
+      const emptyElement = fragment.firstElementChild;
+      if (emptyElement) {
+        if (this.listEl?.nextSibling) {
           this.insertBefore(emptyElement, this.listEl.nextSibling);
-          this.emptyStateEl = emptyElement;
+        } else {
+          this.appendChild(emptyElement);
         }
-      } else {
-        render(emptyTemplate, this);
-        this.emptyStateEl = this.querySelector(".tasklist-empty");
+        this.emptyStateEl = emptyElement;
       }
     }
   }

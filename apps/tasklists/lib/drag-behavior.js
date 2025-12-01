@@ -128,10 +128,10 @@ export default class DraggableBehavior {
         const li = event.target.closest("li");
         if (!li) return;
 
-        this.deferFloatingInit = true;
-        this._pendingInitCoords = { x: event.clientX, y: event.clientY };
+        this.deferFloatingInit = false;
+        this._pendingInitCoords = null;
 
-        this.startDrag(li);
+        this.startDrag(li, event.clientX, event.clientY);
 
         if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = "move";

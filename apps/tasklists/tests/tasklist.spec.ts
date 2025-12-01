@@ -69,16 +69,43 @@ async function getCaretOffset(target: Locator) {
   });
 }
 
-test.beforeEach(async ({ page }) => {
+test("loads without console errors", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => {
+    errors.push(`pageerror: ${err.message}`);
+  });
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
+      errors.push(`console error: ${msg.text()}`);
+    }
+  });
+
   await page.goto("/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
   await expect(page.locator(listItemsSelector).first()).toBeVisible();
-  await expect(page.locator(".lists-main-header")).toBeHidden();
+
+  if (errors.length) {
+    // Surface errors explicitly in the test output for debugging.
+    console.error("Console/page errors during load:", errors);
+  }
+  expect(errors).toEqual([]);
 });
 
-test("user can add, complete, and filter tasks", async ({ page }) => {
+test.describe("tasklist flows", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/?resetStorage=1");
+    await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+      "Prototype Tasks"
+    );
+    await expect(page.locator(listItemsSelector).first()).toBeVisible();
+    await expect(page.locator(".lists-main-header")).toBeHidden();
+  });
+
+test("tasklist flows › user can add, complete, and filter tasks", async ({
+  page,
+}) => {
   await page.getByRole("button", { name: "Add task" }).click();
 
   const topTask = page.locator(listItemsSelector).first().locator(".text");
@@ -457,6 +484,41 @@ test("keyboard shortcut moves items while preserving caret position", async ({
   expect(offsetAfterUp).toBe(3);
 });
 
+test("dragging reorders tasks within the active list", async ({ page }) => {
+  const items = page.locator(listItemsSelector);
+  const count = await items.count();
+  expect(count).toBeGreaterThan(2);
+
+  const firstText =
+    (await items.first().locator(".text").textContent())?.trim() ?? "";
+  const secondText =
+    (await items.nth(1).locator(".text").textContent())?.trim() ?? "";
+  const secondId =
+    (await items.nth(1).evaluate((el) => el?.dataset?.itemId ?? "")) ?? "";
+
+  const secondItem = items.nth(1);
+  await secondItem.dragTo(items.nth(4), {
+    targetPosition: { x: 8, y: 12 }, // drop near the 5th item
+  });
+
+  const getIndex = async () => {
+    const ids = await page.evaluate(() => {
+      const el = document.querySelector("a4-tasklist");
+      return el?.store?.getState?.().items?.map((item) => item?.id ?? "") ?? [];
+    });
+    return ids.indexOf(secondId);
+  };
+
+  await expect.poll(getIndex, { timeout: 2000 }).toBeGreaterThan(2);
+  const state = await page.evaluate(() => {
+    const el = document.querySelector("a4-tasklist");
+    return el?.store?.getState?.();
+  });
+  const orderedTexts = state?.items?.map((item) => item?.text?.trim?.() ?? "");
+  expect(orderedTexts?.[0]).toBe(firstText);
+  expect(orderedTexts).toContain(secondText);
+});
+
 test("splitting then dragging keeps items separated", async ({ page }) => {
   const items = page.locator(listItemsSelector);
   const firstTextLocator = items.first().locator(".text");
@@ -605,4 +667,6 @@ test("multi-list search and move flow", async ({ page }) => {
 
   const movedTop = page.locator(listItemsSelector).first().locator(".text");
   await expect(movedTop).toHaveText(originalText);
+});
+
 });
