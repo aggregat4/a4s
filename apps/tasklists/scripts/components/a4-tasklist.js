@@ -1,8 +1,17 @@
 import { html, render } from "../../vendor/lit-html.js";
 import DraggableBehavior, { FlipAnimator } from "../../lib/drag-behavior.js";
 import InlineTextEditor from "../../lib/inline-text-editor.js";
-import { createStore, listReducer, LIST_ACTIONS, cloneListState, generateItemId } from "../state/list-store.js";
-import { evaluateSearchEntry, tokenizeSearchQuery } from "../state/highlight-utils.js";
+import {
+  createStore,
+  listReducer,
+  LIST_ACTIONS,
+  cloneListState,
+  generateItemId,
+} from "../state/list-store.js";
+import {
+  evaluateSearchEntry,
+  tokenizeSearchQuery,
+} from "../state/highlight-utils.js";
 
 const escapeSelectorId = (value) => {
   if (typeof value !== "string") return "";
@@ -1891,5 +1900,3 @@ document.addEventListener(
   },
   true
 );
-
-export { EditController, TaskListView, A4TaskList };

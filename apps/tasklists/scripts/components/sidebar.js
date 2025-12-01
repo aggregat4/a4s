@@ -41,8 +41,7 @@ class SidebarElement extends HTMLElement {
     this.listContainer =
       this.querySelector("[data-role='sidebar-list']") ?? null;
     this.addButton = this.querySelector("[data-role='add-list']") ?? null;
-    this.deleteButton =
-      this.querySelector("[data-role='delete-list']") ?? null;
+    this.deleteButton = this.querySelector("[data-role='delete-list']") ?? null;
   }
 
   init() {
@@ -226,6 +225,3 @@ class SidebarElement extends HTMLElement {
 }
 
 customElements.define("a4-sidebar", SidebarElement);
-
-export { SidebarElement as Sidebar };
-export default SidebarElement;

@@ -1,4 +1,4 @@
-export const escapeHTML = (str) =>
+const escapeHTML = (str) =>
   str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -6,7 +6,7 @@ export const escapeHTML = (str) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-export const mergeRanges = (ranges) => {
+const mergeRanges = (ranges) => {
   if (!ranges.length) return [];
   const sorted = ranges.slice().sort((a, b) => {
     if (a.start !== b.start) return a.start - b.start;
@@ -27,7 +27,7 @@ export const mergeRanges = (ranges) => {
   return merged;
 };
 
-export const buildDecoratedMarkup = (original, tokens, patternConfig) => {
+const buildDecoratedMarkup = (original, tokens, patternConfig) => {
   const haystack = original.toLowerCase();
   const ranges = [];
   const patterns = Array.isArray(patternConfig) ? patternConfig : [];

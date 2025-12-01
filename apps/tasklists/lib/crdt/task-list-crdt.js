@@ -317,5 +317,3 @@ export class TaskListCRDT {
     };
   }
 }
-
-export { TASK_LIST_OPERATIONS };

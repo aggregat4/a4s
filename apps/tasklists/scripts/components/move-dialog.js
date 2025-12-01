@@ -195,6 +195,3 @@ class KeyboardMoveDialog extends HTMLElement {
 }
 
 customElements.define("a4-move-dialog", KeyboardMoveDialog);
-
-export { KeyboardMoveDialog };
-export default KeyboardMoveDialog;
