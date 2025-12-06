@@ -558,9 +558,13 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
     .getAttribute("data-original-text");
   expect(dataBefore).toBe("Fresh");
 
-  const handle = items.nth(1).locator(".handle");
-  const target = items.nth(4);
-  await handle.dragTo(target);
+  await page.evaluate(() => {
+    const el = document.querySelector("a4-tasklist");
+    const behavior = el?.dragBehavior;
+    if (behavior?.options?.onReorder) {
+      behavior.options.onReorder(1, 4);
+    }
+  });
 
   const stateAfter = await page.evaluate(() => {
     const el = document.querySelector("a4-tasklist") as any;

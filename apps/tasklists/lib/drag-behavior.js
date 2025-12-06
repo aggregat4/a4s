@@ -59,7 +59,6 @@ export default class DraggableBehavior {
         this.rafId = null;
         this.cachedItems = null;
         this.enabled = false;
-        this.placeholder = null;
         this.originalPosition = null;
         this.pointerOffsetY = 0;
         this.pointerOffsetX = 0;
@@ -71,6 +70,7 @@ export default class DraggableBehavior {
         this.isPointerDragging = false;
         this.preventNativeDrag = false;
         this._lastDragOverLogTs = 0;
+        this.dragAvatar = null;
 
         this._onDragStart = this.handleDragStart.bind(this);
         this._onDragEnd = this.handleDragEnd.bind(this);
@@ -137,16 +137,6 @@ export default class DraggableBehavior {
                 passive: false,
             });
         }
-
-        if (this.options.debug) {
-            this.addDebugListener(this.container, "mousedown");
-            this.addDebugListener(this.container, "mousemove");
-            this.addDebugListener(this.container, "mouseup");
-            this.addDebugListener(this.container, "dragenter");
-            this.addDebugListener(this.container, "dragleave");
-            this.addDebugListener(this.container, "dragover");
-            this.addDebugListener(this.container, "drop");
-        }
     }
 
     removeEventListeners() {
@@ -165,11 +155,6 @@ export default class DraggableBehavior {
             this.container.removeEventListener("pointerup", this._onPointerUp);
             this.container.removeEventListener("pointercancel", this._onPointerCancel);
         }
-
-        this._debugListeners.forEach(({ target, type, handler, options }) => {
-            target.removeEventListener(type, handler, options);
-        });
-        this._debugListeners = [];
     }
 
     handleDragStart(event) {
@@ -188,9 +173,20 @@ export default class DraggableBehavior {
         if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", "");
-            const emptyImg = document.createElement("img");
-            emptyImg.src = EMPTY_DRAG_IMAGE;
-            event.dataTransfer.setDragImage(emptyImg, 0, 0);
+            if (!this.dragAvatar) {
+                this.dragAvatar = this.createAvatar(li);
+            }
+            if (this.dragAvatar) {
+                event.dataTransfer.setDragImage(
+                    this.dragAvatar,
+                    this.pointerOffsetX,
+                    this.pointerOffsetY,
+                );
+            } else {
+                const emptyImg = document.createElement("img");
+                emptyImg.src = EMPTY_DRAG_IMAGE;
+                event.dataTransfer.setDragImage(emptyImg, 0, 0);
+            }
         }
 
     }
@@ -343,6 +339,7 @@ export default class DraggableBehavior {
         this.invalidateItemsCache();
         this._currentPlaceholderIndex = this.originalPosition;
         this._dropHandled = false;
+        this.dragging.classList.add("dragging");
 
         if (!this.deferFloatingInit && startClientX != null && startClientY != null) {
             this.beginFloating(startClientX, startClientY);
@@ -351,19 +348,7 @@ export default class DraggableBehavior {
 
     endDrag() {
         if (!this.dragging) return;
-
-        if (this.originalPosition !== null && this.placeholder) {
-            const children = Array.from(this.container.children).filter(
-                (node) => node !== this.dragging,
-            );
-            const targetIndex = Math.min(this.originalPosition, children.length);
-            const target = children[targetIndex] || null;
-            this.container.insertBefore(this.placeholder, target);
-        }
-
-        if (this.placeholder) {
-            this.container.insertBefore(this.dragging, this.placeholder);
-        }
+        const draggedRef = this.dragging;
 
         this.endFloating();
 
@@ -374,6 +359,19 @@ export default class DraggableBehavior {
         this.isPointerDragging = false;
         this.pointerDragId = null;
         this.preventNativeDrag = false;
+        draggedRef.classList.remove("dragging");
+        draggedRef.style.position = "";
+        draggedRef.style.top = "";
+        draggedRef.style.left = "";
+        draggedRef.style.width = "";
+        draggedRef.style.zIndex = "";
+        draggedRef.style.pointerEvents = "";
+        draggedRef.style.boxShadow = "";
+        draggedRef.style.opacity = "";
+        if (this.dragAvatar?.parentNode) {
+            this.dragAvatar.parentNode.removeChild(this.dragAvatar);
+        }
+        this.dragAvatar = null;
         this.invalidateItemsCache();
     }
 
@@ -405,57 +403,44 @@ export default class DraggableBehavior {
         setTimeout(() => draggedRef.classList.remove("drop-animation"), 300);
         if (this.options.onReorder) {
             const items = Array.from(this.container.children);
-            const toIndex = items.indexOf(this.placeholder);
+            const toIndex = items.indexOf(draggedRef);
             this.options.onReorder(startIndex, toIndex);
         }
         this._dropHandled = true;
     }
 
-    createPlaceholder(heightPx) {
-        const placeholder = document.createElement("li");
-        placeholder.className = "placeholder";
-        placeholder.style.height = `${heightPx}px`;
-        return placeholder;
-    }
-
     beginFloating(eClientX, eClientY) {
         const li = this.dragging;
+        if (!li) return;
         const rect = li.getBoundingClientRect();
 
-        this.placeholder = this.createPlaceholder(rect.height);
-        this.container.insertBefore(this.placeholder, li);
-        this._currentPlaceholderIndex = this.getIndex(this.placeholder);
         this.pointerOffsetY =
             eClientY != null ? eClientY - rect.top : rect.height / 2;
         this.pointerOffsetX = eClientX != null ? eClientX - rect.left : 16;
 
-        li.style.width = rect.width + "px";
-        li.style.left = rect.left + "px";
-        li.style.top = rect.top + "px";
-        li.classList.add("dragging");
+        if (!this.dragAvatar) {
+            this.dragAvatar = this.createAvatar(li);
+        }
+        if (this.dragAvatar) {
+            this.dragAvatar.style.width = rect.width + "px";
+            this.dragAvatar.style.left = rect.left + "px";
+            this.dragAvatar.style.top = rect.top + "px";
+        }
     }
 
     updateFloating(eClientX, eClientY) {
-        if (!this.dragging) return;
+        if (!this.dragAvatar) return;
         const y = eClientY - this.pointerOffsetY;
-        this.dragging.style.top = `${y}px`;
+        const x = eClientX - this.pointerOffsetX;
+        this.dragAvatar.style.top = `${y}px`;
+        this.dragAvatar.style.left = `${x}px`;
     }
 
     endFloating() {
-        if (!this.dragging) return;
-        const li = this.dragging;
-        li.classList.remove("dragging");
-        li.style.position = "";
-        li.style.top = "";
-        li.style.left = "";
-        li.style.width = "";
-        li.style.zIndex = "";
-        li.style.pointerEvents = "";
-        li.style.boxShadow = "";
-        if (this.placeholder?.parentNode) {
-            this.placeholder.parentNode.removeChild(this.placeholder);
+        if (this.dragAvatar?.parentNode) {
+            this.dragAvatar.parentNode.removeChild(this.dragAvatar);
         }
-        this.placeholder = null;
+        this.dragAvatar = null;
     }
 
     getDropTarget(mouseY) {
@@ -493,19 +478,36 @@ export default class DraggableBehavior {
     }
 
     moveDraggedElement(after) {
-        if (!this.dragging || !this.placeholder) return;
+        if (!this.dragging) return;
 
         const prevSnapshot = this.animator?.snapshot(this.container, this.dragging);
 
         if (after == null) {
-            this.container.appendChild(this.placeholder);
+            this.container.appendChild(this.dragging);
         } else {
-            this.container.insertBefore(this.placeholder, after);
+            this.container.insertBefore(this.dragging, after);
         }
 
         this.invalidateItemsCache();
-        this._currentPlaceholderIndex = this.getIndex(this.placeholder);
+        this._currentPlaceholderIndex = this.getIndex(this.dragging);
         this.animator?.play(this.container, this.dragging, prevSnapshot);
+    }
+
+    createAvatar(source) {
+        if (!source || typeof document === "undefined") return null;
+        const rect = source.getBoundingClientRect();
+        const clone = source.cloneNode(true);
+        clone.removeAttribute("id");
+        clone.classList.add("drag-avatar");
+        clone.style.position = "fixed";
+        clone.style.pointerEvents = "none";
+        clone.style.zIndex = "1000";
+        clone.style.width = `${rect.width}px`;
+        clone.style.height = `${rect.height}px`;
+        clone.style.top = `${rect.top}px`;
+        clone.style.left = `${rect.left}px`;
+        document.body.appendChild(clone);
+        return clone;
     }
 
     cancel() {

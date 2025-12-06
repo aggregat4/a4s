@@ -527,14 +527,9 @@ ol.tasklist {
     }
 
     > li.dragging {
-        position: fixed;
-        z-index: 1000;
+        opacity: 0.35;
         pointer-events: none;
-        box-shadow: var(--shadow-drag);
-        opacity: 0.98;
-        color: inherit;
-        background: var(--color-surface);
-        border-color: var(--color-border);
+        outline: 2px dashed #bbb;
     }
 
     > li.placeholder {
@@ -543,6 +538,17 @@ ol.tasklist {
         height: 0;
         margin-bottom: var(--space-sm);
     }
+}
+
+.drag-avatar {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: var(--shadow-drag);
+    opacity: 0.98;
+    color: inherit;
+    background: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 .tasklist-empty {
