@@ -527,7 +527,7 @@ ol.tasklist {
     }
 
     > li.dragging {
-        outline: 2px dashed #bbb;
+        outline: 3px dotted #6d7dbd;
         box-shadow: var(--shadow-drag);
         background: var(--color-surface);
         opacity: 0.9;
