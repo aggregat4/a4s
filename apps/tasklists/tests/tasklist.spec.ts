@@ -305,6 +305,31 @@ test.describe("tasklist flows", () => {
     await expect(checkbox).toBeChecked();
   });
 
+  test("sidebar counts show only open items", async ({ page }) => {
+    const prototypeButton = page
+      .locator(".sidebar-list-button")
+      .filter({ hasText: "Prototype Tasks" });
+    const prototypeCount = prototypeButton.locator(".sidebar-list-count");
+    const initialCount = Number((await prototypeCount.textContent()) ?? "0");
+    expect(initialCount).toBeGreaterThan(1);
+
+    const firstItem = page.locator(listItemsSelector).first();
+    const firstText =
+      (await firstItem.locator(".text").textContent())?.trim() ?? "";
+    await firstItem.locator("input.done-toggle").check();
+
+    await expect(prototypeCount).toHaveText(String(initialCount - 1));
+
+    await setShowDone(page, true);
+    const toggledItemCheckbox = page
+      .locator("ol.tasklist li")
+      .filter({ has: page.locator(".text", { hasText: firstText }) })
+      .locator("input.done-toggle");
+    await toggledItemCheckbox.uncheck();
+
+    await expect(prototypeCount).toHaveText(String(initialCount));
+  });
+
   test("show done toggle reveals and hides completed items", async ({
     page,
   }) => {

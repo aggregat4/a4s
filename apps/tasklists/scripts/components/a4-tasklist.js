@@ -1149,7 +1149,9 @@ class A4TaskList extends HTMLElement {
       updateItem: (li, item) => this.updateItemElement(li, item),
     });
 
-    const totalCount = Array.isArray(state.items) ? state.items.length : 0;
+    const totalCount = Array.isArray(state.items)
+      ? state.items.filter((item) => !item?.done).length
+      : 0;
     if (totalCount !== this.lastReportedTotal) {
       this.lastReportedTotal = totalCount;
       this.dispatchEvent(
@@ -1890,7 +1892,9 @@ class A4TaskList extends HTMLElement {
   getTotalItemCount() {
     if (!this.store) return 0;
     const state = this.store.getState();
-    return Array.isArray(state?.items) ? state.items.length : 0;
+    return Array.isArray(state?.items)
+      ? state.items.filter((item) => !item?.done).length
+      : 0;
   }
 
   getSearchMatchCount() {
