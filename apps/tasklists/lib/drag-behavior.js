@@ -49,7 +49,7 @@ export default class DraggableBehavior {
       threshold: 10,
       onReorder: null,
       animator: null,
-      pointerFallback: false,
+      debug: false,
       ...options,
     };
     this.dragging = null;
@@ -66,10 +66,8 @@ export default class DraggableBehavior {
     this._currentPlaceholderIndex = null;
     this._dropHandled = false;
     this.dragStartIndex = null;
-    this.pointerDragId = null;
-    this.isPointerDragging = false;
-    this.preventNativeDrag = false;
     this._lastDragOverLogTs = 0;
+    this._lastDebugLogTs = 0;
 
     this._onDragStart = this.handleDragStart.bind(this);
     this._onDragEnd = this.handleDragEnd.bind(this);
@@ -79,11 +77,6 @@ export default class DraggableBehavior {
     this._onTouchStart = this.handleTouchStart.bind(this);
     this._onTouchMove = this.handleTouchMove.bind(this);
     this._onTouchEnd = this.handleTouchEnd.bind(this);
-
-    this._onPointerDown = this.handlePointerDown.bind(this);
-    this._onPointerMove = this.handlePointerMove.bind(this);
-    this._onPointerUp = this.handlePointerUp.bind(this);
-    this._onPointerCancel = this.handlePointerCancel.bind(this);
 
     this.deferFloatingInit = false;
     this._pendingInitCoords = null;
@@ -121,21 +114,6 @@ export default class DraggableBehavior {
     this.container.addEventListener("touchend", this._onTouchEnd, {
       passive: true,
     });
-
-    if (this.options.pointerFallback) {
-      this.container.addEventListener("pointerdown", this._onPointerDown, {
-        passive: false,
-      });
-      this.container.addEventListener("pointermove", this._onPointerMove, {
-        passive: false,
-      });
-      this.container.addEventListener("pointerup", this._onPointerUp, {
-        passive: false,
-      });
-      this.container.addEventListener("pointercancel", this._onPointerCancel, {
-        passive: false,
-      });
-    }
   }
 
   removeEventListeners() {
@@ -147,23 +125,9 @@ export default class DraggableBehavior {
     this.container.removeEventListener("touchstart", this._onTouchStart);
     this.container.removeEventListener("touchmove", this._onTouchMove);
     this.container.removeEventListener("touchend", this._onTouchEnd);
-
-    if (this.options.pointerFallback) {
-      this.container.removeEventListener("pointerdown", this._onPointerDown);
-      this.container.removeEventListener("pointermove", this._onPointerMove);
-      this.container.removeEventListener("pointerup", this._onPointerUp);
-      this.container.removeEventListener(
-        "pointercancel",
-        this._onPointerCancel
-      );
-    }
   }
 
   handleDragStart(event) {
-    if (this.isPointerDragging || this.preventNativeDrag) {
-      event.preventDefault();
-      return;
-    }
     const li = event.target.closest("li");
     if (!li) return;
 
@@ -174,7 +138,13 @@ export default class DraggableBehavior {
 
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", "");
+      const id = li.dataset?.itemId ?? "drag";
+      event.dataTransfer.setData("text/plain", id);
+      try {
+        event.dataTransfer.dropEffect = "move";
+      } catch {
+        // ignore
+      }
       const emptyImg = document.createElement("img");
       emptyImg.src = EMPTY_DRAG_IMAGE;
       event.dataTransfer.setDragImage(emptyImg, 0, 0);
@@ -201,7 +171,6 @@ export default class DraggableBehavior {
     this.endDrag();
     this._dropHandled = false;
     this._currentPlaceholderIndex = null;
-    this.preventNativeDrag = false;
   }
 
   handleDragOver(event) {
@@ -273,52 +242,6 @@ export default class DraggableBehavior {
     }
   }
 
-  handlePointerDown(event) {
-    if (!this.options.pointerFallback) return;
-    if (event.pointerType !== "mouse") return;
-    if (event.button !== 0) return;
-    if (!event.target?.classList?.contains(this.options.handleClass)) return;
-    const li = event.target.closest("li");
-    if (!li) return;
-    this.preventNativeDrag = true;
-    this.isPointerDragging = true;
-    this.pointerDragId = event.pointerId;
-    if (event.cancelable) event.preventDefault();
-    try {
-      event.target.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore
-    }
-    this.deferFloatingInit = false;
-    this.startDrag(li, event.clientX, event.clientY);
-  }
-
-  handlePointerMove(event) {
-    if (!this.options.pointerFallback) return;
-    if (!this.isPointerDragging) return;
-    if (event.pointerId !== this.pointerDragId) return;
-    if (event.cancelable) event.preventDefault();
-    this.dragOver(event.clientY);
-  }
-
-  handlePointerUp(event) {
-    if (!this.options.pointerFallback) return;
-    if (!this.isPointerDragging) return;
-    if (event.pointerId !== this.pointerDragId) return;
-    if (event.cancelable) event.preventDefault();
-    this.drop(event.clientY);
-    this.endDrag();
-  }
-
-  handlePointerCancel(event) {
-    if (!this.options.pointerFallback) return;
-    if (event.pointerId !== this.pointerDragId) return;
-    this.isPointerDragging = false;
-    this.pointerDragId = null;
-    this.preventNativeDrag = false;
-    this.endDrag();
-  }
-
   startDrag(li, startClientX = null, startClientY = null) {
     this.dragging = li;
     this.dragStartIndex = this.getIndex(li);
@@ -345,9 +268,6 @@ export default class DraggableBehavior {
     this.isTouchDragging = false;
     this.originalPosition = null;
     this.dragStartIndex = null;
-    this.isPointerDragging = false;
-    this.pointerDragId = null;
-    this.preventNativeDrag = false;
     draggedRef.classList.remove("dragging");
     draggedRef.style.position = "";
     draggedRef.style.top = "";

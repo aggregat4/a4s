@@ -273,6 +273,11 @@ class A4TaskList extends HTMLElement {
     this.initializeStore();
     this.refreshRepositorySubscription();
 
+    const dragDebugEnabled =
+      (typeof localStorage !== "undefined" &&
+        localStorage.getItem("a4:drag-debug") === "1") ||
+      this.hasAttribute("data-drag-debug");
+
     const pointerFallbackEnabled =
       (typeof localStorage !== "undefined" &&
         localStorage.getItem("a4:drag-pointer-fallback") === "1") ||
@@ -281,6 +286,7 @@ class A4TaskList extends HTMLElement {
     if (!this.dragBehavior) {
       this.dragBehavior = new DraggableBehavior(this.listEl, {
         handleClass: "handle",
+        debug: dragDebugEnabled,
         pointerFallback: pointerFallbackEnabled,
         onReorder: (fromIndex, toIndex) => {
           const detail = { fromIndex, toIndex };

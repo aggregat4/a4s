@@ -527,8 +527,6 @@ ol.tasklist {
     }
 
     > li.dragging {
-        opacity: 0.35;
-        pointer-events: none;
         outline: 2px dashed #bbb;
     }
 
@@ -540,16 +538,6 @@ ol.tasklist {
     }
 }
 
-.drag-avatar {
-    position: fixed;
-    z-index: 1000;
-    pointer-events: none;
-    box-shadow: var(--shadow-drag);
-    opacity: 0.98;
-    color: inherit;
-    background: var(--color-surface);
-    border-color: var(--color-border);
-}
 
 .tasklist-empty {
     display: none;
