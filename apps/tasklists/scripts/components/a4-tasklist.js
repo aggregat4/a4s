@@ -1229,18 +1229,6 @@ class A4TaskList extends HTMLElement {
           ></span>
           <span class="handle" aria-hidden="true"></span>
         </div>
-        <button
-          type="button"
-          class=${`task-item__toggle ${
-            isOpen ? "task-item__toggle--active" : "closed"
-          }`}
-          aria-expanded=${isOpen ? "true" : "false"}
-          aria-label=${isOpen
-            ? "Hide task actions for this task"
-            : "Show task actions for this task"}
-          title=${isOpen ? "Hide task actions" : "Show task actions"}
-          @click=${this.handleActionToggleClick}
-        ></button>
         <div
           class="task-item__actions"
           aria-hidden=${isOpen ? "false" : "true"}
@@ -1262,6 +1250,18 @@ class A4TaskList extends HTMLElement {
             Delete
           </button>
         </div>
+        <button
+          type="button"
+          class=${`task-item__toggle ${
+            isOpen ? "task-item__toggle--active" : "closed"
+          }`}
+          aria-expanded=${isOpen ? "true" : "false"}
+          aria-label=${isOpen
+            ? "Hide task actions for this task"
+            : "Show task actions for this task"}
+          title=${isOpen ? "Hide task actions" : "Show task actions"}
+          @click=${this.handleActionToggleClick}
+        ></button>
       `,
       li
     );
