@@ -13,6 +13,7 @@ class SidebarElement extends HTMLElement {
     this.activeListId = null;
     this.currentSearch = "";
     this.dropTargetDepth = new Map();
+    this.shellRendered = false;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
     this.handleListDragEnter = this.handleListDragEnter.bind(this);
@@ -24,6 +25,7 @@ class SidebarElement extends HTMLElement {
   }
 
   connectedCallback() {
+    this.renderShell();
     this.cacheElements();
   }
 
@@ -42,6 +44,52 @@ class SidebarElement extends HTMLElement {
       this.querySelector("[data-role='sidebar-list']") ?? null;
     this.addButton = this.querySelector("[data-role='add-list']") ?? null;
     this.deleteButton = this.querySelector("[data-role='delete-list']") ?? null;
+  }
+
+  renderShell() {
+    this.classList.add("lists-sidebar");
+    if (!this.dataset.role) {
+      this.dataset.role = "sidebar";
+    }
+    if (this.shellRendered) {
+      return;
+    }
+    const hasExistingStructure =
+      this.querySelector("[data-role='sidebar-list']") !== null;
+    if (hasExistingStructure) {
+      this.shellRendered = true;
+      return;
+    }
+    render(
+      html`
+        <div class="sidebar-header">
+          <h1 class="sidebar-title">Lists</h1>
+        </div>
+        <div class="sidebar-section sidebar-search">
+          <label class="sidebar-field">
+            <input
+              type="search"
+              class="sidebar-search-input"
+              placeholder="Search across all lists…"
+              aria-label="Global search"
+              data-role="global-search"
+            />
+          </label>
+        </div>
+        <nav class="sidebar-section sidebar-lists" aria-label="Available lists">
+          <ul class="sidebar-list" data-role="sidebar-list"></ul>
+        </nav>
+        <div class="sidebar-section sidebar-actions">
+          <button type="button" data-role="add-list">Add list</button>
+          <button type="button" class="danger" data-role="delete-list">
+            Delete list
+          </button>
+        </div>
+      `,
+      this
+    );
+    this.shellRendered = true;
+    this.cacheElements();
   }
 
   init() {

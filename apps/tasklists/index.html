@@ -7,69 +7,7 @@
         <link rel="stylesheet" href="./styles.css" />
     </head>
     <body>
-        <div class="lists-app" data-role="lists-app">
-            <a4-sidebar class="lists-sidebar" data-role="sidebar">
-                <div class="sidebar-header">
-                    <h1 class="sidebar-title">Lists</h1>
-                </div>
-                <div class="sidebar-section sidebar-search">
-                    <label class="sidebar-field">
-                        <input
-                            type="search"
-                            class="sidebar-search-input"
-                            placeholder="Search across all lists…"
-                            aria-label="Global search"
-                            data-role="global-search"
-                        />
-                    </label>
-                </div>
-                <nav class="sidebar-section sidebar-lists" aria-label="Available lists">
-                    <ul class="sidebar-list" data-role="sidebar-list"></ul>
-                </nav>
-                <div class="sidebar-section sidebar-actions">
-                    <button type="button" data-role="add-list">
-                        Add list
-                    </button>
-                    <button type="button" class="danger" data-role="delete-list">
-                        Delete list
-                    </button>
-                </div>
-            </a4-sidebar>
-            <main class="lists-main" data-role="main">
-                <header class="lists-main-header">
-                    <h2 class="lists-main-title" data-role="active-list-title"></h2>
-                </header>
-                <div class="lists-container" data-role="lists-container"></div>
-            </main>
-        </div>
-
-        <a4-move-dialog class="move-dialog" data-role="move-dialog" hidden>
-            <div class="move-dialog__backdrop" data-role="move-dialog-backdrop"></div>
-            <div
-                class="move-dialog__content"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="move-dialog-title"
-                aria-describedby="move-dialog-description"
-                tabindex="-1"
-            >
-                <h2 id="move-dialog-title" class="move-dialog__title">Move Task</h2>
-                <p id="move-dialog-description" class="move-dialog__description">
-                    Select a destination list for this task. Use the arrow keys to choose, then
-                    press Enter.
-                </p>
-                <ul class="move-dialog__options" data-role="move-dialog-options"></ul>
-                <div class="move-dialog__actions">
-                    <button
-                        type="button"
-                        class="move-dialog__cancel"
-                        data-role="move-dialog-cancel"
-                    >
-                        Cancel
-                    </button>
-                </div>
-            </div>
-        </a4-move-dialog>
+        <a4-lists-app data-role="lists-app"></a4-lists-app>
         <script type="module">
             import { bootstrapListsApp } from "./scripts/main.js";
             import { SEED_LIST_CONFIGS } from "./scripts/demo-seeds.js";

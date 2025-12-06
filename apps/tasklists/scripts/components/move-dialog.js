@@ -11,6 +11,7 @@ class KeyboardMoveDialog extends HTMLElement {
     this.isOpen = false;
     this.currentContext = null;
     this.listenersAttached = false;
+    this.shellRendered = false;
 
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleCancel = this.handleCancel.bind(this);
@@ -19,6 +20,7 @@ class KeyboardMoveDialog extends HTMLElement {
   }
 
   connectedCallback() {
+    this.renderShell();
     this.cacheElements();
     this.attachListeners();
   }
@@ -35,6 +37,58 @@ class KeyboardMoveDialog extends HTMLElement {
       this.querySelector("[data-role='move-dialog-options']") ?? null;
     this.cancelButton =
       this.querySelector("[data-role='move-dialog-cancel']") ?? null;
+  }
+
+  renderShell() {
+    this.classList.add("move-dialog");
+    if (!this.dataset.role) {
+      this.dataset.role = "move-dialog";
+    }
+    if (!this.hasAttribute("hidden")) {
+      this.hidden = true;
+    }
+    this.setAttribute("aria-hidden", this.hidden ? "true" : "false");
+    if (this.shellRendered) {
+      return;
+    }
+    const hasExistingStructure =
+      this.querySelector("[data-role='move-dialog-options']") !== null;
+    if (hasExistingStructure) {
+      this.shellRendered = true;
+      return;
+    }
+    render(
+      html`
+        <div class="move-dialog__backdrop" data-role="move-dialog-backdrop"></div>
+        <div
+          class="move-dialog__content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="move-dialog-title"
+          aria-describedby="move-dialog-description"
+          tabindex="-1"
+        >
+          <h2 id="move-dialog-title" class="move-dialog__title">Move Task</h2>
+          <p id="move-dialog-description" class="move-dialog__description">
+            Select a destination list for this task. Use the arrow keys to choose,
+            then press Enter.
+          </p>
+          <ul class="move-dialog__options" data-role="move-dialog-options"></ul>
+          <div class="move-dialog__actions">
+            <button
+              type="button"
+              class="move-dialog__cancel"
+              data-role="move-dialog-cancel"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      `,
+      this
+    );
+    this.shellRendered = true;
+    this.cacheElements();
   }
 
   attachListeners() {

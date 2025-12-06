@@ -1,6 +1,7 @@
 import ListsApp from "./lists-app.js";
 import { ListRepository } from "../lib/app/list-repository.js";
 import { DEFAULT_DB_NAME as LISTS_DB_NAME } from "../lib/storage/list-storage.js";
+import "./components/app-shell.js";
 
 async function resetPersistentStorageIfNeeded() {
   const params = new URLSearchParams(window.location.search);
@@ -75,14 +76,21 @@ function waitForDocumentReady() {
 
 export async function bootstrapListsApp({ seedConfigs } = {}) {
   await waitForDocumentReady();
-  const appRoot = document.querySelector("[data-role='lists-app']");
+  let appRoot = document.querySelector("[data-role='lists-app']");
+  if (!appRoot) {
+    appRoot = document.createElement("a4-lists-app");
+    appRoot.dataset.role = "lists-app";
+    document.body.appendChild(appRoot);
+  }
   if (!appRoot) return null;
   const sidebarElement = appRoot.querySelector("[data-role='sidebar']");
   const mainElement = appRoot.querySelector("[data-role='main']");
   const listsContainer = appRoot.querySelector("[data-role='lists-container']");
   const mainTitleElement =
     mainElement?.querySelector("[data-role='active-list-title']") ?? null;
-  const moveDialogElement = document.querySelector("[data-role='move-dialog']");
+  const moveDialogElement =
+    appRoot.querySelector("[data-role='move-dialog']") ??
+    document.querySelector("[data-role='move-dialog']");
   await resetPersistentStorageIfNeeded();
   const repository = new ListRepository();
   await ensureDemoData(repository, seedConfigs).catch(() => {});
