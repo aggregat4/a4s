@@ -160,11 +160,19 @@ class SidebarElement extends HTMLElement {
     }
   }
 
+  hasTaskPayload(dataTransfer) {
+    if (!dataTransfer) return false;
+    return Array.from(dataTransfer.types ?? []).includes(
+      "application/x-a4-task"
+    );
+  }
+
   handleListDragEnter(event) {
     const button = event.currentTarget;
     const payload = this.parseTaskData(event.dataTransfer);
-    if (!payload) return;
-    if (payload.sourceListId === button.dataset.listId) return;
+    const hasPayload = payload || this.hasTaskPayload(event.dataTransfer);
+    if (!hasPayload) return;
+    if (payload && payload.sourceListId === button.dataset.listId) return;
     event.preventDefault();
     if (this.dropTargetDepth.size) {
       const others = Array.from(this.dropTargetDepth.keys()).filter(
@@ -183,8 +191,9 @@ class SidebarElement extends HTMLElement {
   handleListDragOver(event) {
     const button = event.currentTarget;
     const payload = this.parseTaskData(event.dataTransfer);
-    if (!payload) return;
-    if (payload.sourceListId === button.dataset.listId) return;
+    const hasPayload = payload || this.hasTaskPayload(event.dataTransfer);
+    if (!hasPayload) return;
+    if (payload && payload.sourceListId === button.dataset.listId) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }

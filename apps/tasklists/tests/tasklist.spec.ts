@@ -657,6 +657,56 @@ test("splitting then dragging keeps items separated", async ({ page }) => {
     }
   });
 
+  test("dragging task between lists via sidebar persists across reload", async ({
+    page,
+  }) => {
+    const prototypeButton = page
+      .locator(".sidebar-list-button")
+      .filter({ hasText: "Prototype Tasks" });
+    const weekendButton = page
+      .locator(".sidebar-list-button")
+      .filter({ hasText: "Weekend Projects" });
+    const activeTitle = page.locator("[data-role='active-list-title']");
+    const prototypeItems = page
+      .locator("a4-tasklist[name='Prototype Tasks']")
+      .locator("ol.tasklist li:not(.placeholder)");
+    const weekendItems = page
+      .locator("a4-tasklist[name='Weekend Projects']")
+      .locator("ol.tasklist li:not(.placeholder)");
+
+    const sourceItem = page.locator(listItemsSelector).first();
+    const sourceText =
+      (await sourceItem.locator(".text").textContent())?.trim() ?? "";
+    expect(sourceText.length).toBeGreaterThan(0);
+
+    await sourceItem.dragTo(weekendButton);
+
+    await weekendButton.click();
+    await expect(activeTitle).toHaveText("Weekend Projects");
+    await expect(
+      weekendItems.locator(".text").filter({ hasText: sourceText })
+    ).toHaveCount(1);
+
+    await prototypeButton.click();
+    await expect(activeTitle).toHaveText("Prototype Tasks");
+    await expect(
+      prototypeItems.locator(".text").filter({ hasText: sourceText })
+    ).toHaveCount(0);
+
+    await page.goto("/");
+    await expect(activeTitle).toHaveText("Prototype Tasks");
+    await weekendButton.click();
+    await expect(activeTitle).toHaveText("Weekend Projects");
+    await expect(
+      weekendItems.locator(".text").filter({ hasText: sourceText })
+    ).toHaveCount(1);
+    await prototypeButton.click();
+    await expect(activeTitle).toHaveText("Prototype Tasks");
+    await expect(
+      prototypeItems.locator(".text").filter({ hasText: sourceText })
+    ).toHaveCount(0);
+  });
+
   test("deleting a list removes it and selects a fallback list", async ({
     page,
   }) => {
