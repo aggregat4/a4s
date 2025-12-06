@@ -10,7 +10,6 @@ class KeyboardMoveDialog extends HTMLElement {
     this.optionButtons = [];
     this.isOpen = false;
     this.currentContext = null;
-    this.listenersAttached = false;
     this.shellRendered = false;
 
     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -22,21 +21,10 @@ class KeyboardMoveDialog extends HTMLElement {
   connectedCallback() {
     this.renderShell();
     this.cacheElements();
-    this.attachListeners();
   }
 
   disconnectedCallback() {
-    this.detachListeners();
-  }
-
-  cacheElements() {
-    this.backdropEl =
-      this.querySelector("[data-role='move-dialog-backdrop']") ?? null;
-    this.contentEl = this.querySelector(".move-dialog__content") ?? null;
-    this.optionsListEl =
-      this.querySelector("[data-role='move-dialog-options']") ?? null;
-    this.cancelButton =
-      this.querySelector("[data-role='move-dialog-cancel']") ?? null;
+    // no-op; event listeners are bound via the template
   }
 
   renderShell() {
@@ -59,7 +47,11 @@ class KeyboardMoveDialog extends HTMLElement {
     }
     render(
       html`
-        <div class="move-dialog__backdrop" data-role="move-dialog-backdrop"></div>
+        <div
+          class="move-dialog__backdrop"
+          data-role="move-dialog-backdrop"
+          @click=${this.handleBackdropClick}
+        ></div>
         <div
           class="move-dialog__content"
           role="dialog"
@@ -67,11 +59,12 @@ class KeyboardMoveDialog extends HTMLElement {
           aria-labelledby="move-dialog-title"
           aria-describedby="move-dialog-description"
           tabindex="-1"
+          @keydown=${this.handleKeyDown}
         >
           <h2 id="move-dialog-title" class="move-dialog__title">Move Task</h2>
           <p id="move-dialog-description" class="move-dialog__description">
-            Select a destination list for this task. Use the arrow keys to choose,
-            then press Enter.
+            Select a destination list for this task. Use the arrow keys to
+            choose, then press Enter.
           </p>
           <ul class="move-dialog__options" data-role="move-dialog-options"></ul>
           <div class="move-dialog__actions">
@@ -79,6 +72,7 @@ class KeyboardMoveDialog extends HTMLElement {
               type="button"
               class="move-dialog__cancel"
               data-role="move-dialog-cancel"
+              @click=${this.handleCancel}
             >
               Cancel
             </button>
@@ -91,20 +85,19 @@ class KeyboardMoveDialog extends HTMLElement {
     this.cacheElements();
   }
 
-  attachListeners() {
-    if (this.listenersAttached) return;
-    this.cancelButton?.addEventListener("click", this.handleCancel);
-    this.backdropEl?.addEventListener("click", this.handleBackdropClick);
-    this.listenersAttached = true;
-  }
-
-  detachListeners() {
-    this.cancelButton?.removeEventListener("click", this.handleCancel);
-    this.backdropEl?.removeEventListener("click", this.handleBackdropClick);
-    this.listenersAttached = false;
+  cacheElements() {
+    this.backdropEl =
+      this.querySelector("[data-role='move-dialog-backdrop']") ?? null;
+    this.contentEl = this.querySelector(".move-dialog__content") ?? null;
+    this.optionsListEl =
+      this.querySelector("[data-role='move-dialog-options']") ?? null;
+    this.cancelButton =
+      this.querySelector("[data-role='move-dialog-cancel']") ?? null;
   }
 
   open(options = {}) {
+    this.renderShell();
+    this.cacheElements();
     if (!this.optionsListEl) return;
     const targets = Array.isArray(options.targets) ? options.targets : [];
     if (!targets.length) return;
@@ -114,7 +107,6 @@ class KeyboardMoveDialog extends HTMLElement {
     this.hidden = false;
     this.setAttribute("aria-hidden", "false");
     this.isOpen = true;
-    this.contentEl?.addEventListener("keydown", this.handleKeyDown);
     requestAnimationFrame(() => {
       if (this.optionButtons[0]) {
         this.optionButtons[0].focus();
@@ -171,7 +163,6 @@ class KeyboardMoveDialog extends HTMLElement {
       return;
     }
     this.isOpen = false;
-    this.contentEl?.removeEventListener("keydown", this.handleKeyDown);
     this.clearOptions();
     this.hidden = true;
     this.setAttribute("aria-hidden", "true");
