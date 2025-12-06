@@ -1,518 +1,461 @@
 const EMPTY_DRAG_IMAGE =
-    "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
 
 export class FlipAnimator {
-    snapshot(container, dragging) {
-        const map = new Map();
-        [...container.querySelectorAll("li")].forEach((li) => {
-            if (li !== dragging) {
-                map.set(li, li.getBoundingClientRect().top);
-            }
-        });
-        return map;
-    }
+  snapshot(container, dragging) {
+    const map = new Map();
+    [...container.querySelectorAll("li")].forEach((li) => {
+      if (li !== dragging) {
+        map.set(li, li.getBoundingClientRect().top);
+      }
+    });
+    return map;
+  }
 
-    play(container, dragging, prevTops) {
-        if (!prevTops) return;
-        [...container.querySelectorAll("li")].forEach((li) => {
-            if (li === dragging) return;
-            const prevTop = prevTops.get(li);
-            if (prevTop == null) return;
+  play(container, dragging, prevTops) {
+    if (!prevTops) return;
+    [...container.querySelectorAll("li")].forEach((li) => {
+      if (li === dragging) return;
+      const prevTop = prevTops.get(li);
+      if (prevTop == null) return;
 
-            const nowTop = li.getBoundingClientRect().top;
-            const dy = prevTop - nowTop;
-            if (dy === 0) return;
+      const nowTop = li.getBoundingClientRect().top;
+      const dy = prevTop - nowTop;
+      if (dy === 0) return;
 
-            li.style.transform = `translateY(${dy}px)`;
-            // force reflow so the browser picks up the initial transform before transitioning back
-            // eslint-disable-next-line no-unused-expressions
-            li.offsetHeight;
+      li.style.transform = `translateY(${dy}px)`;
+      // force reflow so the browser picks up the initial transform before transitioning back
+      // eslint-disable-next-line no-unused-expressions
+      li.offsetHeight;
 
-            li.classList.add("flip-animating");
-            li.style.transform = "translateY(0)";
+      li.classList.add("flip-animating");
+      li.style.transform = "translateY(0)";
 
-            const done = () => {
-                li.classList.remove("flip-animating");
-                li.style.transform = "";
-                li.removeEventListener("transitionend", done);
-            };
-            li.addEventListener("transitionend", done, { once: true });
-        });
-    }
+      const done = () => {
+        li.classList.remove("flip-animating");
+        li.style.transform = "";
+        li.removeEventListener("transitionend", done);
+      };
+      li.addEventListener("transitionend", done, { once: true });
+    });
+  }
 }
 
 export default class DraggableBehavior {
-    constructor(container, options = {}) {
-        this.container = container;
-        this.options = {
-            handleClass: "handle",
-            threshold: 10,
-            onReorder: null,
-            animator: null,
-            pointerFallback: false,
-            ...options,
-        };
-        this.dragging = null;
-        this.touchStartY = 0;
-        this.touchStartX = 0;
-        this.isTouchDragging = false;
-        this.rafId = null;
-        this.cachedItems = null;
-        this.enabled = false;
-        this.originalPosition = null;
-        this.pointerOffsetY = 0;
-        this.pointerOffsetX = 0;
-        this.animator = this.options.animator;
-        this._currentPlaceholderIndex = null;
-        this._dropHandled = false;
-        this.dragStartIndex = null;
-        this.pointerDragId = null;
-        this.isPointerDragging = false;
-        this.preventNativeDrag = false;
-        this._lastDragOverLogTs = 0;
-        this.dragAvatar = null;
+  constructor(container, options = {}) {
+    this.container = container;
+    this.options = {
+      handleClass: "handle",
+      threshold: 10,
+      onReorder: null,
+      animator: null,
+      pointerFallback: false,
+      ...options,
+    };
+    this.dragging = null;
+    this.touchStartY = 0;
+    this.touchStartX = 0;
+    this.isTouchDragging = false;
+    this.rafId = null;
+    this.cachedItems = null;
+    this.enabled = false;
+    this.originalPosition = null;
+    this.pointerOffsetY = 0;
+    this.pointerOffsetX = 0;
+    this.animator = this.options.animator;
+    this._currentPlaceholderIndex = null;
+    this._dropHandled = false;
+    this.dragStartIndex = null;
+    this.pointerDragId = null;
+    this.isPointerDragging = false;
+    this.preventNativeDrag = false;
+    this._lastDragOverLogTs = 0;
 
-        this._onDragStart = this.handleDragStart.bind(this);
-        this._onDragEnd = this.handleDragEnd.bind(this);
-        this._onDragOver = this.handleDragOver.bind(this);
-        this._onDrop = this.handleDrop.bind(this);
+    this._onDragStart = this.handleDragStart.bind(this);
+    this._onDragEnd = this.handleDragEnd.bind(this);
+    this._onDragOver = this.handleDragOver.bind(this);
+    this._onDrop = this.handleDrop.bind(this);
 
-        this._onTouchStart = this.handleTouchStart.bind(this);
-        this._onTouchMove = this.handleTouchMove.bind(this);
-        this._onTouchEnd = this.handleTouchEnd.bind(this);
+    this._onTouchStart = this.handleTouchStart.bind(this);
+    this._onTouchMove = this.handleTouchMove.bind(this);
+    this._onTouchEnd = this.handleTouchEnd.bind(this);
 
-        this._onPointerDown = this.handlePointerDown.bind(this);
-        this._onPointerMove = this.handlePointerMove.bind(this);
-        this._onPointerUp = this.handlePointerUp.bind(this);
-        this._onPointerCancel = this.handlePointerCancel.bind(this);
+    this._onPointerDown = this.handlePointerDown.bind(this);
+    this._onPointerMove = this.handlePointerMove.bind(this);
+    this._onPointerUp = this.handlePointerUp.bind(this);
+    this._onPointerCancel = this.handlePointerCancel.bind(this);
 
-        this.deferFloatingInit = false;
-        this._pendingInitCoords = null;
+    this.deferFloatingInit = false;
+    this._pendingInitCoords = null;
+  }
+
+  enable() {
+    if (this.enabled) return;
+    this.enabled = true;
+    this.setupEventListeners();
+  }
+
+  disable() {
+    if (!this.enabled) return;
+    this.enabled = false;
+    this.removeEventListeners();
+  }
+
+  destroy() {
+    this.disable();
+    this.container = null;
+  }
+
+  setupEventListeners() {
+    this.container.addEventListener("dragstart", this._onDragStart);
+    this.container.addEventListener("dragend", this._onDragEnd);
+    this.container.addEventListener("dragover", this._onDragOver);
+    this.container.addEventListener("drop", this._onDrop);
+
+    this.container.addEventListener("touchstart", this._onTouchStart, {
+      passive: false,
+    });
+    this.container.addEventListener("touchmove", this._onTouchMove, {
+      passive: false,
+    });
+    this.container.addEventListener("touchend", this._onTouchEnd, {
+      passive: true,
+    });
+
+    if (this.options.pointerFallback) {
+      this.container.addEventListener("pointerdown", this._onPointerDown, {
+        passive: false,
+      });
+      this.container.addEventListener("pointermove", this._onPointerMove, {
+        passive: false,
+      });
+      this.container.addEventListener("pointerup", this._onPointerUp, {
+        passive: false,
+      });
+      this.container.addEventListener("pointercancel", this._onPointerCancel, {
+        passive: false,
+      });
     }
+  }
 
-    enable() {
-        if (this.enabled) return;
-        this.enabled = true;
-        this.setupEventListeners();
+  removeEventListeners() {
+    this.container.removeEventListener("dragstart", this._onDragStart);
+    this.container.removeEventListener("dragend", this._onDragEnd);
+    this.container.removeEventListener("dragover", this._onDragOver);
+    this.container.removeEventListener("drop", this._onDrop);
+
+    this.container.removeEventListener("touchstart", this._onTouchStart);
+    this.container.removeEventListener("touchmove", this._onTouchMove);
+    this.container.removeEventListener("touchend", this._onTouchEnd);
+
+    if (this.options.pointerFallback) {
+      this.container.removeEventListener("pointerdown", this._onPointerDown);
+      this.container.removeEventListener("pointermove", this._onPointerMove);
+      this.container.removeEventListener("pointerup", this._onPointerUp);
+      this.container.removeEventListener(
+        "pointercancel",
+        this._onPointerCancel
+      );
     }
+  }
 
-    disable() {
-        if (!this.enabled) return;
-        this.enabled = false;
-        this.removeEventListeners();
+  handleDragStart(event) {
+    if (this.isPointerDragging || this.preventNativeDrag) {
+      event.preventDefault();
+      return;
     }
+    const li = event.target.closest("li");
+    if (!li) return;
 
-    destroy() {
-        this.disable();
-        this.container = null;
+    this.deferFloatingInit = false;
+    this._pendingInitCoords = null;
+
+    this.startDrag(li, event.clientX, event.clientY);
+
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", "");
+      const emptyImg = document.createElement("img");
+      emptyImg.src = EMPTY_DRAG_IMAGE;
+      event.dataTransfer.setDragImage(emptyImg, 0, 0);
     }
+  }
 
-    setupEventListeners() {
-        this.container.addEventListener("dragstart", this._onDragStart);
-        this.container.addEventListener("dragend", this._onDragEnd);
-        this.container.addEventListener("dragover", this._onDragOver);
-        this.container.addEventListener("drop", this._onDrop);
-
-        this.container.addEventListener("touchstart", this._onTouchStart, {
-            passive: false,
-        });
-        this.container.addEventListener("touchmove", this._onTouchMove, {
-            passive: false,
-        });
-        this.container.addEventListener("touchend", this._onTouchEnd, {
-            passive: true,
-        });
-
-        if (this.options.pointerFallback) {
-            this.container.addEventListener("pointerdown", this._onPointerDown, {
-                passive: false,
-            });
-            this.container.addEventListener("pointermove", this._onPointerMove, {
-                passive: false,
-            });
-            this.container.addEventListener("pointerup", this._onPointerUp, {
-                passive: false,
-            });
-            this.container.addEventListener("pointercancel", this._onPointerCancel, {
-                passive: false,
-            });
-        }
-    }
-
-    removeEventListeners() {
-        this.container.removeEventListener("dragstart", this._onDragStart);
-        this.container.removeEventListener("dragend", this._onDragEnd);
-        this.container.removeEventListener("dragover", this._onDragOver);
-        this.container.removeEventListener("drop", this._onDrop);
-
-        this.container.removeEventListener("touchstart", this._onTouchStart);
-        this.container.removeEventListener("touchmove", this._onTouchMove);
-        this.container.removeEventListener("touchend", this._onTouchEnd);
-
-        if (this.options.pointerFallback) {
-            this.container.removeEventListener("pointerdown", this._onPointerDown);
-            this.container.removeEventListener("pointermove", this._onPointerMove);
-            this.container.removeEventListener("pointerup", this._onPointerUp);
-            this.container.removeEventListener("pointercancel", this._onPointerCancel);
-        }
-    }
-
-    handleDragStart(event) {
-        if (this.isPointerDragging || this.preventNativeDrag) {
-            event.preventDefault();
-            return;
-        }
-        const li = event.target.closest("li");
-        if (!li) return;
-
-        this.deferFloatingInit = false;
-        this._pendingInitCoords = null;
-
-        this.startDrag(li, event.clientX, event.clientY);
-
-        if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", "");
-            if (!this.dragAvatar) {
-                this.dragAvatar = this.createAvatar(li);
-            }
-            if (this.dragAvatar) {
-                event.dataTransfer.setDragImage(
-                    this.dragAvatar,
-                    this.pointerOffsetX,
-                    this.pointerOffsetY,
-                );
-            } else {
-                const emptyImg = document.createElement("img");
-                emptyImg.src = EMPTY_DRAG_IMAGE;
-                event.dataTransfer.setDragImage(emptyImg, 0, 0);
-            }
-        }
-
-    }
-
-    handleDragEnd(event) {
-        if (
-            this.dragging &&
-            !this._dropHandled &&
-            this._currentPlaceholderIndex != null
-        ) {
-            const fromIndex =
-                this.dragStartIndex ??
-                this.originalPosition ??
-                this.getIndex(this.dragging);
-            const toIndex = this._currentPlaceholderIndex;
-            if (fromIndex !== toIndex) {
-                this.options.onReorder?.(fromIndex, toIndex);
-                this._dropHandled = true;
-                this.originalPosition = null;
-            }
-        }
-        this.endDrag();
-        this._dropHandled = false;
-        this._currentPlaceholderIndex = null;
-        this.preventNativeDrag = false;
-    }
-
-    handleDragOver(event) {
-        event.preventDefault();
-
-        if (this.dragging && this.deferFloatingInit) {
-            this.deferFloatingInit = false;
-            const coords = this._pendingInitCoords || {
-                x: event.clientX,
-                y: event.clientY,
-            };
-            this.beginFloating(coords.x, coords.y);
-            this._pendingInitCoords = null;
-        }
-
-        this.updateFloating(event.clientX, event.clientY);
-        this.debouncedDragOver(event.clientY);
-        if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = "move";
-        }
-
-        const now = Date.now();
-        if (now - this._lastDragOverLogTs > 120) {
-            this._lastDragOverLogTs = now;
-        }
-    }
-
-    handleDrop(event) {
-        event.preventDefault();
-        this.drop(event.clientY);
-        this.endDrag();
-    }
-
-    handleTouchStart(event) {
-        if (!event.target.classList.contains(this.options.handleClass)) return;
-        const li = event.target.closest("li");
-        if (!li) return;
-        if (event.cancelable) event.preventDefault();
-        this.touchStartY = event.touches[0].clientY;
-        this.touchStartX = event.touches[0].clientX;
-        this.isTouchDragging = false;
-    }
-
-    handleTouchMove(event) {
-        if (!event.target.classList.contains(this.options.handleClass)) return;
-        if (event.cancelable) event.preventDefault();
-
-        const deltaY = event.touches[0].clientY - this.touchStartY;
-        const deltaX = event.touches[0].clientX - this.touchStartX;
-        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        if (!this.isTouchDragging && distance < this.options.threshold) {
-            return;
-        }
-
-        if (!this.isTouchDragging) {
-            this.isTouchDragging = true;
-            const li = event.target.closest("li");
-            if (!li) return;
-            this.deferFloatingInit = false;
-            this.startDrag(li, event.touches[0].clientX, event.touches[0].clientY);
-        } else {
-            this.updateFloating(event.touches[0].clientX, event.touches[0].clientY);
-            this.debouncedDragOver(event.touches[0].clientY);
-        }
-    }
-
-    handleTouchEnd(event) {
-        if (this.isTouchDragging && this.dragging) {
-            this.drop(event.changedTouches[0].clientY);
-            this.endDrag();
-        }
-    }
-
-    handlePointerDown(event) {
-        if (!this.options.pointerFallback) return;
-        if (event.pointerType !== "mouse") return;
-        if (event.button !== 0) return;
-        if (!event.target?.classList?.contains(this.options.handleClass)) return;
-        const li = event.target.closest("li");
-        if (!li) return;
-        this.preventNativeDrag = true;
-        this.isPointerDragging = true;
-        this.pointerDragId = event.pointerId;
-        if (event.cancelable) event.preventDefault();
-        try {
-            event.target.setPointerCapture(event.pointerId);
-        } catch {
-            // ignore
-        }
-        this.deferFloatingInit = false;
-        this.startDrag(li, event.clientX, event.clientY);
-    }
-
-    handlePointerMove(event) {
-        if (!this.options.pointerFallback) return;
-        if (!this.isPointerDragging) return;
-        if (event.pointerId !== this.pointerDragId) return;
-        if (event.cancelable) event.preventDefault();
-        this.updateFloating(event.clientX, event.clientY);
-        this.dragOver(event.clientY);
-    }
-
-    handlePointerUp(event) {
-        if (!this.options.pointerFallback) return;
-        if (!this.isPointerDragging) return;
-        if (event.pointerId !== this.pointerDragId) return;
-        if (event.cancelable) event.preventDefault();
-        this.drop(event.clientY);
-        this.endDrag();
-    }
-
-    handlePointerCancel(event) {
-        if (!this.options.pointerFallback) return;
-        if (event.pointerId !== this.pointerDragId) return;
-        this.isPointerDragging = false;
-        this.pointerDragId = null;
-        this.preventNativeDrag = false;
-        this.endDrag();
-    }
-
-    startDrag(li, startClientX = null, startClientY = null) {
-        this.dragging = li;
-        this.dragStartIndex = this.getIndex(li);
-        this.originalPosition = this.dragStartIndex;
-        this.invalidateItemsCache();
-        this._currentPlaceholderIndex = this.originalPosition;
-        this._dropHandled = false;
-        this.dragging.classList.add("dragging");
-
-        if (!this.deferFloatingInit && startClientX != null && startClientY != null) {
-            this.beginFloating(startClientX, startClientY);
-        }
-    }
-
-    endDrag() {
-        if (!this.dragging) return;
-        const draggedRef = this.dragging;
-
-        this.endFloating();
-
-        this.dragging = null;
-        this.isTouchDragging = false;
-        this.originalPosition = null;
-        this.dragStartIndex = null;
-        this.isPointerDragging = false;
-        this.pointerDragId = null;
-        this.preventNativeDrag = false;
-        draggedRef.classList.remove("dragging");
-        draggedRef.style.position = "";
-        draggedRef.style.top = "";
-        draggedRef.style.left = "";
-        draggedRef.style.width = "";
-        draggedRef.style.zIndex = "";
-        draggedRef.style.pointerEvents = "";
-        draggedRef.style.boxShadow = "";
-        draggedRef.style.opacity = "";
-        if (this.dragAvatar?.parentNode) {
-            this.dragAvatar.parentNode.removeChild(this.dragAvatar);
-        }
-        this.dragAvatar = null;
-        this.invalidateItemsCache();
-    }
-
-    dragOver(clientY) {
-        if (!this.dragging) return;
-        const after = this.getDropTarget(clientY);
-        this.moveDraggedElement(after);
-    }
-
-    debouncedDragOver(clientY) {
-        if (this.rafId) cancelAnimationFrame(this.rafId);
-        this.rafId = requestAnimationFrame(() => {
-            this.dragOver(clientY);
-            this.rafId = null;
-        });
-    }
-
-    drop(clientY) {
-        if (!this.dragging) return;
-        const after = this.getDropTarget(clientY);
-        this.moveDraggedElement(after);
-        const draggedRef = this.dragging;
-        const startIndex =
-            this.dragStartIndex ??
-            this.originalPosition ??
-            this.getIndex(draggedRef);
-        this.originalPosition = null;
-        draggedRef.classList.add("drop-animation");
-        setTimeout(() => draggedRef.classList.remove("drop-animation"), 300);
-        if (this.options.onReorder) {
-            const items = Array.from(this.container.children);
-            const toIndex = items.indexOf(draggedRef);
-            this.options.onReorder(startIndex, toIndex);
-        }
+  handleDragEnd(event) {
+    if (
+      this.dragging &&
+      !this._dropHandled &&
+      this._currentPlaceholderIndex != null
+    ) {
+      const fromIndex =
+        this.dragStartIndex ??
+        this.originalPosition ??
+        this.getIndex(this.dragging);
+      const toIndex = this._currentPlaceholderIndex;
+      if (fromIndex !== toIndex) {
+        this.options.onReorder?.(fromIndex, toIndex);
         this._dropHandled = true;
+        this.originalPosition = null;
+      }
+    }
+    this.endDrag();
+    this._dropHandled = false;
+    this._currentPlaceholderIndex = null;
+    this.preventNativeDrag = false;
+  }
+
+  handleDragOver(event) {
+    event.preventDefault();
+
+    if (this.dragging && this.deferFloatingInit) {
+      this.deferFloatingInit = false;
+      const coords = this._pendingInitCoords || {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      this.beginFloating(coords.x, coords.y);
+      this._pendingInitCoords = null;
     }
 
-    beginFloating(eClientX, eClientY) {
-        const li = this.dragging;
-        if (!li) return;
-        const rect = li.getBoundingClientRect();
-
-        this.pointerOffsetY =
-            eClientY != null ? eClientY - rect.top : rect.height / 2;
-        this.pointerOffsetX = eClientX != null ? eClientX - rect.left : 16;
-
-        if (!this.dragAvatar) {
-            this.dragAvatar = this.createAvatar(li);
-        }
-        if (this.dragAvatar) {
-            this.dragAvatar.style.width = rect.width + "px";
-            this.dragAvatar.style.left = rect.left + "px";
-            this.dragAvatar.style.top = rect.top + "px";
-        }
+    this.debouncedDragOver(event.clientY);
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
     }
 
-    updateFloating(eClientX, eClientY) {
-        if (!this.dragAvatar) return;
-        const y = eClientY - this.pointerOffsetY;
-        const x = eClientX - this.pointerOffsetX;
-        this.dragAvatar.style.top = `${y}px`;
-        this.dragAvatar.style.left = `${x}px`;
+    const now = Date.now();
+    if (now - this._lastDragOverLogTs > 120) {
+      this._lastDragOverLogTs = now;
+    }
+  }
+
+  handleDrop(event) {
+    event.preventDefault();
+    this.drop(event.clientY);
+    this.endDrag();
+  }
+
+  handleTouchStart(event) {
+    if (!event.target.classList.contains(this.options.handleClass)) return;
+    const li = event.target.closest("li");
+    if (!li) return;
+    if (event.cancelable) event.preventDefault();
+    this.touchStartY = event.touches[0].clientY;
+    this.touchStartX = event.touches[0].clientX;
+    this.isTouchDragging = false;
+  }
+
+  handleTouchMove(event) {
+    if (!event.target.classList.contains(this.options.handleClass)) return;
+    if (event.cancelable) event.preventDefault();
+
+    const deltaY = event.touches[0].clientY - this.touchStartY;
+    const deltaX = event.touches[0].clientX - this.touchStartX;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    if (!this.isTouchDragging && distance < this.options.threshold) {
+      return;
     }
 
-    endFloating() {
-        if (this.dragAvatar?.parentNode) {
-            this.dragAvatar.parentNode.removeChild(this.dragAvatar);
-        }
-        this.dragAvatar = null;
+    if (!this.isTouchDragging) {
+      this.isTouchDragging = true;
+      const li = event.target.closest("li");
+      if (!li) return;
+      this.deferFloatingInit = false;
+      this.startDrag(li, event.touches[0].clientX, event.touches[0].clientY);
+    } else {
+      this.debouncedDragOver(event.touches[0].clientY);
+    }
+  }
+
+  handleTouchEnd(event) {
+    if (this.isTouchDragging && this.dragging) {
+      this.drop(event.changedTouches[0].clientY);
+      this.endDrag();
+    }
+  }
+
+  handlePointerDown(event) {
+    if (!this.options.pointerFallback) return;
+    if (event.pointerType !== "mouse") return;
+    if (event.button !== 0) return;
+    if (!event.target?.classList?.contains(this.options.handleClass)) return;
+    const li = event.target.closest("li");
+    if (!li) return;
+    this.preventNativeDrag = true;
+    this.isPointerDragging = true;
+    this.pointerDragId = event.pointerId;
+    if (event.cancelable) event.preventDefault();
+    try {
+      event.target.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    this.deferFloatingInit = false;
+    this.startDrag(li, event.clientX, event.clientY);
+  }
+
+  handlePointerMove(event) {
+    if (!this.options.pointerFallback) return;
+    if (!this.isPointerDragging) return;
+    if (event.pointerId !== this.pointerDragId) return;
+    if (event.cancelable) event.preventDefault();
+    this.dragOver(event.clientY);
+  }
+
+  handlePointerUp(event) {
+    if (!this.options.pointerFallback) return;
+    if (!this.isPointerDragging) return;
+    if (event.pointerId !== this.pointerDragId) return;
+    if (event.cancelable) event.preventDefault();
+    this.drop(event.clientY);
+    this.endDrag();
+  }
+
+  handlePointerCancel(event) {
+    if (!this.options.pointerFallback) return;
+    if (event.pointerId !== this.pointerDragId) return;
+    this.isPointerDragging = false;
+    this.pointerDragId = null;
+    this.preventNativeDrag = false;
+    this.endDrag();
+  }
+
+  startDrag(li, startClientX = null, startClientY = null) {
+    this.dragging = li;
+    this.dragStartIndex = this.getIndex(li);
+    this.originalPosition = this.dragStartIndex;
+    this.invalidateItemsCache();
+    this._currentPlaceholderIndex = this.originalPosition;
+    this._dropHandled = false;
+    this.dragging.classList.add("dragging");
+
+    if (
+      !this.deferFloatingInit &&
+      startClientX != null &&
+      startClientY != null
+    ) {
+      this.beginFloating(startClientX, startClientY);
+    }
+  }
+
+  endDrag() {
+    if (!this.dragging) return;
+    const draggedRef = this.dragging;
+
+    this.dragging = null;
+    this.isTouchDragging = false;
+    this.originalPosition = null;
+    this.dragStartIndex = null;
+    this.isPointerDragging = false;
+    this.pointerDragId = null;
+    this.preventNativeDrag = false;
+    draggedRef.classList.remove("dragging");
+    draggedRef.style.position = "";
+    draggedRef.style.top = "";
+    draggedRef.style.left = "";
+    draggedRef.style.width = "";
+    draggedRef.style.zIndex = "";
+    draggedRef.style.pointerEvents = "";
+    draggedRef.style.boxShadow = "";
+    draggedRef.style.opacity = "";
+    this.invalidateItemsCache();
+  }
+
+  dragOver(clientY) {
+    if (!this.dragging) return;
+    const after = this.getDropTarget(clientY);
+    this.moveDraggedElement(after);
+  }
+
+  debouncedDragOver(clientY) {
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    this.rafId = requestAnimationFrame(() => {
+      this.dragOver(clientY);
+      this.rafId = null;
+    });
+  }
+
+  drop(clientY) {
+    if (!this.dragging) return;
+    const after = this.getDropTarget(clientY);
+    this.moveDraggedElement(after);
+    const draggedRef = this.dragging;
+    const startIndex =
+      this.dragStartIndex ?? this.originalPosition ?? this.getIndex(draggedRef);
+    this.originalPosition = null;
+    draggedRef.classList.add("drop-animation");
+    setTimeout(() => draggedRef.classList.remove("drop-animation"), 300);
+    if (this.options.onReorder) {
+      const items = Array.from(this.container.children);
+      const toIndex = items.indexOf(draggedRef);
+      this.options.onReorder(startIndex, toIndex);
+    }
+    this._dropHandled = true;
+  }
+
+  beginFloating(eClientX, eClientY) {
+    const li = this.dragging;
+    if (!li) return;
+    const rect = li.getBoundingClientRect();
+
+    this.pointerOffsetY =
+      eClientY != null ? eClientY - rect.top : rect.height / 2;
+    this.pointerOffsetX = eClientX != null ? eClientX - rect.left : 16;
+  }
+
+  getDropTarget(mouseY) {
+    if (!this.cachedItems) {
+      this.cachedItems = [
+        ...this.container.querySelectorAll(
+          "li:not(.dragging):not(.placeholder)"
+        ),
+      ];
+    }
+    if (this.cachedItems.length === 0) return null;
+
+    let left = 0;
+    let right = this.cachedItems.length;
+
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2);
+      const rect = this.cachedItems[mid].getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+
+      if (mouseY < midY) {
+        right = mid;
+      } else {
+        left = mid + 1;
+      }
     }
 
-    getDropTarget(mouseY) {
-        if (!this.cachedItems) {
-            this.cachedItems = [
-                ...this.container.querySelectorAll("li:not(.dragging):not(.placeholder)"),
-            ];
-        }
-        if (this.cachedItems.length === 0) return null;
+    return left < this.cachedItems.length ? this.cachedItems[left] : null;
+  }
 
-        let left = 0;
-        let right = this.cachedItems.length;
+  getIndex(element) {
+    return Array.from(this.container.children).indexOf(element);
+  }
 
-        while (left < right) {
-            const mid = Math.floor((left + right) / 2);
-            const rect = this.cachedItems[mid].getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
+  invalidateItemsCache() {
+    this.cachedItems = null;
+  }
 
-            if (mouseY < midY) {
-                right = mid;
-            } else {
-                left = mid + 1;
-            }
-        }
+  moveDraggedElement(after) {
+    if (!this.dragging) return;
 
-        return left < this.cachedItems.length ? this.cachedItems[left] : null;
+    const prevSnapshot = this.animator?.snapshot(this.container, this.dragging);
+
+    if (after == null) {
+      this.container.appendChild(this.dragging);
+    } else {
+      this.container.insertBefore(this.dragging, after);
     }
 
-    getIndex(element) {
-        return Array.from(this.container.children).indexOf(element);
-    }
+    this.invalidateItemsCache();
+    this._currentPlaceholderIndex = this.getIndex(this.dragging);
+    this.animator?.play(this.container, this.dragging, prevSnapshot);
+  }
 
-    invalidateItemsCache() {
-        this.cachedItems = null;
-    }
-
-    moveDraggedElement(after) {
-        if (!this.dragging) return;
-
-        const prevSnapshot = this.animator?.snapshot(this.container, this.dragging);
-
-        if (after == null) {
-            this.container.appendChild(this.dragging);
-        } else {
-            this.container.insertBefore(this.dragging, after);
-        }
-
-        this.invalidateItemsCache();
-        this._currentPlaceholderIndex = this.getIndex(this.dragging);
-        this.animator?.play(this.container, this.dragging, prevSnapshot);
-    }
-
-    createAvatar(source) {
-        if (!source || typeof document === "undefined") return null;
-        const rect = source.getBoundingClientRect();
-        const clone = source.cloneNode(true);
-        clone.removeAttribute("id");
-        clone.classList.add("drag-avatar");
-        clone.style.position = "fixed";
-        clone.style.pointerEvents = "none";
-        clone.style.zIndex = "1000";
-        clone.style.width = `${rect.width}px`;
-        clone.style.height = `${rect.height}px`;
-        clone.style.top = `${rect.top}px`;
-        clone.style.left = `${rect.left}px`;
-        document.body.appendChild(clone);
-        return clone;
-    }
-
-    cancel() {
-        if (!this.dragging) return;
-        this.endDrag();
-    }
-
+  cancel() {
+    if (!this.dragging) return;
+    this.endDrag();
+  }
 }
