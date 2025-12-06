@@ -836,14 +836,15 @@ class A4TaskList extends HTMLElement {
       this.searchInput.value = "";
     }
     this.performSearch("");
+    this.dispatchEvent(
+      new CustomEvent("clearsearch", { bubbles: true, composed: true })
+    );
   }
 
   handleAddButtonClick() {
     if (!this.store) return;
     this.ensureInlineEditor();
-    if (this.searchQuery) {
-      this.clearSearch();
-    }
+    this.clearSearch();
     const stateBefore = this.store.getState();
     const firstItem =
       Array.isArray(stateBefore?.items) && stateBefore.items.length

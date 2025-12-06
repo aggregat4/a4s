@@ -55,6 +55,7 @@ class ListsApp {
       onSearchResultsChange: (event) => this.handleSearchResultsChange(event),
       onListFocus: (event) => this.handleListFocus(event),
       onListTitleChange: (event) => this.handleListTitleChange(event),
+      onSearchClear: () => this.handleSearchClear(),
     });
 
     this.sidebarCoordinator.wireHandlers({
@@ -122,6 +123,11 @@ class ListsApp {
       type: APP_ACTIONS.setSearchQuery,
       payload: { query: next },
     });
+  }
+
+  handleSearchClear() {
+    this.sidebarElement?.setSearchValue?.("");
+    this.handleSearchChange("");
   }
 
   handleListSelection(listId) {

@@ -4,16 +4,12 @@ class SidebarElement extends HTMLElement {
   constructor() {
     super();
     this.handlers = {};
-    this.searchInput = null;
-    this.listContainer = null;
-    this.addButton = null;
-    this.deleteButton = null;
     this.searchDebounceId = null;
     this.currentLists = [];
     this.activeListId = null;
     this.currentSearch = "";
     this.dropTargetDepth = new Map();
-    this.shellRendered = false;
+    this.searchSeq = 0;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
     this.handleListDragEnter = this.handleListDragEnter.bind(this);
@@ -25,8 +21,11 @@ class SidebarElement extends HTMLElement {
   }
 
   connectedCallback() {
-    this.renderShell();
-    this.cacheElements();
+    this.classList.add("lists-sidebar");
+    if (!this.dataset.role) {
+      this.dataset.role = "sidebar";
+    }
+    this.renderView();
   }
 
   disconnectedCallback() {
@@ -37,29 +36,42 @@ class SidebarElement extends HTMLElement {
     this.handlers = handlers ?? {};
   }
 
-  cacheElements() {
-    this.searchInput =
-      this.querySelector("[data-role='global-search']") ?? null;
-    this.listContainer =
-      this.querySelector("[data-role='sidebar-list']") ?? null;
-    this.addButton = this.querySelector("[data-role='add-list']") ?? null;
-    this.deleteButton = this.querySelector("[data-role='delete-list']") ?? null;
+  init() {
+    this.renderView();
+    document.addEventListener("dragend", this.handleGlobalDragEnd);
   }
 
-  renderShell() {
-    this.classList.add("lists-sidebar");
-    if (!this.dataset.role) {
-      this.dataset.role = "sidebar";
+  destroy() {
+    clearTimeout(this.searchDebounceId);
+    document.removeEventListener("dragend", this.handleGlobalDragEnd);
+  }
+
+  setSearchValue(value) {
+    const next = value ?? "";
+    clearTimeout(this.searchDebounceId);
+    this.searchDebounceId = null;
+    this.searchSeq += 1;
+    this.currentSearch = next;
+    this.renderView();
+    const input = this.querySelector("[data-role='global-search']");
+    if (input && input.value !== next) {
+      input.value = next;
     }
-    if (this.shellRendered) {
+  }
+
+  setLists(lists, { activeListId, searchQuery } = {}) {
+    this.currentLists = Array.isArray(lists) ? lists : [];
+    this.activeListId = activeListId ?? null;
+    if (typeof searchQuery === "string") {
+      this.setSearchValue(searchQuery);
       return;
     }
-    const hasExistingStructure =
-      this.querySelector("[data-role='sidebar-list']") !== null;
-    if (hasExistingStructure) {
-      this.shellRendered = true;
-      return;
-    }
+    this.renderView();
+  }
+
+  renderView() {
+    const deleteDisabled =
+      this.currentLists.length <= 1 || !this.activeListId;
     render(
       html`
         <div class="sidebar-header">
@@ -73,100 +85,59 @@ class SidebarElement extends HTMLElement {
               placeholder="Search across all lists…"
               aria-label="Global search"
               data-role="global-search"
+              .value=${this.currentSearch}
+              @input=${this.handleSearchInput}
+              @keydown=${this.handleSearchKeyDown}
             />
           </label>
         </div>
         <nav class="sidebar-section sidebar-lists" aria-label="Available lists">
-          <ul class="sidebar-list" data-role="sidebar-list"></ul>
+          <ul class="sidebar-list" data-role="sidebar-list">
+            ${this.currentLists.map((list) => {
+              const isActive = list.id === this.activeListId;
+              const buttonClass = isActive
+                ? "sidebar-list-button is-active"
+                : "sidebar-list-button";
+              return html`
+                <li>
+                  <button
+                    type="button"
+                    class=${buttonClass}
+                    data-list-id=${list.id}
+                    aria-current=${isActive ? "true" : undefined}
+                    @click=${this.handleSidebarButtonClick}
+                    @dragenter=${this.handleListDragEnter}
+                    @dragover=${this.handleListDragOver}
+                    @dragleave=${this.handleListDragLeave}
+                    @drop=${this.handleListDrop}
+                  >
+                    <span class="sidebar-list-label">${list.name}</span>
+                    <span class="sidebar-list-count"
+                      >${list.countLabel ?? ""}</span
+                    >
+                  </button>
+                </li>
+              `;
+            })}
+          </ul>
         </nav>
         <div class="sidebar-section sidebar-actions">
-          <button type="button" data-role="add-list">Add list</button>
-          <button type="button" class="danger" data-role="delete-list">
+          <button type="button" data-role="add-list" @click=${() =>
+            this.handlers.onAddList?.()}>
+            Add list
+          </button>
+          <button
+            type="button"
+            class="danger"
+            data-role="delete-list"
+            ?disabled=${deleteDisabled}
+            @click=${() => this.handlers.onDeleteList?.()}
+          >
             Delete list
           </button>
         </div>
       `,
       this
-    );
-    this.shellRendered = true;
-    this.cacheElements();
-  }
-
-  init() {
-    this.cacheElements();
-    this.searchInput?.addEventListener("input", this.handleSearchInput);
-    this.searchInput?.addEventListener("keydown", this.handleSearchKeyDown);
-    this.addButton?.addEventListener("click", () =>
-      this.handlers.onAddList?.()
-    );
-    this.deleteButton?.addEventListener("click", () =>
-      this.handlers.onDeleteList?.()
-    );
-    this.renderLists();
-    this.updateActionStates();
-    document.addEventListener("dragend", this.handleGlobalDragEnd);
-  }
-
-  destroy() {
-    this.searchInput?.removeEventListener("input", this.handleSearchInput);
-    this.searchInput?.removeEventListener("keydown", this.handleSearchKeyDown);
-    clearTimeout(this.searchDebounceId);
-    document.removeEventListener("dragend", this.handleGlobalDragEnd);
-  }
-
-  setSearchValue(value) {
-    const next = value ?? "";
-    if (this.searchInput && this.searchInput.value !== next) {
-      this.searchInput.value = next;
-    }
-    this.currentSearch = next;
-  }
-
-  setLists(lists, { activeListId, searchQuery } = {}) {
-    this.currentLists = Array.isArray(lists) ? lists : [];
-    this.activeListId = activeListId ?? null;
-    if (typeof searchQuery === "string") {
-      this.setSearchValue(searchQuery);
-    }
-    this.renderLists();
-    this.updateActionStates();
-  }
-
-  updateActionStates() {
-    const listCount = this.currentLists.length;
-    if (this.deleteButton) {
-      this.deleteButton.disabled = listCount <= 1 || !this.activeListId;
-    }
-  }
-
-  renderLists() {
-    if (!this.listContainer) return;
-    render(
-      html`${this.currentLists.map((list) => {
-        const isActive = list.id === this.activeListId;
-        const buttonClass = isActive
-          ? "sidebar-list-button is-active"
-          : "sidebar-list-button";
-        return html`
-          <li>
-            <button
-              type="button"
-              class=${buttonClass}
-              data-list-id=${list.id}
-              aria-current=${isActive ? "true" : undefined}
-              @click=${this.handleSidebarButtonClick}
-              @dragenter=${this.handleListDragEnter}
-              @dragover=${this.handleListDragOver}
-              @dragleave=${this.handleListDragLeave}
-              @drop=${this.handleListDrop}
-            >
-              <span class="sidebar-list-label">${list.name}</span>
-              <span class="sidebar-list-count">${list.countLabel ?? ""}</span>
-            </button>
-          </li>
-        `;
-      })}`,
-      this.listContainer
     );
   }
 
@@ -179,8 +150,11 @@ class SidebarElement extends HTMLElement {
 
   handleSearchInput(event) {
     const value = event?.target?.value ?? "";
+    this.currentSearch = value;
     clearTimeout(this.searchDebounceId);
+    const token = ++this.searchSeq;
     this.searchDebounceId = setTimeout(() => {
+      if (token !== this.searchSeq) return;
       this.handlers.onSearchChange?.(value);
     }, 150);
   }
@@ -188,10 +162,12 @@ class SidebarElement extends HTMLElement {
   handleSearchKeyDown(event) {
     if (event.key === "Escape") {
       event.preventDefault();
-      if (this.searchInput) {
-        this.searchInput.value = "";
+      if (event.target) {
+        event.target.value = "";
       }
+      this.currentSearch = "";
       this.handlers.onSearchChange?.("");
+      this.renderView();
     }
   }
 
