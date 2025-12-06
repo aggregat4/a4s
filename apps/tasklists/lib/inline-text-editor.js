@@ -159,7 +159,11 @@ export default class InlineTextEditor {
       }
       textEl.textContent = beforeText;
       textEl.dataset.originalText = beforeText;
-      textEl.blur();
+      if (this.editingEl === textEl) {
+        this.finishEditing(textEl);
+      } else {
+        textEl.blur();
+      }
       return;
     }
     if (e.key === "Escape") {

@@ -186,6 +186,7 @@ class A4TaskList extends HTMLElement {
     this.unsubscribe = null;
     this.suppressNameSync = false;
     this._initialState = null;
+    this.shellRendered = false;
     this.patternConfig = this.normalizePatternDefs([
       {
         regex: /@[A-Za-z0-9_]+/g,
@@ -238,6 +239,7 @@ class A4TaskList extends HTMLElement {
     this.handleTouchGestureStart = this.handleTouchGestureStart.bind(this);
     this.handleTouchGestureEnd = this.handleTouchGestureEnd.bind(this);
     this.handleTouchGestureCancel = this.handleTouchGestureCancel.bind(this);
+    this.handleDragFinalize = this.handleDragFinalize.bind(this);
 
     this.editController = new EditController({
       getListElement: () => this.listEl,
@@ -264,23 +266,22 @@ class A4TaskList extends HTMLElement {
   }
 
   connectedCallback() {
-    this.ensureList();
+    this.renderShell();
     if (!this.listEl) return;
-
-    this.ensureHeader();
-    if (this.searchInput) {
-      this.searchInput.value = this.searchQuery;
-    }
-    if (this.showDoneCheckbox) {
-      this.showDoneCheckbox.checked = this.showDone;
-    }
+    this.syncHeaderState();
 
     this.initializeStore();
     this.refreshRepositorySubscription();
 
+    const pointerFallbackEnabled =
+      (typeof localStorage !== "undefined" &&
+        localStorage.getItem("a4:drag-pointer-fallback") === "1") ||
+      this.hasAttribute("data-pointer-drag");
+
     if (!this.dragBehavior) {
       this.dragBehavior = new DraggableBehavior(this.listEl, {
         handleClass: "handle",
+        pointerFallback: pointerFallbackEnabled,
         onReorder: (fromIndex, toIndex) => {
           const detail = { fromIndex, toIndex };
           this.listEl.dispatchEvent(new CustomEvent("reorder", { detail }));
@@ -291,7 +292,7 @@ class A4TaskList extends HTMLElement {
               composed: true,
             })
           );
-          this.scheduleReorderUpdate();
+          this.scheduleReorderUpdate({ fromIndex, toIndex });
         },
         animator: new FlipAnimator(),
       });
@@ -306,6 +307,10 @@ class A4TaskList extends HTMLElement {
     this.listEl.addEventListener("focusin", this.handleFocusIn);
     this.listEl.removeEventListener("dragstart", this.handleListDragStart);
     this.listEl.addEventListener("dragstart", this.handleListDragStart);
+    this.listEl.removeEventListener("dragend", this.handleDragFinalize);
+    this.listEl.addEventListener("dragend", this.handleDragFinalize);
+    this.listEl.removeEventListener("drop", this.handleDragFinalize);
+    this.listEl.addEventListener("drop", this.handleDragFinalize);
     this.listEl.removeEventListener("touchstart", this.handleTouchGestureStart);
     this.listEl.addEventListener("touchstart", this.handleTouchGestureStart, {
       passive: true,
@@ -478,105 +483,72 @@ class A4TaskList extends HTMLElement {
       } else {
         this.syncTitle();
       }
+      this.syncHeaderState();
     }
   }
 
-  ensureList() {
-    if (this.listEl && this.contains(this.listEl)) return;
-
-    let list = this.querySelector("ol.tasklist");
-    const existingItems = Array.from(this.querySelectorAll(":scope > li"));
-    if (!list) {
-      render(html` <ol class="tasklist"></ol> `, this);
-      list = this.querySelector("ol.tasklist");
-    }
-    if (list && existingItems.length) {
-      existingItems.forEach((li) => list.appendChild(li));
-    }
-    this.listEl = list;
-
-    if (!this.emptyStateEl || !this.contains(this.emptyStateEl)) {
-      const emptyTemplate = html`
+  renderShell() {
+    if (this.shellRendered) return;
+    render(
+      html`
+        <div class="tasklist-header">
+          <h2 class="tasklist-title" tabindex="0" title="Click to rename">
+            ${this.getAttribute("name") ?? ""}
+          </h2>
+          <div class="tasklist-controls">
+            <input
+              type="search"
+              class="tasklist-search-input"
+              placeholder="Search tasks..."
+              aria-label="Search tasks"
+            />
+            <label class="tasklist-show-done">
+              <input
+                type="checkbox"
+                class="tasklist-show-done-toggle"
+              />
+              <span>Show done</span>
+            </label>
+            <button
+              type="button"
+              class="iconlabel"
+              aria-label="Add task"
+              data-role="tasklist-add"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path
+                  fill="currentColor"
+                  d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"
+                ></path>
+              </svg>
+              <span>Add</span>
+            </button>
+          </div>
+        </div>
+        <ol class="tasklist"></ol>
         <div class="tasklist-empty" hidden>No matching items</div>
-      `;
-      const fragment = document.createElement("div");
-      render(emptyTemplate, fragment);
-      const emptyElement = fragment.firstElementChild;
-      if (emptyElement) {
-        if (this.listEl?.nextSibling) {
-          this.insertBefore(emptyElement, this.listEl.nextSibling);
-        } else {
-          this.appendChild(emptyElement);
-        }
-        this.emptyStateEl = emptyElement;
-      }
-    }
+      `,
+      this
+    );
+    this.headerEl = this.querySelector(".tasklist-header");
+    this.titleEl = this.querySelector(".tasklist-title");
+    this.searchInput = this.querySelector(".tasklist-search-input");
+    this.showDoneCheckbox = this.querySelector(".tasklist-show-done-toggle");
+    this.addButton = this.querySelector("[data-role='tasklist-add']");
+    this.listEl = this.querySelector("ol.tasklist");
+    this.emptyStateEl = this.querySelector(".tasklist-empty");
+    this.shellRendered = true;
   }
 
-  ensureHeader() {
-    if (!this.headerEl || !this.contains(this.headerEl)) {
-      const header = document.createElement("div");
-      header.className = "tasklist-header";
-      if (this.listEl && this.contains(this.listEl)) {
-        this.insertBefore(header, this.listEl);
-      } else {
-        this.appendChild(header);
-      }
-      this.headerEl = header;
-    }
-
+  syncHeaderState() {
+    if (!this.headerEl) return;
     const currentTitle = this.getAttribute("name") ?? "";
-    const currentSearch = this.searchInput?.value ?? this.searchQuery ?? "";
+    const currentSearch = this.searchQuery ?? "";
     const showDoneChecked =
       typeof this.showDone === "boolean" ? this.showDone : false;
 
-    render(
-      html`
-        <h2 class="tasklist-title" tabindex="0" title="Click to rename">
-          ${currentTitle}
-        </h2>
-        <div class="tasklist-controls">
-          <input
-            type="search"
-            class="tasklist-search-input"
-            placeholder="Search tasks..."
-            aria-label="Search tasks"
-            .value=${currentSearch}
-          />
-          <label class="tasklist-show-done">
-            <input
-              type="checkbox"
-              class="tasklist-show-done-toggle"
-              ?checked=${showDoneChecked}
-              @change=${this.handleShowDoneChange}
-            />
-            <span>Show done</span>
-          </label>
-          <button
-            type="button"
-            class="iconlabel"
-            aria-label="Add task"
-            data-role="tasklist-add"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path fill="currentColor" d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"></path>
-            </svg>
-            <span>Add</span>
-          </button>
-        </div>
-      `,
-      this.headerEl
-    );
-
-    this.titleEl = this.headerEl.querySelector(".tasklist-title") ?? null;
-    this.searchInput =
-      this.headerEl.querySelector(".tasklist-search-input") ?? null;
-    this.showDoneCheckbox =
-      this.headerEl.querySelector(".tasklist-show-done-toggle") ?? null;
-    this.addButton =
-      this.headerEl.querySelector("[data-role='tasklist-add']") ?? null;
-
     if (this.titleEl) {
+      this.titleEl.textContent = currentTitle;
       this.titleEl.setAttribute("tabindex", "0");
       this.titleEl.setAttribute("title", "Click to rename");
       this.titleEl.removeEventListener("click", this.handleTitleClick);
@@ -586,15 +558,33 @@ class A4TaskList extends HTMLElement {
     }
 
     if (this.searchInput) {
+      this.searchInput.value = currentSearch;
       this.searchInput.removeEventListener("input", this.handleSearchInput);
       this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
       this.searchInput.addEventListener("input", this.handleSearchInput);
       this.searchInput.addEventListener("keydown", this.handleSearchKeyDown);
     }
+
+    if (this.showDoneCheckbox) {
+      this.showDoneCheckbox.checked = showDoneChecked;
+      this.showDoneCheckbox.removeEventListener(
+        "change",
+        this.handleShowDoneChange
+      );
+      this.showDoneCheckbox.addEventListener(
+        "change",
+        this.handleShowDoneChange
+      );
+    }
+
     if (this.addButton) {
       this.addButton.removeEventListener("click", this.handleAddButtonClick);
       this.addButton.addEventListener("click", this.handleAddButtonClick);
     }
+  }
+
+  handleDragFinalize() {
+    this.scheduleReorderUpdate();
   }
 
   ensureInlineEditor() {
@@ -890,6 +880,13 @@ class A4TaskList extends HTMLElement {
     const nextItemId = state.items[currentIndex + 1]?.id ?? null;
 
     const newId = generateItemId();
+    const focusNewItem = () => {
+      if (!this.focusItemImmediately(newId, "start")) {
+        this.editController.queue(newId, "start");
+        this.schedulePendingEditFlush();
+        this.editController.applyPendingEdit();
+      }
+    };
     this.editController.queue(newId, "start");
     this.schedulePendingEditFlush();
     if (typeof beforeText === "string") {
@@ -911,8 +908,9 @@ class A4TaskList extends HTMLElement {
       },
     });
     this.handleStoreChange();
-    if (!this.focusItemImmediately(newId, "start")) {
-      this.editController.applyPendingEdit();
+    focusNewItem();
+    if (typeof setTimeout === "function") {
+      setTimeout(() => focusNewItem(), 0);
     }
     if (this._repository && this.listId) {
       const promise = (async () => {
@@ -1281,6 +1279,11 @@ class A4TaskList extends HTMLElement {
       }
     }
 
+    const handleEl = li.querySelector(".handle");
+    if (handleEl && handleEl.getAttribute("draggable") !== "true") {
+      handleEl.setAttribute("draggable", "true");
+    }
+
     const doneToggleInput = li.querySelector(".done-toggle");
     if (doneToggleInput) {
       doneToggleInput.removeEventListener("change", this.handleToggle);
@@ -1616,7 +1619,7 @@ class A4TaskList extends HTMLElement {
     }
   }
 
-  scheduleReorderUpdate() {
+  scheduleReorderUpdate(move) {
     if (!this.store || !this.listEl) return;
     Promise.resolve().then(() => {
       if (!this.store || !this.listEl) return;
@@ -1624,21 +1627,63 @@ class A4TaskList extends HTMLElement {
       const prevOrder = Array.isArray(previousState?.items)
         ? previousState.items.map((item) => item.id)
         : [];
-      const order = Array.from(this.listEl.children)
-        .filter((li) => !li.classList.contains("placeholder"))
-        .map((li) => li.dataset.itemId)
-        .filter(Boolean);
+
+      let order = [];
+      if (
+        move &&
+        Number.isInteger(move.fromIndex) &&
+        Number.isInteger(move.toIndex) &&
+        prevOrder.length
+      ) {
+        const next = [...prevOrder];
+        const [moved] = next.splice(move.fromIndex, 1);
+        if (moved) {
+          const clampedTo = Math.max(
+            0,
+            Math.min(move.toIndex, next.length)
+          );
+          next.splice(clampedTo, 0, moved);
+          order = next;
+        }
+      }
+
+      if (!order.length) {
+        order = Array.from(this.listEl.children)
+          .filter((li) => !li.classList.contains("placeholder"))
+          .map((li) => li.dataset.itemId)
+          .filter(Boolean);
+      }
+      if (order.length !== prevOrder.length) {
+        prevOrder.forEach((id) => {
+          if (!order.includes(id)) {
+            order.push(id);
+          }
+        });
+      }
       if (!order.length) return;
+      this._lastReorderDebug = { prevOrder, order, timestamp: Date.now(), move };
+      const itemMap = new Map(
+        Array.isArray(previousState?.items)
+          ? previousState.items.map((item) => [item.id, item])
+          : []
+      );
+      const nextItems = order.map((id) => itemMap.get(id)).filter(Boolean);
+      if (nextItems.length !== itemMap.size) return;
       this.store.dispatch({
-        type: LIST_ACTIONS.reorderItems,
-        payload: { order },
+        type: LIST_ACTIONS.replaceAll,
+        payload: { title: previousState.title ?? "", items: nextItems },
       });
       if (this._repository && this.listId) {
-        let movedId = null;
-        for (let i = 0; i < order.length; i++) {
-          if (order[i] !== prevOrder[i]) {
-            movedId = order[i];
-            break;
+        let movedId =
+          move && Number.isInteger(move.fromIndex)
+            ? prevOrder[move.fromIndex] ?? null
+            : null;
+        if (!movedId) {
+          for (let i = 0; i < order.length; i++) {
+            if (order[i] !== prevOrder[i]) {
+              movedId = order[i];
+              break;
+            }
           }
         }
         if (!movedId) return;

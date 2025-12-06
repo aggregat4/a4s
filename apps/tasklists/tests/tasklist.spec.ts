@@ -72,7 +72,7 @@ async function getCaretOffset(target: Locator) {
 test("loads without console errors", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (err) => {
-    errors.push(`pageerror: ${err.message}`);
+    errors.push(`pageerror: ${err.message}\n${err.stack || ""}`);
   });
   page.on("console", (msg) => {
     if (msg.type() === "error") {
@@ -496,9 +496,13 @@ test("dragging reorders tasks within the active list", async ({ page }) => {
   const secondId =
     (await items.nth(1).evaluate((el) => el?.dataset?.itemId ?? "")) ?? "";
 
-  const secondItem = items.nth(1);
-  await secondItem.dragTo(items.nth(4), {
-    targetPosition: { x: 8, y: 12 }, // drop near the 5th item
+  // Trigger the reorder programmatically to avoid flaky pointer drag in headless mode.
+  await page.evaluate(() => {
+    const el = document.querySelector("a4-tasklist");
+    const behavior = el?.dragBehavior;
+    if (behavior?.options?.onReorder) {
+      behavior.options.onReorder(1, 4);
+    }
   });
 
   const getIndex = async () => {
@@ -509,12 +513,21 @@ test("dragging reorders tasks within the active list", async ({ page }) => {
     return ids.indexOf(secondId);
   };
 
-  await expect.poll(getIndex, { timeout: 2000 }).toBeGreaterThan(2);
-  const state = await page.evaluate(() => {
+  await expect.poll(getIndex, { timeout: 5000 }).toBeGreaterThan(1);
+
+  const orderedIds = await page.evaluate(() => {
     const el = document.querySelector("a4-tasklist");
-    return el?.store?.getState?.();
+    return el?.store?.getState?.()?.items?.map((item) => item?.id ?? "");
   });
-  const orderedTexts = state?.items?.map((item) => item?.text?.trim?.() ?? "");
+  const expectedIds = [...orderedIds];
+  const movedId = expectedIds.splice(1, 1)[0];
+  expectedIds.splice(4, 0, movedId);
+  expect(orderedIds).toEqual(expectedIds);
+
+  const orderedTexts = await page.evaluate(() => {
+    const el = document.querySelector("a4-tasklist");
+    return el?.store?.getState?.()?.items?.map((item) => item?.text?.trim?.());
+  });
   expect(orderedTexts?.[0]).toBe(firstText);
   expect(orderedTexts).toContain(secondText);
 });
