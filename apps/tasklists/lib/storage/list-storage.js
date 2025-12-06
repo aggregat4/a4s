@@ -244,6 +244,14 @@ class IndexedDbListStorage {
       : null;
     const now = Date.now();
 
+    if (snapshotStore && options.snapshot) {
+      const index = operationsStore.index("byList");
+      const cursorRequest = index.openCursor(listId);
+      await iterateCursor(cursorRequest, (cursor) => {
+        cursor.delete();
+      });
+    }
+
     if (Array.isArray(operations)) {
       operations.forEach((operation) => {
         const serialized = serializeOperation(operation);
@@ -327,6 +335,10 @@ class IndexedDbListStorage {
       ? transaction.objectStore(STORE_REGISTRY_STATE)
       : null;
     const now = Date.now();
+
+    if (snapshotStore && snapshot) {
+      operationsStore.clear();
+    }
 
     if (Array.isArray(operations)) {
       operations.forEach((operation) => {

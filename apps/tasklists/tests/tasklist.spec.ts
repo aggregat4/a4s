@@ -488,10 +488,10 @@ test.describe("tasklist flows", () => {
     expect(offsetAfterUp).toBe(3);
   });
 
-  test("dragging reorders tasks within the active list", async ({ page }) => {
-    const items = page.locator(listItemsSelector);
-    const count = await items.count();
-    expect(count).toBeGreaterThan(2);
+test("dragging reorders tasks within the active list", async ({ page }) => {
+  const items = page.locator(listItemsSelector);
+  const count = await items.count();
+  expect(count).toBeGreaterThan(2);
 
     const firstText =
       (await items.first().locator(".text").textContent())?.trim() ?? "";
@@ -523,14 +523,54 @@ test.describe("tasklist flows", () => {
         ?.getState?.()
         ?.items?.map((item) => item?.text?.trim?.());
     });
-    expect(orderedTexts?.[0]).toBe(firstText);
-    expect(orderedTexts).toContain(secondText);
+  expect(orderedTexts?.[0]).toBe(firstText);
+  expect(orderedTexts).toContain(secondText);
+});
+
+test("dragging reorder persists after reload", async ({ page }) => {
+  const items = page.locator(listItemsSelector);
+  await expect(items.first()).toBeVisible();
+
+  const initialIds = await items.evaluateAll((els) =>
+    els.map((el) => el.dataset?.itemId ?? "")
+  );
+  expect(initialIds.length).toBeGreaterThan(4);
+
+  await items.nth(1).dragTo(items.nth(4), {
+    sourcePosition: { x: 8, y: 12 },
+    targetPosition: { x: 8, y: 12 },
   });
 
-  test("splitting then dragging keeps items separated", async ({ page }) => {
-    const items = page.locator(listItemsSelector);
-    const firstTextLocator = items.first().locator(".text");
-    const originalFirst = (await firstTextLocator.textContent())?.trim() ?? "";
+  const idsAfterDrag = await expect
+    .poll(
+      async () =>
+        (await items.evaluateAll((els) =>
+          els.map((el) => el.dataset?.itemId ?? "")
+        )) ?? [],
+      { timeout: 5000 }
+    )
+    .not.toEqual(initialIds);
+  const expectedIds =
+    (await page.evaluate(() => {
+      const el = document.querySelector("a4-tasklist");
+      return el?.store?.getState?.()?.items?.map((item) => item?.id ?? "");
+    })) ??
+    (await items.evaluateAll((els) => els.map((el) => el.dataset?.itemId ?? "")));
+
+  await page.goto("/");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Prototype Tasks"
+  );
+  const idsAfterReload = await page
+    .locator(listItemsSelector)
+    .evaluateAll((els) => els.map((el) => el.dataset?.itemId ?? ""));
+  expect(idsAfterReload).toEqual(expectedIds);
+});
+
+test("splitting then dragging keeps items separated", async ({ page }) => {
+  const items = page.locator(listItemsSelector);
+  const firstTextLocator = items.first().locator(".text");
+  const originalFirst = (await firstTextLocator.textContent())?.trim() ?? "";
 
     await firstTextLocator.click();
     await setCaretPosition(firstTextLocator, 0);

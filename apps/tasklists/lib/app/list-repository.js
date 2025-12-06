@@ -250,12 +250,8 @@ export class ListRepository {
       crdt: listCrdt,
     });
 
-    this._persistRegistry([createResult.op]);
-    if (ops.length) {
-      this._persistList(listId, listCrdt, ops);
-    } else {
-      this._persistList(listId, listCrdt, []);
-    }
+    await this._persistRegistry([createResult.op]);
+    await this._persistList(listId, listCrdt, ops.length ? ops : []);
 
     this.emitRegistryChange();
     this.emitListChange(listId);
@@ -268,7 +264,7 @@ export class ListRepository {
     if (!this._listMap.has(listId)) return false;
     const removeResult = this._listsCrdt.generateRemove(listId);
     this._listMap.delete(listId);
-    this._persistRegistry([removeResult.op]);
+    await this._persistRegistry([removeResult.op]);
     this.emitRegistryChange();
     this.emitListChange(listId);
     return true;
@@ -281,8 +277,10 @@ export class ListRepository {
     const nextTitle = sanitizeText(title);
     const renameTask = record.crdt.generateRename(nextTitle);
     const renameRegistry = this._listsCrdt.generateRename(listId, nextTitle);
-    this._persistList(listId, record.crdt, [renameTask.op]);
-    this._persistRegistry([renameRegistry.op]);
+    await Promise.all([
+      this._persistList(listId, record.crdt, [renameTask.op]),
+      this._persistRegistry([renameRegistry.op]),
+    ]);
     this.emitRegistryChange();
     this.emitListChange(listId);
     return record.crdt.toListState();
@@ -298,7 +296,7 @@ export class ListRepository {
       afterId,
       beforeId,
     });
-    this._persistRegistry([reorder.op]);
+    await this._persistRegistry([reorder.op]);
     this.emitRegistryChange();
     return reorder.snapshot;
   }
@@ -316,7 +314,7 @@ export class ListRepository {
       beforeId: options.beforeId,
       position: options.position,
     });
-    this._persistList(listId, record.crdt, [insert.op]);
+    await this._persistList(listId, record.crdt, [insert.op]);
     this.emitListChange(listId);
     return { id: itemId, state: record.crdt.toListState() };
   }
@@ -331,7 +329,7 @@ export class ListRepository {
       text: payload.text,
       done: payload.done,
     });
-    this._persistList(listId, record.crdt, [result.op]);
+    await this._persistList(listId, record.crdt, [result.op]);
     this.emitListChange(listId);
     return record.crdt.toListState();
   }
@@ -341,7 +339,7 @@ export class ListRepository {
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
     const result = record.crdt.generateToggle(itemId, explicitState);
-    this._persistList(listId, record.crdt, [result.op]);
+    await this._persistList(listId, record.crdt, [result.op]);
     this.emitListChange(listId);
     return record.crdt.toListState();
   }
@@ -351,7 +349,7 @@ export class ListRepository {
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
     const result = record.crdt.generateRemove(itemId);
-    this._persistList(listId, record.crdt, [result.op]);
+    await this._persistList(listId, record.crdt, [result.op]);
     this.emitListChange(listId);
     return result;
   }
@@ -366,7 +364,7 @@ export class ListRepository {
       beforeId: options.beforeId,
       position: options.position,
     });
-    this._persistList(listId, record.crdt, [move.op]);
+    await this._persistList(listId, record.crdt, [move.op]);
     this.emitListChange(listId);
     return record.crdt.toListState();
   }
@@ -393,8 +391,10 @@ export class ListRepository {
       position: options.position,
     });
 
-    this._persistList(sourceListId, source.crdt, [remove.op]);
-    this._persistList(targetListId, target.crdt, [insert.op]);
+    await Promise.all([
+      this._persistList(sourceListId, source.crdt, [remove.op]),
+      this._persistList(targetListId, target.crdt, [insert.op]),
+    ]);
 
     this.emitListChange(sourceListId);
     this.emitListChange(targetListId);
@@ -418,20 +418,19 @@ export class ListRepository {
   }
 
   _persistList(listId, crdt, ops = []) {
-    if (!this._storage || !crdt) return;
+    if (!this._storage || !crdt) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
     const snapshot = crdt.exportState();
-    // Persist writes in the background to keep UI operations responsive.
-    Promise.resolve(
+    return Promise.resolve(
       this._storage.persistOperations(listId, operations, { snapshot })
     ).catch(() => {});
   }
 
   _persistRegistry(ops = []) {
-    if (!this._storage) return;
+    if (!this._storage) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
     const snapshot = this._listsCrdt.exportState();
-    Promise.resolve(
+    return Promise.resolve(
       this._storage.persistRegistry({ operations, snapshot })
     ).catch(() => {});
   }
