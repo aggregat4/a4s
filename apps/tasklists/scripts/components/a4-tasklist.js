@@ -1,6 +1,5 @@
 import { html, render } from "../../vendor/lit-html.js";
 import { live } from "../../vendor/directives/live.js";
-import { ref as refDirective, createRef } from "../../vendor/directives/ref.js";
 import DraggableBehavior, { FlipAnimator } from "../../lib/drag-behavior.js";
 import InlineTextEditor from "../../lib/inline-text-editor.js";
 import {
@@ -258,7 +257,6 @@ class A4TaskList extends HTMLElement {
     this.pendingRestoreEdit = null;
     this.resumeEditOnBlur = null;
     this.resumeEditTimer = null;
-    this.titleRef = createRef();
 
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -640,7 +638,6 @@ class A4TaskList extends HTMLElement {
           @click=${this.handleTitleClick}
           @keydown=${this.handleTitleKeyDown}
           @blur=${this.handleTitleBlur}
-          ${refDirective(this.titleRef)}
           .textContent=${live(titleText)}
         ></h2>
         <div class="tasklist-controls">
@@ -679,7 +676,8 @@ class A4TaskList extends HTMLElement {
       this.headerEl
     );
 
-    this.titleEl = this.titleRef?.value ?? this.titleEl ?? null;
+    this.titleEl =
+      this.headerEl?.querySelector?.(".tasklist-title") ?? this.titleEl ?? null;
     this.searchInput =
       this.headerEl?.querySelector?.(".tasklist-search-input") ??
       this.searchInput ??
