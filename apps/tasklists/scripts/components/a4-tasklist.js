@@ -1,5 +1,6 @@
 import { html, render } from "../../vendor/lit-html.js";
 import { live } from "../../vendor/directives/live.js";
+import { ref as refDirective, createRef } from "../../vendor/directives/ref.js";
 import DraggableBehavior, { FlipAnimator } from "../../lib/drag-behavior.js";
 import InlineTextEditor from "../../lib/inline-text-editor.js";
 import {
@@ -81,15 +82,12 @@ class EditController {
     const inlineEditor = this.getInlineEditor();
     if (!inlineEditor) return false;
 
-    let textEl =
-      this.getEditingTarget?.(this.pendingItemId) ?? null;
+    let textEl = this.getEditingTarget?.(this.pendingItemId) ?? null;
     if (!textEl) {
       const listEl = this.getListElement();
       if (!listEl) return false;
       const selectorId = escapeSelectorId(this.pendingItemId);
-      const targetLi = listEl.querySelector(
-        `li[data-item-id="${selectorId}"]`
-      );
+      const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
       textEl = targetLi?.querySelector(".text") ?? null;
       if (textEl && this.getItemSnapshot) {
         const snapshot = this.getItemSnapshot(this.pendingItemId);
@@ -225,8 +223,6 @@ class A4TaskList extends HTMLElement {
     this.headerEl = null;
     this.titleEl = null;
     this.searchInput = null;
-    this.addButton = null;
-    this.showDoneCheckbox = null;
     this.searchTimer = null;
     this.searchQuery = "";
     this.showDone = false;
@@ -262,10 +258,10 @@ class A4TaskList extends HTMLElement {
     this.pendingRestoreEdit = null;
     this.resumeEditOnBlur = null;
     this.resumeEditTimer = null;
+    this.titleRef = createRef();
 
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
-    this.handleSearchClear = this.handleSearchClear.bind(this);
     this.handleItemBlur = this.handleItemBlur.bind(this);
     this.handleToggle = this.handleToggle.bind(this);
     this.handleStoreChange = this.handleStoreChange.bind(this);
@@ -517,10 +513,6 @@ class A4TaskList extends HTMLElement {
       "touchcancel",
       this.handleTouchGestureCancel
     );
-    if (this.searchInput) {
-      this.searchInput.removeEventListener("input", this.handleSearchInput);
-      this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
-    }
     clearTimeout(this.searchTimer);
     this.searchTimer = null;
     this.repositoryUnsubscribe?.();
@@ -578,8 +570,6 @@ class A4TaskList extends HTMLElement {
     this.headerEl = this.querySelector(".tasklist-header");
     this.titleEl = this.querySelector(".tasklist-title");
     this.searchInput = this.querySelector(".tasklist-search-input");
-    this.showDoneCheckbox = this.querySelector(".tasklist-show-done-toggle");
-    this.addButton = this.querySelector("[data-role='tasklist-add']");
     this.listEl = this.querySelector("ol.tasklist");
     this.emptyStateEl = this.querySelector(".tasklist-empty");
     this.shellRendered = true;
@@ -595,8 +585,7 @@ class A4TaskList extends HTMLElement {
         titleFromState ??
         (typeof attrTitle === "string" ? attrTitle : "") ??
         "",
-      searchQuery:
-        typeof this.searchQuery === "string" ? this.searchQuery : "",
+      searchQuery: typeof this.searchQuery === "string" ? this.searchQuery : "",
       showDone: typeof this.showDone === "boolean" ? this.showDone : false,
       headerError: state?.headerError ?? null,
     };
@@ -605,7 +594,8 @@ class A4TaskList extends HTMLElement {
   renderHeader(headerState = {}) {
     if (!this.headerEl) return;
     const headerError =
-      headerState?.headerError && typeof headerState.headerError.message === "string"
+      headerState?.headerError &&
+      typeof headerState.headerError.message === "string"
         ? headerState.headerError
         : null;
     const titleText =
@@ -650,6 +640,7 @@ class A4TaskList extends HTMLElement {
           @click=${this.handleTitleClick}
           @keydown=${this.handleTitleKeyDown}
           @blur=${this.handleTitleBlur}
+          ${refDirective(this.titleRef)}
           .textContent=${live(titleText)}
         ></h2>
         <div class="tasklist-controls">
@@ -679,10 +670,7 @@ class A4TaskList extends HTMLElement {
             @click=${this.handleAddButtonClick}
           >
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path
-                fill="currentColor"
-                d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"
-              ></path>
+              <path fill="currentColor" d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"></path>
             </svg>
             <span>Add</span>
           </button>
@@ -691,17 +679,11 @@ class A4TaskList extends HTMLElement {
       this.headerEl
     );
 
-    this.refreshHeaderRefs();
-  }
-
-  refreshHeaderRefs() {
-    if (!this.headerEl) return;
-    this.titleEl = this.headerEl.querySelector(".tasklist-title");
-    this.searchInput = this.headerEl.querySelector(".tasklist-search-input");
-    this.showDoneCheckbox = this.headerEl.querySelector(
-      ".tasklist-show-done-toggle"
-    );
-    this.addButton = this.headerEl.querySelector("[data-role='tasklist-add']");
+    this.titleEl = this.titleRef?.value ?? this.titleEl ?? null;
+    this.searchInput =
+      this.headerEl?.querySelector?.(".tasklist-search-input") ??
+      this.searchInput ??
+      null;
   }
 
   handleDragFinalize() {
@@ -908,9 +890,7 @@ class A4TaskList extends HTMLElement {
 
   handleSearchInput(event) {
     const value =
-      typeof event?.target?.value === "string"
-        ? event.target.value
-        : this.searchInput?.value;
+      typeof event?.target?.value === "string" ? event.target.value : "";
     this.searchQuery = typeof value === "string" ? value : "";
     this.scheduleSearchRender();
   }
@@ -921,11 +901,6 @@ class A4TaskList extends HTMLElement {
       this.clearSearch();
       this.searchInput?.focus();
     }
-  }
-
-  handleSearchClear() {
-    this.clearSearch();
-    this.searchInput?.focus();
   }
 
   handleShowDoneChange(e) {
@@ -1518,11 +1493,7 @@ class A4TaskList extends HTMLElement {
         payload: { id, done: nextDone },
       });
       if (this._repository && this.listId) {
-        const promise = this._repository.toggleTask(
-          this.listId,
-          id,
-          nextDone
-        );
+        const promise = this._repository.toggleTask(this.listId, id, nextDone);
         this.runRepositoryOperation(promise);
       }
     }, 0);
@@ -1597,16 +1568,13 @@ class A4TaskList extends HTMLElement {
     if (!li) return;
     const itemId = li.dataset?.itemId ?? null;
     if (!itemId) return;
-    this.openActionsItemId =
-      this.openActionsItemId === itemId ? null : itemId;
+    this.openActionsItemId = this.openActionsItemId === itemId ? null : itemId;
     this.renderFromState(this.store?.getState?.());
   }
 
   closeActionsForItem(target, { immediateRender = false } = {}) {
     const id =
-      typeof target === "string"
-        ? target
-        : target?.dataset?.itemId ?? null;
+      typeof target === "string" ? target : target?.dataset?.itemId ?? null;
     if (!id || this.openActionsItemId !== id) return;
     this.openActionsItemId = null;
     if (immediateRender) {
@@ -1823,10 +1791,7 @@ class A4TaskList extends HTMLElement {
         const next = [...prevOrder];
         const [moved] = next.splice(move.fromIndex, 1);
         if (moved) {
-          const clampedTo = Math.max(
-            0,
-            Math.min(move.toIndex, next.length)
-          );
+          const clampedTo = Math.max(0, Math.min(move.toIndex, next.length));
           next.splice(clampedTo, 0, moved);
           order = next;
         }
@@ -1846,7 +1811,12 @@ class A4TaskList extends HTMLElement {
         });
       }
       if (!order.length) return;
-      this._lastReorderDebug = { prevOrder, order, timestamp: Date.now(), move };
+      this._lastReorderDebug = {
+        prevOrder,
+        order,
+        timestamp: Date.now(),
+        move,
+      };
       const itemMap = new Map(
         Array.isArray(previousState?.items)
           ? previousState.items.map((item) => [item.id, item])
