@@ -388,7 +388,6 @@ class A4TaskList extends HTMLElement {
     if (this.listIdentifier) {
       this.dataset.listId = this.listIdentifier;
     }
-    this.performSearch(this.searchQuery);
     document.removeEventListener("pointerdown", this.handleDocumentPointerDown);
     document.addEventListener("pointerdown", this.handleDocumentPointerDown);
   }
@@ -903,7 +902,7 @@ class A4TaskList extends HTMLElement {
 
   setPatternHighlighters(defs) {
     this.patternConfig = this.normalizePatternDefs(defs);
-    this.performSearch(this.searchQuery);
+    this.renderCurrentState();
   }
 
   get patternHighlighters() {
@@ -924,11 +923,7 @@ class A4TaskList extends HTMLElement {
         ? event.target.value
         : this.searchInput?.value;
     this.searchQuery = typeof value === "string" ? value : "";
-    clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => {
-      this.performSearch(value);
-      this.searchTimer = null;
-    }, 120);
+    this.scheduleSearchRender();
   }
 
   handleSearchKeyDown(e) {
@@ -949,7 +944,7 @@ class A4TaskList extends HTMLElement {
     if (this.showDone === isChecked) return;
     this.showDone = isChecked;
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
-    this.performSearch(this.searchQuery);
+    this.renderCurrentState();
   }
 
   clearSearch() {
@@ -957,7 +952,7 @@ class A4TaskList extends HTMLElement {
     this.searchTimer = null;
     this.searchQuery = "";
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
-    this.performSearch("");
+    this.renderCurrentState();
     this.dispatchEvent(
       new CustomEvent("clearsearch", { bubbles: true, composed: true })
     );
@@ -973,8 +968,6 @@ class A4TaskList extends HTMLElement {
         ? stateBefore.items[0].id
         : null;
     const newId = generateItemId();
-    this.editController.queue(newId, "end");
-    this.schedulePendingEditFlush();
     this.store.dispatch({
       type: LIST_ACTIONS.insertItem,
       payload: {
@@ -982,10 +975,9 @@ class A4TaskList extends HTMLElement {
         item: { id: newId, text: "", done: false },
       },
     });
-    this.handleStoreChange();
-    if (!this.focusItemImmediately(newId, "end")) {
-      this.editController.applyPendingEdit();
-    }
+    // Queue edit AFTER dispatch so element exists when pending edit is applied
+    this.editController.queue(newId, "end");
+    this.schedulePendingEditFlush();
     if (this._repository && this.listId) {
       const promise = this._repository.insertTask(this.listId, {
         itemId: newId,
@@ -1009,15 +1001,6 @@ class A4TaskList extends HTMLElement {
     const nextItemId = state.items[currentIndex + 1]?.id ?? null;
 
     const newId = generateItemId();
-    const focusNewItem = () => {
-      if (!this.focusItemImmediately(newId, "start")) {
-        this.editController.queue(newId, "start");
-        this.schedulePendingEditFlush();
-        this.editController.applyPendingEdit();
-      }
-    };
-    this.editController.queue(newId, "start");
-    this.schedulePendingEditFlush();
     if (typeof beforeText === "string") {
       this.store.dispatch({
         type: LIST_ACTIONS.updateItemText,
@@ -1036,11 +1019,9 @@ class A4TaskList extends HTMLElement {
         },
       },
     });
-    this.handleStoreChange();
-    focusNewItem();
-    if (typeof setTimeout === "function") {
-      setTimeout(() => focusNewItem(), 0);
-    }
+    // Queue edit AFTER dispatch so element exists when pending edit is applied
+    this.editController.queue(newId, "start");
+    this.schedulePendingEditFlush();
     if (this._repository && this.listId) {
       const promise = (async () => {
         if (typeof beforeText === "string") {
@@ -1094,7 +1075,6 @@ class A4TaskList extends HTMLElement {
       value: mergeOffset,
     });
     this.schedulePendingEditFlush();
-
     this.store.dispatch({
       type: LIST_ACTIONS.updateItemText,
       payload: { id: previousItem.id, text: mergedText },
@@ -1103,15 +1083,6 @@ class A4TaskList extends HTMLElement {
       type: LIST_ACTIONS.removeItem,
       payload: { id: currentItemId },
     });
-    this.handleStoreChange();
-    if (
-      !this.focusItemImmediately(previousItem.id, {
-        type: "offset",
-        value: mergeOffset,
-      })
-    ) {
-      this.editController.applyPendingEdit();
-    }
 
     if (this._repository && this.listId) {
       const promise = (async () => {
@@ -1155,10 +1126,6 @@ class A4TaskList extends HTMLElement {
       type: LIST_ACTIONS.removeItem,
       payload: { id },
     });
-    this.handleStoreChange();
-    if (!focusTargetId || !this.focusItemImmediately(focusTargetId, "end")) {
-      this.editController.applyPendingEdit();
-    }
 
     if (this._repository && this.listId) {
       const promise = this._repository.removeTask(this.listId, id);
@@ -1257,6 +1224,20 @@ class A4TaskList extends HTMLElement {
     });
   }
 
+  scheduleSearchRender(delayMs = 120) {
+    clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null;
+      this.renderCurrentState();
+    }, delayMs);
+  }
+
+  renderCurrentState() {
+    if (this.store) {
+      this.renderFromState(this.store.getState());
+    }
+  }
+
   getEditingTarget(itemId) {
     if (!this.listEl || !itemId) return null;
     const selectorId = escapeSelectorId(itemId);
@@ -1305,10 +1286,36 @@ class A4TaskList extends HTMLElement {
     return this.startEditingItem(itemId, caretPreference);
   }
 
-  renderItemTemplate(item, { isOpen = false } = {}) {
+  renderItemTemplate(
+    item,
+    { isOpen = false, hidden = false, markup = null } = {}
+  ) {
     const isDone = Boolean(item.done);
     const itemId = item.id;
     const text = typeof item.text === "string" ? item.text : "";
+    const textSpan =
+      markup != null
+        ? html`
+            <span
+              class="text"
+              tabindex="0"
+              role="textbox"
+              aria-label="Task"
+              data-original-text=${text}
+              .innerHTML=${markup}
+            ></span>
+          `
+        : html`
+            <span
+              class="text"
+              tabindex="0"
+              role="textbox"
+              aria-label="Task"
+              data-original-text=${text}
+            >
+              ${text}
+            </span>
+          `;
 
     return html`
       <li
@@ -1316,6 +1323,7 @@ class A4TaskList extends HTMLElement {
         data-item-id=${itemId}
         data-done=${isDone ? "true" : "false"}
         draggable="true"
+        ?hidden=${hidden}
       >
         <div class="task-item__main">
           <input
@@ -1324,15 +1332,7 @@ class A4TaskList extends HTMLElement {
             ?checked=${isDone}
             @change=${this.handleToggle}
           />
-          <span
-            class="text"
-            tabindex="0"
-            role="textbox"
-            aria-label="Task"
-            data-original-text=${text}
-          >
-            ${text}
-          </span>
+          ${textSpan}
           <span class="handle" aria-hidden="true"></span>
         </div>
         <div
@@ -1380,11 +1380,43 @@ class A4TaskList extends HTMLElement {
 
     const preservedFocus = this.view.captureFocus();
     const openActionsId = this.openActionsItemId;
-    const itemsTemplate = (state.items ?? []).map((item) =>
-      this.renderItemTemplate(item, { isOpen: openActionsId === item.id })
-    );
-    render(html``, this.listEl);
+    const tokens = tokenizeSearchQuery(this.searchQuery);
+    const forceVisible = this.editController.getForceVisibleIds();
+    const editingId =
+      this.inlineEditor?.editingEl?.closest?.("li")?.dataset?.itemId ?? null;
+
+    let visibleCount = 0;
+    const itemsTemplate = (state.items ?? []).map((item) => {
+      const text = typeof item.text === "string" ? item.text : "";
+      const isEditing = editingId === item.id;
+      let hidden = false;
+      let markup = null;
+      if (!isEditing) {
+        const result = evaluateSearchEntry({
+          originalText: text,
+          tokens,
+          patternConfig: this.patternConfig,
+          showDone: this.showDone,
+          isDone: item.done,
+        });
+        hidden = result.hidden;
+        markup = result.markup;
+      }
+      if (forceVisible?.has(item.id)) {
+        hidden = false;
+        markup = null;
+      }
+      if (!hidden) {
+        visibleCount += 1;
+      }
+      return this.renderItemTemplate(item, {
+        isOpen: openActionsId === item.id,
+        hidden,
+        markup,
+      });
+    });
     render(html`${itemsTemplate}`, this.listEl);
+    this.dragBehavior?.invalidateItemsCache();
 
     const totalCount = Array.isArray(state.items)
       ? state.items.filter((item) => !item?.done).length
@@ -1427,10 +1459,7 @@ class A4TaskList extends HTMLElement {
       );
     }
 
-    const forceVisible = this.editController.getForceVisibleIds();
     let hasPendingEdit = this.editController.hasPending();
-
-    this.performSearch(this.searchQuery, { forceVisible });
 
     let appliedPendingEdit = false;
     if (hasPendingEdit) {
@@ -1456,6 +1485,33 @@ class A4TaskList extends HTMLElement {
       );
       this.pendingRestoreEdit = null;
     }
+
+    if (
+      visibleCount !== this.lastReportedMatches ||
+      this.searchQuery !== this.lastReportedQuery
+    ) {
+      this.lastReportedMatches = visibleCount;
+      this.lastReportedQuery = this.searchQuery;
+      this.dispatchEvent(
+        new CustomEvent("searchresultschange", {
+          detail: {
+            matches: visibleCount,
+            query: this.searchQuery,
+          },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+
+    const shouldShowEmpty =
+      typeof this.searchQuery === "string" &&
+      this.searchQuery.trim().length > 0 &&
+      visibleCount === 0;
+    if (this.emptyStateEl) {
+      this.emptyStateEl.hidden = !shouldShowEmpty;
+    }
+    this.classList.toggle("tasklist-no-matches", shouldShowEmpty);
   }
 
   handleToggle(e) {
@@ -1538,10 +1594,6 @@ class A4TaskList extends HTMLElement {
       type: LIST_ACTIONS.removeItem,
       payload: { id: itemId },
     });
-    this.handleStoreChange();
-    if (!focusTargetId || !this.focusItemImmediately(focusTargetId, "end")) {
-      this.editController.applyPendingEdit();
-    }
     if (this._repository && this.listId) {
       const promise = this._repository.removeTask(this.listId, itemId);
       this.runRepositoryOperation(promise);
@@ -1723,17 +1775,17 @@ class A4TaskList extends HTMLElement {
 
   handleEditCommit({ element, newText, previousText }) {
     if (!element || !this.store) {
-      this.performSearch(this.searchQuery);
+      this.scheduleSearchRender(0);
       return;
     }
     const li = element.closest("li");
     const id = li?.dataset?.itemId;
     if (!id) {
-      this.performSearch(this.searchQuery);
+      this.scheduleSearchRender(0);
       return;
     }
     if (typeof newText !== "string") {
-      this.performSearch(this.searchQuery);
+      this.scheduleSearchRender(0);
       return;
     }
     const currentState = this.store.getState();
@@ -1742,11 +1794,11 @@ class A4TaskList extends HTMLElement {
       const authoritativeText = stateItem.text ?? "";
       element.textContent = authoritativeText;
       element.dataset.originalText = authoritativeText;
-      this.performSearch(this.searchQuery);
+      this.scheduleSearchRender(0);
       return;
     }
     if (newText === previousText) {
-      this.performSearch(this.searchQuery);
+      this.scheduleSearchRender(0);
       return;
     }
     this.store.dispatch({
@@ -1849,7 +1901,7 @@ class A4TaskList extends HTMLElement {
     const textEl = e.target.classList?.contains("text") ? e.target : null;
     if (!textEl) return;
     textEl.dataset.originalText = textEl.textContent;
-    this.performSearch(this.searchQuery);
+    this.scheduleSearchRender(0);
     if (
       this.resumeEditOnBlur &&
       textEl.closest("li")?.dataset?.itemId === this.resumeEditOnBlur.id
@@ -1867,100 +1919,11 @@ class A4TaskList extends HTMLElement {
     }
   }
 
-  // Keeps filtering and highlighting in sync with state changes so users never see
-  // stale markup, while forcing certain ids visible when edits demand it.
-  performSearch(query, options = {}) {
-    if (!this.listEl) return;
-    const queryValue = typeof query === "string" ? query : "";
-    this.searchQuery = queryValue;
-    const tokens = tokenizeSearchQuery(queryValue);
-    const forceVisible = options?.forceVisible ?? null;
-
-    let visibleCount = 0;
-
-    this.listEl.querySelectorAll("li").forEach((li) => {
-      if (li.classList.contains("placeholder")) return;
-      const textEl = li.querySelector(".text");
-      if (!textEl) return;
-      const isEditing = textEl.isContentEditable;
-      const isDone = li.dataset.done === "true";
-
-      const original =
-        textEl.dataset.originalText != null
-          ? textEl.dataset.originalText
-          : (textEl.dataset.originalText = textEl.textContent);
-
-      if (isEditing) {
-        li.hidden = false;
-        visibleCount += 1;
-        return;
-      }
-
-      if (
-        forceVisible &&
-        li.dataset.itemId &&
-        forceVisible.has(li.dataset.itemId)
-      ) {
-        li.hidden = false;
-        textEl.textContent = original;
-        visibleCount += 1;
-        return;
-      }
-
-      const result = evaluateSearchEntry({
-        originalText: original,
-        tokens,
-        patternConfig: this.patternConfig,
-        showDone: this.showDone,
-        isDone,
-      });
-
-      li.hidden = result.hidden;
-      if (result.hidden || result.markup == null) {
-        textEl.textContent = original;
-        return;
-      }
-      textEl.innerHTML = result.markup;
-      if (!li.hidden) {
-        visibleCount += 1;
-      }
-    });
-
-    this.dragBehavior?.invalidateItemsCache();
-
-    if (
-      visibleCount !== this.lastReportedMatches ||
-      queryValue !== this.lastReportedQuery
-    ) {
-      this.lastReportedMatches = visibleCount;
-      this.lastReportedQuery = queryValue;
-      this.dispatchEvent(
-        new CustomEvent("searchresultschange", {
-          detail: {
-            matches: visibleCount,
-            query: queryValue,
-          },
-          bubbles: true,
-          composed: true,
-        })
-      );
-    }
-
-    const shouldShowEmpty =
-      typeof queryValue === "string" &&
-      queryValue.trim().length > 0 &&
-      visibleCount === 0;
-    if (this.emptyStateEl) {
-      this.emptyStateEl.hidden = !shouldShowEmpty;
-    }
-    this.classList.toggle("tasklist-no-matches", shouldShowEmpty);
-  }
-
   applyFilter(query) {
     const value = typeof query === "string" ? query : "";
     this.searchQuery = value;
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
-    this.performSearch(value);
+    this.renderCurrentState();
   }
 
   clearFilter() {
