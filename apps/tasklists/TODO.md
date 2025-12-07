@@ -4,3 +4,10 @@
 
 - find out if there are any GUI affordances we can make to inline editable things to make it clearer for the user (show list rename with a floating pencil icon or something)
 - Keep the sliding button caret to the right of the buttons when expanding it: this is less surprising and more stable and prevents accidental delete activations
+
+## CRDT Store Open Questions & Follow-ups
+
+- **Undo/Redo:** Decide whether to derive from CRDT op log or implement separate command history.
+- **Tombstone cleanup:** Introduce optional garbage collection when a majority of replicas confirm deletion (future multi-client work).
+- **Schema migrations:** Plan version bump strategy for CRDT snapshots so we can evolve data structure without losing user data.
+- **Background sync:** For eventual server support, design API to sync batched operations (probably via POST `/lists/{id}/ops`) using same envelopes.
