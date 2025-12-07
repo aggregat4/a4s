@@ -620,7 +620,6 @@ class A4TaskList extends HTMLElement {
         : "";
     const showDoneChecked = Boolean(headerState.showDone);
 
-    const tmp = document.createElement("div");
     render(
       html`
         ${headerError
@@ -643,16 +642,16 @@ class A4TaskList extends HTMLElement {
           class=${`tasklist-title${this.isTitleEditing ? " is-editing" : ""}`}
           tabindex="0"
           title="Click to rename"
-          ?contenteditable=${this.isTitleEditing}
+          contenteditable=${this.isTitleEditing ? "true" : null}
           spellcheck=${this.isTitleEditing ? "false" : null}
           role=${this.isTitleEditing ? "textbox" : null}
           aria-multiline=${this.isTitleEditing ? "false" : null}
           aria-label=${this.isTitleEditing ? "List title" : null}
           @click=${this.handleTitleClick}
           @keydown=${this.handleTitleKeyDown}
-        >
-          ${titleText}
-        </h2>
+          @blur=${this.handleTitleBlur}
+          .textContent=${live(titleText)}
+        ></h2>
         <div class="tasklist-controls">
           <input
             type="search"
@@ -689,9 +688,8 @@ class A4TaskList extends HTMLElement {
           </button>
         </div>
       `,
-      tmp
+      this.headerEl
     );
-    this.headerEl.replaceChildren(...Array.from(tmp.childNodes));
 
     this.refreshHeaderRefs();
   }
@@ -725,19 +723,15 @@ class A4TaskList extends HTMLElement {
   }
 
   startTitleEditing() {
-    if (!this.titleEl || this.isTitleEditing) return;
+    if (this.isTitleEditing) return;
     this.isTitleEditing = true;
-    this.titleOriginalValue = this.titleEl.textContent ?? "";
-    this.titleEl.classList.add("is-editing");
-    this.titleEl.setAttribute("contenteditable", "true");
-    this.titleEl.setAttribute("spellcheck", "false");
-    this.titleEl.setAttribute("role", "textbox");
-    this.titleEl.setAttribute("aria-multiline", "false");
-    this.titleEl.setAttribute("aria-label", "List title");
-    this.titleEl.addEventListener("blur", this.handleTitleBlur);
-    this.titleEl.focus();
+    // Capture current text before re-render so we can restore on cancel.
+    this.titleOriginalValue = this.titleEl?.textContent ?? "";
+    this.isTitleEditing = true;
+    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+    this.titleEl?.focus();
     const selection = document.getSelection();
-    if (selection) {
+    if (selection && this.titleEl) {
       const range = document.createRange();
       range.selectNodeContents(this.titleEl);
       selection.removeAllRanges();
@@ -747,13 +741,7 @@ class A4TaskList extends HTMLElement {
 
   finishTitleEditing() {
     if (!this.titleEl) return;
-    this.titleEl.classList.remove("is-editing");
-    this.titleEl.removeAttribute("contenteditable");
-    this.titleEl.removeAttribute("spellcheck");
-    this.titleEl.removeAttribute("role");
-    this.titleEl.removeAttribute("aria-multiline");
-    this.titleEl.removeAttribute("aria-label");
-    this.titleEl.removeEventListener("blur", this.handleTitleBlur);
+    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.isTitleEditing = false;
     this.titleOriginalValue = "";
   }
