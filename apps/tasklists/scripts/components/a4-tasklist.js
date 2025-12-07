@@ -1,4 +1,5 @@
 import { html, render } from "../../vendor/lit-html.js";
+import { live } from "../../vendor/directives/live.js";
 import DraggableBehavior, { FlipAnimator } from "../../lib/drag-behavior.js";
 import InlineTextEditor from "../../lib/inline-text-editor.js";
 import {
@@ -1021,6 +1022,8 @@ class A4TaskList extends HTMLElement {
     });
     // Queue edit AFTER dispatch so element exists when pending edit is applied
     this.editController.queue(newId, "start");
+    // Try to start editing immediately; pending queue will retry if the node is not ready yet.
+    this.startEditingItem(newId, "start");
     this.schedulePendingEditFlush();
     if (this._repository && this.listId) {
       const promise = (async () => {
@@ -1288,7 +1291,7 @@ class A4TaskList extends HTMLElement {
 
   renderItemTemplate(
     item,
-    { isOpen = false, hidden = false, markup = null } = {}
+    { isOpen = false, hidden = false, markup = null, isEditing = false } = {}
   ) {
     const isDone = Boolean(item.done);
     const itemId = item.id;
@@ -1302,7 +1305,7 @@ class A4TaskList extends HTMLElement {
               role="textbox"
               aria-label="Task"
               data-original-text=${text}
-              .innerHTML=${markup}
+              .innerHTML=${live(markup)}
             ></span>
           `
         : html`
@@ -1312,9 +1315,8 @@ class A4TaskList extends HTMLElement {
               role="textbox"
               aria-label="Task"
               data-original-text=${text}
-            >
-              ${text}
-            </span>
+              .textContent=${live(text)}
+            ></span>
           `;
 
     return html`
@@ -1413,6 +1415,7 @@ class A4TaskList extends HTMLElement {
         isOpen: openActionsId === item.id,
         hidden,
         markup,
+        isEditing,
       });
     });
     render(html`${itemsTemplate}`, this.listEl);
