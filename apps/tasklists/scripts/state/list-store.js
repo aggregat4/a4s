@@ -1,3 +1,11 @@
+const normalizeHeaderError = (value) => {
+  if (!value) return null;
+  const message = typeof value.message === "string" ? value.message : null;
+  if (!message) return null;
+  const code = typeof value.code === "string" ? value.code : null;
+  return code ? { message, code } : { message };
+};
+
 export const cloneListState = (source) => ({
   title: typeof source?.title === "string" ? source.title : "",
   items: Array.isArray(source?.items)
@@ -10,10 +18,12 @@ export const cloneListState = (source) => ({
         done: Boolean(item?.done),
       }))
     : [],
+  headerError: normalizeHeaderError(source?.headerError),
 });
 
 export const generateItemId = () => `task-${crypto.randomUUID()}`;
-export const generateListId = (prefix = "list") => `${prefix}-${crypto.randomUUID()}`;
+export const generateListId = (prefix = "list") =>
+  `${prefix}-${crypto.randomUUID()}`;
 
 export const LIST_ACTIONS = {
   setTitle: "list/setTitle",
@@ -23,9 +33,14 @@ export const LIST_ACTIONS = {
   replaceAll: "list/replaceAll",
   insertItem: "list/insertItem",
   removeItem: "list/removeItem",
+  setHeaderError: "list/setHeaderError",
+  clearHeaderError: "list/clearHeaderError",
 };
 
-export const listReducer = (state = { title: "", items: [] }, action = {}) => {
+export const listReducer = (
+  state = { title: "", items: [], headerError: null },
+  action = {}
+) => {
   switch (action.type) {
     case LIST_ACTIONS.setTitle: {
       const nextTitle =
@@ -70,7 +85,9 @@ export const listReducer = (state = { title: "", items: [] }, action = {}) => {
       const itemMap = new Map(state.items.map((item) => [item.id, item]));
       const nextItems = order.map((id) => itemMap.get(id)).filter(Boolean);
       if (nextItems.length !== state.items.length) return state;
-      const unchanged = nextItems.every((item, index) => item === state.items[index]);
+      const unchanged = nextItems.every(
+        (item, index) => item === state.items[index]
+      );
       if (unchanged) return state;
       return { ...state, items: nextItems };
     }
@@ -102,6 +119,23 @@ export const listReducer = (state = { title: "", items: [] }, action = {}) => {
       if (!payload) return state;
       const next = cloneListState(payload);
       return next;
+    }
+    case LIST_ACTIONS.setHeaderError: {
+      const nextError = normalizeHeaderError(action.payload);
+      if (!nextError && !state.headerError) return state;
+      if (
+        nextError &&
+        state.headerError &&
+        nextError.message === state.headerError.message &&
+        nextError.code === state.headerError.code
+      ) {
+        return state;
+      }
+      return { ...state, headerError: nextError };
+    }
+    case LIST_ACTIONS.clearHeaderError: {
+      if (!state.headerError) return state;
+      return { ...state, headerError: null };
     }
     default:
       return state;

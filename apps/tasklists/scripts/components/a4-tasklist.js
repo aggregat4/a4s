@@ -235,6 +235,7 @@ class A4TaskList extends HTMLElement {
     this.handleTitleClick = this.handleTitleClick.bind(this);
     this.handleTitleKeyDown = this.handleTitleKeyDown.bind(this);
     this.handleTitleBlur = this.handleTitleBlur.bind(this);
+    this.handleHeaderErrorDismiss = this.handleHeaderErrorDismiss.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.handleTouchGestureStart = this.handleTouchGestureStart.bind(this);
     this.handleTouchGestureEnd = this.handleTouchGestureEnd.bind(this);
@@ -268,7 +269,7 @@ class A4TaskList extends HTMLElement {
   connectedCallback() {
     this.renderShell();
     if (!this.listEl) return;
-    this.syncHeaderState();
+    this.renderHeader(this.getHeaderRenderState());
 
     this.initializeStore();
     this.refreshRepositorySubscription();
@@ -416,9 +417,23 @@ class A4TaskList extends HTMLElement {
     if (!promise || typeof promise.then !== "function") return;
     promise
       .then(() => {
+        if (this.store) {
+          this.store.dispatch({ type: LIST_ACTIONS.clearHeaderError });
+        }
         this.syncFromRepository();
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (this.store) {
+          this.store.dispatch({
+            type: LIST_ACTIONS.setHeaderError,
+            payload: {
+              message:
+                (err && err.message) ||
+                "Sync failed. Please check your connection and retry.",
+            },
+          });
+        }
+      });
   }
 
   buildInitialState() {
@@ -487,9 +502,9 @@ class A4TaskList extends HTMLElement {
           payload: { title: nextTitle },
         });
       } else {
-        this.syncTitle();
+        this.renderHeader(this.getHeaderRenderState());
       }
-      this.syncHeaderState();
+      this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     }
   }
 
@@ -497,40 +512,7 @@ class A4TaskList extends HTMLElement {
     if (this.shellRendered) return;
     render(
       html`
-        <div class="tasklist-header">
-          <h2 class="tasklist-title" tabindex="0" title="Click to rename">
-            ${this.getAttribute("name") ?? ""}
-          </h2>
-          <div class="tasklist-controls">
-            <input
-              type="search"
-              class="tasklist-search-input"
-              placeholder="Search tasks..."
-              aria-label="Search tasks"
-            />
-            <label class="tasklist-show-done">
-              <input
-                type="checkbox"
-                class="tasklist-show-done-toggle"
-              />
-              <span>Show done</span>
-            </label>
-            <button
-              type="button"
-              class="iconlabel"
-              aria-label="Add task"
-              data-role="tasklist-add"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path
-                  fill="currentColor"
-                  d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"
-                ></path>
-              </svg>
-              <span>Add</span>
-            </button>
-          </div>
-        </div>
+        <div class="tasklist-header"></div>
         <ol class="tasklist"></ol>
         <div class="tasklist-empty" hidden>No matching items</div>
       `,
@@ -544,49 +526,127 @@ class A4TaskList extends HTMLElement {
     this.listEl = this.querySelector("ol.tasklist");
     this.emptyStateEl = this.querySelector(".tasklist-empty");
     this.shellRendered = true;
+    this.renderHeader(this.getHeaderRenderState());
   }
 
-  syncHeaderState() {
+  getHeaderRenderState(state = null) {
+    const titleFromState =
+      typeof state?.title === "string" ? state.title : undefined;
+    const attrTitle = this.getAttribute("name");
+    return {
+      title:
+        titleFromState ??
+        (typeof attrTitle === "string" ? attrTitle : "") ??
+        "",
+      searchQuery:
+        typeof this.searchQuery === "string" ? this.searchQuery : "",
+      showDone: typeof this.showDone === "boolean" ? this.showDone : false,
+      headerError: state?.headerError ?? null,
+    };
+  }
+
+  renderHeader(headerState = {}) {
     if (!this.headerEl) return;
-    const currentTitle = this.getAttribute("name") ?? "";
-    const currentSearch = this.searchQuery ?? "";
-    const showDoneChecked =
-      typeof this.showDone === "boolean" ? this.showDone : false;
+    const headerError =
+      headerState?.headerError && typeof headerState.headerError.message === "string"
+        ? headerState.headerError
+        : null;
+    const titleText =
+      this.isTitleEditing && this.titleEl
+        ? this.titleEl.textContent ?? ""
+        : typeof headerState.title === "string"
+        ? headerState.title
+        : "";
+    const searchValue =
+      typeof headerState.searchQuery === "string"
+        ? headerState.searchQuery
+        : "";
+    const showDoneChecked = Boolean(headerState.showDone);
 
-    if (this.titleEl) {
-      this.titleEl.textContent = currentTitle;
-      this.titleEl.setAttribute("tabindex", "0");
-      this.titleEl.setAttribute("title", "Click to rename");
-      this.titleEl.removeEventListener("click", this.handleTitleClick);
-      this.titleEl.addEventListener("click", this.handleTitleClick);
-      this.titleEl.removeEventListener("keydown", this.handleTitleKeyDown);
-      this.titleEl.addEventListener("keydown", this.handleTitleKeyDown);
-    }
+    const tmp = document.createElement("div");
+    render(
+      html`
+        ${headerError
+          ? html`
+              <div class="tasklist-header-error" role="alert">
+                <span class="tasklist-header-error__message">
+                  ${headerError.message}
+                </span>
+                <button
+                  type="button"
+                  class="tasklist-header-error__dismiss"
+                  @click=${this.handleHeaderErrorDismiss}
+                >
+                  Dismiss
+                </button>
+              </div>
+            `
+          : null}
+        <h2
+          class=${`tasklist-title${this.isTitleEditing ? " is-editing" : ""}`}
+          tabindex="0"
+          title="Click to rename"
+          ?contenteditable=${this.isTitleEditing}
+          spellcheck=${this.isTitleEditing ? "false" : null}
+          role=${this.isTitleEditing ? "textbox" : null}
+          aria-multiline=${this.isTitleEditing ? "false" : null}
+          aria-label=${this.isTitleEditing ? "List title" : null}
+          @click=${this.handleTitleClick}
+          @keydown=${this.handleTitleKeyDown}
+        >
+          ${titleText}
+        </h2>
+        <div class="tasklist-controls">
+          <input
+            type="search"
+            class="tasklist-search-input"
+            placeholder="Search tasks..."
+            aria-label="Search tasks"
+            .value=${searchValue}
+            @input=${this.handleSearchInput}
+            @keydown=${this.handleSearchKeyDown}
+          />
+          <label class="tasklist-show-done">
+            <input
+              type="checkbox"
+              class="tasklist-show-done-toggle"
+              ?checked=${showDoneChecked}
+              @change=${this.handleShowDoneChange}
+            />
+            <span>Show done</span>
+          </label>
+          <button
+            type="button"
+            class="iconlabel"
+            aria-label="Add task"
+            data-role="tasklist-add"
+            @click=${this.handleAddButtonClick}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"
+              ></path>
+            </svg>
+            <span>Add</span>
+          </button>
+        </div>
+      `,
+      tmp
+    );
+    this.headerEl.replaceChildren(...Array.from(tmp.childNodes));
 
-    if (this.searchInput) {
-      this.searchInput.value = currentSearch;
-      this.searchInput.removeEventListener("input", this.handleSearchInput);
-      this.searchInput.removeEventListener("keydown", this.handleSearchKeyDown);
-      this.searchInput.addEventListener("input", this.handleSearchInput);
-      this.searchInput.addEventListener("keydown", this.handleSearchKeyDown);
-    }
+    this.refreshHeaderRefs();
+  }
 
-    if (this.showDoneCheckbox) {
-      this.showDoneCheckbox.checked = showDoneChecked;
-      this.showDoneCheckbox.removeEventListener(
-        "change",
-        this.handleShowDoneChange
-      );
-      this.showDoneCheckbox.addEventListener(
-        "change",
-        this.handleShowDoneChange
-      );
-    }
-
-    if (this.addButton) {
-      this.addButton.removeEventListener("click", this.handleAddButtonClick);
-      this.addButton.addEventListener("click", this.handleAddButtonClick);
-    }
+  refreshHeaderRefs() {
+    if (!this.headerEl) return;
+    this.titleEl = this.headerEl.querySelector(".tasklist-title");
+    this.searchInput = this.headerEl.querySelector(".tasklist-search-input");
+    this.showDoneCheckbox = this.headerEl.querySelector(
+      ".tasklist-show-done-toggle"
+    );
+    this.addButton = this.headerEl.querySelector("[data-role='tasklist-add']");
   }
 
   handleDragFinalize() {
@@ -673,7 +733,7 @@ class A4TaskList extends HTMLElement {
       });
     } else {
       this.setAttribute("name", trimmed);
-      this.syncTitle();
+      this.renderHeader(this.getHeaderRenderState());
     }
 
     if (this._repository && this.listId) {
@@ -737,10 +797,12 @@ class A4TaskList extends HTMLElement {
     this.commitTitleEditing({ restoreFocus: false });
   }
 
-  syncTitle() {
-    if (!this.titleEl || this.isTitleEditing) return;
-    const value = this.getAttribute("name");
-    this.titleEl.textContent = value ?? "";
+  handleHeaderErrorDismiss() {
+    if (this.store) {
+      this.store.dispatch({ type: LIST_ACTIONS.clearHeaderError });
+      return;
+    }
+    this.renderHeader(this.getHeaderRenderState());
   }
 
   normalizePatternDefs(defs) {
@@ -799,9 +861,12 @@ class A4TaskList extends HTMLElement {
     this.setPatternHighlighters(defs);
   }
 
-  handleSearchInput() {
-    if (!this.searchInput) return;
-    const value = this.searchInput.value;
+  handleSearchInput(event) {
+    const value =
+      typeof event?.target?.value === "string"
+        ? event.target.value
+        : this.searchInput?.value;
+    this.searchQuery = typeof value === "string" ? value : "";
     clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       this.performSearch(value);
@@ -826,15 +891,15 @@ class A4TaskList extends HTMLElement {
     const isChecked = Boolean(e?.target?.checked);
     if (this.showDone === isChecked) return;
     this.showDone = isChecked;
+    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.performSearch(this.searchQuery);
   }
 
   clearSearch() {
     clearTimeout(this.searchTimer);
     this.searchTimer = null;
-    if (this.searchInput) {
-      this.searchInput.value = "";
-    }
+    this.searchQuery = "";
+    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.performSearch("");
     this.dispatchEvent(
       new CustomEvent("clearsearch", { bubbles: true, composed: true })
@@ -1142,6 +1207,8 @@ class A4TaskList extends HTMLElement {
   // Acts as the single render pass so focus management and search updates happen in a predictable order after each state change.
   renderFromState(state) {
     if (!this.listEl || !state) return;
+
+    this.renderHeader(this.getHeaderRenderState(state));
 
     const preservedFocus = this.view.captureFocus();
 
@@ -1723,8 +1790,9 @@ class A4TaskList extends HTMLElement {
   // stale markup, while forcing certain ids visible when edits demand it.
   performSearch(query, options = {}) {
     if (!this.listEl) return;
-    this.searchQuery = query;
-    const tokens = tokenizeSearchQuery(query);
+    const queryValue = typeof query === "string" ? query : "";
+    this.searchQuery = queryValue;
+    const tokens = tokenizeSearchQuery(queryValue);
     const forceVisible = options?.forceVisible ?? null;
 
     let visibleCount = 0;
@@ -1781,15 +1849,15 @@ class A4TaskList extends HTMLElement {
 
     if (
       visibleCount !== this.lastReportedMatches ||
-      query !== this.lastReportedQuery
+      queryValue !== this.lastReportedQuery
     ) {
       this.lastReportedMatches = visibleCount;
-      this.lastReportedQuery = query;
+      this.lastReportedQuery = queryValue;
       this.dispatchEvent(
         new CustomEvent("searchresultschange", {
           detail: {
             matches: visibleCount,
-            query,
+            query: queryValue,
           },
           bubbles: true,
           composed: true,
@@ -1798,8 +1866,8 @@ class A4TaskList extends HTMLElement {
     }
 
     const shouldShowEmpty =
-      typeof this.searchQuery === "string" &&
-      this.searchQuery.trim().length > 0 &&
+      typeof queryValue === "string" &&
+      queryValue.trim().length > 0 &&
       visibleCount === 0;
     if (this.emptyStateEl) {
       this.emptyStateEl.hidden = !shouldShowEmpty;
@@ -1809,9 +1877,8 @@ class A4TaskList extends HTMLElement {
 
   applyFilter(query) {
     const value = typeof query === "string" ? query : "";
-    if (this.searchInput) {
-      this.searchInput.value = value;
-    }
+    this.searchQuery = value;
+    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.performSearch(value);
   }
 
@@ -1886,7 +1953,7 @@ class A4TaskList extends HTMLElement {
       });
     } else {
       this.setAttribute("name", nextTitle);
-      this.syncTitle();
+      this.renderHeader(this.getHeaderRenderState());
     }
   }
 

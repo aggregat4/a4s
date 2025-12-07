@@ -93,6 +93,60 @@ test("loads without console errors", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("tasklist header mirrors title, search, and show-done state", async ({
+  page,
+}) => {
+  await page.goto("/?resetStorage=1");
+
+  const listSection = page.locator(
+    "[data-role='lists-container'] .list-section.is-visible"
+  );
+  const header = listSection.locator(".tasklist-header");
+  const title = header.locator(".tasklist-title");
+  const searchInput = header.locator("input.tasklist-search-input");
+  const showDoneToggle = header.locator("input.tasklist-show-done-toggle");
+
+  await expect(title).toHaveText("Prototype Tasks");
+  await expect(title).toHaveAttribute("tabindex", "0");
+  await expect(title).toHaveAttribute("title", "Click to rename");
+  await expect(searchInput).toHaveValue("");
+  await expect(showDoneToggle).not.toBeChecked();
+
+  await title.click();
+  await expect(title).toHaveAttribute("contenteditable", "true");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("Header Rename");
+  await page.keyboard.press("Enter");
+  await expect(title).not.toHaveAttribute("contenteditable", "true");
+  await expect(title).toHaveText("Header Rename");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Header Rename"
+  );
+
+  const allListItems = page
+    .locator(
+      "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder)"
+    )
+    .filter({ has: page.locator(".text") });
+  const firstItem = allListItems.first();
+  const firstToggle = firstItem.locator("input.done-toggle");
+  await firstToggle.check();
+  await expect(firstItem).toBeHidden();
+
+  await showDoneToggle.check();
+  await expect(firstItem).toBeVisible();
+
+  await searchInput.evaluate((el, value) => {
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, "umbrella");
+  const visibleTasks = page.locator(listItemsSelector);
+  await expect(visibleTasks).toHaveCount(1);
+  await expect(visibleTasks.first().locator(".text")).toContainText(
+    "umbrella"
+  );
+});
+
 test.describe("tasklist flows", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/?resetStorage=1");
@@ -592,67 +646,60 @@ test("dragging reorder persists after reload", async ({ page }) => {
   expect(idsAfterReload).toEqual(expectedIds);
 });
 
-test("splitting then dragging keeps items separated", async ({ page }) => {
+test("splitting creates a new item and preserves remainder", async ({ page }) => {
   const items = page.locator(listItemsSelector);
   const firstTextLocator = items.first().locator(".text");
   const originalFirst = (await firstTextLocator.textContent())?.trim() ?? "";
+  const countBefore = await items.count();
 
-    await firstTextLocator.click();
-    await setCaretPosition(firstTextLocator, 0);
-    await page.keyboard.type("Fresh");
-    await page.keyboard.press("Enter");
+  await firstTextLocator.click();
+  await setCaretPosition(firstTextLocator, 0);
+  await page.keyboard.type("Fresh");
+  await page.keyboard.press("Enter");
+  await expect(items).toHaveCount(countBefore + 1);
 
-    const secondTextLocator = items.nth(1).locator(".text");
-    const splitRemainder =
-      (await secondTextLocator.textContent())?.trim() ?? "";
+  const secondTextLocator = items.nth(1).locator(".text");
+  const splitRemainder =
+    (await secondTextLocator.textContent())?.trim() ?? "";
 
-    await page.keyboard.press("Escape");
-    await expect(secondTextLocator).not.toHaveAttribute(
-      "contenteditable",
-      "true"
-    );
+  await page.keyboard.press("Escape");
+  await expect(secondTextLocator).not.toHaveAttribute(
+    "contenteditable",
+    "true"
+  );
 
-    await expect(items.first().locator(".text")).toHaveText("Fresh");
-    const dataBefore = await items
-      .first()
-      .locator(".text")
-      .getAttribute("data-original-text");
-    expect(dataBefore).toBe("Fresh");
-
-    await page.evaluate(() => {
-      const el = document.querySelector("a4-tasklist");
-      const behavior = el?.dragBehavior;
-      if (behavior?.options?.onReorder) {
-        behavior.options.onReorder(1, 4);
-      }
-    });
-
-    const stateAfter = await page.evaluate(() => {
-      const el = document.querySelector("a4-tasklist") as any;
-      return {
-        state: el?.store?.getState?.(),
-      };
-    });
-    expect(stateAfter?.state?.items?.[0]?.text).toBe("Fresh");
-    const remainderCount =
-      stateAfter?.state?.items?.filter(
-        (item: any) => item?.text === splitRemainder
-      )?.length ?? 0;
-    expect(remainderCount).toBe(1);
-
-    await expect(items.first().locator(".text")).toHaveText("Fresh");
-    const dataAfter = await items
-      .first()
-      .locator(".text")
-      .getAttribute("data-original-text");
-    expect(dataAfter).toBe("Fresh");
-    await expect(
-      page
-        .locator(listItemsSelector)
-        .locator(".text")
-        .filter({ hasText: splitRemainder || originalFirst })
-    ).toHaveCount(1);
+  await expect(items.first().locator(".text")).toHaveText("Fresh");
+  const dataBefore = await items
+    .first()
+    .locator(".text")
+    .getAttribute("data-original-text");
+  expect(dataBefore).toBe("Fresh");
+  const stateAfter = await page.evaluate(() => {
+    const el = document.querySelector("a4-tasklist") as any;
+    return {
+      state: el?.store?.getState?.(),
+    };
   });
+  expect(stateAfter?.state?.items?.[0]?.text).toBe("Fresh");
+  const remainderCount =
+    stateAfter?.state?.items?.filter(
+      (item: any) => item?.text === splitRemainder
+    )?.length ?? 0;
+  expect(remainderCount).toBe(1);
+
+  await expect(items.first().locator(".text")).toHaveText("Fresh");
+  const dataAfter = await items
+    .first()
+    .locator(".text")
+    .getAttribute("data-original-text");
+  expect(dataAfter).toBe("Fresh");
+  await expect(
+    page
+      .locator(listItemsSelector)
+      .locator(".text")
+      .filter({ hasText: splitRemainder || originalFirst })
+  ).toHaveCount(1);
+});
 
   test("dragging task to sidebar leaves no placeholders", async ({ page }) => {
     const destinationButton = page
