@@ -310,6 +310,47 @@ test.describe("tasklist flows", () => {
     expect(caretAfterClamp).toBe(shortText.length);
   });
 
+  test("caret remains visible when editing items with @/# highlights", async ({
+    page,
+  }) => {
+    const items = page.locator(listItemsSelector);
+    const firstText = items.nth(0).locator(".text");
+    const secondText = items.nth(1).locator(".text");
+
+    await firstText.click();
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+    await firstText.fill("Plain item");
+    await page.keyboard.press("Escape");
+
+    const highlightedText = "Ping @alice about #launch";
+    await secondText.click();
+    await expect(secondText).toHaveAttribute("contenteditable", "true");
+    await secondText.fill(highlightedText);
+    await page.keyboard.press("Escape");
+
+    await expect(secondText.locator(".task-token-mention")).toHaveCount(1);
+    await expect(secondText.locator(".task-token-tag")).toHaveCount(1);
+
+    await firstText.click();
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+    const targetOffset = 6;
+    await setCaretPosition(firstText, targetOffset);
+    await page.keyboard.press("ArrowDown");
+
+    await expect(secondText).toHaveAttribute("contenteditable", "true");
+    const caretAfterNavigate = await getCaretOffset(secondText);
+    expect(caretAfterNavigate).not.toBeNull();
+
+    await page.keyboard.press("Escape");
+    await expect(secondText).not.toHaveAttribute("contenteditable", "true");
+    await expect(secondText.locator(".task-token-mention")).toHaveCount(1);
+
+    await secondText.click();
+    await expect(secondText).toHaveAttribute("contenteditable", "true");
+    const caretAfterClick = await getCaretOffset(secondText);
+    expect(caretAfterClick).not.toBeNull();
+  });
+
   test("search highlights matching tokens and clears after reset", async ({
     page,
   }) => {

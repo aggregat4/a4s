@@ -1,4 +1,4 @@
-import { html, render } from "../../vendor/lit-html.js";
+import { html, render, noChange } from "../../vendor/lit-html.js";
 import { live } from "../../vendor/directives/live.js";
 import DraggableBehavior, { FlipAnimator } from "../../lib/drag-behavior.js";
 import InlineTextEditor from "../../lib/inline-text-editor.js";
@@ -17,6 +17,16 @@ import {
 const escapeSelectorId = (value) => {
   if (typeof value !== "string") return "";
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+};
+
+const escapeHTML = (value) => {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 };
 
 // EditController queues follow-up edits so caret placement survives rerenders that
@@ -1269,28 +1279,19 @@ class A4TaskList extends HTMLElement {
     const isDone = Boolean(item.done);
     const itemId = item.id;
     const text = typeof item.text === "string" ? item.text : "";
-    const textSpan =
-      markup != null
-        ? html`
-            <span
-              class="text"
-              tabindex="0"
-              role="textbox"
-              aria-label="Task"
-              data-original-text=${text}
-              .innerHTML=${live(markup)}
-            ></span>
-          `
-        : html`
-            <span
-              class="text"
-              tabindex="0"
-              role="textbox"
-              aria-label="Task"
-              data-original-text=${text}
-              .textContent=${live(text)}
-            ></span>
-          `;
+    const htmlContent = isEditing
+      ? noChange
+      : live(markup != null ? markup : escapeHTML(text));
+    const textSpan = html`
+      <span
+        class="text"
+        tabindex="0"
+        role="textbox"
+        aria-label="Task"
+        data-original-text=${text}
+        .innerHTML=${htmlContent}
+      ></span>
+    `;
 
     return html`
       <li

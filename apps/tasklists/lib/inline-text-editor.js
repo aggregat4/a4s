@@ -61,6 +61,27 @@ export default class InlineTextEditor {
       // Clicking should leave the caret where the user aimed.
       this.placeCaret(textEl, triggerEvent);
     }
+
+    const ensureCaret = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return false;
+      const range = selection.getRangeAt(0);
+      if (!textEl.contains(range.startContainer)) return false;
+      if (!textEl.contains(range.endContainer)) return false;
+      return true;
+    };
+
+    // Some DOM mutations (e.g. swapping highlight markup for plain text) can cause the
+    // browser to drop the selection on the next frame even though contenteditable remains.
+    requestAnimationFrame(() => {
+      if (this.editingEl !== textEl) return;
+      if (ensureCaret()) return;
+      if (caretPreference) {
+        this.applyCaretPreference(textEl, caretPreference);
+      } else {
+        this.placeCaret(textEl, triggerEvent);
+      }
+    });
   }
 
   placeCaret(element, triggerEvent) {
