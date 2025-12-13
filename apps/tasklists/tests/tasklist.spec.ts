@@ -781,6 +781,61 @@ test.describe("tasklist flows", () => {
     ).toHaveCount(0);
   });
 
+  test("drag-and-drop positions item correctly and persists after reload", async ({
+    page,
+  }) => {
+    await expect(page.locator(listItemsSelector).first()).toBeVisible();
+    const items = page.locator(listItemsSelector);
+
+    // Get initial order
+    const initialOrder = await items.evaluateAll((elements) =>
+      elements.map(el => ({
+        id: el.dataset.itemId,
+        text: el.querySelector('.text').textContent.trim()
+      }))
+    );
+    expect(initialOrder.length).toBeGreaterThan(4);
+
+    // Select the item to drag - use the second item
+    const draggedId = initialOrder[1].id;
+
+    // Drag the item to position 4
+    await items.nth(1).dragTo(items.nth(4), {
+      sourcePosition: { x: 8, y: 12 },
+      targetPosition: { x: 8, y: 12 }
+    });
+
+    // Verify the dragged item moved
+    const newOrder = await items.evaluateAll((elements) =>
+      elements.map(el => ({
+        id: el.dataset.itemId,
+        text: el.querySelector('.text').textContent.trim()
+      }))
+    );
+
+    const newPosition = newOrder.findIndex(item => item.id === draggedId);
+    expect(newPosition).toBeGreaterThan(2); // Should have moved down
+
+    // Remember the order after drag
+    const postDragOrder = newOrder.map(item => item.id);
+
+    // Reload the page
+    await page.goto("/");
+    await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+      "Prototype Tasks"
+    );
+
+    // Get the order after reload
+    const postReloadItems = page.locator(listItemsSelector);
+    const postReloadOrder = await postReloadItems.evaluateAll((elements) =>
+      elements.map(el => el.dataset.itemId)
+    );
+
+    // BUG: This should pass but currently fails because drag order doesn't persist
+    // The dragged position is lost after reload
+    expect(postReloadOrder).toEqual(postDragOrder);
+  });
+
   test("deleting a list removes it and selects a fallback list", async ({
     page,
   }) => {
