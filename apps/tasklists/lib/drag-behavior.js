@@ -66,6 +66,7 @@ export default class DraggableBehavior {
     this._currentPlaceholderIndex = null;
     this._dropHandled = false;
     this.dragStartIndex = null;
+    this._lastClientY = null;
     this._lastDragOverLogTs = 0;
     this._lastDebugLogTs = 0;
 
@@ -171,6 +172,7 @@ export default class DraggableBehavior {
     this.endDrag();
     this._dropHandled = false;
     this._currentPlaceholderIndex = null;
+    this._lastClientY = null;
   }
 
   handleDragOver(event) {
@@ -186,6 +188,9 @@ export default class DraggableBehavior {
       this._pendingInitCoords = null;
     }
 
+    if (Number.isFinite(event.clientY)) {
+      this._lastClientY = event.clientY;
+    }
     this.debouncedDragOver(event.clientY);
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = "move";
@@ -199,7 +204,13 @@ export default class DraggableBehavior {
 
   handleDrop(event) {
     event.preventDefault();
-    this.drop(event.clientY);
+    const dropY =
+      event.clientY !== 0 && Number.isFinite(event.clientY)
+        ? event.clientY
+        : Number.isFinite(this._lastClientY)
+        ? this._lastClientY
+        : event.clientY;
+    this.drop(dropY);
     this.endDrag();
   }
 
@@ -246,6 +257,7 @@ export default class DraggableBehavior {
     this.dragging = li;
     this.dragStartIndex = this.getIndex(li);
     this.originalPosition = this.dragStartIndex;
+    this._lastClientY = Number.isFinite(startClientY) ? startClientY : null;
     this.invalidateItemsCache();
     this._currentPlaceholderIndex = this.originalPosition;
     this._dropHandled = false;
@@ -278,6 +290,7 @@ export default class DraggableBehavior {
     draggedRef.style.boxShadow = "";
     draggedRef.style.opacity = "";
     this.invalidateItemsCache();
+    this._lastClientY = null;
   }
 
   dragOver(clientY) {

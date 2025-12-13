@@ -257,6 +257,8 @@ class A4TaskList extends HTMLElement {
     this.pendingRestoreEdit = null;
     this.resumeEditOnBlur = null;
     this.resumeEditTimer = null;
+    this.lastDragReorderMove = null;
+    this.dragStartOrder = null;
 
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -338,6 +340,7 @@ class A4TaskList extends HTMLElement {
         pointerFallback: pointerFallbackEnabled,
         onReorder: (fromIndex, toIndex) => {
           const detail = { fromIndex, toIndex };
+          this.lastDragReorderMove = detail;
           this.listEl.dispatchEvent(new CustomEvent("reorder", { detail }));
           this.dispatchEvent(
             new CustomEvent("reorder", {
@@ -346,7 +349,8 @@ class A4TaskList extends HTMLElement {
               composed: true,
             })
           );
-          this.scheduleReorderUpdate({ fromIndex, toIndex });
+
+          // Persist + store reconciliation happen on drop/dragend so the DOM stays in control while dragging.
         },
         animator: new FlipAnimator(),
       });
@@ -685,7 +689,15 @@ class A4TaskList extends HTMLElement {
   }
 
   handleDragFinalize() {
-    this.scheduleReorderUpdate();
+    const beforeOrder = Array.isArray(this.dragStartOrder)
+      ? this.dragStartOrder
+      : null;
+    if (!beforeOrder?.length) return;
+    this.dragStartOrder = null;
+
+    const move = this.lastDragReorderMove;
+    this.lastDragReorderMove = null;
+    this.scheduleReorderUpdate({ beforeOrder, move });
   }
 
   ensureInlineEditor() {
@@ -1704,6 +1716,10 @@ class A4TaskList extends HTMLElement {
   }
 
   handleListDragStart(event) {
+    this.lastDragReorderMove = null;
+    this.dragStartOrder = this.store
+      ?.getState?.()
+      ?.items?.map((item) => item.id);
     const li = event?.target?.closest?.("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
@@ -1770,23 +1786,20 @@ class A4TaskList extends HTMLElement {
     }
   }
 
-  scheduleReorderUpdate(move) {
+  scheduleReorderUpdate({ beforeOrder, move } = {}) {
     if (!this.store || !this.listEl) return;
     Promise.resolve().then(() => {
       if (!this.store || !this.listEl) return;
-      const previousState = this.store.getState();
-      const prevOrder = Array.isArray(previousState?.items)
-        ? previousState.items.map((item) => item.id)
-        : [];
+      if (!Array.isArray(beforeOrder) || !beforeOrder.length) return;
 
       let order = [];
       if (
         move &&
         Number.isInteger(move.fromIndex) &&
         Number.isInteger(move.toIndex) &&
-        prevOrder.length
+        beforeOrder.length
       ) {
-        const next = [...prevOrder];
+        const next = beforeOrder.slice();
         const [moved] = next.splice(move.fromIndex, 1);
         if (moved) {
           const clampedTo = Math.max(0, Math.min(move.toIndex, next.length));
@@ -1801,45 +1814,63 @@ class A4TaskList extends HTMLElement {
           .map((li) => li.dataset.itemId)
           .filter(Boolean);
       }
-      if (order.length !== prevOrder.length) {
-        prevOrder.forEach((id) => {
+      if (!order.length) return;
+
+      if (order.length !== beforeOrder.length) {
+        beforeOrder.forEach((id) => {
           if (!order.includes(id)) {
             order.push(id);
           }
         });
       }
-      if (!order.length) return;
-      this._lastReorderDebug = {
-        prevOrder,
-        order,
-        timestamp: Date.now(),
-        move,
-      };
-      const itemMap = new Map(
-        Array.isArray(previousState?.items)
-          ? previousState.items.map((item) => [item.id, item])
-          : []
-      );
-      const nextItems = order.map((id) => itemMap.get(id)).filter(Boolean);
-      if (nextItems.length !== itemMap.size) return;
+      if (
+        order.length !== beforeOrder.length ||
+        beforeOrder.every((id, index) => id === order[index])
+      ) {
+        return;
+      }
+
+      // Drag behavior physically reorders <li> nodes, which can confuse lit-html's internal part bookkeeping.
+      // Reset the render part before dispatching so the next render recreates the list DOM deterministically.
+      try {
+        delete this.listEl._$litPart$;
+      } catch (err) {
+        // ignore
+      }
+      this.listEl.textContent = "";
+
       this.store.dispatch({
-        type: LIST_ACTIONS.replaceAll,
-        payload: { title: previousState.title ?? "", items: nextItems },
+        type: LIST_ACTIONS.reorderItems,
+        payload: { order },
       });
-      if (this._repository && this.listId) {
-        let movedId =
-          move && Number.isInteger(move.fromIndex)
-            ? prevOrder[move.fromIndex] ?? null
-            : null;
-        if (!movedId) {
-          for (let i = 0; i < order.length; i++) {
-            if (order[i] !== prevOrder[i]) {
-              movedId = order[i];
-              break;
-            }
+
+      const findMovedId = (before, after) => {
+        if (!Array.isArray(before) || !Array.isArray(after)) return null;
+        if (before.length !== after.length) return null;
+        if (before.every((id, index) => id === after[index])) return null;
+        for (const id of before) {
+          const beforeWithout = before.filter((entry) => entry !== id);
+          const afterWithout = after.filter((entry) => entry !== id);
+          if (
+            beforeWithout.length === afterWithout.length &&
+            beforeWithout.every((entry, index) => entry === afterWithout[index])
+          ) {
+            return id;
           }
         }
-        if (!movedId) return;
+        return null;
+      };
+
+      let movedId =
+        move && Number.isInteger(move.fromIndex)
+          ? beforeOrder[move.fromIndex] ?? null
+          : null;
+      if (!movedId || !order.includes(movedId)) {
+        movedId = findMovedId(beforeOrder, order);
+      }
+      if (!movedId) return;
+
+      if (this._repository && this.listId) {
         const targetIndex = order.indexOf(movedId);
         const beforeNeighbor = order[targetIndex - 1] ?? null;
         const afterNeighbor = order[targetIndex + 1] ?? null;

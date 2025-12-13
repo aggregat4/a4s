@@ -789,12 +789,13 @@ test.describe("tasklist flows", () => {
 
     // Get initial order
     const initialOrder = await items.evaluateAll((elements) =>
-      elements.map(el => ({
+      elements.map((el) => ({
         id: el.dataset.itemId,
-        text: el.querySelector('.text').textContent.trim()
+        text: el.querySelector(".text").textContent.trim(),
       }))
     );
     expect(initialOrder.length).toBeGreaterThan(4);
+    const initialIds = initialOrder.map((item) => item.id);
 
     // Select the item to drag - use the second item
     const draggedId = initialOrder[1].id;
@@ -802,22 +803,46 @@ test.describe("tasklist flows", () => {
     // Drag the item to position 4
     await items.nth(1).dragTo(items.nth(4), {
       sourcePosition: { x: 8, y: 12 },
-      targetPosition: { x: 8, y: 12 }
+      targetPosition: { x: 8, y: 12 },
     });
 
-    // Verify the dragged item moved
-    const newOrder = await items.evaluateAll((elements) =>
-      elements.map(el => ({
-        id: el.dataset.itemId,
-        text: el.querySelector('.text').textContent.trim()
-      }))
-    );
+    const expectedOrder = await (async () => {
+      const deadline = Date.now() + 5000;
+      let lastCandidate: string[] | null = null;
+      let stableCount = 0;
 
-    const newPosition = newOrder.findIndex(item => item.id === draggedId);
-    expect(newPosition).toBeGreaterThan(2); // Should have moved down
+      while (Date.now() < deadline) {
+        const ids =
+          (await items.evaluateAll((els) =>
+            els.map((el) => el.dataset?.itemId ?? "")
+          )) ?? [];
+        const draggedIndex = ids.indexOf(draggedId ?? "");
+        const isDifferent =
+          ids.length === initialIds.length &&
+          ids.some((id, idx) => id !== initialIds[idx]);
 
-    // Remember the order after drag
-    const postDragOrder = newOrder.map(item => item.id);
+        if (isDifferent && draggedIndex > 2) {
+          const isSameAsLast =
+            lastCandidate?.length === ids.length &&
+            ids.every((id, idx) => id === lastCandidate?.[idx]);
+          if (isSameAsLast) {
+            stableCount += 1;
+          } else {
+            stableCount = 1;
+            lastCandidate = ids;
+          }
+
+          if (stableCount >= 3) return ids;
+        } else {
+          stableCount = 0;
+          lastCandidate = null;
+        }
+
+        await page.waitForTimeout(100);
+      }
+
+      throw new Error("Timed out waiting for stable post-drag order");
+    })();
 
     // Reload the page
     await page.goto("/");
@@ -828,12 +853,10 @@ test.describe("tasklist flows", () => {
     // Get the order after reload
     const postReloadItems = page.locator(listItemsSelector);
     const postReloadOrder = await postReloadItems.evaluateAll((elements) =>
-      elements.map(el => el.dataset.itemId)
+      elements.map((el) => el.dataset.itemId)
     );
 
-    // BUG: This should pass but currently fails because drag order doesn't persist
-    // The dragged position is lost after reload
-    expect(postReloadOrder).toEqual(postDragOrder);
+    expect(postReloadOrder).toEqual(expectedOrder);
   });
 
   test("deleting a list removes it and selects a fallback list", async ({
