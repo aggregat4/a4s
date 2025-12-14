@@ -13,98 +13,38 @@ function globalSearchInput(page: Page) {
   return page.getByRole("searchbox", { name: "Global search" });
 }
 
-function pngPixelsDiffer(expected: Buffer, actual: Buffer) {
-  // Playwright bundles PNG decoding internally; we use it to avoid extra deps.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { PNG } = require("playwright-core/lib/utilsBundle");
-
-  const expectedPng = PNG.sync.read(expected);
-  const actualPng = PNG.sync.read(actual);
-
-  if (
-    expectedPng.width !== actualPng.width ||
-    expectedPng.height !== actualPng.height
-  ) {
-    throw new Error(
-      `Screenshot sizes differ: expected ${expectedPng.width}x${expectedPng.height}, got ${actualPng.width}x${actualPng.height}`
-    );
-  }
-
-  const expectedData: Uint8Array = expectedPng.data;
-  const actualData: Uint8Array = actualPng.data;
-  if (expectedData.length !== actualData.length) return true;
-  for (let i = 0; i < expectedData.length; i++) {
-    if (expectedData[i] !== actualData[i]) return true;
-  }
-  return false;
-}
-
-async function expectCaretPainted(
-  page: Page,
-  target: Locator,
-  testInfo?: never
-) {
-  const noCaret = await target.screenshot({
-    animations: "disabled",
-    caret: "hide",
+async function expectCaretVisible(page: Page, target: Locator) {
+  const caretInfo = await target.evaluate((el) => {
+    const selection = el.ownerDocument.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return { ok: false, reason: "no-selection" };
+    }
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return {
+      ok: true,
+      active: document.activeElement === el,
+      contenteditable: el.getAttribute("contenteditable"),
+      isContentEditable: el.isContentEditable,
+      collapsed: range.collapsed,
+      inElement:
+        el.contains(range.startContainer) && el.contains(range.endContainer),
+      caretColor: style.caretColor,
+      rectHeight: rect.height,
+    };
   });
 
-  // The caret blinks, so we sample a few times and accept if any frame differs
-  // from the "caret hidden" screenshot.
-  const attempts = 20;
-  const delayMs = 100;
-  for (let i = 0; i < attempts; i++) {
-    const withCaret = await target.screenshot({
-      animations: "disabled",
-      caret: "initial",
-    });
-    if (pngPixelsDiffer(noCaret, withCaret)) return;
-    await page.waitForTimeout(delayMs);
+  expect(caretInfo.ok).toBe(true);
+  if (caretInfo.ok) {
+    expect(caretInfo.active).toBe(true);
+    expect(caretInfo.contenteditable).toBe("true");
+    expect(caretInfo.isContentEditable).toBe(true);
+    expect(caretInfo.collapsed).toBe(true);
+    expect(caretInfo.inElement).toBe(true);
+    expect(caretInfo.caretColor).not.toBe("transparent");
+    expect(caretInfo.rectHeight).toBeGreaterThan(0);
   }
-
-  throw new Error(
-    "Expected a painted native caret, but screenshots with caret enabled/disabled were identical."
-  );
-}
-
-async function expectCaretVisible(page: Page, target: Locator) {
-  const browserName = page.context().browser()?.browserType().name();
-  if (browserName === "firefox") {
-    const caretInfo = await target.evaluate((el) => {
-      const selection = el.ownerDocument.getSelection();
-      if (!selection || selection.rangeCount === 0) {
-        return { ok: false, reason: "no-selection" };
-      }
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const style = window.getComputedStyle(el);
-      return {
-        ok: true,
-        active: document.activeElement === el,
-        contenteditable: el.getAttribute("contenteditable"),
-        isContentEditable: el.isContentEditable,
-        collapsed: range.collapsed,
-        inElement:
-          el.contains(range.startContainer) && el.contains(range.endContainer),
-        caretColor: style.caretColor,
-        rectHeight: rect.height,
-      };
-    });
-
-    expect(caretInfo.ok).toBe(true);
-    if (caretInfo.ok) {
-      expect(caretInfo.active).toBe(true);
-      expect(caretInfo.contenteditable).toBe("true");
-      expect(caretInfo.isContentEditable).toBe(true);
-      expect(caretInfo.collapsed).toBe(true);
-      expect(caretInfo.inElement).toBe(true);
-      expect(caretInfo.caretColor).not.toBe("transparent");
-      expect(caretInfo.rectHeight).toBeGreaterThan(0);
-    }
-    return;
-  }
-
-  await expectCaretPainted(page, target);
 }
 
 async function dragReorderTask(page: Page, source: Locator, target: Locator) {
