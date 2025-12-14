@@ -108,76 +108,12 @@ async function expectCaretVisible(page: Page, target: Locator) {
 }
 
 async function dragReorderTask(page: Page, source: Locator, target: Locator) {
-  const browserName = page.context().browser()?.browserType().name();
-  if (browserName !== "firefox") {
-    await source.dragTo(target, {
-      sourcePosition: { x: 8, y: 12 },
-      targetPosition: { x: 8, y: 12 },
-    });
-    return;
-  }
-
-  const sourceHandle = await source.elementHandle();
-  const targetHandle = await target.elementHandle();
-  if (!sourceHandle || !targetHandle) {
-    throw new Error("Could not resolve drag handles for reorder.");
-  }
-
-  await page.evaluate(
-    ({ sourceEl, targetEl }) => {
-      const sourceNode = sourceEl;
-      const targetNode = targetEl;
-      const container = sourceNode?.parentElement;
-      if (!sourceNode || !targetNode || !container) {
-        throw new Error("Missing drag source/target/container nodes.");
-      }
-
-      const sourceRect = sourceNode.getBoundingClientRect();
-      const targetRect = targetNode.getBoundingClientRect();
-      const dt = new DataTransfer();
-
-      sourceNode.dispatchEvent(
-        new DragEvent("dragstart", {
-          bubbles: true,
-          cancelable: true,
-          clientX: sourceRect.left + 8,
-          clientY: sourceRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-
-      container.dispatchEvent(
-        new DragEvent("dragover", {
-          bubbles: true,
-          cancelable: true,
-          clientX: targetRect.left + 8,
-          clientY: targetRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-
-      container.dispatchEvent(
-        new DragEvent("drop", {
-          bubbles: true,
-          cancelable: true,
-          clientX: targetRect.left + 8,
-          clientY: targetRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-
-      sourceNode.dispatchEvent(
-        new DragEvent("dragend", {
-          bubbles: true,
-          cancelable: true,
-          clientX: targetRect.left + 8,
-          clientY: targetRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-    },
-    { sourceEl: sourceHandle, targetEl: targetHandle }
-  );
+  // Drag from the dedicated handle so we don't accidentally enter edit mode
+  // (editing is triggered on pointerdown for Firefox caret correctness).
+  await source.locator(".handle").dragTo(target, {
+    sourcePosition: { x: 8, y: 12 },
+    targetPosition: { x: 8, y: 12 },
+  });
 }
 
 async function dragTaskToSidebarTarget(
@@ -185,74 +121,7 @@ async function dragTaskToSidebarTarget(
   sourceItem: Locator,
   target: Locator
 ) {
-  const sourceHandle = await sourceItem.elementHandle();
-  const targetHandle = await target.elementHandle();
-  if (!sourceHandle || !targetHandle) {
-    throw new Error("Could not resolve drag handles for sidebar drag.");
-  }
-
-  await page.evaluate(
-    ({ sourceEl, targetEl }) => {
-      const sourceNode = sourceEl;
-      const targetNode = targetEl;
-      if (!sourceNode || !targetNode) {
-        throw new Error("Missing drag source/target nodes.");
-      }
-
-      const sourceRect = sourceNode.getBoundingClientRect();
-      const targetRect = targetNode.getBoundingClientRect();
-      const dt = new DataTransfer();
-
-      sourceNode.dispatchEvent(
-        new DragEvent("dragstart", {
-          bubbles: true,
-          cancelable: true,
-          clientX: sourceRect.left + 8,
-          clientY: sourceRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-
-      targetNode.dispatchEvent(
-        new DragEvent("dragenter", {
-          bubbles: true,
-          cancelable: true,
-          clientX: targetRect.left + 8,
-          clientY: targetRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-      targetNode.dispatchEvent(
-        new DragEvent("dragover", {
-          bubbles: true,
-          cancelable: true,
-          clientX: targetRect.left + 8,
-          clientY: targetRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-      targetNode.dispatchEvent(
-        new DragEvent("drop", {
-          bubbles: true,
-          cancelable: true,
-          clientX: targetRect.left + 8,
-          clientY: targetRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-
-      sourceNode.dispatchEvent(
-        new DragEvent("dragend", {
-          bubbles: true,
-          cancelable: true,
-          clientX: targetRect.left + 8,
-          clientY: targetRect.top + 12,
-          dataTransfer: dt,
-        })
-      );
-    },
-    { sourceEl: sourceHandle, targetEl: targetHandle }
-  );
+  await sourceItem.locator(".handle").dragTo(target);
 }
 
 async function setShowDone(page: Page, value: boolean) {
