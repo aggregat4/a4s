@@ -269,6 +269,8 @@ class A4TaskList extends HTMLElement {
     this.resumeEditTimer = null;
     this.lastDragReorderMove = null;
     this.dragStartOrder = null;
+    this.repositorySyncPaused = 0;
+    this.queuedRepositoryState = null;
 
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -323,6 +325,21 @@ class A4TaskList extends HTMLElement {
 
   set initialState(value) {
     this.applyRepositoryState(value ?? { title: "", items: [] });
+  }
+
+  pauseRepositorySync() {
+    this.repositorySyncPaused += 1;
+  }
+
+  resumeRepositorySync() {
+    if (this.repositorySyncPaused > 0) {
+      this.repositorySyncPaused -= 1;
+    }
+    if (this.repositorySyncPaused !== 0) return;
+    if (!this.queuedRepositoryState) return;
+    const queued = this.queuedRepositoryState;
+    this.queuedRepositoryState = null;
+    this.applyRepositoryState(queued);
   }
 
   connectedCallback() {
@@ -451,6 +468,11 @@ class A4TaskList extends HTMLElement {
   }
 
   applyRepositoryState(state) {
+    if (this.repositorySyncPaused > 0) {
+      this.queuedRepositoryState = state;
+      this._initialState = cloneListState(state);
+      return;
+    }
     const next = cloneListState(state);
     this._initialState = next;
     if (this.store) {
@@ -1009,19 +1031,24 @@ class A4TaskList extends HTMLElement {
     this.startEditingItem(newId, "start");
     this.schedulePendingEditFlush();
     if (this._repository && this.listId) {
+      this.pauseRepositorySync();
       const promise = (async () => {
-        if (typeof beforeText === "string") {
-          await this._repository.updateTask(this.listId, id, {
-            text: beforeText,
+        try {
+          if (typeof beforeText === "string") {
+            await this._repository.updateTask(this.listId, id, {
+              text: beforeText,
+            });
+          }
+          await this._repository.insertTask(this.listId, {
+            itemId: newId,
+            text: typeof afterText === "string" ? afterText : "",
+            done: false,
+            afterId: id,
+            beforeId: nextItemId ?? undefined,
           });
+        } finally {
+          this.resumeRepositorySync();
         }
-        await this._repository.insertTask(this.listId, {
-          itemId: newId,
-          text: typeof afterText === "string" ? afterText : "",
-          done: false,
-          afterId: id,
-          beforeId: nextItemId ?? undefined,
-        });
       })();
       this.runRepositoryOperation(promise);
     }

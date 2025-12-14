@@ -13,6 +13,248 @@ function globalSearchInput(page: Page) {
   return page.getByRole("searchbox", { name: "Global search" });
 }
 
+function pngPixelsDiffer(expected: Buffer, actual: Buffer) {
+  // Playwright bundles PNG decoding internally; we use it to avoid extra deps.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { PNG } = require("playwright-core/lib/utilsBundle");
+
+  const expectedPng = PNG.sync.read(expected);
+  const actualPng = PNG.sync.read(actual);
+
+  if (
+    expectedPng.width !== actualPng.width ||
+    expectedPng.height !== actualPng.height
+  ) {
+    throw new Error(
+      `Screenshot sizes differ: expected ${expectedPng.width}x${expectedPng.height}, got ${actualPng.width}x${actualPng.height}`
+    );
+  }
+
+  const expectedData: Uint8Array = expectedPng.data;
+  const actualData: Uint8Array = actualPng.data;
+  if (expectedData.length !== actualData.length) return true;
+  for (let i = 0; i < expectedData.length; i++) {
+    if (expectedData[i] !== actualData[i]) return true;
+  }
+  return false;
+}
+
+async function expectCaretPainted(
+  page: Page,
+  target: Locator,
+  testInfo?: never
+) {
+  const noCaret = await target.screenshot({
+    animations: "disabled",
+    caret: "hide",
+  });
+
+  // The caret blinks, so we sample a few times and accept if any frame differs
+  // from the "caret hidden" screenshot.
+  const attempts = 20;
+  const delayMs = 100;
+  for (let i = 0; i < attempts; i++) {
+    const withCaret = await target.screenshot({
+      animations: "disabled",
+      caret: "initial",
+    });
+    if (pngPixelsDiffer(noCaret, withCaret)) return;
+    await page.waitForTimeout(delayMs);
+  }
+
+  throw new Error(
+    "Expected a painted native caret, but screenshots with caret enabled/disabled were identical."
+  );
+}
+
+async function expectCaretVisible(page: Page, target: Locator) {
+  const browserName = page.context().browser()?.browserType().name();
+  if (browserName === "firefox") {
+    const caretInfo = await target.evaluate((el) => {
+      const selection = el.ownerDocument.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        return { ok: false, reason: "no-selection" };
+      }
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return {
+        ok: true,
+        active: document.activeElement === el,
+        contenteditable: el.getAttribute("contenteditable"),
+        isContentEditable: el.isContentEditable,
+        collapsed: range.collapsed,
+        inElement:
+          el.contains(range.startContainer) && el.contains(range.endContainer),
+        caretColor: style.caretColor,
+        rectHeight: rect.height,
+      };
+    });
+
+    expect(caretInfo.ok).toBe(true);
+    if (caretInfo.ok) {
+      expect(caretInfo.active).toBe(true);
+      expect(caretInfo.contenteditable).toBe("true");
+      expect(caretInfo.isContentEditable).toBe(true);
+      expect(caretInfo.collapsed).toBe(true);
+      expect(caretInfo.inElement).toBe(true);
+      expect(caretInfo.caretColor).not.toBe("transparent");
+      expect(caretInfo.rectHeight).toBeGreaterThan(0);
+    }
+    return;
+  }
+
+  await expectCaretPainted(page, target);
+}
+
+async function dragReorderTask(page: Page, source: Locator, target: Locator) {
+  const browserName = page.context().browser()?.browserType().name();
+  if (browserName !== "firefox") {
+    await source.dragTo(target, {
+      sourcePosition: { x: 8, y: 12 },
+      targetPosition: { x: 8, y: 12 },
+    });
+    return;
+  }
+
+  const sourceHandle = await source.elementHandle();
+  const targetHandle = await target.elementHandle();
+  if (!sourceHandle || !targetHandle) {
+    throw new Error("Could not resolve drag handles for reorder.");
+  }
+
+  await page.evaluate(
+    ({ sourceEl, targetEl }) => {
+      const sourceNode = sourceEl;
+      const targetNode = targetEl;
+      const container = sourceNode?.parentElement;
+      if (!sourceNode || !targetNode || !container) {
+        throw new Error("Missing drag source/target/container nodes.");
+      }
+
+      const sourceRect = sourceNode.getBoundingClientRect();
+      const targetRect = targetNode.getBoundingClientRect();
+      const dt = new DataTransfer();
+
+      sourceNode.dispatchEvent(
+        new DragEvent("dragstart", {
+          bubbles: true,
+          cancelable: true,
+          clientX: sourceRect.left + 8,
+          clientY: sourceRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+
+      container.dispatchEvent(
+        new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          clientX: targetRect.left + 8,
+          clientY: targetRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+
+      container.dispatchEvent(
+        new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          clientX: targetRect.left + 8,
+          clientY: targetRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+
+      sourceNode.dispatchEvent(
+        new DragEvent("dragend", {
+          bubbles: true,
+          cancelable: true,
+          clientX: targetRect.left + 8,
+          clientY: targetRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+    },
+    { sourceEl: sourceHandle, targetEl: targetHandle }
+  );
+}
+
+async function dragTaskToSidebarTarget(
+  page: Page,
+  sourceItem: Locator,
+  target: Locator
+) {
+  const sourceHandle = await sourceItem.elementHandle();
+  const targetHandle = await target.elementHandle();
+  if (!sourceHandle || !targetHandle) {
+    throw new Error("Could not resolve drag handles for sidebar drag.");
+  }
+
+  await page.evaluate(
+    ({ sourceEl, targetEl }) => {
+      const sourceNode = sourceEl;
+      const targetNode = targetEl;
+      if (!sourceNode || !targetNode) {
+        throw new Error("Missing drag source/target nodes.");
+      }
+
+      const sourceRect = sourceNode.getBoundingClientRect();
+      const targetRect = targetNode.getBoundingClientRect();
+      const dt = new DataTransfer();
+
+      sourceNode.dispatchEvent(
+        new DragEvent("dragstart", {
+          bubbles: true,
+          cancelable: true,
+          clientX: sourceRect.left + 8,
+          clientY: sourceRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+
+      targetNode.dispatchEvent(
+        new DragEvent("dragenter", {
+          bubbles: true,
+          cancelable: true,
+          clientX: targetRect.left + 8,
+          clientY: targetRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+      targetNode.dispatchEvent(
+        new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          clientX: targetRect.left + 8,
+          clientY: targetRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+      targetNode.dispatchEvent(
+        new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          clientX: targetRect.left + 8,
+          clientY: targetRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+
+      sourceNode.dispatchEvent(
+        new DragEvent("dragend", {
+          bubbles: true,
+          cancelable: true,
+          clientX: targetRect.left + 8,
+          clientY: targetRect.top + 12,
+          dataTransfer: dt,
+        })
+      );
+    },
+    { sourceEl: sourceHandle, targetEl: targetHandle }
+  );
+}
+
 async function setShowDone(page: Page, value: boolean) {
   const toggle = showDoneToggle(page);
   if (value) {
@@ -351,6 +593,13 @@ test.describe("tasklist flows", () => {
     expect(caretAfterClick).not.toBeNull();
   });
 
+  test("clicking into a task shows a native caret", async ({ page }) => {
+    const firstText = page.locator(listItemsSelector).first().locator(".text");
+    await firstText.click({ position: { x: 80, y: 10 } });
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+    await expectCaretVisible(page, firstText);
+  });
+
   test("search highlights matching tokens and clears after reset", async ({
     page,
   }) => {
@@ -617,10 +866,7 @@ test.describe("tasklist flows", () => {
       (await items.nth(1).locator(".text").textContent())?.trim() ?? "";
     const secondId = await items.nth(1).getAttribute("data-item-id");
 
-    await items.nth(1).dragTo(items.nth(4), {
-      sourcePosition: { x: 8, y: 12 },
-      targetPosition: { x: 8, y: 12 },
-    });
+    await dragReorderTask(page, items.nth(1), items.nth(4));
 
     await expect
       .poll(
@@ -654,10 +900,7 @@ test.describe("tasklist flows", () => {
     );
     expect(initialIds.length).toBeGreaterThan(4);
 
-    await items.nth(1).dragTo(items.nth(4), {
-      sourcePosition: { x: 8, y: 12 },
-      targetPosition: { x: 8, y: 12 },
-    });
+    await dragReorderTask(page, items.nth(1), items.nth(4));
 
     const idsAfterDrag = await expect
       .poll(
@@ -757,7 +1000,11 @@ test.describe("tasklist flows", () => {
           .textContent()
       )?.trim() ?? "";
 
-    await page.locator(listItemsSelector).first().dragTo(destinationButton);
+    await dragTaskToSidebarTarget(
+      page,
+      page.locator(listItemsSelector).first(),
+      destinationButton
+    );
 
     await expect(page.locator("ol.tasklist li.placeholder")).toHaveCount(0);
     await expect(destinationButton).not.toHaveClass(/is-drop-target/);
@@ -794,7 +1041,7 @@ test.describe("tasklist flows", () => {
       (await sourceItem.locator(".text").textContent())?.trim() ?? "";
     expect(sourceText.length).toBeGreaterThan(0);
 
-    await sourceItem.dragTo(weekendButton);
+    await dragTaskToSidebarTarget(page, sourceItem, weekendButton);
 
     await weekendButton.click();
     await expect(activeTitle).toHaveText("Weekend Projects");
@@ -842,10 +1089,7 @@ test.describe("tasklist flows", () => {
     const draggedId = initialOrder[1].id;
 
     // Drag the item to position 4
-    await items.nth(1).dragTo(items.nth(4), {
-      sourcePosition: { x: 8, y: 12 },
-      targetPosition: { x: 8, y: 12 },
-    });
+    await dragReorderTask(page, items.nth(1), items.nth(4));
 
     const expectedOrder = await (async () => {
       const deadline = Date.now() + 5000;

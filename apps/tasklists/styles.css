@@ -370,7 +370,6 @@ ol.tasklist {
         border: 1px solid var(--color-border);
         border-bottom: 2px solid var(--color-border-strong);
         overflow: hidden;
-        will-change: transform;
         transition:
             background-color var(--transition-fast),
             box-shadow var(--transition-fast);
@@ -527,6 +526,7 @@ ol.tasklist {
     }
 
     > li.dragging {
+        will-change: transform;
         outline: 3px dotted #6d7dbd;
         box-shadow: var(--shadow-drag);
         background: var(--color-surface);
@@ -564,10 +564,12 @@ a4-tasklist.tasklist-no-matches .tasklist-empty {
 }
 
 .flip-animating {
+    will-change: transform;
     transition: transform 140ms ease;
 }
 
 .drop-animation {
+    will-change: transform;
     animation: dropSlide var(--drop-duration) ease-out;
 }
 

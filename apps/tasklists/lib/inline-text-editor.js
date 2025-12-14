@@ -8,17 +8,38 @@ export default class InlineTextEditor {
     this.initialTextValue = "";
     // Bind once so we can add/remove listeners without recreating closures.
     this.handleClick = this.handleClick.bind(this);
+    this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handleBlur = this.handleBlur.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.list.addEventListener("click", this.handleClick);
+    // Why we start editing on `pointerdown` (capture):
+    // - `click` fires after `pointerup`, which is after the browser has already
+    //   decided where to place/paint the caret for a pointer interaction.
+    // - In Firefox we observed: after a click we can have a valid Selection/Range
+    //   (and our debug overlay tracks it), but *no visible caret* until the user
+    //   navigates with the keyboard.
+    // - Starting editing on `pointerdown` (capture) makes the target `contenteditable`
+    //   before the browser's caret painting step for the pointer, which restores
+    //   the expected visible caret on click.
+    this.list.addEventListener("pointerdown", this.handlePointerDown, true);
   }
 
   destroy() {
     this.list.removeEventListener("click", this.handleClick);
+    this.list.removeEventListener("pointerdown", this.handlePointerDown, true);
     if (this.editingEl) {
       this.finishEditing(this.editingEl, true);
     }
     this.list = null;
+  }
+
+  handlePointerDown(e) {
+    if (!e) return;
+    if (e.button != null && e.button !== 0) return;
+    if (e.isPrimary === false) return;
+    const text = e.target.closest(".text");
+    if (!text || !this.list.contains(text)) return;
+    this.startEditing(text, e);
   }
 
   handleClick(e) {
@@ -57,6 +78,13 @@ export default class InlineTextEditor {
     if (caretPreference) {
       // When we resume editing after merges/moves we honour the stored caret preference.
       this.applyCaretPreference(textEl, caretPreference);
+    } else if (
+      triggerEvent &&
+      (triggerEvent.type === "pointerdown" || triggerEvent.type === "mousedown")
+    ) {
+      // Let the browser place the caret natively for pointer interactions.
+      // For Firefox specifically, forcing a programmatic selection here can yield
+      // a correct Range but still no painted caret until a keyboard action.
     } else {
       // Clicking should leave the caret where the user aimed.
       this.placeCaret(textEl, triggerEvent);
@@ -87,8 +115,11 @@ export default class InlineTextEditor {
   placeCaret(element, triggerEvent) {
     const selection = window.getSelection();
     if (!selection) return;
-    // Try to put the caret at the click position
-    let range = null;
+    // Try to put the caret at the click position.
+    // Firefox can sometimes fail to paint a caret when selection is set directly
+    // from caretPositionFromPoint/caretRangeFromPoint, so we normalize to a text
+    // offset and place the caret via setSelectionAtOffset().
+    let desiredOffset = null;
     if (
       triggerEvent &&
       typeof triggerEvent.clientX === "number" &&
@@ -101,31 +132,50 @@ export default class InlineTextEditor {
           triggerEvent.clientY
         );
         if (pos) {
-          range = doc.createRange();
-          range.setStart(pos.offsetNode, pos.offset);
-          range.collapse(true);
+          try {
+            const pre = doc.createRange();
+            pre.selectNodeContents(element);
+            pre.setEnd(pos.offsetNode, pos.offset);
+            desiredOffset = pre.toString().length;
+            pre.detach?.();
+          } catch {
+            desiredOffset = null;
+          }
         }
       } else if (doc.caretRangeFromPoint) {
-        range = doc.caretRangeFromPoint(
+        const pointRange = doc.caretRangeFromPoint(
           triggerEvent.clientX,
           triggerEvent.clientY
         );
-        if (range && !range.collapsed) {
-          range.collapse(true);
+        if (pointRange) {
+          pointRange.collapse(true);
+          if (element.contains(pointRange.startContainer)) {
+            try {
+              const pre = doc.createRange();
+              pre.selectNodeContents(element);
+              pre.setEnd(pointRange.startContainer, pointRange.startOffset);
+              desiredOffset = pre.toString().length;
+              pre.detach?.();
+            } catch {
+              desiredOffset = null;
+            }
+          }
         }
       }
-      if (range && !element.contains(range.startContainer)) {
-        range = null;
+    }
+    if (typeof desiredOffset === "number") {
+      if (this.setSelectionAtOffset(element, desiredOffset, "start")) {
+        element.focus();
+        return;
       }
     }
-    if (!range) {
-      // Fall back to selecting the whole element so Escape will revert the edit cleanly.
-      range = element.ownerDocument.createRange();
-      range.selectNodeContents(element);
-      range.collapse(false);
+
+    // Fall back to placing the caret at the end.
+    const length = element?.textContent?.length ?? 0;
+    if (this.setSelectionAtOffset(element, length, "end")) {
+      element.focus();
+      return;
     }
-    selection.removeAllRanges();
-    selection.addRange(range);
   }
 
   handleBlur(e) {
