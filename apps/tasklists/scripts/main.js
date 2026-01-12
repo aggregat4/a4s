@@ -1,4 +1,3 @@
-import ListsApp from "./lists-app.js";
 import { ListRepository } from "../lib/app/list-repository.js";
 import { DEFAULT_DB_NAME as LISTS_DB_NAME } from "../lib/storage/list-storage.js";
 import "./components/app-shell.js";
@@ -76,6 +75,7 @@ function waitForDocumentReady() {
 
 export async function bootstrapListsApp({ seedConfigs } = {}) {
   await waitForDocumentReady();
+  await customElements.whenDefined("a4-lists-app");
   let appRoot = document.querySelector("[data-role='lists-app']");
   if (!appRoot) {
     appRoot = document.createElement("a4-lists-app");
@@ -83,26 +83,17 @@ export async function bootstrapListsApp({ seedConfigs } = {}) {
     document.body.appendChild(appRoot);
   }
   if (!appRoot) return null;
-  const sidebarElement = appRoot.querySelector("[data-role='sidebar']");
-  const mainElement = appRoot.querySelector("[data-role='main']");
-  const mainTitleElement =
-    mainElement?.querySelector("[data-role='active-list-title']") ?? null;
-  const moveDialogElement =
-    appRoot.querySelector("[data-role='move-dialog']") ??
-    document.querySelector("[data-role='move-dialog']");
+  if (typeof customElements.upgrade === "function") {
+    customElements.upgrade(appRoot);
+  }
   await resetPersistentStorageIfNeeded();
   const repository = new ListRepository();
   await ensureDemoData(repository, seedConfigs).catch(() => {});
-  const app = new ListsApp({
-    sidebarElement,
-    mainElement,
-    mainTitleElement,
-    moveDialogElement,
-    listRepository: repository,
-  });
-  await app.initialize();
-  window.listsApp = app;
-  return app;
+  if (typeof appRoot.initialize === "function") {
+    await appRoot.initialize({ repository });
+  }
+  window.listsApp = appRoot;
+  return appRoot;
 }
 
 export {

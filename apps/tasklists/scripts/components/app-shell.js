@@ -9,6 +9,7 @@ import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
 import "./sidebar.js";
 import "./main-pane.js";
 import "./move-dialog.js";
+import "./a4-tasklist.js";
 
 class ListsAppShellElement extends HTMLElement {
   constructor() {
@@ -29,6 +30,8 @@ class ListsAppShellElement extends HTMLElement {
     this.lastSearchQuery = "";
     this.lastOrder = [];
     this.lastActiveId = null;
+    this.pendingMainRender = null;
+    this.mainRenderScheduled = false;
 
     this.handleStoreChange = this.handleStoreChange.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
@@ -79,6 +82,14 @@ class ListsAppShellElement extends HTMLElement {
   async initialize({ repository } = {}) {
     if (this.appInitialized) return;
     this.renderShell();
+    await Promise.all([
+      customElements.whenDefined("a4-sidebar"),
+      customElements.whenDefined("a4-main-pane"),
+      customElements.whenDefined("a4-move-dialog"),
+    ]);
+    if (typeof customElements.upgrade === "function") {
+      customElements.upgrade(this);
+    }
     this.cacheElements();
     this.repository = repository ?? new ListRepository();
     this.store = createAppStore();
@@ -359,7 +370,21 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   renderMainLists({ activeId, searchMode }) {
-    if (!this.mainElement) return;
+    if (!this.mainElement || typeof this.mainElement.renderLists !== "function") {
+      this.pendingMainRender = { activeId, searchMode };
+      if (!this.mainRenderScheduled) {
+        this.mainRenderScheduled = true;
+        requestAnimationFrame(() => {
+          this.mainRenderScheduled = false;
+          if (this.pendingMainRender) {
+            const pending = this.pendingMainRender;
+            this.pendingMainRender = null;
+            this.renderMainLists(pending);
+          }
+        });
+      }
+      return;
+    }
     const records = this.registry.getRecordsInOrder();
     this.mainElement.renderLists?.(records, {
       activeListId: activeId,
