@@ -13,7 +13,6 @@ class ListsApp {
   constructor(options = {}) {
     this.sidebarElement = options.sidebarElement ?? null;
     this.mainElement = options.mainElement ?? null;
-    this.listsContainer = options.listsContainer ?? null;
     this.mainTitleEl = options.mainTitleElement ?? null;
     this.moveDialogElement = options.moveDialogElement ?? null;
 
@@ -27,7 +26,6 @@ class ListsApp {
     });
 
     this.registry = new ListRegistry({
-      listsContainer: this.listsContainer,
       repository: this.repository,
     });
 
@@ -96,7 +94,6 @@ class ListsApp {
 
     if (!this.arraysEqual(order, this.lastOrder)) {
       this.registry.setListOrder(order);
-      this.registry.appendWrappersInOrder();
       this.lastOrder = order;
     }
 
@@ -105,7 +102,7 @@ class ListsApp {
       this.lastActiveId = activeId;
     }
 
-    this.registry.updateListVisibility({ searchMode });
+    this.renderMainLists({ activeId, searchMode });
 
     if (searchQuery !== this.lastSearchQuery) {
       this.applySearchToLists(searchQuery);
@@ -115,6 +112,19 @@ class ListsApp {
     this.refreshSidebar(state);
     this.updateMainHeading(state);
     this.updateMainSearchMode(searchMode);
+  }
+
+  renderMainLists({ activeId, searchMode }) {
+    if (!this.mainElement) return;
+    const records = this.registry.getRecordsInOrder();
+    this.mainElement.renderLists?.(records, {
+      activeListId: activeId,
+      searchMode,
+      repository: this.repository,
+    });
+    this.registry.attachRenderedLists?.(
+      this.mainElement.getListsContainer?.()
+    );
   }
 
   handleSearchChange(value) {
@@ -258,6 +268,7 @@ class ListsApp {
 
   applySearchToLists(query) {
     this.registry.getRecordsInOrder().forEach((record) => {
+      if (!record.element) return;
       record.element.applyFilter(query);
       const matchCount = record.element.getSearchMatchCount();
       this.store.dispatch({

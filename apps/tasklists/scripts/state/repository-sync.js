@@ -43,8 +43,6 @@ class RepositorySync {
       if (record) {
         const normalized = titleCandidate?.trim?.() ?? "";
         record.name = normalized.length ? normalized : "Untitled List";
-        record.totalCount = record.element.getTotalItemCount();
-        record.matchCount = record.element.getSearchMatchCount();
         listMeta.push({
           id: record.id,
           name: record.name,
@@ -65,7 +63,6 @@ class RepositorySync {
       .map((entry) => entry.id)
       .filter((id) => this.registry.has(id));
     this.registry.setListOrder(order);
-    this.registry.appendWrappersInOrder();
 
     const currentState = this.store.getState();
     const pending = currentState.pendingActiveListId;

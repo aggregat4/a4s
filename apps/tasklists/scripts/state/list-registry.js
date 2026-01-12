@@ -1,9 +1,7 @@
-import { html, render } from "../../vendor/lit-html.js";
-import { generateListId } from "./list-store.js";
+import { generateListId, cloneListState } from "./list-store.js";
 
 class ListRegistry {
-  constructor({ listsContainer, repository, eventHandlers = {} } = {}) {
-    this.listsContainer = listsContainer ?? null;
+  constructor({ repository, eventHandlers = {} } = {}) {
     this.repository = repository ?? null;
     this.eventHandlers = eventHandlers;
     this.records = new Map();
@@ -54,62 +52,49 @@ class ListRegistry {
   }
 
   createList(config, { makeActive = false } = {}) {
-    if (!this.listsContainer) return null;
     const id = config.id ?? generateListId("list");
-    const state = {
+    const state = cloneListState({
       title:
         typeof config.title === "string" && config.title.length
           ? config.title
           : "",
       items: Array.isArray(config.items) ? config.items : [],
-    };
+    });
     const displayName = state.title.length ? state.title : "Untitled List";
+    const totalCountFromState = Array.isArray(state.items)
+      ? state.items.filter((item) => !item?.done).length
+      : 0;
     const existing = this.records.get(id);
     if (existing) {
       existing.name = displayName;
-      existing.element.listRepository = this.repository;
-      existing.element.initialState = {
-        title: state.title,
-        items: Array.isArray(state.items)
-          ? state.items.map((item) => ({ ...item }))
-          : [],
-      };
+      existing.title = state.title;
+      existing.initialState = state;
+      existing.stateVersion = (existing.stateVersion ?? 0) + 1;
+      if (existing.element) {
+        existing.totalCount = existing.element.getTotalItemCount();
+        existing.matchCount = existing.element.getSearchMatchCount();
+      } else {
+        existing.totalCount = totalCountFromState;
+        existing.matchCount = totalCountFromState;
+      }
       if (makeActive) {
         this.activeListId = id;
       }
       return existing;
     }
 
-    const wrapper = document.createElement("section");
-    wrapper.className = "list-section";
-    wrapper.dataset.listId = id;
-
-    const items = Array.isArray(config.items)
-      ? config.items.map((item) => ({ ...item }))
-      : [];
-
-    render(html` <a4-tasklist></a4-tasklist> `, wrapper);
-    this.listsContainer.appendChild(wrapper);
-
-    const listElement = wrapper.querySelector("a4-tasklist");
-    if (!listElement) {
-      wrapper.remove();
-      return null;
-    }
-    listElement.listId = id;
-    listElement.listRepository = this.repository;
-    listElement.initialState = {
-      title: state.title,
-      items,
-    };
-
     const record = {
       id,
+      title: state.title,
       name: displayName,
-      element: listElement,
-      wrapper,
-      totalCount: listElement.getTotalItemCount(),
-      matchCount: listElement.getSearchMatchCount(),
+      initialState: state,
+      element: null,
+      wrapper: null,
+      boundElement: null,
+      stateVersion: 1,
+      appliedStateVersion: 0,
+      totalCount: totalCountFromState,
+      matchCount: totalCountFromState,
       flashTimer: null,
     };
 
@@ -129,13 +114,12 @@ class ListRegistry {
     const record = this.records.get(listId);
     if (!record) return;
     const element = record.element;
-    element?.dispose?.();
     this.unregisterListEvents(record);
+    element?.dispose?.();
     if (record.flashTimer) {
       clearTimeout(record.flashTimer);
       record.flashTimer = null;
     }
-    record.wrapper.remove();
     this.records.delete(listId);
     this.listOrder = this.listOrder.filter((id) => id !== listId);
     if (this.activeListId === listId) {
@@ -147,36 +131,15 @@ class ListRegistry {
     this.listOrder = order.filter((id) => this.records.has(id));
   }
 
-  appendWrappersInOrder() {
-    if (!this.listsContainer) return;
-    this.listOrder.forEach((id) => {
-      const record = this.records.get(id);
-      if (record) {
-        this.listsContainer.appendChild(record.wrapper);
-      }
-    });
-  }
-
   refreshMetrics(record) {
-    if (!record) return;
+    if (!record || !record.element) return;
     record.totalCount = record.element.getTotalItemCount();
     record.matchCount = record.element.getSearchMatchCount();
   }
 
-  updateListVisibility({ searchMode }) {
-    this.listOrder.forEach((id) => {
-      const record = this.records.get(id);
-      if (!record) return;
-      const isActive = id === this.activeListId;
-      const shouldShow = searchMode || isActive;
-      record.wrapper.classList.toggle("is-visible", shouldShow);
-      record.wrapper.classList.toggle("is-active", isActive);
-    });
-  }
-
   flashList(listId) {
     const record = this.records.get(listId);
-    if (!record) return;
+    if (!record || !record.wrapper) return;
     if (record.flashTimer) {
       clearTimeout(record.flashTimer);
     }
@@ -185,6 +148,34 @@ class ListRegistry {
       record.wrapper.classList.remove("list-section--flash");
       record.flashTimer = null;
     }, 600);
+  }
+
+  attachRenderedLists(container) {
+    if (!container) return;
+    const sections = Array.from(
+      container.querySelectorAll("section.list-section")
+    );
+    sections.forEach((section) => {
+      const listId = section.dataset.listId;
+      if (!listId) return;
+      const record = this.records.get(listId);
+      if (!record) return;
+      const listElement = section.querySelector("a4-tasklist");
+      if (!listElement) return;
+      if (record.boundElement && record.boundElement !== listElement) {
+        this.unregisterListEvents(record);
+      }
+      record.element = listElement;
+      record.wrapper = section;
+      if (record.boundElement !== listElement) {
+        record.boundElement = listElement;
+        this.registerListEvents(record);
+      }
+      if (record.appliedStateVersion !== record.stateVersion) {
+        listElement.initialState = record.initialState;
+        record.appliedStateVersion = record.stateVersion;
+      }
+    });
   }
 
   getSidebarListData({ searchMode, formatMatchCount, formatTotalCount }) {
@@ -206,7 +197,7 @@ class ListRegistry {
   }
 
   registerListEvents(record) {
-    const element = record?.element;
+    const element = record?.boundElement ?? record?.element;
     if (!element || !this.eventHandlers) return;
     const {
       onTaskMoveRequest,
@@ -237,7 +228,7 @@ class ListRegistry {
   }
 
   unregisterListEvents(record) {
-    const element = record?.element;
+    const element = record?.boundElement ?? record?.element;
     if (!element || !this.eventHandlers) return;
     const {
       onTaskMoveRequest,
@@ -264,6 +255,9 @@ class ListRegistry {
     }
     if (onSearchClear) {
       element.removeEventListener("clearsearch", onSearchClear);
+    }
+    if (record) {
+      record.boundElement = null;
     }
   }
 

@@ -85,7 +85,6 @@ export async function bootstrapListsApp({ seedConfigs } = {}) {
   if (!appRoot) return null;
   const sidebarElement = appRoot.querySelector("[data-role='sidebar']");
   const mainElement = appRoot.querySelector("[data-role='main']");
-  const listsContainer = appRoot.querySelector("[data-role='lists-container']");
   const mainTitleElement =
     mainElement?.querySelector("[data-role='active-list-title']") ?? null;
   const moveDialogElement =
@@ -97,7 +96,6 @@ export async function bootstrapListsApp({ seedConfigs } = {}) {
   const app = new ListsApp({
     sidebarElement,
     mainElement,
-    listsContainer,
     mainTitleElement,
     moveDialogElement,
     listRepository: repository,

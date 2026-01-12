@@ -9,6 +9,9 @@ class MainPaneElement extends HTMLElement {
     this.listContainer = null;
     this.currentTitle = "";
     this.searchMode = false;
+    this.currentLists = [];
+    this.activeListId = null;
+    this.listRepository = null;
   }
 
   connectedCallback() {
@@ -62,6 +65,44 @@ class MainPaneElement extends HTMLElement {
     if (next === this.searchMode) return;
     this.searchMode = next;
     this.classList.toggle("search-mode", next);
+  }
+
+  renderLists(
+    lists,
+    { activeListId, searchMode, repository } = {}
+  ) {
+    if (!this.listContainer) {
+      this.renderShell();
+    }
+    if (!this.listContainer) return;
+    this.currentLists = Array.isArray(lists) ? lists : [];
+    if (activeListId !== undefined) {
+      this.activeListId = activeListId ?? null;
+    }
+    if (searchMode !== undefined) {
+      this.setSearchMode(searchMode);
+    }
+    if (repository !== undefined) {
+      this.listRepository = repository ?? null;
+    }
+    const sections = this.currentLists.map((record) => {
+      const listId = record?.id;
+      if (!listId) return null;
+      const isActive = listId === this.activeListId;
+      const isVisible = this.searchMode || isActive;
+      const classes = `list-section${isVisible ? " is-visible" : ""}${
+        isActive ? " is-active" : ""
+      }`;
+      return html`
+        <section class=${classes} data-list-id=${listId}>
+          <a4-tasklist
+            .listId=${listId}
+            .listRepository=${this.listRepository}
+          ></a4-tasklist>
+        </section>
+      `;
+    });
+    render(html`${sections}`, this.listContainer);
   }
 
   getListsContainer() {
