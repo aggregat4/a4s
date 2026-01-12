@@ -281,24 +281,24 @@ class ListsApp {
   }
 
   updateMainHeading(state = this.store.getState()) {
-    if (!this.mainTitleEl) return;
     if (selectors.isSearchMode(state)) {
       const query = selectors.getSearchQuery(state).trim();
       if (query.length) {
-        this.mainTitleEl.textContent = `Search: "${query}"`;
+        this.mainElement?.setTitle?.(`Search: "${query}"`);
       } else {
-        this.mainTitleEl.textContent = "Search Results";
+        this.mainElement?.setTitle?.("Search Results");
       }
       return;
     }
     const activeId = selectors.getActiveListId(state);
     const active = selectors.getList(state, activeId);
-    this.mainTitleEl.textContent = active ? active.name : "Task Collections";
+    this.mainElement?.setTitle?.(
+      active ? active.name : "Task Collections"
+    );
   }
 
   updateMainSearchMode(searchMode) {
-    if (!this.mainElement) return;
-    this.mainElement.classList.toggle("search-mode", searchMode);
+    this.mainElement?.setSearchMode?.(searchMode);
   }
 
   arraysEqual(a = [], b = []) {
