@@ -32,12 +32,14 @@ const escapeHTML = (value) => {
 // EditController queues follow-up edits so caret placement survives rerenders that
 // happen between an action (merge, move) and the next paint.
 class EditController {
+  [key: string]: any;
+
   constructor({
     getListElement,
     getInlineEditor,
     getEditingTarget,
     getItemSnapshot,
-  }) {
+  }: any = {}) {
     this.getListElement =
       typeof getListElement === "function" ? getListElement : () => null;
     this.getInlineEditor =
@@ -143,7 +145,9 @@ class EditController {
 // TaskListView keeps DOM reconciliation separate from state changes so we can reuse
 // focused nodes and avoid churn when the reducer reorders items.
 class TaskListView {
-  constructor({ getListElement }) {
+  [key: string]: any;
+
+  constructor({ getListElement }: any = {}) {
     this.getListElement =
       typeof getListElement === "function" ? getListElement : () => null;
   }
@@ -163,21 +167,22 @@ class TaskListView {
     return role ? { itemId: activeLi.dataset.itemId, role } : null;
   }
 
-  syncItems(items, { createItem, updateItem }) {
-    const listEl = this.getListElement();
+  syncItems(items, { createItem, updateItem }: any = {}) {
+    const listEl = this.getListElement() as HTMLElement | null;
     if (!listEl || !Array.isArray(items)) return;
-    const existingNodes = Array.from(listEl.children).filter(
+    const existingNodes = (Array.from(listEl.children) as HTMLElement[]).filter(
       (li) => !li.classList.contains("placeholder")
     );
     const byId = new Map(existingNodes.map((li) => [li.dataset.itemId, li]));
     const usedNodes = new Set();
     let previous = null;
 
-    const nextNonPlaceholder = (node) => {
-      while (node && node.classList?.contains("placeholder")) {
-        node = node.nextSibling;
+    const nextNonPlaceholder = (node: ChildNode | null) => {
+      let current = node as HTMLElement | null;
+      while (current && current.classList?.contains("placeholder")) {
+        current = current.nextSibling as HTMLElement | null;
       }
-      return node;
+      return current;
     };
 
     items.forEach((item) => {
@@ -204,7 +209,7 @@ class TaskListView {
     });
   }
 
-  restoreFocus(preservedFocus, { skip } = {}) {
+  restoreFocus(preservedFocus, { skip }: any = {}) {
     if (skip || !preservedFocus) return;
     const listEl = this.getListElement();
     if (!listEl) return;
@@ -224,6 +229,8 @@ class TaskListView {
 // Custom element binds the store, view, and behaviors together so the prototype
 // remains drop-in embeddable without a framework runtime.
 class A4TaskList extends HTMLElement {
+  [key: string]: any;
+
   constructor() {
     super();
     this.listEl = null;
@@ -625,7 +632,7 @@ class A4TaskList extends HTMLElement {
     };
   }
 
-  renderHeader(headerState = {}) {
+  renderHeader(headerState: any = {}) {
     if (!this.headerEl) return;
     const headerError =
       headerState?.headerError &&
@@ -1632,7 +1639,7 @@ class A4TaskList extends HTMLElement {
     this.renderFromState(this.store?.getState?.());
   }
 
-  handleTouchGestureStart(event) {
+  handleTouchGestureStart(event: TouchEvent) {
     if (!event?.changedTouches) return;
     Array.from(event.changedTouches).forEach((touch) => {
       const target = touch.target;
@@ -1665,7 +1672,7 @@ class A4TaskList extends HTMLElement {
     });
   }
 
-  handleTouchGestureEnd(event) {
+  handleTouchGestureEnd(event: TouchEvent) {
     if (!event?.changedTouches) return;
     Array.from(event.changedTouches).forEach((touch) => {
       const state = this.touchGestureState.get(touch.identifier);
@@ -1688,7 +1695,7 @@ class A4TaskList extends HTMLElement {
     });
   }
 
-  handleTouchGestureCancel(event) {
+  handleTouchGestureCancel(event: TouchEvent) {
     if (!event?.changedTouches) return;
     Array.from(event.changedTouches).forEach((touch) => {
       this.touchGestureState.delete(touch.identifier);
@@ -1814,7 +1821,7 @@ class A4TaskList extends HTMLElement {
     }
   }
 
-  scheduleReorderUpdate({ beforeOrder, move } = {}) {
+  scheduleReorderUpdate({ beforeOrder, move }: any = {}) {
     if (!this.store || !this.listEl) return;
     Promise.resolve().then(() => {
       if (!this.store || !this.listEl) return;
@@ -1837,7 +1844,7 @@ class A4TaskList extends HTMLElement {
       }
 
       if (!order.length) {
-        order = Array.from(this.listEl.children)
+        order = (Array.from(this.listEl.children) as HTMLElement[])
           .filter((li) => !li.classList.contains("placeholder"))
           .map((li) => li.dataset.itemId)
           .filter(Boolean);
@@ -2084,7 +2091,8 @@ document.addEventListener(
   "keydown",
   (event) => {
     if (!event || event.defaultPrevented) return;
-    const host = event.target?.closest?.("a4-tasklist");
+    const target = event.target as Element | null;
+    const host = target?.closest?.("a4-tasklist") as any;
     if (!host || typeof host.handleItemKeyDown !== "function") return;
     host.handleItemKeyDown(event);
   },

@@ -1,6 +1,8 @@
 import { html, render } from "../../vendor/lit-html.js";
 
 class SidebarElement extends HTMLElement {
+  [key: string]: any;
+
   constructor() {
     super();
     this.handlers = {};
@@ -8,7 +10,7 @@ class SidebarElement extends HTMLElement {
     this.currentLists = [];
     this.activeListId = null;
     this.currentSearch = "";
-    this.dropTargetDepth = new Map();
+    this.dropTargetDepth = new Map<HTMLElement, number>();
     this.searchSeq = 0;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -53,13 +55,15 @@ class SidebarElement extends HTMLElement {
     this.searchSeq += 1;
     this.currentSearch = next;
     this.renderView();
-    const input = this.querySelector("[data-role='global-search']");
+    const input = this.querySelector(
+      "[data-role='global-search']"
+    ) as HTMLInputElement | null;
     if (input && input.value !== next) {
       input.value = next;
     }
   }
 
-  setLists(lists, { activeListId, searchQuery } = {}) {
+  setLists(lists, { activeListId, searchQuery }: any = {}) {
     this.currentLists = Array.isArray(lists) ? lists : [];
     this.activeListId = activeListId ?? null;
     if (typeof searchQuery === "string") {
@@ -149,7 +153,8 @@ class SidebarElement extends HTMLElement {
   }
 
   handleSearchInput(event) {
-    const value = event?.target?.value ?? "";
+    const target = event?.target as HTMLInputElement | null;
+    const value = target?.value ?? "";
     this.currentSearch = value;
     clearTimeout(this.searchDebounceId);
     const token = ++this.searchSeq;
@@ -163,7 +168,10 @@ class SidebarElement extends HTMLElement {
     if (event.key === "Escape") {
       event.preventDefault();
       if (event.target) {
-        event.target.value = "";
+        const target = event.target as HTMLInputElement | null;
+        if (target) {
+          target.value = "";
+        }
       }
       this.currentSearch = "";
       this.handlers.onSearchChange?.("");
@@ -192,16 +200,17 @@ class SidebarElement extends HTMLElement {
   }
 
   handleListDragEnter(event) {
-    const button = event.currentTarget;
+    const button = event.currentTarget as HTMLElement | null;
+    if (!button) return;
     const payload = this.parseTaskData(event.dataTransfer);
     const hasPayload = payload || this.hasTaskPayload(event.dataTransfer);
     if (!hasPayload) return;
     if (payload && payload.sourceListId === button.dataset.listId) return;
     event.preventDefault();
     if (this.dropTargetDepth.size) {
-      const others = Array.from(this.dropTargetDepth.keys()).filter(
-        (btn) => btn !== button
-      );
+      const others = (
+        Array.from(this.dropTargetDepth.keys()) as HTMLElement[]
+      ).filter((btn) => btn !== button);
       others.forEach((btn) => {
         btn.classList.remove("is-drop-target");
         this.dropTargetDepth.delete(btn);
@@ -213,7 +222,8 @@ class SidebarElement extends HTMLElement {
   }
 
   handleListDragOver(event) {
-    const button = event.currentTarget;
+    const button = event.currentTarget as HTMLElement | null;
+    if (!button) return;
     const payload = this.parseTaskData(event.dataTransfer);
     const hasPayload = payload || this.hasTaskPayload(event.dataTransfer);
     if (!hasPayload) return;
@@ -223,7 +233,8 @@ class SidebarElement extends HTMLElement {
   }
 
   handleListDragLeave(event) {
-    const button = event.currentTarget;
+    const button = event.currentTarget as HTMLElement | null;
+    if (!button) return;
     if (button.contains(event.relatedTarget)) {
       return;
     }
@@ -237,7 +248,8 @@ class SidebarElement extends HTMLElement {
   }
 
   handleListDrop(event) {
-    const button = event.currentTarget;
+    const button = event.currentTarget as HTMLElement | null;
+    if (!button) return;
     const payload = this.parseTaskData(event.dataTransfer);
     button.classList.remove("is-drop-target");
     this.dropTargetDepth.delete(button);

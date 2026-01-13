@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "@playwright/test"],
+    "lib": ["DOM", "ES2021"],
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["playwright.config.ts", "tests/**/*.ts", "types/**/*.d.ts"]
+}

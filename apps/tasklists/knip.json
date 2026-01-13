@@ -1,11 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip/schema.json",
-  "entry": ["scripts/main.js", "scripts/demo-seeds.js"],
+  "entry": ["scripts/main.ts", "scripts/demo-seeds.ts"],
   "project": [
-    "scripts/**/*.js",
-    "lib/**/*.js",
-    "tests/**/*.ts",
-    "tests/**/*.mjs"
+    "scripts/**/*.ts",
+    "lib/**/*.ts",
+    "tests/**/*.ts"
   ],
   "ignore": ["vendor/**/*.js"]
 }

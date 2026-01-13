@@ -52,7 +52,7 @@ const ensureActive = (state) => {
   return { ...state, activeListId: nextActive };
 };
 
-const appReducer = (state = initialState, action = {}) => {
+const appReducer = (state = initialState, action: any = {}) => {
   switch (action.type) {
     case APP_ACTIONS.setRegistry: {
       const payload = action.payload ?? {};
@@ -153,7 +153,7 @@ const appReducer = (state = initialState, action = {}) => {
   }
 };
 
-const createAppStore = (preloadedState) =>
+const createAppStore = (preloadedState?: any) =>
   createStore(appReducer, preloadedState);
 
 const selectors = {

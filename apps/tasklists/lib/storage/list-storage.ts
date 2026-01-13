@@ -57,7 +57,7 @@ async function requestPersistentStorage() {
   }
 }
 
-function openDatabase(options = {}) {
+function openDatabase(options: any = {}) {
   const name =
     typeof options.dbName === "string" && options.dbName.length
       ? options.dbName
@@ -97,15 +97,15 @@ function openDatabase(options = {}) {
   });
 }
 
-function promisifyRequest(request) {
-  return new Promise((resolve, reject) => {
+function promisifyRequest<T = any>(request: IDBRequest<T>) {
+  return new Promise<T>((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
 function transactionCompleted(transaction) {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onabort = () =>
       reject(transaction.error || new Error("IndexedDB transaction aborted"));
@@ -114,9 +114,9 @@ function transactionCompleted(transaction) {
 }
 
 function iterateCursor(request, handler) {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     request.onsuccess = (event) => {
-      const cursor = event.target.result;
+      const cursor = (event.target as IDBRequest)?.result as IDBCursorWithValue;
       if (!cursor) {
         resolve();
         return;
@@ -133,7 +133,9 @@ function iterateCursor(request, handler) {
 }
 
 class IndexedDbListStorage {
-  constructor(options = {}) {
+  [key: string]: any;
+
+  constructor(options: any = {}) {
     this.dbPromise = openDatabase(options);
   }
 
@@ -227,7 +229,7 @@ class IndexedDbListStorage {
     };
   }
 
-  async persistOperations(listId, operations = [], options = {}) {
+  async persistOperations(listId, operations = [], options: any = {}) {
     if (typeof listId !== "string" || !listId.length) {
       throw new Error("persistOperations requires a listId");
     }
@@ -322,7 +324,7 @@ class IndexedDbListStorage {
     };
   }
 
-  async persistRegistry({ operations = [], snapshot = null } = {}) {
+  async persistRegistry({ operations = [], snapshot = null }: any = {}) {
     const db = await this.ready();
     const stores = [STORE_REGISTRY_OPERATIONS];
     if (snapshot) {
@@ -401,7 +403,7 @@ class IndexedDbListStorage {
   }
 }
 
-export async function createListStorage(options = {}) {
+export async function createListStorage(options: any = {}) {
   const storage = new IndexedDbListStorage(options);
   await storage.ready();
   if (options.requestPersistence !== false) {

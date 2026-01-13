@@ -68,7 +68,9 @@ function shallowEqual(a = {}, b = {}) {
  * explicit while avoiding duplicate logic.
  */
 export class OrderedSetCRDT {
-  constructor(options = {}) {
+  [key: string]: any;
+
+  constructor(options: any = {}) {
     this.actorId = options.actorId ?? ensureActorId(options.identityOptions);
     this.clock =
       options.clock instanceof LamportClock
@@ -87,12 +89,12 @@ export class OrderedSetCRDT {
     this._snapshotCache = null;
   }
 
-  sanitizeInsertPayload(data, context = {}) {
+  sanitizeInsertPayload(data, context: any = {}) {
     if (!data || typeof data !== "object") return {};
     return { ...data };
   }
 
-  sanitizeUpdatePayload(data, context = {}) {
+  sanitizeUpdatePayload(data, context: any = {}) {
     if (!data || typeof data !== "object") return {};
     return { ...data };
   }
@@ -163,7 +165,7 @@ export class OrderedSetCRDT {
     };
   }
 
-  getSnapshot(options = {}) {
+  getSnapshot(options: any = {}) {
     const includeDeleted = Boolean(options.includeDeleted);
     if (!includeDeleted && Array.isArray(this._snapshotCache)) {
       return this._snapshotCache.map((item) => ({
@@ -173,7 +175,8 @@ export class OrderedSetCRDT {
       }));
     }
 
-    const entries = Array.from(this.items.values())
+    const records = Array.from(this.items.values()) as any[];
+    const entries = records
       .filter((record) => includeDeleted || record.deletedAt == null)
       .map((record) => ({
         id: record.id,
@@ -363,7 +366,7 @@ export class OrderedSetCRDT {
     return true;
   }
 
-  nextClock(remoteTime) {
+  nextClock(remoteTime?: number) {
     return this.clock.tick(remoteTime);
   }
 
@@ -375,7 +378,7 @@ export class OrderedSetCRDT {
     return between(leftPos, rightPos, { actor: this.actorId });
   }
 
-  generateInsert(options = {}) {
+  generateInsert(options: any = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateInsert requires an itemId");
@@ -400,7 +403,7 @@ export class OrderedSetCRDT {
     return { op, snapshot: this.getSnapshot() };
   }
 
-  generateUpdate(options = {}) {
+  generateUpdate(options: any = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateUpdate requires an itemId");
@@ -428,7 +431,7 @@ export class OrderedSetCRDT {
     return { op, snapshot: this.getSnapshot() };
   }
 
-  generateMove(options = {}) {
+  generateMove(options: any = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateMove requires an itemId");

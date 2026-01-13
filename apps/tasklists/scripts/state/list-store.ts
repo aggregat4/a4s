@@ -39,7 +39,7 @@ export const LIST_ACTIONS = {
 
 export const listReducer = (
   state = { title: "", items: [], headerError: null },
-  action = {}
+  action: any = {}
 ) => {
   switch (action.type) {
     case LIST_ACTIONS.setTitle: {
@@ -147,7 +147,7 @@ export const createStore = (reducer, preloadedState) => {
     typeof preloadedState === "undefined"
       ? reducer(undefined, { type: "@@INIT" })
       : reducer(preloadedState, { type: "@@INIT" });
-  let listeners = new Set();
+  let listeners = new Set<() => void>();
 
   return {
     getState: () => currentState,

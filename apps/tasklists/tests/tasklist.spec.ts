@@ -15,21 +15,23 @@ function globalSearchInput(page: Page) {
 
 async function expectCaretVisible(page: Page, target: Locator) {
   const caretInfo = await target.evaluate((el) => {
-    const selection = el.ownerDocument.getSelection();
+    const element = el as HTMLElement;
+    const selection = element.ownerDocument.getSelection();
     if (!selection || selection.rangeCount === 0) {
       return { ok: false, reason: "no-selection" };
     }
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
+    const style = window.getComputedStyle(element);
     return {
       ok: true,
-      active: document.activeElement === el,
-      contenteditable: el.getAttribute("contenteditable"),
-      isContentEditable: el.isContentEditable,
+      active: document.activeElement === element,
+      contenteditable: element.getAttribute("contenteditable"),
+      isContentEditable: element.isContentEditable,
       collapsed: range.collapsed,
       inElement:
-        el.contains(range.startContainer) && el.contains(range.endContainer),
+        element.contains(range.startContainer) &&
+        element.contains(range.endContainer),
       caretColor: style.caretColor,
       rectHeight: rect.height,
     };
@@ -188,8 +190,9 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   await expect(firstItem).toBeVisible();
 
   await searchInput.evaluate((el, value) => {
-    el.value = value;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
+    const input = el as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   }, "umbrella");
   const visibleTasks = page.locator(listItemsSelector);
   await expect(visibleTasks).toHaveCount(1);
@@ -691,7 +694,7 @@ test.describe("tasklist flows", () => {
       .toBeGreaterThan(2);
 
     const orderedTexts = await page.evaluate(() => {
-      const el = document.querySelector("a4-tasklist");
+      const el = document.querySelector("a4-tasklist") as any;
       return el?.store
         ?.getState?.()
         ?.items?.map((item) => item?.text?.trim?.());
@@ -722,7 +725,7 @@ test.describe("tasklist flows", () => {
       .not.toEqual(initialIds);
     const expectedIds =
       (await page.evaluate(() => {
-        const el = document.querySelector("a4-tasklist");
+        const el = document.querySelector("a4-tasklist") as any;
         return el?.store?.getState?.()?.items?.map((item) => item?.id ?? "");
       })) ??
       (await items.evaluateAll((els) =>

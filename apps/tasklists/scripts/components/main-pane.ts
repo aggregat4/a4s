@@ -1,6 +1,8 @@
 import { html, render } from "../../vendor/lit-html.js";
 
 class MainPaneElement extends HTMLElement {
+  [key: string]: any;
+
   constructor() {
     super();
     this.shellRendered = false;
@@ -67,10 +69,7 @@ class MainPaneElement extends HTMLElement {
     this.classList.toggle("search-mode", next);
   }
 
-  renderLists(
-    lists,
-    { activeListId, searchMode, repository } = {}
-  ) {
+  renderLists(lists, { activeListId, searchMode, repository }: any = {}) {
     if (!this.listContainer) {
       this.renderShell();
     }

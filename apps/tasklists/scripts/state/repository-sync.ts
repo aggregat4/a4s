@@ -1,7 +1,9 @@
 import { APP_ACTIONS } from "./app-store.js";
 
 class RepositorySync {
-  constructor({ repository, registry, store }) {
+  [key: string]: any;
+
+  constructor({ repository, registry, store }: any = {}) {
     this.repository = repository;
     this.registry = registry;
     this.store = store;

@@ -21,7 +21,7 @@ function generateActorId() {
  * @param {string} [options.storageKey]
  * @param {Storage} [options.storage]
  */
-export function ensureActorId(options = {}) {
+export function ensureActorId(options: any = {}) {
   const storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
   const storage = resolveStorage(options.storage);
   let actorId = null;
@@ -46,6 +46,8 @@ export function ensureActorId(options = {}) {
  * Basic Lamport clock implementation with a simple API for CRDT operations.
  */
 export class LamportClock {
+  time: number;
+
   constructor(initialTime = 0) {
     this.time =
       Number.isFinite(initialTime) && initialTime > 0

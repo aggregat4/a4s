@@ -1,13 +1,15 @@
 class SidebarCoordinator {
-  constructor({ sidebarElement } = {}) {
+  [key: string]: any;
+
+  constructor({ sidebarElement }: any = {}) {
     this.sidebar = sidebarElement ?? null;
   }
 
-  wireHandlers(handlers = {}) {
+  wireHandlers(handlers: any = {}) {
     this.sidebar?.setHandlers?.(handlers);
   }
 
-  renderSidebar(listData = [], { activeListId, searchQuery, searchMode }) {
+  renderSidebar(listData = [], { activeListId, searchQuery, searchMode }: any = {}) {
     const data = listData.map((entry) => ({
       ...entry,
       countLabel: searchMode

@@ -12,6 +12,8 @@ import "./move-dialog.js";
 import "./a4-tasklist.js";
 
 class ListsAppShellElement extends HTMLElement {
+  [key: string]: any;
+
   constructor() {
     super();
     this.shellRendered = false;
@@ -79,7 +81,7 @@ class ListsAppShellElement extends HTMLElement {
     this.moveDialogElement = this.querySelector("[data-role='move-dialog']");
   }
 
-  async initialize({ repository } = {}) {
+  async initialize({ repository }: any = {}) {
     if (this.appInitialized) return;
     this.renderShell();
     await Promise.all([

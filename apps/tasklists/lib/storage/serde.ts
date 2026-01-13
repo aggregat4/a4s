@@ -116,7 +116,7 @@ const mapRegistryDataEncode = (data) => ({
 
 const mapRegistryDataDecode = mapRegistryDataEncode;
 
-export function serializeListState(state = {}) {
+export function serializeListState(state: any = {}) {
   const normalizedEntries = Array.isArray(state.entries)
     ? state.entries.map((entry) => {
         const data = entry?.data ?? {
@@ -138,7 +138,7 @@ export function serializeListState(state = {}) {
   };
 }
 
-export function deserializeListState(encoded = {}) {
+export function deserializeListState(encoded: any = {}) {
   return {
     version: encodeTimestamp(encoded.version) || SERIALIZATION_VERSION,
     clock: encodeTimestamp(encoded.clock),
@@ -148,7 +148,7 @@ export function deserializeListState(encoded = {}) {
   };
 }
 
-export function serializeRegistryState(state = {}) {
+export function serializeRegistryState(state: any = {}) {
   const normalizedEntries = Array.isArray(state.entries)
     ? state.entries.map((entry) => {
         const data = entry?.data ?? {
@@ -170,7 +170,7 @@ export function serializeRegistryState(state = {}) {
   };
 }
 
-export function deserializeRegistryState(encoded = {}) {
+export function deserializeRegistryState(encoded: any = {}) {
   return {
     version: encodeTimestamp(encoded.version) || SERIALIZATION_VERSION,
     clock: encodeTimestamp(encoded.clock),
@@ -183,7 +183,7 @@ export function deserializeRegistryState(encoded = {}) {
 
 function serializePayload(payload) {
   if (!payload || typeof payload !== "object") return undefined;
-  const result = {};
+  const result: any = {};
   Object.entries(payload).forEach(([key, value]) => {
     if (key === "pos") {
       result.pos = encodePosition(value);
@@ -203,7 +203,7 @@ function serializePayload(payload) {
 
 function deserializePayload(payload) {
   if (!payload || typeof payload !== "object") return undefined;
-  const result = {};
+  const result: any = {};
   Object.entries(payload).forEach(([key, value]) => {
     if (key === "pos") {
       result.pos = decodePosition(value);

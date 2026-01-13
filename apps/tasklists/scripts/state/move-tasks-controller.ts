@@ -1,6 +1,8 @@
 import { APP_ACTIONS, selectors } from "./app-store.js";
 
 class MoveTasksController {
+  [key: string]: any;
+
   constructor({
     registry,
     repository,
@@ -8,7 +10,7 @@ class MoveTasksController {
     store,
     formatMatchCount,
     formatTotalCount,
-  }) {
+  }: any = {}) {
     this.registry = registry;
     this.repository = repository;
     this.moveDialog = moveDialog ?? null;
@@ -86,7 +88,7 @@ class MoveTasksController {
     });
   }
 
-  moveTask(sourceListId, targetListId, itemId, options = {}) {
+  moveTask(sourceListId, targetListId, itemId, options: any = {}) {
     if (!itemId || sourceListId === targetListId) return;
     const sourceRecord = this.registry.getRecord(sourceListId);
     const targetRecord = this.registry.getRecord(targetListId);

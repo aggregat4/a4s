@@ -6,7 +6,7 @@ function generateItemId(listId) {
 
 function ensureListFactory(factory) {
   if (typeof factory === "function") return factory;
-  return (listId, initialState = {}) =>
+  return (listId, initialState: any = {}) =>
     new TaskListCRDT({
       title: initialState.title ?? "",
       titleUpdatedAt: initialState.titleUpdatedAt ?? 0,
@@ -17,7 +17,7 @@ export async function hydrateFromStorage({
   storage,
   listsCrdt,
   createListCrdt,
-} = {}) {
+}: any = {}) {
   if (!storage || typeof storage.loadRegistry !== "function") {
     throw new Error(
       "hydrateFromStorage requires a storage instance with loadRegistry"

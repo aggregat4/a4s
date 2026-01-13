@@ -51,7 +51,9 @@ function toBaseUpdate(operation) {
 }
 
 export class ListsCRDT {
-  constructor(options = {}) {
+  [key: string]: any;
+
+  constructor(options: any = {}) {
     this._orderedSet = new OrderedSetCRDT(options);
     this.listeners = new Set();
   }
@@ -92,7 +94,7 @@ export class ListsCRDT {
     });
   }
 
-  resetFromSnapshot(snapshot = [], metadata = {}) {
+  resetFromSnapshot(snapshot = [], metadata: any = {}) {
     const entries = Array.isArray(snapshot)
       ? snapshot.map((entry) => ({
           id: entry.id,
@@ -110,7 +112,7 @@ export class ListsCRDT {
     this.emitChange();
   }
 
-  resetFromState(state = {}) {
+  resetFromState(state: any = {}) {
     const entries = Array.isArray(state.entries)
       ? state.entries.map((entry) => ({
           ...entry,
@@ -184,7 +186,7 @@ export class ListsCRDT {
     }));
   }
 
-  generateCreate(options = {}) {
+  generateCreate(options: any = {}) {
     const listId = typeof options.listId === "string" ? options.listId : null;
     if (!listId) {
       throw new Error("generateCreate requires a listId");
@@ -226,7 +228,7 @@ export class ListsCRDT {
     };
   }
 
-  generateReorder(options = {}) {
+  generateReorder(options: any = {}) {
     const listId = typeof options.listId === "string" ? options.listId : null;
     if (!listId) {
       throw new Error("generateReorder requires a listId");

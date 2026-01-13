@@ -95,7 +95,7 @@ function chooseDigit(leftDigit, rightDigit) {
  * When either bound is omitted, the algorithm assumes a virtual minimum (0) or
  * maximum (base) component for that depth.
  */
-export function between(left, right, options = {}) {
+export function between(left, right, options: any = {}) {
   const actor = sanitizeActor(options.actor);
   if (!actor) {
     throw new Error("between() requires an actor identifier");

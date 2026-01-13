@@ -2,6 +2,8 @@ const EMPTY_DRAG_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
 
 export class FlipAnimator {
+  [key: string]: any;
+
   snapshot(container, dragging) {
     const map = new Map();
     [...container.querySelectorAll("li")].forEach((li) => {
@@ -42,7 +44,9 @@ export class FlipAnimator {
 }
 
 export default class DraggableBehavior {
-  constructor(container, options = {}) {
+  [key: string]: any;
+
+  constructor(container: any, options: any = {}) {
     this.container = container;
     this.options = {
       handleClass: "handle",

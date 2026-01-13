@@ -2,14 +2,16 @@
   "name": "prototype-lists",
   "version": "1.0.0",
   "scripts": {
-    "start": "npx http-server . -p 8000 -c-1",
+    "build": "node scripts/clean-dist.mjs && npx tsc -p tsconfig.app.json && npx tsc -p tsconfig.tests.json && node scripts/copy-static.mjs",
+    "watch": "node scripts/watch.mjs",
+    "start": "npm run build && npx http-server dist -p 8000 -c-1",
     "lint:deps": "knip",
-    "test:unit": "node --test tests/unit/**/*.spec.mjs",
+    "test:unit": "npm run build && node --test dist/tests/unit/**/*.spec.js",
     "test": "npm run test:e2e",
-    "test:e2e": "npx playwright test --project=chromium",
-    "test:e2e:headed": "npx playwright test --project=chromium --headed",
-    "test:e2e:firefox": "npx playwright test --project=firefox",
-    "test:e2e:firefox:headed": "npx playwright test --project=firefox --headed"
+    "test:e2e": "npm run build && npx playwright test --project=chromium",
+    "test:e2e:headed": "npm run build && npx playwright test --project=chromium --headed",
+    "test:e2e:firefox": "npm run build && npx playwright test --project=firefox",
+    "test:e2e:firefox:headed": "npm run build && npx playwright test --project=firefox --headed"
   },
   "license": "Apache-2.0",
   "type": "commonjs",

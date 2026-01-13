@@ -8,6 +8,9 @@ const clone = (value) =>
     value == null ? value : JSON.parse(JSON.stringify(value));
 
 class MemoryListStorage {
+    lists: Map<string, any>;
+    registry: any;
+
     constructor() {
         this.lists = new Map();
         this.registry = { state: null, operations: [], updatedAt: null };
@@ -37,7 +40,7 @@ class MemoryListStorage {
         };
     }
 
-    async persistOperations(listId, operations = [], options = {}) {
+    async persistOperations(listId, operations = [], options: any = {}) {
         if (typeof listId !== "string" || !listId.length) {
             throw new Error("persistOperations requires a listId");
         }
@@ -53,7 +56,7 @@ class MemoryListStorage {
         this.lists.set(listId, record);
     }
 
-    async persistRegistry({ operations = [], snapshot = null } = {}) {
+    async persistRegistry({ operations = [], snapshot = null }: any = {}) {
         if (Array.isArray(operations) && operations.length) {
             this.registry.operations.push(...operations.map((op) => clone(op)));
         }

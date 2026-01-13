@@ -1,6 +1,8 @@
 import { html, render } from "../../vendor/lit-html.js";
 
 class KeyboardMoveDialog extends HTMLElement {
+  [key: string]: any;
+
   constructor() {
     super();
     this.backdropEl = null;
@@ -95,7 +97,7 @@ class KeyboardMoveDialog extends HTMLElement {
       this.querySelector("[data-role='move-dialog-cancel']") ?? null;
   }
 
-  open(options = {}) {
+  open(options: any = {}) {
     this.renderShell();
     this.cacheElements();
     if (!this.optionsListEl) return;

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "ES2021"],
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["scripts/**/*.ts", "lib/**/*.ts", "types/**/*.d.ts"]
+}

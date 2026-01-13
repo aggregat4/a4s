@@ -1,7 +1,9 @@
 // InlineTextEditor manages single-click editing for list item text content.
 // We keep it custom so we can honor task keyboard shortcuts without fighting native inputs.
 export default class InlineTextEditor {
-  constructor(list, options = {}) {
+  [key: string]: any;
+
+  constructor(list: any, options: any = {}) {
     this.list = list;
     this.options = options;
     this.editingEl = null;

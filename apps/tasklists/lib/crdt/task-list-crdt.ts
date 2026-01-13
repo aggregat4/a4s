@@ -51,7 +51,7 @@ function makeBaseInsertOp(operation) {
 function makeBaseUpdateOp(operation) {
   const payload = operation.payload ?? {};
   const source = payload?.data ?? payload ?? {};
-  const data = {};
+  const data: any = {};
   if (Object.prototype.hasOwnProperty.call(source, "text")) {
     data.text = sanitizeText(source.text);
   }
@@ -68,7 +68,9 @@ function makeBaseUpdateOp(operation) {
 }
 
 export class TaskListCRDT {
-  constructor(options = {}) {
+  [key: string]: any;
+
+  constructor(options: any = {}) {
     this._orderedSet = new OrderedSetCRDT(options);
     this.title = sanitizeText(options.title);
     this.titleUpdatedAt = Number.isFinite(options.titleUpdatedAt)
@@ -97,7 +99,7 @@ export class TaskListCRDT {
     };
   }
 
-  resetFromState(state = {}) {
+  resetFromState(state: any = {}) {
     const entries = Array.isArray(state.entries)
       ? state.entries.map((entry) => ({
           ...entry,
@@ -117,7 +119,7 @@ export class TaskListCRDT {
     }
   }
 
-  resetFromSnapshot(snapshot = [], metadata = {}) {
+  resetFromSnapshot(snapshot = [], metadata: any = {}) {
     const entries = Array.isArray(snapshot)
       ? snapshot.map((item) => ({
           id: item.id,
@@ -180,7 +182,7 @@ export class TaskListCRDT {
     return entry ? cloneRecordEntry(entry) : null;
   }
 
-  getSnapshot(options = {}) {
+  getSnapshot(options: any = {}) {
     const baseSnapshot = this._orderedSet.getSnapshot(options);
     return baseSnapshot.map(cloneRecordEntry);
   }
@@ -197,11 +199,11 @@ export class TaskListCRDT {
     };
   }
 
-  nextClock(remoteTime) {
+  nextClock(remoteTime?: number) {
     return this._orderedSet.nextClock(remoteTime);
   }
 
-  generateInsert(options = {}) {
+  generateInsert(options: any = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateInsert requires an itemId");
@@ -231,12 +233,12 @@ export class TaskListCRDT {
     };
   }
 
-  generateUpdate(options = {}) {
+  generateUpdate(options: any = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateUpdate requires an itemId");
     }
-    const data = {};
+    const data: any = {};
     if (options.text != null) {
       data.text = sanitizeText(options.text);
     }
@@ -276,7 +278,7 @@ export class TaskListCRDT {
     return this.generateUpdate({ itemId, done: nextDone });
   }
 
-  generateMove(options = {}) {
+  generateMove(options: any = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateMove requires an itemId");

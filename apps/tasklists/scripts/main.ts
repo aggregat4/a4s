@@ -10,7 +10,7 @@ async function resetPersistentStorageIfNeeded() {
   if (!("indexedDB" in window)) {
     return;
   }
-  await new Promise((resolve) => {
+  await new Promise<void>((resolve) => {
     let settled = false;
     const finish = () => {
       if (settled) return;
@@ -66,19 +66,23 @@ async function ensureDemoData(repository, seedConfigs) {
 
 function waitForDocumentReady() {
   if (document.readyState === "loading") {
-    return new Promise((resolve) =>
-      document.addEventListener("DOMContentLoaded", resolve, { once: true })
+    return new Promise<void>((resolve) =>
+      document.addEventListener("DOMContentLoaded", () => resolve(), {
+        once: true,
+      })
     );
   }
   return Promise.resolve();
 }
 
-export async function bootstrapListsApp({ seedConfigs } = {}) {
+export async function bootstrapListsApp({ seedConfigs }: any = {}) {
   await waitForDocumentReady();
   await customElements.whenDefined("a4-lists-app");
-  let appRoot = document.querySelector("[data-role='lists-app']");
+  let appRoot = document.querySelector(
+    "[data-role='lists-app']"
+  ) as HTMLElement | null;
   if (!appRoot) {
-    appRoot = document.createElement("a4-lists-app");
+    appRoot = document.createElement("a4-lists-app") as HTMLElement;
     appRoot.dataset.role = "lists-app";
     document.body.appendChild(appRoot);
   }
@@ -89,8 +93,11 @@ export async function bootstrapListsApp({ seedConfigs } = {}) {
   await resetPersistentStorageIfNeeded();
   const repository = new ListRepository();
   await ensureDemoData(repository, seedConfigs).catch(() => {});
-  if (typeof appRoot.initialize === "function") {
-    await appRoot.initialize({ repository });
+  const appRootElement = appRoot as HTMLElement & {
+    initialize?: (options: any) => Promise<void> | void;
+  };
+  if (typeof appRootElement.initialize === "function") {
+    await appRootElement.initialize({ repository });
   }
   window.listsApp = appRoot;
   return appRoot;

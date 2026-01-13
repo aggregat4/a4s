@@ -1,7 +1,9 @@
 import { generateListId, cloneListState } from "./list-store.js";
 
 class ListRegistry {
-  constructor({ repository, eventHandlers = {} } = {}) {
+  [key: string]: any;
+
+  constructor({ repository, eventHandlers = {} }: any = {}) {
     this.repository = repository ?? null;
     this.eventHandlers = eventHandlers;
     this.records = new Map();
@@ -9,7 +11,7 @@ class ListRegistry {
     this.activeListId = null;
   }
 
-  setEventHandlers(eventHandlers = {}) {
+  setEventHandlers(eventHandlers: any = {}) {
     this.eventHandlers = eventHandlers;
   }
 
@@ -51,7 +53,7 @@ class ListRegistry {
     return this.activeListId;
   }
 
-  createList(config, { makeActive = false } = {}) {
+  createList(config, { makeActive = false }: any = {}) {
     const id = config.id ?? generateListId("list");
     const state = cloneListState({
       title:
@@ -150,17 +152,17 @@ class ListRegistry {
     }, 600);
   }
 
-  attachRenderedLists(container) {
+  attachRenderedLists(container: HTMLElement | null) {
     if (!container) return;
     const sections = Array.from(
       container.querySelectorAll("section.list-section")
     );
     sections.forEach((section) => {
-      const listId = section.dataset.listId;
+      const listId = (section as HTMLElement).dataset.listId;
       if (!listId) return;
       const record = this.records.get(listId);
       if (!record) return;
-      const listElement = section.querySelector("a4-tasklist");
+      const listElement = section.querySelector("a4-tasklist") as any;
       if (!listElement) return;
       if (record.boundElement && record.boundElement !== listElement) {
         this.unregisterListEvents(record);

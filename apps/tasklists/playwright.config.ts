@@ -16,9 +16,9 @@ const webServerCommand = useDockerServer
       `-v "${repositoryPath}":/work`,
       "-w /work",
       dockerImage,
-      `bash -lc "npx http-server . -p ${port} -c-1"`,
+      `bash -lc "npx http-server dist -p ${port} -c-1"`,
     ].join(" ")
-  : `npx http-server . -p ${port} -c-1`;
+  : `npx http-server dist -p ${port} -c-1`;
 
 const config: PlaywrightTestConfig = {
   use: {
