@@ -459,6 +459,42 @@ test.describe("tasklist flows", () => {
     await expect(checkbox).toBeChecked();
   });
 
+  test("search results align between sidebar counts and list contents", async ({
+    page,
+  }) => {
+    const searchInput = globalSearchInput(page);
+    await searchInput.fill("week");
+
+    const visibleSections = page.locator(".list-section.is-visible");
+    await expect(visibleSections).toHaveCount(3);
+
+    const sectionStats = await visibleSections.evaluateAll((sections) =>
+      sections.map((section) => ({
+        listId: section.dataset.listId ?? "",
+        visibleCount: section.querySelectorAll(
+          "ol.tasklist li:not(.placeholder):not([hidden])"
+        ).length,
+      }))
+    );
+
+    for (const entry of sectionStats) {
+      const expectedLabel =
+        entry.visibleCount === 0
+          ? "No matches"
+          : entry.visibleCount === 1
+          ? "1 match"
+          : `${entry.visibleCount} matches`;
+
+      const button = page.locator(
+        `.sidebar-list-button[data-list-id="${entry.listId}"]`
+      );
+      await expect(button).toHaveCount(1);
+      await expect(button.locator(".sidebar-list-count")).toHaveText(
+        expectedLabel
+      );
+    }
+  });
+
   test("sidebar counts show only open items", async ({ page }) => {
     const prototypeButton = page
       .locator(".sidebar-list-button")

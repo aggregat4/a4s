@@ -1947,6 +1947,12 @@ class A4TaskList extends HTMLElement {
   applyFilter(query) {
     const value = typeof query === "string" ? query : "";
     this.searchQuery = value;
+    if (!this.listEl) {
+      this.renderShell();
+    }
+    if (!this.store) {
+      this.initializeStore();
+    }
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.renderCurrentState();
   }

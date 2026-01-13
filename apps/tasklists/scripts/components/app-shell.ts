@@ -168,7 +168,7 @@ class ListsAppShellElement extends HTMLElement {
       this.lastActiveId = activeId;
     }
 
-    this.renderMainLists({ activeId, searchMode });
+    this.renderMainLists({ activeId, searchMode, searchQuery });
 
     if (searchQuery !== this.lastSearchQuery) {
       this.applySearchToLists(searchQuery);
@@ -326,7 +326,8 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   applySearchToLists(query) {
-    this.registry.getRecordsInOrder().forEach((record) => {
+    const records = this.registry.getRecordsInOrder();
+    records.forEach((record) => {
       if (!record.element) return;
       record.element.applyFilter(query);
       const matchCount = record.element.getSearchMatchCount();
@@ -339,12 +340,35 @@ class ListsAppShellElement extends HTMLElement {
 
   refreshSidebar(state = this.store?.getState?.()) {
     if (!state) return;
-    const data = selectors.getSidebarListData(state).map((entry) => ({
-      ...entry,
-      countLabel: selectors.isSearchMode(state)
-        ? this.sidebarCoordinator.formatMatchCount(entry.matchCount)
-        : this.sidebarCoordinator.formatTotalCount(entry.totalCount),
-    }));
+    const searchMode = selectors.isSearchMode(state);
+    const countsById = new Map();
+    if (searchMode) {
+      const container = this.mainElement?.getListsContainer?.();
+      if (container) {
+        Array.from(
+          container.querySelectorAll("section.list-section")
+        ).forEach((section) => {
+          const element = section as HTMLElement;
+          const listId = element.dataset?.listId ?? null;
+          if (!listId) return;
+          const matchCount = element.querySelectorAll(
+            "ol.tasklist li:not(.placeholder):not([hidden])"
+          ).length;
+          countsById.set(listId, matchCount);
+        });
+      }
+    }
+    const data = selectors.getSidebarListData(state).map((entry) => {
+      const matchCount = countsById.has(entry.id)
+        ? countsById.get(entry.id)
+        : entry.matchCount;
+      return {
+        ...entry,
+        countLabel: searchMode
+          ? this.sidebarCoordinator.formatMatchCount(matchCount)
+          : this.sidebarCoordinator.formatTotalCount(entry.totalCount),
+      };
+    });
     this.sidebarElement?.setLists?.(data, {
       activeListId: selectors.getActiveListId(state),
       searchQuery: selectors.getSearchQuery(state),
@@ -371,9 +395,9 @@ class ListsAppShellElement extends HTMLElement {
     this.mainElement?.setSearchMode?.(searchMode);
   }
 
-  renderMainLists({ activeId, searchMode }) {
+  renderMainLists({ activeId, searchMode, searchQuery }) {
     if (!this.mainElement || typeof this.mainElement.renderLists !== "function") {
-      this.pendingMainRender = { activeId, searchMode };
+      this.pendingMainRender = { activeId, searchMode, searchQuery };
       if (!this.mainRenderScheduled) {
         this.mainRenderScheduled = true;
         requestAnimationFrame(() => {
@@ -396,6 +420,16 @@ class ListsAppShellElement extends HTMLElement {
     this.registry.attachRenderedLists?.(
       this.mainElement.getListsContainer?.()
     );
+    const query =
+      typeof searchQuery === "string" ? searchQuery.trim() : "";
+    if (query.length) {
+      const needsSync = records.some(
+        (record) => record.element && record.element.searchQuery !== query
+      );
+      if (needsSync) {
+        this.applySearchToLists(query);
+      }
+    }
   }
 
   arraysEqual(a = [], b = []) {
