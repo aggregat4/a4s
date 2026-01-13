@@ -1,17 +1,26 @@
 import { ORDERED_SET_OPERATIONS, OrderedSetCRDT } from "./ordered-set-crdt.js";
+import type {
+  ListCreateInput,
+  ListId,
+  ListRegistryEntry,
+  ListReorderInput,
+  OrderedSetSnapshot,
+  RegistryState,
+} from "../../types/domain.js";
+import type { ListsOperation, OrderedSetOperation } from "../../types/crdt.js";
 
 const LISTS_CRDT_OPERATIONS = {
   createList: "createList",
   removeList: "removeList",
   reorderList: "reorderList",
   renameList: "renameList",
-};
+} as const;
 
 function sanitizeText(value) {
   return typeof value === "string" ? value : "";
 }
 
-function resolveTargetId(operation) {
+function resolveTargetId(operation: ListsOperation) {
   if (typeof operation.itemId === "string" && operation.itemId.length) {
     return operation.itemId;
   }
@@ -21,7 +30,7 @@ function resolveTargetId(operation) {
   return null;
 }
 
-function toBaseInsert(operation) {
+function toBaseInsert(operation: ListsOperation) {
   const payload = operation.payload ?? {};
   const itemId = resolveTargetId(operation);
   return {
@@ -35,7 +44,7 @@ function toBaseInsert(operation) {
   };
 }
 
-function toBaseUpdate(operation) {
+function toBaseUpdate(operation: ListsOperation) {
   const payload = operation.payload ?? {};
   const itemId = resolveTargetId(operation);
   return {
@@ -51,10 +60,11 @@ function toBaseUpdate(operation) {
 }
 
 export class ListsCRDT {
-  [key: string]: any;
+  private _orderedSet: OrderedSetCRDT<{ title: string }>;
+  private listeners: Set<(snapshot: ListRegistryEntry[]) => void>;
 
-  constructor(options: any = {}) {
-    this._orderedSet = new OrderedSetCRDT(options);
+  constructor(options: { actorId?: string } = {}) {
+    this._orderedSet = new OrderedSetCRDT<{ title: string }>(options);
     this.listeners = new Set();
   }
 
@@ -70,11 +80,11 @@ export class ListsCRDT {
     return this._orderedSet.items;
   }
 
-  exportState() {
+  exportState(): RegistryState {
     return this._orderedSet.exportState();
   }
 
-  subscribe(handler) {
+  subscribe(handler: (snapshot: ListRegistryEntry[]) => void) {
     if (typeof handler !== "function") return () => {};
     this.listeners.add(handler);
     return () => {
@@ -94,12 +104,19 @@ export class ListsCRDT {
     });
   }
 
-  resetFromSnapshot(snapshot = [], metadata: any = {}) {
+  resetFromSnapshot(
+    snapshot: OrderedSetSnapshot<{ title: string }> = [],
+    metadata: { clock?: number } = {}
+  ) {
     const entries = Array.isArray(snapshot)
       ? snapshot.map((entry) => ({
           id: entry.id,
           pos: entry.pos,
-          data: { title: sanitizeText(entry.title) },
+          data: {
+            title: sanitizeText(
+              (entry as { title?: string })?.title ?? entry.data?.title
+            ),
+          },
           createdAt: entry.createdAt,
           updatedAt: entry.updatedAt,
           deletedAt: entry.deletedAt,
@@ -112,7 +129,7 @@ export class ListsCRDT {
     this.emitChange();
   }
 
-  resetFromState(state: any = {}) {
+  resetFromState(state: RegistryState = { clock: 0, entries: [] }) {
     const entries = Array.isArray(state.entries)
       ? state.entries.map((entry) => ({
           ...entry,
@@ -126,13 +143,15 @@ export class ListsCRDT {
     this.emitChange();
   }
 
-  applyOperation(operation) {
+  applyOperation(operation: ListsOperation) {
     if (!operation || typeof operation !== "object") return false;
-    let baseOp = operation;
+    let baseOp: OrderedSetOperation<{ title: string }> | null = null;
     switch (operation.type) {
       case LISTS_CRDT_OPERATIONS.createList:
         if (!resolveTargetId(operation)) return false;
-        baseOp = toBaseInsert(operation);
+        baseOp = toBaseInsert(operation) as OrderedSetOperation<{
+          title: string;
+        }>;
         break;
       case LISTS_CRDT_OPERATIONS.removeList:
         if (!resolveTargetId(operation)) return false;
@@ -140,7 +159,7 @@ export class ListsCRDT {
           ...operation,
           itemId: resolveTargetId(operation),
           type: ORDERED_SET_OPERATIONS.remove,
-        };
+        } as OrderedSetOperation<{ title: string }>;
         break;
       case LISTS_CRDT_OPERATIONS.reorderList:
         if (!resolveTargetId(operation)) return false;
@@ -149,15 +168,18 @@ export class ListsCRDT {
           itemId: resolveTargetId(operation),
           type: ORDERED_SET_OPERATIONS.move,
           payload: { pos: operation.payload?.pos },
-        };
+        } as OrderedSetOperation<{ title: string }>;
         break;
       case LISTS_CRDT_OPERATIONS.renameList:
         if (!resolveTargetId(operation)) return false;
-        baseOp = toBaseUpdate(operation);
+        baseOp = toBaseUpdate(operation) as OrderedSetOperation<{
+          title: string;
+        }>;
         break;
       default:
-        break;
+        return false;
     }
+    if (!baseOp) return false;
     const changed = this._orderedSet.applyOperation(baseOp);
     if (changed) {
       this.emitChange();
@@ -178,7 +200,7 @@ export class ListsCRDT {
     };
   }
 
-  getVisibleLists() {
+  getVisibleLists(): Array<{ id: ListId; title: string; pos: ListRegistryEntry["pos"] }> {
     return this._orderedSet.getSnapshot().map((entry) => ({
       id: entry.id,
       title: entry.data.title,
@@ -186,7 +208,7 @@ export class ListsCRDT {
     }));
   }
 
-  generateCreate(options: any = {}) {
+  generateCreate(options: ListCreateInput = {}) {
     const listId = typeof options.listId === "string" ? options.listId : null;
     if (!listId) {
       throw new Error("generateCreate requires a listId");
@@ -214,7 +236,7 @@ export class ListsCRDT {
     };
   }
 
-  generateRemove(listId) {
+  generateRemove(listId: ListId) {
     const result = this._orderedSet.generateRemove(listId);
     const op = {
       ...result.op,
@@ -228,7 +250,7 @@ export class ListsCRDT {
     };
   }
 
-  generateReorder(options: any = {}) {
+  generateReorder(options: ListReorderInput & { listId?: ListId } = {}) {
     const listId = typeof options.listId === "string" ? options.listId : null;
     if (!listId) {
       throw new Error("generateReorder requires a listId");
@@ -254,7 +276,7 @@ export class ListsCRDT {
     };
   }
 
-  generateRename(listId, title) {
+  generateRename(listId: ListId, title: string) {
     if (typeof listId !== "string" || !listId.length) {
       throw new Error("generateRename requires a listId");
     }

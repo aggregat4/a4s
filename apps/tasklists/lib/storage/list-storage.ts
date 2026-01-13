@@ -8,6 +8,13 @@ import {
   serializeOperation,
   deserializeOperation,
 } from "./serde.js";
+import type { ListId, ListState, RegistryState } from "../../types/domain.js";
+import type { ListsOperation, TaskListOperation } from "../../types/crdt.js";
+import type {
+  ListStorage,
+  PersistedListRecord,
+  PersistedRegistryRecord,
+} from "../../types/storage.js";
 
 const DB_NAME = "protoLists";
 export const DEFAULT_DB_NAME = DB_NAME;
@@ -18,7 +25,31 @@ const STORE_LIST_OPERATIONS = "listOperations";
 const STORE_REGISTRY_STATE = "registryState";
 const STORE_REGISTRY_OPERATIONS = "registryOperations";
 
-const toOperationKey = (op) =>
+const TASK_OPERATION_TYPES = new Set([
+  "insert",
+  "remove",
+  "move",
+  "update",
+  "renameList",
+]);
+const REGISTRY_OPERATION_TYPES = new Set([
+  "createList",
+  "removeList",
+  "reorderList",
+  "renameList",
+]);
+
+const isTaskListOperation = (
+  operation: TaskListOperation | ListsOperation | null
+): operation is TaskListOperation =>
+  Boolean(operation && TASK_OPERATION_TYPES.has(operation.type));
+
+const isRegistryOperation = (
+  operation: TaskListOperation | ListsOperation | null
+): operation is ListsOperation =>
+  Boolean(operation && REGISTRY_OPERATION_TYPES.has(operation.type));
+
+const toOperationKey = (op: TaskListOperation | ListsOperation) =>
   [
     op.type ?? "",
     op.actor ?? "",
@@ -27,7 +58,9 @@ const toOperationKey = (op) =>
     op.listId ?? "",
   ].join("|");
 
-const sortOperations = (operations) =>
+const sortOperations = <T extends TaskListOperation | ListsOperation>(
+  operations: T[]
+) =>
   operations.sort((a, b) => {
     if (a.clock !== b.clock) return a.clock - b.clock;
     if (a.actor !== b.actor) return a.actor < b.actor ? -1 : 1;
@@ -132,7 +165,7 @@ function iterateCursor(request, handler) {
   });
 }
 
-class IndexedDbListStorage {
+class IndexedDbListStorage implements ListStorage {
   [key: string]: any;
 
   constructor(options: any = {}) {
@@ -196,9 +229,9 @@ class IndexedDbListStorage {
     return response;
   }
 
-  async loadList(listId) {
+  async loadList(listId: ListId): Promise<PersistedListRecord> {
     if (typeof listId !== "string" || !listId.length) {
-      return { listId, state: null, operations: [] };
+      return { listId, state: null, operations: [], updatedAt: null };
     }
     const db = await this.ready();
     const transaction = db.transaction(
@@ -217,19 +250,25 @@ class IndexedDbListStorage {
     ]);
     await completion;
 
+    const operations = sortOperations(
+      (opRecords || [])
+        .map((record) => deserializeOperation(record.operation))
+        .filter(isTaskListOperation)
+    ) as TaskListOperation[];
+
     return {
       listId,
       state: stateRecord ? deserializeListState(stateRecord.state) : null,
-      operations: sortOperations(
-        (opRecords || [])
-          .map((record) => deserializeOperation(record.operation))
-          .filter(Boolean)
-      ),
+      operations,
       updatedAt: stateRecord?.updatedAt ?? null,
     };
   }
 
-  async persistOperations(listId, operations = [], options: any = {}) {
+  async persistOperations(
+    listId: ListId,
+    operations: TaskListOperation[] = [],
+    options: { snapshot?: ListState | null } = {}
+  ) {
     if (typeof listId !== "string" || !listId.length) {
       throw new Error("persistOperations requires a listId");
     }
@@ -297,7 +336,7 @@ class IndexedDbListStorage {
     await completion;
   }
 
-  async loadRegistry() {
+  async loadRegistry(): Promise<PersistedRegistryRecord> {
     const db = await this.ready();
     const transaction = db.transaction(
       [STORE_REGISTRY_STATE, STORE_REGISTRY_OPERATIONS],
@@ -313,18 +352,23 @@ class IndexedDbListStorage {
       promisifyRequest(opsRequest),
     ]);
     await completion;
+    const operations = sortOperations(
+      (opRecords || [])
+        .map((record) => deserializeOperation(record.operation))
+        .filter(isRegistryOperation)
+    ) as ListsOperation[];
+
     return {
       state: stateRecord ? deserializeRegistryState(stateRecord.state) : null,
-      operations: sortOperations(
-        (opRecords || [])
-          .map((record) => deserializeOperation(record.operation))
-          .filter(Boolean)
-      ),
+      operations,
       updatedAt: stateRecord?.updatedAt ?? null,
     };
   }
 
-  async persistRegistry({ operations = [], snapshot = null }: any = {}) {
+  async persistRegistry({
+    operations = [],
+    snapshot = null,
+  }: { operations?: ListsOperation[]; snapshot?: RegistryState | null } = {}) {
     const db = await this.ready();
     const stores = [STORE_REGISTRY_OPERATIONS];
     if (snapshot) {
@@ -403,7 +447,9 @@ class IndexedDbListStorage {
   }
 }
 
-export async function createListStorage(options: any = {}) {
+export async function createListStorage(
+  options: any = {}
+): Promise<ListStorage> {
   const storage = new IndexedDbListStorage(options);
   await storage.ready();
   if (options.requestPersistence !== false) {

@@ -150,7 +150,7 @@ test("hydrateFromStorage rebuilds CRDT instances from persisted registry and lis
 
     const alpha = hydrateResult.lists.get("alpha");
     assert.ok(alpha);
-    const alphaSnapshot = alpha.crdt.getSnapshot();
+    const alphaSnapshot = (alpha.crdt as TaskListCRDT).getSnapshot();
     assert.equal(alphaSnapshot.length, 2);
     assert.equal(alphaSnapshot[0].text.length > 0, true);
     assert.equal(typeof alphaSnapshot[0].done, "boolean");

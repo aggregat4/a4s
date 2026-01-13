@@ -1,9 +1,22 @@
 import { ORDERED_SET_OPERATIONS, OrderedSetCRDT } from "./ordered-set-crdt.js";
+import type {
+  ListState,
+  OrderedSetSnapshot,
+  Position,
+  OrderedSetEntry,
+  TaskInsertInput,
+  TaskMoveInput,
+  TaskUpdateInput,
+} from "../../types/domain.js";
+import type {
+  OrderedSetOperation,
+  TaskListOperation,
+} from "../../types/crdt.js";
 
 const TASK_LIST_OPERATIONS = {
   ...ORDERED_SET_OPERATIONS,
   renameList: "renameList",
-};
+} as const;
 
 function sanitizeText(value) {
   return typeof value === "string" ? value : "";
@@ -16,7 +29,19 @@ function sanitizeBoolean(value, fallback = false) {
   return fallback;
 }
 
-function cloneRecordEntry(entry) {
+type TaskEntry = {
+  id: string;
+  pos: Position | null;
+  text: string;
+  done: boolean;
+  createdAt?: number | null;
+  updatedAt?: number | null;
+  deletedAt?: number | null;
+};
+
+function cloneRecordEntry(
+  entry: OrderedSetEntry<{ text: string; done: boolean }>
+): TaskEntry {
   return {
     id: entry.id,
     pos: entry.pos,
@@ -28,15 +53,23 @@ function cloneRecordEntry(entry) {
   };
 }
 
-function sanitizePayloadData(payload) {
-  const source = payload?.data ?? payload ?? {};
+type TaskPayloadData = { text?: string; done?: boolean };
+type TaskPayload = { data?: TaskPayloadData } | TaskPayloadData | null;
+
+function sanitizePayloadData(payload?: TaskPayload) {
+  const candidate = payload ?? {};
+  const source =
+    candidate && typeof candidate === "object" && "data" in candidate
+      ? (candidate as { data?: TaskPayloadData }).data ?? {}
+      : candidate;
+  const normalized = source as TaskPayloadData;
   return {
-    text: sanitizeText(source.text),
-    done: sanitizeBoolean(source.done, false),
+    text: sanitizeText(normalized.text),
+    done: sanitizeBoolean(normalized.done, false),
   };
 }
 
-function makeBaseInsertOp(operation) {
+function makeBaseInsertOp(operation: TaskListOperation) {
   const payload = operation.payload ?? {};
   return {
     ...operation,
@@ -48,15 +81,20 @@ function makeBaseInsertOp(operation) {
   };
 }
 
-function makeBaseUpdateOp(operation) {
+function makeBaseUpdateOp(operation: TaskListOperation) {
   const payload = operation.payload ?? {};
-  const source = payload?.data ?? payload ?? {};
+  const candidate = payload ?? {};
+  const source =
+    candidate && typeof candidate === "object" && "data" in candidate
+      ? (candidate as { data?: TaskPayloadData }).data ?? {}
+      : candidate;
+  const normalized = source as TaskPayloadData;
   const data: any = {};
-  if (Object.prototype.hasOwnProperty.call(source, "text")) {
-    data.text = sanitizeText(source.text);
+  if (Object.prototype.hasOwnProperty.call(normalized, "text")) {
+    data.text = sanitizeText(normalized.text);
   }
-  if (Object.prototype.hasOwnProperty.call(source, "done")) {
-    data.done = sanitizeBoolean(source.done, false);
+  if (Object.prototype.hasOwnProperty.call(normalized, "done")) {
+    data.done = sanitizeBoolean(normalized.done, false);
   }
   return {
     ...operation,
@@ -68,10 +106,16 @@ function makeBaseUpdateOp(operation) {
 }
 
 export class TaskListCRDT {
-  [key: string]: any;
+  private _orderedSet: OrderedSetCRDT<{ text: string; done: boolean }>;
+  title: string;
+  titleUpdatedAt: number;
 
-  constructor(options: any = {}) {
-    this._orderedSet = new OrderedSetCRDT(options);
+  constructor(
+    options: { actorId?: string; title?: string; titleUpdatedAt?: number } = {}
+  ) {
+    this._orderedSet = new OrderedSetCRDT<{ text: string; done: boolean }>(
+      options
+    );
     this.title = sanitizeText(options.title);
     this.titleUpdatedAt = Number.isFinite(options.titleUpdatedAt)
       ? Math.floor(options.titleUpdatedAt)
@@ -90,7 +134,7 @@ export class TaskListCRDT {
     return this._orderedSet.items;
   }
 
-  exportState() {
+  exportState(): ListState {
     const base = this._orderedSet.exportState();
     return {
       ...base,
@@ -99,7 +143,7 @@ export class TaskListCRDT {
     };
   }
 
-  resetFromState(state: any = {}) {
+  resetFromState(state: ListState = { clock: 0, entries: [], title: "" }) {
     const entries = Array.isArray(state.entries)
       ? state.entries.map((entry) => ({
           ...entry,
@@ -119,14 +163,17 @@ export class TaskListCRDT {
     }
   }
 
-  resetFromSnapshot(snapshot = [], metadata: any = {}) {
+  resetFromSnapshot(
+    snapshot: OrderedSetSnapshot<{ text: string; done: boolean }> = [],
+    metadata: { clock?: number; title?: string; titleUpdatedAt?: number } = {}
+  ) {
     const entries = Array.isArray(snapshot)
       ? snapshot.map((item) => ({
           id: item.id,
           pos: item.pos,
           data: {
-            text: sanitizeText(item.text),
-            done: sanitizeBoolean(item.done, false),
+            text: sanitizeText(item.data?.text),
+            done: sanitizeBoolean(item.data?.done, false),
           },
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
@@ -145,18 +192,30 @@ export class TaskListCRDT {
     }
   }
 
-  applyOperation(operation) {
+  applyOperation(operation: TaskListOperation) {
     if (!operation || typeof operation !== "object") return false;
     if (operation.type === TASK_LIST_OPERATIONS.renameList) {
       return this.applyRename(operation);
     }
     if (operation.type === ORDERED_SET_OPERATIONS.insert) {
-      return this._orderedSet.applyOperation(makeBaseInsertOp(operation));
+      return this._orderedSet.applyOperation(
+        makeBaseInsertOp(operation) as OrderedSetOperation<{
+          text: string;
+          done: boolean;
+        }>
+      );
     }
     if (operation.type === ORDERED_SET_OPERATIONS.update) {
-      return this._orderedSet.applyOperation(makeBaseUpdateOp(operation));
+      return this._orderedSet.applyOperation(
+        makeBaseUpdateOp(operation) as OrderedSetOperation<{
+          text: string;
+          done: boolean;
+        }>
+      );
     }
-    return this._orderedSet.applyOperation(operation);
+    return this._orderedSet.applyOperation(
+      operation as OrderedSetOperation<{ text: string; done: boolean }>
+    );
   }
 
   applyRename(operation) {
@@ -177,12 +236,12 @@ export class TaskListCRDT {
     return true;
   }
 
-  getItem(id) {
+  getItem(id: string): TaskEntry | null {
     const entry = this._orderedSet.getItem(id);
     return entry ? cloneRecordEntry(entry) : null;
   }
 
-  getSnapshot(options: any = {}) {
+  getSnapshot(options: { includeDeleted?: boolean } = {}): TaskEntry[] {
     const baseSnapshot = this._orderedSet.getSnapshot(options);
     return baseSnapshot.map(cloneRecordEntry);
   }
@@ -203,7 +262,7 @@ export class TaskListCRDT {
     return this._orderedSet.nextClock(remoteTime);
   }
 
-  generateInsert(options: any = {}) {
+  generateInsert(options: TaskInsertInput = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateInsert requires an itemId");
@@ -233,7 +292,7 @@ export class TaskListCRDT {
     };
   }
 
-  generateUpdate(options: any = {}) {
+  generateUpdate(options: TaskUpdateInput & { itemId?: string } = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateUpdate requires an itemId");
@@ -278,7 +337,7 @@ export class TaskListCRDT {
     return this.generateUpdate({ itemId, done: nextDone });
   }
 
-  generateMove(options: any = {}) {
+  generateMove(options: TaskMoveInput & { itemId?: string } = {}) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateMove requires an itemId");
@@ -295,7 +354,7 @@ export class TaskListCRDT {
     };
   }
 
-  generateRemove(itemId) {
+  generateRemove(itemId: string) {
     const result = this._orderedSet.generateRemove(itemId);
     return {
       op: result.op,
@@ -303,7 +362,7 @@ export class TaskListCRDT {
     };
   }
 
-  generateRename(title) {
+  generateRename(title: string) {
     const nextTitle = sanitizeText(title);
     const clock = this.nextClock();
     const op = {

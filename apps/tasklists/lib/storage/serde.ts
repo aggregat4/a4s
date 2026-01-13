@@ -1,4 +1,6 @@
 import { normalizePosition } from "../crdt/position.js";
+import type { ListState, RegistryState } from "../../types/domain.js";
+import type { ListsOperation, TaskListOperation } from "../../types/crdt.js";
 
 export const SERIALIZATION_VERSION = 1;
 export const REGISTRY_STATE_ID = "registry";
@@ -116,18 +118,18 @@ const mapRegistryDataEncode = (data) => ({
 
 const mapRegistryDataDecode = mapRegistryDataEncode;
 
-export function serializeListState(state: any = {}) {
+export function serializeListState(state: ListState) {
   const normalizedEntries = Array.isArray(state.entries)
     ? state.entries.map((entry) => {
-        const data = entry?.data ?? {
-          text: sanitizeText(entry?.text),
-          done: sanitizeBoolean(entry?.done),
-        };
-        return {
-          ...entry,
-          data,
-        };
-      })
+      const data = entry?.data ?? {
+        text: sanitizeText((entry as { text?: string })?.text),
+        done: sanitizeBoolean((entry as { done?: boolean })?.done),
+      };
+      return {
+        ...entry,
+        data,
+      };
+    })
     : [];
   return {
     version: SERIALIZATION_VERSION,
@@ -138,7 +140,7 @@ export function serializeListState(state: any = {}) {
   };
 }
 
-export function deserializeListState(encoded: any = {}) {
+export function deserializeListState(encoded: any = {}): ListState {
   return {
     version: encodeTimestamp(encoded.version) || SERIALIZATION_VERSION,
     clock: encodeTimestamp(encoded.clock),
@@ -148,17 +150,17 @@ export function deserializeListState(encoded: any = {}) {
   };
 }
 
-export function serializeRegistryState(state: any = {}) {
+export function serializeRegistryState(state: RegistryState) {
   const normalizedEntries = Array.isArray(state.entries)
     ? state.entries.map((entry) => {
-        const data = entry?.data ?? {
-          title: sanitizeText(entry?.title),
-        };
-        return {
-          ...entry,
-          data,
-        };
-      })
+      const data = entry?.data ?? {
+        title: sanitizeText((entry as { title?: string })?.title),
+      };
+      return {
+        ...entry,
+        data,
+      };
+    })
     : [];
   return {
     version: SERIALIZATION_VERSION,
@@ -170,7 +172,7 @@ export function serializeRegistryState(state: any = {}) {
   };
 }
 
-export function deserializeRegistryState(encoded: any = {}) {
+export function deserializeRegistryState(encoded: any = {}): RegistryState {
   return {
     version: encodeTimestamp(encoded.version) || SERIALIZATION_VERSION,
     clock: encodeTimestamp(encoded.clock),
@@ -221,7 +223,7 @@ function deserializePayload(payload) {
   return result;
 }
 
-export function serializeOperation(operation) {
+export function serializeOperation(operation: TaskListOperation | ListsOperation) {
   if (!operation || typeof operation !== "object") return null;
   const base = {
     type: typeof operation.type === "string" ? operation.type : "",
@@ -234,7 +236,9 @@ export function serializeOperation(operation) {
   return cleanUndefinedKeys(base);
 }
 
-export function deserializeOperation(encoded) {
+export function deserializeOperation(
+  encoded: any
+): TaskListOperation | ListsOperation | null {
   if (!encoded || typeof encoded !== "object") return null;
   const payload = deserializePayload(encoded.payload);
   const operation = {

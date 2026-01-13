@@ -10,6 +10,7 @@ import {
     serializeOrderedSetSnapshot,
     deserializeOrderedSetSnapshot,
 } from "../../../lib/storage/serde.js";
+import type { TaskListOperation } from "../../../types/crdt.js";
 
 test("list state serialization round-trips entries and metadata", () => {
     const original = {
@@ -61,10 +62,10 @@ test("registry state serialization retains ordering data", () => {
 });
 
 test("operation serialization drops undefined fields and restores payload", () => {
-    const original = {
+    const original: TaskListOperation = {
         type: "insert",
         itemId: "task-1",
-        payload: { pos: [{ digit: 5, actor: "x" }], extra: true },
+        payload: { pos: [{ digit: 5, actor: "x" }] },
         clock: 7,
         actor: "actor-1",
     };

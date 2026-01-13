@@ -5,15 +5,24 @@ import {
   comparePositions,
   normalizePosition,
 } from "./position.js";
+import type {
+  OrderedSetEntry,
+  OrderedSetSnapshot,
+  Position,
+} from "../../types/domain.js";
+import type {
+  OrderedSetExport,
+  OrderedSetOperation,
+} from "../../types/crdt.js";
 
 export const ORDERED_SET_OPERATIONS = {
   insert: "insert",
   remove: "remove",
   move: "move",
   update: "update",
-};
+} as const;
 
-function makeOperationKey(operation) {
+function makeOperationKey(operation: { actor?: string; clock?: number }) {
   const actor = typeof operation?.actor === "string" ? operation.actor : "";
   const clock = Number.isFinite(operation?.clock)
     ? Math.floor(operation.clock)
@@ -21,25 +30,25 @@ function makeOperationKey(operation) {
   return `${actor}:${clock}`;
 }
 
-function shallowClone(value) {
-  if (value == null) return {};
+function shallowClone<T>(value: T): T {
+  if (value == null) return value as T;
   if (typeof structuredClone === "function") {
     try {
-      return structuredClone(value);
+      return structuredClone(value) as T;
     } catch (err) {
       // Fallback to manual clone.
     }
   }
   if (Array.isArray(value)) {
-    return value.map((entry) => shallowClone(entry));
+    return value.map((entry) => shallowClone(entry)) as T;
   }
   if (typeof value === "object") {
-    return { ...value };
+    return { ...(value as Record<string, unknown>) } as T;
   }
   return value;
 }
 
-function shallowEqual(a = {}, b = {}) {
+function shallowEqual(a: Record<string, unknown> = {}, b: Record<string, unknown> = {}) {
   const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
   for (const key of keys) {
     if ((a || {})[key] !== (b || {})[key]) {
@@ -67,10 +76,14 @@ function shallowEqual(a = {}, b = {}) {
  * higher-level helpers, so treating them as public API keeps the replication contract
  * explicit while avoiding duplicate logic.
  */
-export class OrderedSetCRDT {
-  [key: string]: any;
+export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<string, unknown>> {
+  actorId: string;
+  clock: LamportClock;
+  items: Map<string, OrderedSetEntry<TData>>;
+  seenOps: Set<string>;
+  _snapshotCache: OrderedSetSnapshot<TData> | null;
 
-  constructor(options: any = {}) {
+  constructor(options: { actorId?: string; clock?: LamportClock; identityOptions?: { storageKey?: string; storage?: Storage } } = {}) {
     this.actorId = options.actorId ?? ensureActorId(options.identityOptions);
     this.clock =
       options.clock instanceof LamportClock
@@ -89,45 +102,51 @@ export class OrderedSetCRDT {
     this._snapshotCache = null;
   }
 
-  sanitizeInsertPayload(data, context: any = {}) {
-    if (!data || typeof data !== "object") return {};
+  sanitizeInsertPayload(
+    data?: Partial<TData>,
+    context: { existingData?: TData } = {}
+  ) {
+    if (!data || typeof data !== "object") return {} as Partial<TData>;
     return { ...data };
   }
 
-  sanitizeUpdatePayload(data, context: any = {}) {
-    if (!data || typeof data !== "object") return {};
+  sanitizeUpdatePayload(
+    data?: Partial<TData>,
+    context: { existingData?: TData } = {}
+  ) {
+    if (!data || typeof data !== "object") return {} as Partial<TData>;
     return { ...data };
   }
 
-  sanitizeSnapshotData(data) {
+  sanitizeSnapshotData(data: TData): TData {
     return this.cloneData(data);
   }
 
-  cloneData(data) {
+  cloneData<T extends Partial<TData>>(data: T): T {
     return shallowClone(data);
   }
 
-  mergeInsertData(existingData, insertData) {
+  mergeInsertData(existingData: TData, insertData: Partial<TData>): TData {
     return this.mergeUpdateData(existingData, insertData);
   }
 
-  mergeUpdateData(existingData, updateData) {
-    return { ...(existingData || {}), ...(updateData || {}) };
+  mergeUpdateData(existingData: TData, updateData: Partial<TData>): TData {
+    return { ...(existingData || {}), ...(updateData || {}) } as TData;
   }
 
-  areDataEqual(a, b) {
+  areDataEqual(a: TData, b: TData) {
     return shallowEqual(a, b);
   }
 
-  sanitizeSnapshotEntry(entry) {
+  sanitizeSnapshotEntry(entry: OrderedSetEntry<TData>) {
     if (!entry || typeof entry.id !== "string" || !entry.id.length) return null;
     const pos = normalizePosition(entry.pos);
     if (!pos.length) return null;
     const data = this.sanitizeSnapshotData(entry.data);
     return {
       id: entry.id,
-      pos,
-      data,
+      pos: pos as Position,
+      data: data as TData,
       createdAt: Number.isFinite(entry.createdAt)
         ? Math.floor(entry.createdAt)
         : 0,
@@ -140,7 +159,7 @@ export class OrderedSetCRDT {
     };
   }
 
-  importRecords(entries = []) {
+  importRecords(entries: OrderedSetSnapshot<TData> = []) {
     this.items.clear();
     this.seenOps.clear();
     entries.forEach((entry) => {
@@ -152,7 +171,7 @@ export class OrderedSetCRDT {
     this.invalidateSnapshotCache();
   }
 
-  getItem(id) {
+  getItem(id: string): OrderedSetEntry<TData> | null {
     const record = this.items.get(id);
     if (!record) return null;
     return {
@@ -165,7 +184,7 @@ export class OrderedSetCRDT {
     };
   }
 
-  getSnapshot(options: any = {}) {
+  getSnapshot(options: { includeDeleted?: boolean } = {}): OrderedSetSnapshot<TData> {
     const includeDeleted = Boolean(options.includeDeleted);
     if (!includeDeleted && Array.isArray(this._snapshotCache)) {
       return this._snapshotCache.map((item) => ({
@@ -175,7 +194,7 @@ export class OrderedSetCRDT {
       }));
     }
 
-    const records = Array.from(this.items.values()) as any[];
+    const records = Array.from(this.items.values());
     const entries = records
       .filter((record) => includeDeleted || record.deletedAt == null)
       .map((record) => ({
@@ -202,14 +221,14 @@ export class OrderedSetCRDT {
     return entries;
   }
 
-  exportState() {
+  exportState(): OrderedSetExport<TData> {
     return {
       clock: this.getClockValue(),
       entries: this.getSnapshot({ includeDeleted: true }),
     };
   }
 
-  applyOperation(operation) {
+  applyOperation(operation: OrderedSetOperation<TData>) {
     if (!operation || typeof operation !== "object") return false;
     const opKey = makeOperationKey(operation);
     if (this.seenOps.has(opKey)) {
@@ -248,7 +267,7 @@ export class OrderedSetCRDT {
     return changed;
   }
 
-  applyInsert(operation) {
+  applyInsert(operation: OrderedSetOperation<TData>) {
     const itemId = operation.itemId;
     if (typeof itemId !== "string" || !itemId.length) return false;
     // Look up the existing record so the insert can revive tombstones,
@@ -262,7 +281,7 @@ export class OrderedSetCRDT {
       : 0;
     const payloadData = this.sanitizeInsertPayload(operation.payload?.data, {
       existingData: existing?.data,
-    });
+    }) as TData;
 
     if (!existing) {
       this.items.set(itemId, {
@@ -307,7 +326,7 @@ export class OrderedSetCRDT {
     return mutated;
   }
 
-  applyRemove(operation) {
+  applyRemove(operation: OrderedSetOperation<TData>) {
     const itemId = operation.itemId;
     if (typeof itemId !== "string" || !itemId.length) return false;
     const record = this.items.get(itemId);
@@ -323,7 +342,7 @@ export class OrderedSetCRDT {
     return true;
   }
 
-  applyMove(operation) {
+  applyMove(operation: OrderedSetOperation<TData>) {
     const itemId = operation.itemId;
     if (typeof itemId !== "string" || !itemId.length) return false;
     const record = this.items.get(itemId);
@@ -342,7 +361,7 @@ export class OrderedSetCRDT {
     return true;
   }
 
-  applyUpdate(operation) {
+  applyUpdate(operation: OrderedSetOperation<TData>) {
     const itemId = operation.itemId;
     if (typeof itemId !== "string" || !itemId.length) return false;
     const record = this.items.get(itemId);
@@ -370,7 +389,7 @@ export class OrderedSetCRDT {
     return this.clock.tick(remoteTime);
   }
 
-  ensurePositionBetween(leftId, rightId) {
+  ensurePositionBetween(leftId?: string | null, rightId?: string | null) {
     const left = leftId ? this.items.get(leftId) : null;
     const right = rightId ? this.items.get(rightId) : null;
     const leftPos = left ? left.pos : null;
@@ -378,7 +397,13 @@ export class OrderedSetCRDT {
     return between(leftPos, rightPos, { actor: this.actorId });
   }
 
-  generateInsert(options: any = {}) {
+  generateInsert(options: {
+    itemId: string;
+    data?: Partial<TData>;
+    position?: Position | null;
+    afterId?: string | null;
+    beforeId?: string | null;
+  }) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateInsert requires an itemId");
@@ -387,7 +412,7 @@ export class OrderedSetCRDT {
       options.position && normalizePosition(options.position).length
         ? normalizePosition(options.position)
         : this.ensurePositionBetween(options.afterId, options.beforeId);
-    const payloadData = this.sanitizeInsertPayload(options.data);
+    const payloadData = this.sanitizeInsertPayload(options.data) as TData;
     const clock = this.nextClock();
     const op = {
       type: ORDERED_SET_OPERATIONS.insert,
@@ -403,7 +428,7 @@ export class OrderedSetCRDT {
     return { op, snapshot: this.getSnapshot() };
   }
 
-  generateUpdate(options: any = {}) {
+  generateUpdate(options: { itemId: string; data: Partial<TData> }) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateUpdate requires an itemId");
@@ -431,7 +456,12 @@ export class OrderedSetCRDT {
     return { op, snapshot: this.getSnapshot() };
   }
 
-  generateMove(options: any = {}) {
+  generateMove(options: {
+    itemId: string;
+    position?: Position | null;
+    afterId?: string | null;
+    beforeId?: string | null;
+  }) {
     const itemId = typeof options.itemId === "string" ? options.itemId : null;
     if (!itemId) {
       throw new Error("generateMove requires an itemId");
@@ -457,7 +487,7 @@ export class OrderedSetCRDT {
     return { op, snapshot: this.getSnapshot() };
   }
 
-  generateRemove(itemId) {
+  generateRemove(itemId: string) {
     if (typeof itemId !== "string" || !this.items.has(itemId)) {
       throw new Error(`Cannot remove missing item "${itemId}"`);
     }
