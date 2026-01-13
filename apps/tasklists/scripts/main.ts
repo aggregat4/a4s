@@ -1,6 +1,7 @@
 import { ListRepository } from "../lib/app/list-repository.js";
 import { DEFAULT_DB_NAME as LISTS_DB_NAME } from "../lib/storage/list-storage.js";
 import "./components/app-shell.js";
+import type { TaskItem } from "../types/domain.js";
 
 async function resetPersistentStorageIfNeeded() {
   const params = new URLSearchParams(window.location.search);
@@ -33,7 +34,16 @@ async function resetPersistentStorageIfNeeded() {
   }
 }
 
-async function ensureDemoData(repository, seedConfigs) {
+type SeedConfig = {
+  id?: string;
+  title?: string;
+  items?: TaskItem[];
+};
+
+async function ensureDemoData(
+  repository: ListRepository | null,
+  seedConfigs: SeedConfig[] | undefined
+) {
   if (!repository || typeof repository.initialize !== "function") {
     return false;
   }
@@ -75,7 +85,9 @@ function waitForDocumentReady() {
   return Promise.resolve();
 }
 
-export async function bootstrapListsApp({ seedConfigs }: any = {}) {
+export async function bootstrapListsApp(
+  { seedConfigs }: { seedConfigs?: SeedConfig[] } = {}
+) {
   await waitForDocumentReady();
   await customElements.whenDefined("a4-lists-app");
   let appRoot = document.querySelector(
@@ -94,7 +106,7 @@ export async function bootstrapListsApp({ seedConfigs }: any = {}) {
   const repository = new ListRepository();
   await ensureDemoData(repository, seedConfigs).catch(() => {});
   const appRootElement = appRoot as HTMLElement & {
-    initialize?: (options: any) => Promise<void> | void;
+    initialize?: (options: { repository: ListRepository }) => Promise<void> | void;
   };
   if (typeof appRootElement.initialize === "function") {
     await appRootElement.initialize({ repository });

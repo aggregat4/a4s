@@ -50,6 +50,8 @@ export type TaskListOperation = {
   clock: number;
   payload?: {
     title?: string;
+    text?: string;
+    done?: boolean;
     data?: { text?: string; done?: boolean };
     pos?: Position | null;
   };

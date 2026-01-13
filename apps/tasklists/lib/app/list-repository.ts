@@ -2,32 +2,75 @@ import { ListsCRDT } from "../crdt/lists-crdt.js";
 import { TaskListCRDT } from "../crdt/task-list-crdt.js";
 import { createListStorage } from "../storage/list-storage.js";
 import { hydrateFromStorage } from "../storage/hydrator.js";
+import type {
+  ListCreateInput,
+  ListId,
+  ListRegistryEntry,
+  ListState,
+  ListReorderInput,
+  TaskInsertInput,
+  TaskItem,
+  TaskListState,
+  TaskMoveInput,
+  TaskUpdateInput,
+} from "../../types/domain.js";
+import type { ListStorage } from "../../types/storage.js";
+import type { TaskListOperation, ListsOperation } from "../../types/crdt.js";
 
-function defaultListFactory(listId: any, state: any = {}) {
+type ListRecord = { crdt: TaskListCRDT };
+type StorageOptions = Record<string, unknown>;
+type StorageFactory = (options?: StorageOptions) => Promise<ListStorage>;
+type ListFactory = (listId: ListId, state?: ListState | null) => TaskListCRDT;
+type RegistryListener = (snapshot: ListRegistryEntry[]) => void;
+type ListListener = (state: TaskListState) => void;
+type GlobalListener =
+  | { type: "registry"; snapshot: ListRegistryEntry[] }
+  | { type: "list"; listId: ListId; state: TaskListState };
+
+function defaultListFactory(listId: ListId, state: ListState | null = null) {
   return new TaskListCRDT({
-    title: state.title ?? "",
-    titleUpdatedAt: state.titleUpdatedAt ?? 0,
+    title: state?.title ?? "",
+    titleUpdatedAt: state?.titleUpdatedAt ?? 0,
   });
 }
 
-function sanitizeText(value) {
+function sanitizeText(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
-function ensureId(value, prefix) {
+function ensureId(value: unknown, prefix: string) {
   if (typeof value === "string" && value.length) return value;
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
-function toListState(record) {
+function toListState(record?: ListRecord | null): TaskListState {
   if (!record?.crdt) return { title: "", items: [] };
   return record.crdt.toListState();
 }
 
 export class ListRepository {
-  [key: string]: any;
+  private _listsCrdt: ListsCRDT;
+  private _createListCrdt: ListFactory;
+  private _storageFactory: StorageFactory;
+  private _storageOptions: StorageOptions;
+  private _storage: ListStorage | null;
+  private _listMap: Map<ListId, ListRecord>;
+  private _registryListeners: Set<RegistryListener>;
+  private _listListeners: Map<ListId, Set<ListListener>>;
+  private _globalListeners: Set<(payload: GlobalListener) => void>;
+  private _initialized: boolean;
+  private _initializing: Promise<void> | null;
+  private _unsubscribeRegistry: (() => void) | null;
 
-  constructor(options: any = {}) {
+  constructor(
+    options: {
+      listsCrdt?: ListsCRDT;
+      listsCrdtOptions?: { actorId?: string };
+      createListCrdt?: ListFactory;
+      storageFactory?: StorageFactory;
+      storageOptions?: StorageOptions;
+    } = {}
+  ) {
     this._listsCrdt =
       options.listsCrdt ?? new ListsCRDT(options.listsCrdtOptions);
     this._createListCrdt = options.createListCrdt ?? defaultListFactory;
@@ -44,7 +87,7 @@ export class ListRepository {
     this._unsubscribeRegistry = null;
   }
 
-  async initialize() {
+  async initialize(): Promise<ListRegistryEntry[]> {
     if (this._initialized) {
       return this.getRegistrySnapshot();
     }
@@ -62,7 +105,7 @@ export class ListRepository {
     return this.getRegistrySnapshot();
   }
 
-  async _initializeInternal() {
+  async _initializeInternal(): Promise<void> {
     this._storage = await this._storageFactory(this._storageOptions);
 
     const hydration = await hydrateFromStorage({
@@ -72,7 +115,7 @@ export class ListRepository {
         this._createListInstance(listId, state),
     });
 
-    this._listMap = hydration.lists ?? new Map();
+    this._listMap = (hydration.lists ?? new Map()) as Map<ListId, ListRecord>;
     if (this._unsubscribeRegistry) {
       this._unsubscribeRegistry();
       this._unsubscribeRegistry = null;
@@ -101,26 +144,26 @@ export class ListRepository {
     return this._initialized;
   }
 
-  getRegistrySnapshot() {
+  getRegistrySnapshot(): ListRegistryEntry[] {
     return this._listsCrdt.getVisibleLists();
   }
 
-  getListIds() {
+  getListIds(): ListId[] {
     return this.getRegistrySnapshot().map((entry) => entry.id);
   }
 
-  getListState(listId) {
+  getListState(listId: ListId): TaskListState {
     const record = this._listMap.get(listId);
     return toListState(record);
   }
 
-  getListSnapshot(listId) {
+  getListSnapshot(listId: ListId) {
     const record = this._listMap.get(listId);
     if (!record?.crdt) return [];
     return record.crdt.getSnapshot();
   }
 
-  subscribe(handler) {
+  subscribe(handler: (payload: GlobalListener) => void) {
     if (typeof handler !== "function") return () => {};
     this._globalListeners.add(handler);
     return () => {
@@ -128,7 +171,10 @@ export class ListRepository {
     };
   }
 
-  subscribeRegistry(handler: any, { emitCurrent = true }: any = {}) {
+  subscribeRegistry(
+    handler: RegistryListener,
+    { emitCurrent = true }: { emitCurrent?: boolean } = {}
+  ) {
     if (typeof handler !== "function") return () => {};
     this._registryListeners.add(handler);
     if (emitCurrent && this._initialized) {
@@ -139,7 +185,11 @@ export class ListRepository {
     };
   }
 
-  subscribeList(listId: any, handler: any, { emitCurrent = true }: any = {}) {
+  subscribeList(
+    listId: ListId,
+    handler: ListListener,
+    { emitCurrent = true }: { emitCurrent?: boolean } = {}
+  ) {
     if (typeof handler !== "function") return () => {};
     const key = listId ?? "";
     if (!this._listListeners.has(key)) {
@@ -177,7 +227,7 @@ export class ListRepository {
     });
   }
 
-  emitListChange(listId) {
+  emitListChange(listId: ListId) {
     const state = this.getListState(listId);
     const listeners = this._listListeners.get(listId);
     listeners?.forEach((handler) => {
@@ -196,7 +246,7 @@ export class ListRepository {
     });
   }
 
-  async createList(options: any = {}) {
+  async createList(options: ListCreateInput = {}) {
     await this.initialize();
     const listId = ensureId(options.listId, "list");
     const title = sanitizeText(options.title);
@@ -220,7 +270,7 @@ export class ListRepository {
       beforeId,
     });
 
-    const listCrdt = this._createListInstance(listId, { title });
+    const listCrdt = this._createListInstance(listId, null);
     listCrdt.resetFromState({
       title,
       titleUpdatedAt: listCrdt.titleUpdatedAt,
@@ -235,7 +285,7 @@ export class ListRepository {
     }
     if (Array.isArray(options.items)) {
       let previousId = null;
-      options.items.forEach((item) => {
+      options.items.forEach((item: TaskItem) => {
         const itemId = ensureId(item?.id, `${listId}-item`);
         const insert = listCrdt.generateInsert({
           itemId,
@@ -261,7 +311,7 @@ export class ListRepository {
     return { id: listId, state: listCrdt.toListState() };
   }
 
-  async removeList(listId) {
+  async removeList(listId: ListId) {
     await this.initialize();
     if (!this._listMap.has(listId)) return false;
     const removeResult = this._listsCrdt.generateRemove(listId);
@@ -272,7 +322,7 @@ export class ListRepository {
     return true;
   }
 
-  async renameList(listId, title) {
+  async renameList(listId: ListId, title: string) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -288,7 +338,10 @@ export class ListRepository {
     return record.crdt.toListState();
   }
 
-  async reorderList(listId: any, { afterId = null, beforeId = null }: any = {}) {
+  async reorderList(
+    listId: ListId,
+    { afterId = null, beforeId = null }: ListReorderInput = {}
+  ) {
     await this.initialize();
     const targetId =
       typeof listId === "string" && listId.length ? listId : null;
@@ -303,7 +356,7 @@ export class ListRepository {
     return reorder.snapshot;
   }
 
-  async insertTask(listId: any, options: any = {}) {
+  async insertTask(listId: ListId, options: TaskInsertInput = {}) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -321,7 +374,7 @@ export class ListRepository {
     return { id: itemId, state: record.crdt.toListState() };
   }
 
-  async updateTask(listId: any, itemId: any, payload: any = {}) {
+  async updateTask(listId: ListId, itemId: string, payload: TaskUpdateInput = {}) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -336,7 +389,7 @@ export class ListRepository {
     return record.crdt.toListState();
   }
 
-  async toggleTask(listId, itemId, explicitState = null) {
+  async toggleTask(listId: ListId, itemId: string, explicitState: boolean | null = null) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -346,7 +399,7 @@ export class ListRepository {
     return record.crdt.toListState();
   }
 
-  async removeTask(listId, itemId) {
+  async removeTask(listId: ListId, itemId: string) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -356,7 +409,11 @@ export class ListRepository {
     return result;
   }
 
-  async moveTaskWithinList(listId: any, itemId: any, options: any = {}) {
+  async moveTaskWithinList(
+    listId: ListId,
+    itemId: string,
+    options: TaskMoveInput = {}
+  ) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -372,10 +429,10 @@ export class ListRepository {
   }
 
   async moveTask(
-    sourceListId: any,
-    targetListId: any,
-    itemId: any,
-    options: any = {}
+    sourceListId: ListId,
+    targetListId: ListId,
+    itemId: string,
+    options: TaskMoveInput & { snapshot?: TaskItem } = {}
   ) {
     await this.initialize();
     if (!itemId || sourceListId === targetListId) return null;
@@ -412,7 +469,7 @@ export class ListRepository {
     };
   }
 
-  async getTaskSnapshot(listId, itemId) {
+  async getTaskSnapshot(listId: ListId, itemId: string) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -420,11 +477,15 @@ export class ListRepository {
     return snapshot.find((item) => item.id === itemId) ?? null;
   }
 
-  _createListInstance(listId: any, state: any = {}) {
+  _createListInstance(listId: ListId, state: ListState | null = null) {
     return this._createListCrdt(listId, state);
   }
 
-  _persistList(listId, crdt, ops = []) {
+  _persistList(
+    listId: ListId,
+    crdt: TaskListCRDT,
+    ops: TaskListOperation[] = []
+  ) {
     if (!this._storage || !crdt) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
     const snapshot = crdt.exportState();
@@ -433,7 +494,7 @@ export class ListRepository {
     ).catch(() => {});
   }
 
-  _persistRegistry(ops = []) {
+  _persistRegistry(ops: ListsOperation[] = []) {
     if (!this._storage) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
     const snapshot = this._listsCrdt.exportState();

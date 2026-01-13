@@ -1,7 +1,61 @@
 import { APP_ACTIONS, selectors } from "./app-store.js";
+import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
+
+type ListRecord = {
+  id: ListId;
+  name?: string;
+  element: {
+    getTotalItemCount: () => number;
+    getSearchMatchCount: () => number;
+    focusItem: (id: string) => void;
+    getItemSnapshot: (id: string) => TaskItem | null;
+    removeItemById: (id: string) => boolean;
+    prependItem: (item: TaskItem) => void;
+    cancelActiveDrag?: () => void;
+    store?: { getState?: () => TaskListState };
+  };
+};
+
+type MoveDialog = {
+  open?: (options: {
+    sourceListId: ListId;
+    itemId: string;
+    task: TaskItem;
+    trigger: string;
+    targets: Array<{ id: ListId; name: string; countLabel: string }>;
+    restoreFocus: (() => void) | null;
+    onConfirm: (payload: { targetListId: ListId }) => void;
+    onCancel: () => void;
+  }) => void;
+};
+
+type RegistryController = {
+  getRecord: (id: ListId) => ListRecord | null;
+  flashList: (id: ListId) => void;
+  has: (id: ListId) => boolean;
+};
+
+type Repository = {
+  moveTask: (
+    sourceListId: ListId,
+    targetListId: ListId,
+    itemId: string,
+    options?: { snapshot?: TaskItem; beforeId?: string; afterId?: string }
+  ) => Promise<unknown> | null;
+};
+
+type AppStore = {
+  getState: () => ReturnType<typeof selectors.getState>;
+  dispatch: (action: { type: string; payload?: unknown }) => void;
+};
 
 class MoveTasksController {
-  [key: string]: any;
+  private registry: RegistryController;
+  private repository: Repository | null;
+  private moveDialog: MoveDialog | null;
+  private store: AppStore;
+  private formatMatchCount?: (value: number) => string;
+  private formatTotalCount?: (value: number) => string;
 
   constructor({
     registry,
@@ -10,16 +64,26 @@ class MoveTasksController {
     store,
     formatMatchCount,
     formatTotalCount,
-  }: any = {}) {
+  }: {
+    registry: RegistryController;
+    repository?: Repository | null;
+    moveDialog?: MoveDialog | null;
+    store: AppStore;
+    formatMatchCount?: (value: number) => string;
+    formatTotalCount?: (value: number) => string;
+  }) {
     this.registry = registry;
-    this.repository = repository;
+    this.repository = repository ?? null;
     this.moveDialog = moveDialog ?? null;
     this.store = store;
     this.formatMatchCount = formatMatchCount;
     this.formatTotalCount = formatTotalCount;
   }
 
-  handleSidebarDrop(payload, targetListId) {
+  handleSidebarDrop(
+    payload: { sourceListId?: ListId; itemId?: string; item?: TaskItem },
+    targetListId: ListId
+  ) {
     const sourceListId = payload?.sourceListId;
     const itemId = payload?.itemId;
     const item = payload?.item ?? null;
@@ -31,10 +95,18 @@ class MoveTasksController {
     });
   }
 
-  handleTaskMoveRequest(event) {
-    const detail = event.detail ?? {};
+  handleTaskMoveRequest(event: Event) {
+    const customEvent = event as CustomEvent<{
+      sourceListId?: ListId;
+      itemId?: string;
+      item?: TaskItem;
+      trigger?: string;
+    }>;
+    const detail = customEvent.detail ?? {};
     const sourceListId =
-      detail.sourceListId ?? event.currentTarget?.listId ?? null;
+      detail.sourceListId ??
+      (event.currentTarget as { listId?: ListId } | null)?.listId ??
+      null;
     const itemId = detail.itemId ?? null;
     if (!sourceListId || !itemId) return;
     const record = this.registry.getRecord(sourceListId);
@@ -48,13 +120,13 @@ class MoveTasksController {
       .map((id) => this.registry.getRecord(id))
       .filter((rec) => rec && rec.id !== sourceListId)
       .map((rec) => {
-        const listData = selectors.getList(state, rec.id) ?? {};
-        const total = listData.totalCount ?? rec.element.getTotalItemCount();
+        const listData = selectors.getList(state, rec.id);
+        const total = listData?.totalCount ?? rec.element.getTotalItemCount();
         const matches =
-          listData.matchCount ?? rec.element.getSearchMatchCount();
+          listData?.matchCount ?? rec.element.getSearchMatchCount();
         return {
           id: rec.id,
-          name: listData.name ?? rec.name,
+          name: listData?.name ?? rec.name ?? "Untitled List",
           countLabel:
             searchActive && this.formatMatchCount
               ? this.formatMatchCount(matches)
@@ -88,7 +160,17 @@ class MoveTasksController {
     });
   }
 
-  moveTask(sourceListId, targetListId, itemId, options: any = {}) {
+  moveTask(
+    sourceListId: ListId,
+    targetListId: ListId,
+    itemId: string,
+    options: {
+      snapshot?: TaskItem;
+      focus?: boolean;
+      beforeId?: string;
+      afterId?: string;
+    } = {}
+  ) {
     if (!itemId || sourceListId === targetListId) return;
     const sourceRecord = this.registry.getRecord(sourceListId);
     const targetRecord = this.registry.getRecord(targetListId);

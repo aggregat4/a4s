@@ -1,7 +1,36 @@
 import { html, render } from "../../vendor/lit-html.js";
+import type { ListId, TaskItem } from "../../types/domain.js";
+
+type SidebarListEntry = {
+  id: ListId;
+  name: string;
+  countLabel?: string;
+  totalCount: number;
+  matchCount: number;
+};
+
+type TaskDragPayload = {
+  sourceListId: ListId;
+  itemId: string;
+  item?: TaskItem;
+};
 
 class SidebarElement extends HTMLElement {
-  [key: string]: any;
+  private handlers: Partial<{
+    onAddList: () => void;
+    onDeleteList: () => void;
+    onSelectList: (listId: ListId) => void;
+    onSearchChange: (value: string) => void;
+    onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
+  }>;
+  private searchDebounceId: ReturnType<typeof setTimeout> | null;
+  private currentLists: SidebarListEntry[];
+  private activeListId: ListId | null;
+  private currentSearch: string;
+  private dropTargetDepth: Map<HTMLElement, number>;
+  private searchSeq: number;
+
+  private static readonly TASK_MIME = "application/x-a4-task";
 
   constructor() {
     super();
@@ -34,7 +63,15 @@ class SidebarElement extends HTMLElement {
     this.destroy();
   }
 
-  setHandlers(handlers = {}) {
+  setHandlers(
+    handlers: Partial<{
+      onAddList: () => void;
+      onDeleteList: () => void;
+      onSelectList: (listId: ListId) => void;
+      onSearchChange: (value: string) => void;
+      onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
+    }> = {}
+  ) {
     this.handlers = handlers ?? {};
   }
 
@@ -48,7 +85,7 @@ class SidebarElement extends HTMLElement {
     document.removeEventListener("dragend", this.handleGlobalDragEnd);
   }
 
-  setSearchValue(value) {
+  setSearchValue(value: string) {
     const next = value ?? "";
     clearTimeout(this.searchDebounceId);
     this.searchDebounceId = null;
@@ -63,7 +100,10 @@ class SidebarElement extends HTMLElement {
     }
   }
 
-  setLists(lists, { activeListId, searchQuery }: any = {}) {
+  setLists(
+    lists: SidebarListEntry[],
+    { activeListId, searchQuery }: { activeListId?: ListId | null; searchQuery?: string } = {}
+  ) {
     this.currentLists = Array.isArray(lists) ? lists : [];
     this.activeListId = activeListId ?? null;
     if (typeof searchQuery === "string") {
@@ -145,14 +185,14 @@ class SidebarElement extends HTMLElement {
     );
   }
 
-  handleSidebarButtonClick(event) {
-    const button = event.currentTarget;
+  handleSidebarButtonClick(event: Event) {
+    const button = event.currentTarget as HTMLElement | null;
     const listId = button?.dataset?.listId;
     if (!listId) return;
     this.handlers.onSelectList?.(listId);
   }
 
-  handleSearchInput(event) {
+  handleSearchInput(event: Event) {
     const target = event?.target as HTMLInputElement | null;
     const value = target?.value ?? "";
     this.currentSearch = value;
@@ -164,7 +204,7 @@ class SidebarElement extends HTMLElement {
     }, 150);
   }
 
-  handleSearchKeyDown(event) {
+  handleSearchKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       event.preventDefault();
       if (event.target) {
@@ -179,12 +219,12 @@ class SidebarElement extends HTMLElement {
     }
   }
 
-  parseTaskData(dataTransfer) {
+  parseTaskData(dataTransfer: DataTransfer | null): TaskDragPayload | null {
     if (!dataTransfer) return null;
     const types = Array.from(dataTransfer.types ?? []);
-    if (!types.includes("application/x-a4-task")) return null;
+    if (!types.includes(SidebarElement.TASK_MIME)) return null;
     try {
-      const payload = dataTransfer.getData("application/x-a4-task");
+      const payload = dataTransfer.getData(SidebarElement.TASK_MIME);
       if (!payload) return null;
       return JSON.parse(payload);
     } catch (err) {
@@ -192,14 +232,12 @@ class SidebarElement extends HTMLElement {
     }
   }
 
-  hasTaskPayload(dataTransfer) {
+  hasTaskPayload(dataTransfer: DataTransfer | null) {
     if (!dataTransfer) return false;
-    return Array.from(dataTransfer.types ?? []).includes(
-      "application/x-a4-task"
-    );
+    return Array.from(dataTransfer.types ?? []).includes(SidebarElement.TASK_MIME);
   }
 
-  handleListDragEnter(event) {
+  handleListDragEnter(event: DragEvent) {
     const button = event.currentTarget as HTMLElement | null;
     if (!button) return;
     const payload = this.parseTaskData(event.dataTransfer);
@@ -221,7 +259,7 @@ class SidebarElement extends HTMLElement {
     button.classList.add("is-drop-target");
   }
 
-  handleListDragOver(event) {
+  handleListDragOver(event: DragEvent) {
     const button = event.currentTarget as HTMLElement | null;
     if (!button) return;
     const payload = this.parseTaskData(event.dataTransfer);
@@ -232,10 +270,10 @@ class SidebarElement extends HTMLElement {
     event.dataTransfer.dropEffect = "move";
   }
 
-  handleListDragLeave(event) {
+  handleListDragLeave(event: DragEvent) {
     const button = event.currentTarget as HTMLElement | null;
     if (!button) return;
-    if (button.contains(event.relatedTarget)) {
+    if (button.contains(event.relatedTarget as Node | null)) {
       return;
     }
     const nextDepth = (this.dropTargetDepth.get(button) ?? 1) - 1;
@@ -247,7 +285,7 @@ class SidebarElement extends HTMLElement {
     }
   }
 
-  handleListDrop(event) {
+  handleListDrop(event: DragEvent) {
     const button = event.currentTarget as HTMLElement | null;
     if (!button) return;
     const payload = this.parseTaskData(event.dataTransfer);

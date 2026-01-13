@@ -1,9 +1,67 @@
 import { generateListId, cloneListState } from "./list-store.js";
+import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
+
+type ListElement = HTMLElement & {
+  initialState?: TaskListState;
+  getTotalItemCount: () => number;
+  getSearchMatchCount: () => number;
+  applyFilter?: (query: string) => void;
+  showDone?: boolean;
+  searchQuery?: string;
+  focusItem: (id: string) => void;
+  getItemSnapshot: (id: string) => TaskItem | null;
+  removeItemById: (id: string) => boolean;
+  prependItem: (item: TaskItem) => void;
+  cancelActiveDrag?: () => void;
+  store?: { getState?: () => TaskListState };
+  dispose?: () => void;
+};
+
+type ListRecord = {
+  id: ListId;
+  title: string;
+  name: string;
+  initialState: TaskListState;
+  element: ListElement | null;
+  wrapper: HTMLElement | null;
+  boundElement: ListElement | null;
+  stateVersion: number;
+  appliedStateVersion: number;
+  totalCount: number;
+  matchCount: number;
+  flashTimer: ReturnType<typeof setTimeout> | null;
+};
+
+type ListConfig = {
+  id?: ListId;
+  title?: string;
+  items?: TaskItem[];
+};
+
+type ListEventHandlers = Partial<{
+  onTaskMoveRequest: (event: Event) => void;
+  onItemCountChange: (event: Event) => void;
+  onSearchResultsChange: (event: Event) => void;
+  onListFocus: (event: Event) => void;
+  onListTitleChange: (event: Event) => void;
+  onSearchClear: (event: Event) => void;
+  onShowDoneChange: (event: Event) => void;
+}>;
 
 class ListRegistry {
-  [key: string]: any;
+  private repository: { createList?: (options: ListConfig) => void } | null;
+  private eventHandlers: ListEventHandlers;
+  private records: Map<ListId, ListRecord>;
+  private listOrder: ListId[];
+  private activeListId: ListId | null;
 
-  constructor({ repository, eventHandlers = {} }: any = {}) {
+  constructor({
+    repository,
+    eventHandlers = {},
+  }: {
+    repository?: { createList?: (options: ListConfig) => void } | null;
+    eventHandlers?: ListEventHandlers;
+  } = {}) {
     this.repository = repository ?? null;
     this.eventHandlers = eventHandlers;
     this.records = new Map();
@@ -11,11 +69,11 @@ class ListRegistry {
     this.activeListId = null;
   }
 
-  setEventHandlers(eventHandlers: any = {}) {
+  setEventHandlers(eventHandlers: ListEventHandlers = {}) {
     this.eventHandlers = eventHandlers;
   }
 
-  getRecord(listId) {
+  getRecord(listId: ListId) {
     return this.records.get(listId) ?? null;
   }
 
@@ -23,7 +81,7 @@ class ListRegistry {
     return this.listOrder.map((id) => this.records.get(id)).filter(Boolean);
   }
 
-  has(listId) {
+  has(listId: ListId) {
     return this.records.has(listId);
   }
 
@@ -35,7 +93,7 @@ class ListRegistry {
     this.activeListId = null;
   }
 
-  setActiveListId(listId) {
+  setActiveListId(listId: ListId | null) {
     if (!listId) {
       this.clearActiveListId();
       return;
@@ -53,7 +111,7 @@ class ListRegistry {
     return this.activeListId;
   }
 
-  createList(config, { makeActive = false }: any = {}) {
+  createList(config: ListConfig, { makeActive = false }: { makeActive?: boolean } = {}) {
     const id = config.id ?? generateListId("list");
     const state = cloneListState({
       title:
@@ -85,7 +143,7 @@ class ListRegistry {
       return existing;
     }
 
-    const record = {
+    const record: ListRecord = {
       id,
       title: state.title,
       name: displayName,
@@ -112,7 +170,7 @@ class ListRegistry {
     return record;
   }
 
-  removeList(listId) {
+  removeList(listId: ListId) {
     const record = this.records.get(listId);
     if (!record) return;
     const element = record.element;
@@ -129,17 +187,17 @@ class ListRegistry {
     }
   }
 
-  setListOrder(order = []) {
+  setListOrder(order: ListId[] = []) {
     this.listOrder = order.filter((id) => this.records.has(id));
   }
 
-  refreshMetrics(record) {
+  refreshMetrics(record: ListRecord | null) {
     if (!record || !record.element) return;
     record.totalCount = record.element.getTotalItemCount();
     record.matchCount = record.element.getSearchMatchCount();
   }
 
-  flashList(listId) {
+  flashList(listId: ListId) {
     const record = this.records.get(listId);
     if (!record || !record.wrapper) return;
     if (record.flashTimer) {
@@ -155,14 +213,16 @@ class ListRegistry {
   attachRenderedLists(container: HTMLElement | null) {
     if (!container) return;
     const sections = Array.from(
-      container.querySelectorAll("section.list-section")
+      container.querySelectorAll<HTMLElement>("section.list-section")
     );
     sections.forEach((section) => {
       const listId = (section as HTMLElement).dataset.listId;
       if (!listId) return;
       const record = this.records.get(listId);
       if (!record) return;
-      const listElement = section.querySelector("a4-tasklist") as any;
+      const listElement = section.querySelector(
+        "a4-tasklist"
+      ) as ListElement | null;
       if (!listElement) return;
       if (record.boundElement && record.boundElement !== listElement) {
         this.unregisterListEvents(record);
@@ -180,7 +240,15 @@ class ListRegistry {
     });
   }
 
-  getSidebarListData({ searchMode, formatMatchCount, formatTotalCount }) {
+  getSidebarListData({
+    searchMode,
+    formatMatchCount,
+    formatTotalCount,
+  }: {
+    searchMode: boolean;
+    formatMatchCount: (count: number) => string;
+    formatTotalCount: (count: number) => string;
+  }) {
     return this.listOrder
       .map((id) => {
         const record = this.records.get(id);
@@ -198,7 +266,7 @@ class ListRegistry {
       .filter(Boolean);
   }
 
-  registerListEvents(record) {
+  registerListEvents(record: ListRecord) {
     const element = record?.boundElement ?? record?.element;
     if (!element || !this.eventHandlers) return;
     const {
@@ -233,7 +301,7 @@ class ListRegistry {
     }
   }
 
-  unregisterListEvents(record) {
+  unregisterListEvents(record: ListRecord) {
     const element = record?.boundElement ?? record?.element;
     if (!element || !this.eventHandlers) return;
     const {

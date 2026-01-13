@@ -1,4 +1,5 @@
 import { createStore } from "./list-store.js";
+import type { ListId } from "../../types/domain.js";
 
 const APP_ACTIONS = {
   setRegistry: "app/setRegistry",
@@ -8,17 +9,32 @@ const APP_ACTIONS = {
   setSearchQuery: "app/setSearchQuery",
   updateListMetrics: "app/updateListMetrics",
   updateListName: "app/updateListName",
+} as const;
+
+type ListSummary = {
+  id: ListId;
+  name: string;
+  totalCount: number;
+  matchCount: number;
 };
 
-const initialState = {
-  lists: {}, // id -> { id, name, totalCount, matchCount }
+type AppState = {
+  lists: Record<ListId, ListSummary>;
+  order: ListId[];
+  activeListId: ListId | null;
+  pendingActiveListId: ListId | null;
+  searchQuery: string;
+};
+
+const initialState: AppState = {
+  lists: {},
   order: [],
   activeListId: null,
   pendingActiveListId: null,
   searchQuery: "",
 };
 
-const normalizeLists = (lists = []) =>
+const normalizeLists = (lists: Array<Partial<ListSummary>> = []) =>
   lists.reduce((acc, entry) => {
     if (!entry || typeof entry.id !== "string") return acc;
     acc[entry.id] = {
@@ -39,12 +55,12 @@ const normalizeLists = (lists = []) =>
           : 0,
     };
     return acc;
-  }, {});
+  }, {} as Record<ListId, ListSummary>);
 
-const filterOrder = (order = [], lists = {}) =>
+const filterOrder = (order: Array<ListId | string> = [], lists: AppState["lists"] = {}) =>
   order.filter((id) => typeof id === "string" && id in lists);
 
-const ensureActive = (state) => {
+const ensureActive = (state: AppState): AppState => {
   if (state.activeListId && state.lists[state.activeListId]) {
     return state;
   }
@@ -52,7 +68,37 @@ const ensureActive = (state) => {
   return { ...state, activeListId: nextActive };
 };
 
-const appReducer = (state = initialState, action: any = {}) => {
+type AppAction =
+  | {
+      type: typeof APP_ACTIONS.setRegistry;
+      payload?: {
+        lists?: Array<Partial<ListSummary>>;
+        order?: ListId[];
+        activeListId?: ListId | null;
+        pendingActiveListId?: ListId | null;
+      };
+    }
+  | { type: typeof APP_ACTIONS.setOrder; payload?: { order?: ListId[] } }
+  | { type: typeof APP_ACTIONS.setActiveList; payload?: { id?: ListId | null } }
+  | {
+      type: typeof APP_ACTIONS.setPendingActiveList;
+      payload?: { id?: ListId | null };
+    }
+  | { type: typeof APP_ACTIONS.setSearchQuery; payload?: { query?: string } }
+  | {
+      type: typeof APP_ACTIONS.updateListMetrics;
+      payload?: { id?: ListId; totalCount?: number; matchCount?: number };
+    }
+  | {
+      type: typeof APP_ACTIONS.updateListName;
+      payload?: { id?: ListId; name?: string };
+    }
+  | { type: "@@INIT"; payload?: unknown };
+
+const appReducer = (
+  state: AppState = initialState,
+  action: AppAction = { type: "@@INIT" }
+) => {
   switch (action.type) {
     case APP_ACTIONS.setRegistry: {
       const payload = action.payload ?? {};
@@ -153,18 +199,18 @@ const appReducer = (state = initialState, action: any = {}) => {
   }
 };
 
-const createAppStore = (preloadedState?: any) =>
+const createAppStore = (preloadedState?: AppState) =>
   createStore(appReducer, preloadedState);
 
 const selectors = {
-  getState: (state) => state,
-  getListOrder: (state) => state.order,
-  getActiveListId: (state) => state.activeListId,
-  getPendingActiveListId: (state) => state.pendingActiveListId,
-  getSearchQuery: (state) => state.searchQuery,
-  isSearchMode: (state) => (state.searchQuery ?? "").trim().length > 0,
-  getList: (state, id) => state.lists[id] ?? null,
-  getSidebarListData: (state) =>
+  getState: (state: AppState) => state,
+  getListOrder: (state: AppState) => state.order,
+  getActiveListId: (state: AppState) => state.activeListId,
+  getPendingActiveListId: (state: AppState) => state.pendingActiveListId,
+  getSearchQuery: (state: AppState) => state.searchQuery,
+  isSearchMode: (state: AppState) => (state.searchQuery ?? "").trim().length > 0,
+  getList: (state: AppState, id: ListId) => state.lists[id] ?? null,
+  getSidebarListData: (state: AppState) =>
     state.order
       .map((id) => state.lists[id])
       .filter(Boolean)

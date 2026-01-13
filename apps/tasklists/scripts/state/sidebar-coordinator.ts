@@ -1,15 +1,47 @@
-class SidebarCoordinator {
-  [key: string]: any;
+import type { ListId } from "../../types/domain.js";
 
-  constructor({ sidebarElement }: any = {}) {
+type SidebarListEntry = {
+  id: ListId;
+  name: string;
+  totalCount: number;
+  matchCount: number;
+};
+
+type SidebarElement = {
+  setHandlers?: (handlers: Record<string, unknown>) => void;
+  setLists?: (
+    lists: Array<
+      SidebarListEntry & {
+        countLabel: string;
+      }
+    >,
+    options: { activeListId: ListId | null; searchQuery: string }
+  ) => void;
+};
+
+class SidebarCoordinator {
+  private sidebar: SidebarElement | null;
+
+  constructor({ sidebarElement }: { sidebarElement?: SidebarElement | null } = {}) {
     this.sidebar = sidebarElement ?? null;
   }
 
-  wireHandlers(handlers: any = {}) {
+  wireHandlers(handlers: Record<string, unknown> = {}) {
     this.sidebar?.setHandlers?.(handlers);
   }
 
-  renderSidebar(listData = [], { activeListId, searchQuery, searchMode }: any = {}) {
+  renderSidebar(
+    listData: SidebarListEntry[] = [],
+    {
+      activeListId,
+      searchQuery,
+      searchMode,
+    }: { activeListId: ListId | null; searchQuery: string; searchMode: boolean } = {
+      activeListId: null,
+      searchQuery: "",
+      searchMode: false,
+    }
+  ) {
     const data = listData.map((entry) => ({
       ...entry,
       countLabel: searchMode
@@ -22,12 +54,12 @@ class SidebarCoordinator {
     });
   }
 
-  formatMatchCount(count) {
+  formatMatchCount(count: number) {
     if (!count) return "No matches";
     return count === 1 ? "1 match" : `${count} matches`;
   }
 
-  formatTotalCount(count) {
+  formatTotalCount(count: number) {
     if (!count) return "Empty";
     return count === 1 ? "1" : `${count}`;
   }

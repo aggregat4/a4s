@@ -10,13 +10,81 @@ import {
   matchesSearchEntry,
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
+import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import "./sidebar.js";
 import "./main-pane.js";
 import "./move-dialog.js";
 import "./a4-tasklist.js";
 
+type SidebarElement = HTMLElement & {
+  init?: () => void;
+  setSearchValue?: (value: string) => void;
+  setLists?: (
+    lists: Array<{
+      id: ListId;
+      name: string;
+      totalCount: number;
+      matchCount: number;
+      countLabel?: string;
+    }>,
+    options: { activeListId: ListId | null; searchQuery: string }
+  ) => void;
+  setHandlers?: (handlers: Record<string, unknown>) => void;
+};
+
+type MainPaneElement = HTMLElement & {
+  renderLists?: (
+    lists: Array<{ id: ListId }>,
+    options: {
+      activeListId: ListId | null;
+      searchMode: boolean;
+      repository: ListRepository;
+    }
+  ) => void;
+  setTitle?: (value: string) => void;
+  setSearchMode?: (enabled: boolean) => void;
+  getListsContainer?: () => HTMLElement | null;
+};
+
+type MoveDialogElement = HTMLElement & {
+  open?: (options: {
+    sourceListId: ListId;
+    itemId: string;
+    task: TaskItem;
+    trigger: string;
+    targets: Array<{ id: ListId; name: string; countLabel: string }>;
+    restoreFocus: (() => void) | null;
+    onConfirm: (payload: { targetListId: ListId }) => void;
+    onCancel: () => void;
+  }) => void;
+};
+
+type Store = ReturnType<typeof createAppStore>;
+type FocusState = { listId: ListId | null; itemId: string | null };
+
 class ListsAppShellElement extends HTMLElement {
-  [key: string]: any;
+  private shellRendered: boolean;
+  private appInitialized: boolean;
+  private sidebarElement: SidebarElement | null;
+  private mainElement: MainPaneElement | null;
+  private moveDialogElement: MoveDialogElement | null;
+  private repository: ListRepository | null;
+  private store: Store | null;
+  private sidebarCoordinator: SidebarCoordinator | null;
+  private registry: ListRegistry | null;
+  private moveTasksController: MoveTasksController | null;
+  private repositorySync: RepositorySync | null;
+  private unsubscribeStore: (() => void) | null;
+  private lastFocused: FocusState | null;
+  private lastSearchQuery: string;
+  private lastOrder: ListId[];
+  private lastActiveId: ListId | null;
+  private pendingMainRender: {
+    activeId: ListId | null;
+    searchMode: boolean;
+    searchQuery: string;
+  } | null;
+  private mainRenderScheduled: boolean;
 
   constructor() {
     super();
@@ -81,12 +149,18 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   cacheElements() {
-    this.sidebarElement = this.querySelector("[data-role='sidebar']");
-    this.mainElement = this.querySelector("[data-role='main']");
-    this.moveDialogElement = this.querySelector("[data-role='move-dialog']");
+    this.sidebarElement = this.querySelector(
+      "[data-role='sidebar']"
+    ) as SidebarElement | null;
+    this.mainElement = this.querySelector(
+      "[data-role='main']"
+    ) as MainPaneElement | null;
+    this.moveDialogElement = this.querySelector(
+      "[data-role='move-dialog']"
+    ) as MoveDialogElement | null;
   }
 
-  async initialize({ repository }: any = {}) {
+  async initialize({ repository }: { repository?: ListRepository } = {}) {
     if (this.appInitialized) return;
     this.renderShell();
     await Promise.all([
@@ -181,7 +255,7 @@ class ListsAppShellElement extends HTMLElement {
     this.updateMainSearchMode(searchMode);
   }
 
-  handleSearchChange(value) {
+  handleSearchChange(value: string) {
     if (!this.store) return;
     const next = typeof value === "string" ? value : "";
     this.store.dispatch({
@@ -197,15 +271,15 @@ class ListsAppShellElement extends HTMLElement {
     this.handleSearchChange("");
   }
 
-  handleShowDoneChange(event) {
+  handleShowDoneChange(event: Event) {
     if (!this.store) return;
-    const listId = event.currentTarget?.listId ?? null;
+    const listId = (event.currentTarget as { listId?: ListId } | null)?.listId ?? null;
     if (!listId) return;
     const query = selectors.getSearchQuery(this.store.getState());
     this.updateSearchMetrics(query, { listId });
   }
 
-  handleListSelection(listId) {
+  handleListSelection(listId: ListId) {
     if (!listId || !this.store) return;
     this.store.dispatch({
       type: APP_ACTIONS.setActiveList,
@@ -234,12 +308,18 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  handleListTitleChange(event) {
+  handleListTitleChange(event: Event) {
     if (!this.store) return;
+    const customEvent = event as CustomEvent<{ title?: string }>;
     const element = event.currentTarget ?? null;
-    const listId = element?.listId ?? element?.dataset?.listId ?? null;
+    const listId =
+      (element as { listId?: ListId } | null)?.listId ??
+      (element as HTMLElement | null)?.dataset?.listId ??
+      null;
     const detailTitle =
-      typeof event.detail?.title === "string" ? event.detail.title : "";
+      typeof customEvent.detail?.title === "string"
+        ? customEvent.detail.title
+        : "";
     if (!listId) return;
     const trimmed = detailTitle.trim();
     const record = this.registry.getRecord(listId);
@@ -298,12 +378,13 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  handleItemCountChange(event) {
+  handleItemCountChange(event: Event) {
     if (!this.store) return;
-    const listId = event.currentTarget?.listId ?? null;
+    const customEvent = event as CustomEvent<{ total?: number }>;
+    const listId = (event.currentTarget as { listId?: ListId } | null)?.listId ?? null;
     const record = this.registry.getRecord(listId);
     if (!record) return;
-    const total = Number(event.detail?.total);
+    const total = Number(customEvent.detail?.total);
     const totalCount = Number.isFinite(total)
       ? total
       : record.element?.getTotalItemCount?.() ?? 0;
@@ -313,12 +394,13 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  handleSearchResultsChange(event) {
+  handleSearchResultsChange(event: Event) {
     if (!this.store) return;
-    const listId = event.currentTarget?.listId ?? null;
+    const customEvent = event as CustomEvent<{ matches?: number }>;
+    const listId = (event.currentTarget as { listId?: ListId } | null)?.listId ?? null;
     const record = this.registry.getRecord(listId);
     if (!record) return;
-    const matches = Number(event.detail?.matches);
+    const matches = Number(customEvent.detail?.matches);
     const matchCount = Number.isFinite(matches)
       ? matches
       : record.element?.getSearchMatchCount?.() ?? 0;
@@ -328,15 +410,23 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  handleListFocus(event) {
-    const detail = event.detail ?? {};
+  handleListFocus(event: Event) {
+    const customEvent = event as CustomEvent<{
+      sourceListId?: ListId;
+      itemId?: string;
+    }>;
+    const detail = customEvent.detail ?? {};
     this.lastFocused = {
-      listId: detail.sourceListId ?? event.currentTarget?.listId ?? null,
+      listId:
+        detail.sourceListId ??
+        (event.currentTarget as { listId?: ListId } | null)?.listId ??
+        null,
       itemId: detail.itemId ?? null,
     };
   }
 
-  applySearchToLists(query) {
+  applySearchToLists(query: string) {
+    if (!this.registry) return;
     const records = this.registry.getRecordsInOrder();
     records.forEach((record) => {
       if (!record.element) return;
@@ -345,8 +435,11 @@ class ListsAppShellElement extends HTMLElement {
     this.updateSearchMetrics(query);
   }
 
-  updateSearchMetrics(query, { listId = null } = {}) {
-    if (!this.store || !this.repository) return;
+  updateSearchMetrics(
+    query: string,
+    { listId = null }: { listId?: ListId | null } = {}
+  ) {
+    if (!this.store || !this.repository || !this.registry) return;
     const tokens = tokenizeSearchQuery(query);
     const records = this.registry.getRecordsInOrder();
     records.forEach((record) => {
@@ -359,11 +452,11 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  getSearchMatchCountForList(listId, tokens) {
+  getSearchMatchCountForList(listId: ListId, tokens: string[]) {
     if (!this.repository) return 0;
     const state = this.repository.getListState(listId);
     const items = Array.isArray(state?.items) ? state.items : [];
-    const record = this.registry.getRecord(listId);
+    const record = this.registry?.getRecord(listId);
     const showDone = record?.element?.showDone === true;
     let matchCount = 0;
     items.forEach((item) => {
@@ -383,7 +476,7 @@ class ListsAppShellElement extends HTMLElement {
     return matchCount;
   }
 
-  refreshSidebar(state = this.store?.getState?.()) {
+  refreshSidebar(state: ReturnType<Store["getState"]> | null = this.store?.getState?.() ?? null) {
     if (!state) return;
     const searchMode = selectors.isSearchMode(state);
     const tokens = searchMode
@@ -406,7 +499,7 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  updateMainHeading(state = this.store?.getState?.()) {
+  updateMainHeading(state: ReturnType<Store["getState"]> | null = this.store?.getState?.() ?? null) {
     if (!state) return;
     if (selectors.isSearchMode(state)) {
       const query = selectors.getSearchQuery(state).trim();
@@ -422,11 +515,19 @@ class ListsAppShellElement extends HTMLElement {
     this.mainElement?.setTitle?.(active ? active.name : "Task Collections");
   }
 
-  updateMainSearchMode(searchMode) {
+  updateMainSearchMode(searchMode: boolean) {
     this.mainElement?.setSearchMode?.(searchMode);
   }
 
-  renderMainLists({ activeId, searchMode, searchQuery }) {
+  renderMainLists({
+    activeId,
+    searchMode,
+    searchQuery,
+  }: {
+    activeId: ListId | null;
+    searchMode: boolean;
+    searchQuery: string;
+  }) {
     if (!this.mainElement || typeof this.mainElement.renderLists !== "function") {
       this.pendingMainRender = { activeId, searchMode, searchQuery };
       if (!this.mainRenderScheduled) {
@@ -442,6 +543,7 @@ class ListsAppShellElement extends HTMLElement {
       }
       return;
     }
+    if (!this.registry || !this.repository) return;
     const records = this.registry.getRecordsInOrder();
     this.mainElement.renderLists?.(records, {
       activeListId: activeId,

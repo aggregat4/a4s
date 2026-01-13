@@ -1,7 +1,21 @@
 import { html, render } from "../../vendor/lit-html.js";
+import type { ListId } from "../../types/domain.js";
+import type { ListRepository } from "../../lib/app/list-repository.js";
+
+type ListRecord = {
+  id: ListId;
+};
 
 class MainPaneElement extends HTMLElement {
-  [key: string]: any;
+  private shellRendered: boolean;
+  private headerEl: HTMLElement | null;
+  private titleEl: HTMLElement | null;
+  private listContainer: HTMLElement | null;
+  private currentTitle: string;
+  private searchMode: boolean;
+  private currentLists: ListRecord[];
+  private activeListId: ListId | null;
+  private listRepository: ListRepository | null;
 
   constructor() {
     super();
@@ -55,21 +69,32 @@ class MainPaneElement extends HTMLElement {
       this.headerEl.querySelector("[data-role='active-list-title']") ?? null;
   }
 
-  setTitle(title) {
+  setTitle(title: string) {
     const next = typeof title === "string" ? title : "";
     if (next === this.currentTitle) return;
     this.currentTitle = next;
     this.renderHeader();
   }
 
-  setSearchMode(enabled) {
+  setSearchMode(enabled: boolean) {
     const next = Boolean(enabled);
     if (next === this.searchMode) return;
     this.searchMode = next;
     this.classList.toggle("search-mode", next);
   }
 
-  renderLists(lists, { activeListId, searchMode, repository }: any = {}) {
+  renderLists(
+    lists: ListRecord[],
+    {
+      activeListId,
+      searchMode,
+      repository,
+    }: {
+      activeListId?: ListId | null;
+      searchMode?: boolean;
+      repository?: ListRepository | null;
+    } = {}
+  ) {
     if (!this.listContainer) {
       this.renderShell();
     }

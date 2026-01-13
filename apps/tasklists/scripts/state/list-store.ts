@@ -1,15 +1,28 @@
-const normalizeHeaderError = (value) => {
+import type { TaskItem, TaskListState } from "../../types/domain.js";
+
+type HeaderError = { message: string; code?: string } | null;
+
+const normalizeHeaderError = (value: unknown): HeaderError => {
   if (!value) return null;
-  const message = typeof value.message === "string" ? value.message : null;
+  const message =
+    typeof (value as { message?: unknown }).message === "string"
+      ? (value as { message: string }).message
+      : null;
   if (!message) return null;
-  const code = typeof value.code === "string" ? value.code : null;
+  const code =
+    typeof (value as { code?: unknown }).code === "string"
+      ? (value as { code: string }).code
+      : null;
   return code ? { message, code } : { message };
 };
 
-export const cloneListState = (source) => ({
-  title: typeof source?.title === "string" ? source.title : "",
-  items: Array.isArray(source?.items)
-    ? source.items.map((item, index) => ({
+export const cloneListState = (source: unknown): TaskListState => ({
+  title:
+    typeof (source as { title?: unknown })?.title === "string"
+      ? (source as { title: string }).title
+      : "",
+  items: Array.isArray((source as { items?: TaskItem[] })?.items)
+    ? (source as { items: TaskItem[] }).items.map((item, index) => ({
         id:
           typeof item?.id === "string" && item.id.length
             ? item.id
@@ -18,7 +31,9 @@ export const cloneListState = (source) => ({
         done: Boolean(item?.done),
       }))
     : [],
-  headerError: normalizeHeaderError(source?.headerError),
+  headerError: normalizeHeaderError(
+    (source as { headerError?: HeaderError | null })?.headerError
+  ),
 });
 
 export const generateItemId = () => `task-${crypto.randomUUID()}`;
@@ -35,11 +50,47 @@ export const LIST_ACTIONS = {
   removeItem: "list/removeItem",
   setHeaderError: "list/setHeaderError",
   clearHeaderError: "list/clearHeaderError",
-};
+} as const;
+
+type ListAction =
+  | { type: typeof LIST_ACTIONS.setTitle; payload?: { title?: string } }
+  | {
+      type: typeof LIST_ACTIONS.setItemDone;
+      payload?: { id?: string; done?: boolean };
+    }
+  | {
+      type: typeof LIST_ACTIONS.updateItemText;
+      payload?: { id?: string; text?: string };
+    }
+  | {
+      type: typeof LIST_ACTIONS.reorderItems;
+      payload?: { order?: string[] };
+    }
+  | {
+      type: typeof LIST_ACTIONS.replaceAll;
+      payload?: TaskListState | null;
+    }
+  | {
+      type: typeof LIST_ACTIONS.insertItem;
+      payload?: {
+        index?: number;
+        item?: Partial<TaskItem> | null;
+      };
+    }
+  | {
+      type: typeof LIST_ACTIONS.removeItem;
+      payload?: { id?: string };
+    }
+  | {
+      type: typeof LIST_ACTIONS.setHeaderError;
+      payload?: HeaderError | null;
+    }
+  | { type: typeof LIST_ACTIONS.clearHeaderError; payload?: unknown }
+  | { type: "@@INIT"; payload?: unknown };
 
 export const listReducer = (
-  state = { title: "", items: [], headerError: null },
-  action: any = {}
+  state: TaskListState = { title: "", items: [], headerError: null },
+  action: ListAction = { type: "@@INIT" }
 ) => {
   switch (action.type) {
     case LIST_ACTIONS.setTitle: {
@@ -142,16 +193,19 @@ export const listReducer = (
   }
 };
 
-export const createStore = (reducer, preloadedState) => {
+export const createStore = <State, Action extends { type: string }>(
+  reducer: (state: State | undefined, action: Action) => State,
+  preloadedState?: State
+) => {
   let currentState =
     typeof preloadedState === "undefined"
-      ? reducer(undefined, { type: "@@INIT" })
-      : reducer(preloadedState, { type: "@@INIT" });
+      ? reducer(undefined, { type: "@@INIT" } as Action)
+      : reducer(preloadedState, { type: "@@INIT" } as Action);
   let listeners = new Set<() => void>();
 
   return {
     getState: () => currentState,
-    dispatch(action) {
+    dispatch(action: Action) {
       const nextState = reducer(currentState, action);
       if (nextState !== currentState) {
         currentState = nextState;
@@ -159,7 +213,7 @@ export const createStore = (reducer, preloadedState) => {
       }
       return action;
     },
-    subscribe(listener) {
+    subscribe(listener: () => void) {
       if (typeof listener !== "function") return () => {};
       listeners.add(listener);
       return () => {

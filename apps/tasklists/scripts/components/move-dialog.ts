@@ -1,7 +1,32 @@
 import { html, render } from "../../vendor/lit-html.js";
+import type { ListId, TaskItem } from "../../types/domain.js";
+
+type MoveTarget = {
+  id: ListId;
+  name: string;
+  countLabel?: string;
+};
+
+type MoveDialogContext = {
+  sourceListId: ListId;
+  itemId: string;
+  task: TaskItem;
+  trigger: string;
+  targets: MoveTarget[];
+  restoreFocus?: (() => void) | null;
+  onConfirm?: (payload: MoveDialogContext & { targetListId: ListId }) => void;
+  onCancel?: (payload: MoveDialogContext) => void;
+};
 
 class KeyboardMoveDialog extends HTMLElement {
-  [key: string]: any;
+  private backdropEl: HTMLElement | null;
+  private contentEl: HTMLElement | null;
+  private optionsListEl: HTMLElement | null;
+  private cancelButton: HTMLButtonElement | null;
+  private optionButtons: HTMLButtonElement[];
+  private isOpen: boolean;
+  private currentContext: MoveDialogContext | null;
+  private shellRendered: boolean;
 
   constructor() {
     super();
@@ -97,7 +122,7 @@ class KeyboardMoveDialog extends HTMLElement {
       this.querySelector("[data-role='move-dialog-cancel']") ?? null;
   }
 
-  open(options: any = {}) {
+  open(options: MoveDialogContext) {
     this.renderShell();
     this.cacheElements();
     if (!this.optionsListEl) return;
@@ -118,7 +143,7 @@ class KeyboardMoveDialog extends HTMLElement {
     });
   }
 
-  renderOptions(targets) {
+  renderOptions(targets: MoveTarget[]) {
     if (!this.optionsListEl) {
       this.optionButtons = [];
       return;
@@ -144,7 +169,7 @@ class KeyboardMoveDialog extends HTMLElement {
       this.optionsListEl
     );
     this.optionButtons = Array.from(
-      this.optionsListEl.querySelectorAll(".move-dialog__option")
+      this.optionsListEl.querySelectorAll<HTMLButtonElement>(".move-dialog__option")
     );
   }
 
@@ -157,7 +182,7 @@ class KeyboardMoveDialog extends HTMLElement {
     this.optionButtons = [];
   }
 
-  close({ restoreFocus = true } = {}) {
+  close({ restoreFocus = true }: { restoreFocus?: boolean } = {}) {
     if (!this.isOpen) {
       if (!restoreFocus) {
         this.currentContext = null;
@@ -179,8 +204,8 @@ class KeyboardMoveDialog extends HTMLElement {
     }
   }
 
-  handleOptionClick(event) {
-    const button = event.currentTarget;
+  handleOptionClick(event: Event) {
+    const button = event.currentTarget as HTMLElement | null;
     const listId = button?.dataset?.listId;
     if (!listId) return;
     const context = this.currentContext;
@@ -199,7 +224,7 @@ class KeyboardMoveDialog extends HTMLElement {
     this.handleCancel();
   }
 
-  handleKeyDown(event) {
+  handleKeyDown(event: KeyboardEvent) {
     if (!this.isOpen) return;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -211,7 +236,9 @@ class KeyboardMoveDialog extends HTMLElement {
       const focusables = this.getFocusableElements();
       if (!focusables.length) return;
       event.preventDefault();
-      const currentIndex = focusables.indexOf(document.activeElement);
+      const currentIndex = focusables.indexOf(
+        document.activeElement as HTMLElement | null
+      );
       let nextIndex = currentIndex + forward;
       if (nextIndex < 0) nextIndex = focusables.length - 1;
       if (nextIndex >= focusables.length) nextIndex = 0;
@@ -223,7 +250,9 @@ class KeyboardMoveDialog extends HTMLElement {
       if (!focusables.length) return;
       event.preventDefault();
       const direction = event.shiftKey ? -1 : 1;
-      const currentIndex = focusables.indexOf(document.activeElement);
+      const currentIndex = focusables.indexOf(
+        document.activeElement as HTMLElement | null
+      );
       let nextIndex = currentIndex + direction;
       if (nextIndex < 0) nextIndex = focusables.length - 1;
       if (nextIndex >= focusables.length) nextIndex = 0;
@@ -232,7 +261,7 @@ class KeyboardMoveDialog extends HTMLElement {
   }
 
   getFocusableElements() {
-    const focusables = [];
+    const focusables: HTMLElement[] = [];
     this.optionButtons.forEach((button) => focusables.push(button));
     if (this.cancelButton) {
       focusables.push(this.cancelButton);

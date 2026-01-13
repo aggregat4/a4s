@@ -1,9 +1,53 @@
 import { APP_ACTIONS } from "./app-store.js";
+import type { ListId, ListRegistryEntry, TaskListState } from "../../types/domain.js";
+
+type Repository = {
+  initialize: () => Promise<unknown>;
+  subscribeRegistry: (
+    handler: (snapshot: ListRegistryEntry[]) => void,
+    options?: { emitCurrent?: boolean }
+  ) => () => void;
+  getRegistrySnapshot: () => ListRegistryEntry[];
+  getListState: (listId: ListId) => TaskListState;
+};
+
+type Registry = {
+  createList: (config: {
+    id?: ListId;
+    title?: string;
+    items?: TaskListState["items"];
+  }) => { id: ListId; name: string; totalCount: number; matchCount: number } | null;
+  getRecordIds: () => ListId[];
+  removeList: (id: ListId) => void;
+  has: (id: ListId) => boolean;
+  setListOrder: (order: ListId[]) => void;
+};
+
+type AppStateSlice = {
+  pendingActiveListId: ListId | null;
+  activeListId: ListId | null;
+};
+
+type Store = {
+  getState: () => AppStateSlice;
+  dispatch: (action: { type: string; payload?: unknown }) => void;
+};
 
 class RepositorySync {
-  [key: string]: any;
+  private repository: Repository;
+  private registry: Registry;
+  private store: Store;
+  private registryUnsubscribe: (() => void) | null;
 
-  constructor({ repository, registry, store }: any = {}) {
+  constructor({
+    repository,
+    registry,
+    store,
+  }: {
+    repository: Repository;
+    registry: Registry;
+    store: Store;
+  }) {
     this.repository = repository;
     this.registry = registry;
     this.store = store;
@@ -28,10 +72,15 @@ class RepositorySync {
     }
   }
 
-  handleRegistryChange(snapshot = []) {
+  handleRegistryChange(snapshot: ListRegistryEntry[] = []) {
     if (!Array.isArray(snapshot)) return;
-    const seen = new Set();
-    const listMeta = [];
+    const seen = new Set<ListId>();
+    const listMeta: Array<{
+      id: ListId;
+      name: string;
+      totalCount: number;
+      matchCount: number;
+    }> = [];
     snapshot.forEach((entry) => {
       const listId = entry?.id;
       if (!listId) return;
@@ -69,7 +118,7 @@ class RepositorySync {
     const currentState = this.store.getState();
     const pending = currentState.pendingActiveListId;
     const activeCandidate =
-      (pending && this.registry.has(pending)) || currentState.activeListId;
+      pending && this.registry.has(pending) ? pending : currentState.activeListId;
 
     this.store.dispatch({
       type: APP_ACTIONS.setRegistry,
