@@ -11,6 +11,7 @@ import {
 } from "../state/list-store.js";
 import {
   evaluateSearchEntry,
+  matchesSearchEntry,
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
 
@@ -958,6 +959,13 @@ class A4TaskList extends HTMLElement {
     this.showDone = isChecked;
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.renderCurrentState();
+    this.dispatchEvent(
+      new CustomEvent("showdonechange", {
+        detail: { showDone: this.showDone },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   clearSearch() {
@@ -2051,6 +2059,28 @@ class A4TaskList extends HTMLElement {
       return this.lastReportedMatches;
     }
     return this.getTotalItemCount();
+  }
+
+  getSearchMatchCountForQuery(query) {
+    const tokens = tokenizeSearchQuery(query);
+    const state = this.store?.getState?.();
+    const items = Array.isArray(state?.items) ? state.items : [];
+    let count = 0;
+    items.forEach((item) => {
+      const text = typeof item?.text === "string" ? item.text : "";
+      const isDone = Boolean(item?.done);
+      if (
+        matchesSearchEntry({
+          originalText: text,
+          tokens,
+          showDone: this.showDone,
+          isDone,
+        })
+      ) {
+        count += 1;
+      }
+    });
+    return count;
   }
 
   get listId() {

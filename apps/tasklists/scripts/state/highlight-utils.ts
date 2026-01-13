@@ -146,3 +146,20 @@ export const evaluateSearchEntry = ({
 
   return { hidden: false, markup };
 };
+
+export const matchesSearchEntry = ({
+  originalText,
+  tokens,
+  showDone,
+  isDone,
+}) => {
+  if (!showDone && isDone) {
+    return false;
+  }
+  if (!tokens || tokens.length === 0) {
+    return true;
+  }
+  const haystack =
+    typeof originalText === "string" ? originalText.toLowerCase() : "";
+  return tokens.every((token) => haystack.includes(token));
+};

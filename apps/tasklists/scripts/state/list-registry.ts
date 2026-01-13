@@ -208,6 +208,7 @@ class ListRegistry {
       onListFocus,
       onListTitleChange,
       onSearchClear,
+      onShowDoneChange,
     } = this.eventHandlers;
     if (onTaskMoveRequest) {
       element.addEventListener("taskMoveRequest", onTaskMoveRequest);
@@ -227,6 +228,9 @@ class ListRegistry {
     if (onSearchClear) {
       element.addEventListener("clearsearch", onSearchClear);
     }
+    if (onShowDoneChange) {
+      element.addEventListener("showdonechange", onShowDoneChange);
+    }
   }
 
   unregisterListEvents(record) {
@@ -239,6 +243,7 @@ class ListRegistry {
       onListFocus,
       onListTitleChange,
       onSearchClear,
+      onShowDoneChange,
     } = this.eventHandlers;
     if (onTaskMoveRequest) {
       element.removeEventListener("taskMoveRequest", onTaskMoveRequest);
@@ -257,6 +262,9 @@ class ListRegistry {
     }
     if (onSearchClear) {
       element.removeEventListener("clearsearch", onSearchClear);
+    }
+    if (onShowDoneChange) {
+      element.removeEventListener("showdonechange", onShowDoneChange);
     }
     if (record) {
       record.boundElement = null;

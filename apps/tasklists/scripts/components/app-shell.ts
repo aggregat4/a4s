@@ -6,6 +6,10 @@ import { MoveTasksController } from "../state/move-tasks-controller.js";
 import { ListRegistry } from "../state/list-registry.js";
 import { RepositorySync } from "../state/repository-sync.js";
 import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
+import {
+  matchesSearchEntry,
+  tokenizeSearchQuery,
+} from "../state/highlight-utils.js";
 import "./sidebar.js";
 import "./main-pane.js";
 import "./move-dialog.js";
@@ -45,6 +49,7 @@ class ListsAppShellElement extends HTMLElement {
     this.handleSearchResultsChange = this.handleSearchResultsChange.bind(this);
     this.handleListFocus = this.handleListFocus.bind(this);
     this.handleListTitleChange = this.handleListTitleChange.bind(this);
+    this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
   }
 
   connectedCallback() {
@@ -124,6 +129,7 @@ class ListsAppShellElement extends HTMLElement {
       onListFocus: (event) => this.handleListFocus(event),
       onListTitleChange: (event) => this.handleListTitleChange(event),
       onSearchClear: () => this.handleSearchClear(),
+      onShowDoneChange: (event) => this.handleShowDoneChange(event),
     });
     this.sidebarCoordinator.wireHandlers({
       onSearchChange: this.handleSearchChange,
@@ -170,11 +176,6 @@ class ListsAppShellElement extends HTMLElement {
 
     this.renderMainLists({ activeId, searchMode, searchQuery });
 
-    if (searchQuery !== this.lastSearchQuery) {
-      this.applySearchToLists(searchQuery);
-      this.lastSearchQuery = searchQuery;
-    }
-
     this.refreshSidebar(state);
     this.updateMainHeading(state);
     this.updateMainSearchMode(searchMode);
@@ -187,11 +188,21 @@ class ListsAppShellElement extends HTMLElement {
       type: APP_ACTIONS.setSearchQuery,
       payload: { query: next },
     });
+    this.applySearchToLists(next);
+    this.lastSearchQuery = next;
   }
 
   handleSearchClear() {
     this.sidebarElement?.setSearchValue?.("");
     this.handleSearchChange("");
+  }
+
+  handleShowDoneChange(event) {
+    if (!this.store) return;
+    const listId = event.currentTarget?.listId ?? null;
+    if (!listId) return;
+    const query = selectors.getSearchQuery(this.store.getState());
+    this.updateSearchMetrics(query, { listId });
   }
 
   handleListSelection(listId) {
@@ -330,7 +341,17 @@ class ListsAppShellElement extends HTMLElement {
     records.forEach((record) => {
       if (!record.element) return;
       record.element.applyFilter(query);
-      const matchCount = record.element.getSearchMatchCount();
+    });
+    this.updateSearchMetrics(query);
+  }
+
+  updateSearchMetrics(query, { listId = null } = {}) {
+    if (!this.store || !this.repository) return;
+    const tokens = tokenizeSearchQuery(query);
+    const records = this.registry.getRecordsInOrder();
+    records.forEach((record) => {
+      if (listId && record.id !== listId) return;
+      const matchCount = this.getSearchMatchCountForList(record.id, tokens);
       this.store.dispatch({
         type: APP_ACTIONS.updateListMetrics,
         payload: { id: record.id, matchCount },
@@ -338,29 +359,39 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
+  getSearchMatchCountForList(listId, tokens) {
+    if (!this.repository) return 0;
+    const state = this.repository.getListState(listId);
+    const items = Array.isArray(state?.items) ? state.items : [];
+    const record = this.registry.getRecord(listId);
+    const showDone = record?.element?.showDone === true;
+    let matchCount = 0;
+    items.forEach((item) => {
+      const text = typeof item?.text === "string" ? item.text : "";
+      const isDone = Boolean(item?.done);
+      if (
+        matchesSearchEntry({
+          originalText: text,
+          tokens,
+          showDone,
+          isDone,
+        })
+      ) {
+        matchCount += 1;
+      }
+    });
+    return matchCount;
+  }
+
   refreshSidebar(state = this.store?.getState?.()) {
     if (!state) return;
     const searchMode = selectors.isSearchMode(state);
-    const countsById = new Map();
-    if (searchMode) {
-      const container = this.mainElement?.getListsContainer?.();
-      if (container) {
-        Array.from(
-          container.querySelectorAll("section.list-section")
-        ).forEach((section) => {
-          const element = section as HTMLElement;
-          const listId = element.dataset?.listId ?? null;
-          if (!listId) return;
-          const matchCount = element.querySelectorAll(
-            "ol.tasklist li:not(.placeholder):not([hidden])"
-          ).length;
-          countsById.set(listId, matchCount);
-        });
-      }
-    }
+    const tokens = searchMode
+      ? tokenizeSearchQuery(selectors.getSearchQuery(state))
+      : [];
     const data = selectors.getSidebarListData(state).map((entry) => {
-      const matchCount = countsById.has(entry.id)
-        ? countsById.get(entry.id)
+      const matchCount = searchMode
+        ? this.getSearchMatchCountForList(entry.id, tokens)
         : entry.matchCount;
       return {
         ...entry,
