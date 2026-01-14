@@ -4,8 +4,8 @@
     "lib": ["DOM", "ES2021"],
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["scripts/**/*.ts", "lib/**/*.ts", "types/**/*.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }

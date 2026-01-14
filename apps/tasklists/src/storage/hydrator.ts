@@ -1,11 +1,11 @@
-import { TaskListCRDT } from "../crdt/task-list-crdt.js";
-import type { ListsCRDT } from "../crdt/lists-crdt.js";
-import type { ListState, ListId } from "../../types/domain.js";
+import { TaskListCRDT } from "../domain/crdt/task-list-crdt.js";
+import type { ListsCRDT } from "../domain/crdt/lists-crdt.js";
+import type { ListState, ListId } from "../types/domain.js";
 import type {
   HydratedListRecord,
   HydrationResult,
   ListStorage,
-} from "../../types/storage.js";
+} from "../types/storage.js";
 
 function ensureListFactory(
   factory?: (listId: ListId, initialState?: ListState | null) => TaskListCRDT

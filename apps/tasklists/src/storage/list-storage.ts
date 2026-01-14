@@ -8,13 +8,13 @@ import {
   serializeOperation,
   deserializeOperation,
 } from "./serde.js";
-import type { ListId, ListState, RegistryState } from "../../types/domain.js";
-import type { ListsOperation, TaskListOperation } from "../../types/crdt.js";
+import type { ListId, ListState, RegistryState } from "../types/domain.js";
+import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
 import type {
   ListStorage,
   PersistedListRecord,
   PersistedRegistryRecord,
-} from "../../types/storage.js";
+} from "../types/storage.js";
 
 const DB_NAME = "protoLists";
 export const DEFAULT_DB_NAME = DB_NAME;

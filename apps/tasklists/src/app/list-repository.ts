@@ -1,5 +1,5 @@
-import { ListsCRDT } from "../crdt/lists-crdt.js";
-import { TaskListCRDT } from "../crdt/task-list-crdt.js";
+import { ListsCRDT } from "../domain/crdt/lists-crdt.js";
+import { TaskListCRDT } from "../domain/crdt/task-list-crdt.js";
 import { createListStorage } from "../storage/list-storage.js";
 import { hydrateFromStorage } from "../storage/hydrator.js";
 import type {
@@ -13,9 +13,9 @@ import type {
   TaskListState,
   TaskMoveInput,
   TaskUpdateInput,
-} from "../../types/domain.js";
-import type { ListStorage } from "../../types/storage.js";
-import type { TaskListOperation, ListsOperation } from "../../types/crdt.js";
+} from "../types/domain.js";
+import type { ListStorage } from "../types/storage.js";
+import type { TaskListOperation, ListsOperation } from "../types/crdt.js";
 
 type ListRecord = { crdt: TaskListCRDT };
 type StorageOptions = Record<string, unknown>;

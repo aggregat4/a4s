@@ -8,5 +8,5 @@
     "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["playwright.config.ts", "tests/**/*.ts", "types/**/*.d.ts"]
+  "include": ["playwright.config.ts", "tests/**/*.ts", "src/types/**/*.d.ts"]
 }

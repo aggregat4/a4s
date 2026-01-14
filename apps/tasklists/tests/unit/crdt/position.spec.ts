@@ -6,7 +6,7 @@ import {
     between,
     clonePosition,
     positionToKey,
-} from "../../../lib/crdt/position.js";
+} from "../../../src/domain/crdt/position.js";
 
 test("normalizePosition sanitizes non-arrays and component shapes", () => {
     assert.deepEqual(normalizePosition(null), []);

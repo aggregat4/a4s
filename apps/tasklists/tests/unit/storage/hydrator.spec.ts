@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hydrateFromStorage } from "../../../lib/storage/hydrator.js";
-import { ListsCRDT } from "../../../lib/crdt/lists-crdt.js";
-import { TaskListCRDT } from "../../../lib/crdt/task-list-crdt.js";
+import { hydrateFromStorage } from "../../../src/storage/hydrator.js";
+import { ListsCRDT } from "../../../src/domain/crdt/lists-crdt.js";
+import { TaskListCRDT } from "../../../src/domain/crdt/task-list-crdt.js";
 
 const clone = (value) =>
     value == null ? value : JSON.parse(JSON.stringify(value));

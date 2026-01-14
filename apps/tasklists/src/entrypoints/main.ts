@@ -1,6 +1,6 @@
-import { ListRepository } from "../lib/app/list-repository.js";
-import { DEFAULT_DB_NAME as LISTS_DB_NAME } from "../lib/storage/list-storage.js";
-import "./components/app-shell.js";
+import { ListRepository } from "../app/list-repository.js";
+import { DEFAULT_DB_NAME as LISTS_DB_NAME } from "../storage/list-storage.js";
+import "../ui/components/app-shell.js";
 import type { TaskItem } from "../types/domain.js";
 
 async function resetPersistentStorageIfNeeded() {
@@ -98,7 +98,6 @@ export async function bootstrapListsApp(
     appRoot.dataset.role = "lists-app";
     document.body.appendChild(appRoot);
   }
-  if (!appRoot) return null;
   if (typeof customElements.upgrade === "function") {
     customElements.upgrade(appRoot);
   }

@@ -1,15 +1,15 @@
 import { watch } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { copyStatic } from "./copy-static.mjs";
 
-const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const watchedFiles = ["index.html", "styles.css"].map((file) =>
-  resolve(root, file)
+  resolve(root, "public", file)
 );
 const watchedDirs = [
-  resolve(root, "vendor"),
-  resolve(root, "vendor", "directives"),
+  resolve(root, "src", "vendor"),
+  resolve(root, "src", "vendor", "directives"),
 ];
 
 let pending = false;

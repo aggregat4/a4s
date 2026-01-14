@@ -4,7 +4,7 @@
 
 - find out if there are any GUI affordances we can make to inline editable things to make it clearer for the user (show list rename with a floating pencil icon or something)
 - Keep the sliding button caret to the right of the buttons when expanding it: this is less surprising and more stable and prevents accidental delete activations
-- Consider refactoring `scripts/components/app-shell.ts` to avoid `querySelector` by using lit `ref` (or direct element references) for custom elements.
+- Consider refactoring `src/ui/components/app-shell.ts` to avoid `querySelector` by using lit `ref` (or direct element references) for custom elements.
 
 ## CRDT Store Open Questions & Follow-ups
 

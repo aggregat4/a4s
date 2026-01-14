@@ -1,6 +1,6 @@
 import { html, render } from "../../vendor/lit-html.js";
 import type { ListId } from "../../types/domain.js";
-import type { ListRepository } from "../../lib/app/list-repository.js";
+import type { ListRepository } from "../../app/list-repository.js";
 
 type ListRecord = {
   id: ListId;

@@ -9,8 +9,8 @@ import {
     deserializeOperation,
     serializeOrderedSetSnapshot,
     deserializeOrderedSetSnapshot,
-} from "../../../lib/storage/serde.js";
-import type { TaskListOperation } from "../../../types/crdt.js";
+} from "../../../src/storage/serde.js";
+import type { TaskListOperation } from "../../../src/types/crdt.js";
 
 test("list state serialization round-trips entries and metadata", () => {
     const original = {

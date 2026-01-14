@@ -1,5 +1,5 @@
 import { html, render } from "../../vendor/lit-html.js";
-import { ListRepository } from "../../lib/app/list-repository.js";
+import { ListRepository } from "../../app/list-repository.js";
 import { generateListId } from "../state/list-store.js";
 import { SidebarCoordinator } from "../state/sidebar-coordinator.js";
 import { MoveTasksController } from "../state/move-tasks-controller.js";

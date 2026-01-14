@@ -7,7 +7,7 @@ const processes = [
   spawn("npx", ["tsc", "-p", "tsconfig.tests.json", "-w"], {
     stdio: "inherit",
   }),
-  spawn("node", ["scripts/watch-static.mjs"], { stdio: "inherit" }),
+  spawn("node", ["tools/build/watch-static.mjs"], { stdio: "inherit" }),
 ];
 
 const shutdown = () => {

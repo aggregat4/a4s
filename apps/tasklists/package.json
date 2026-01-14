@@ -2,8 +2,8 @@
   "name": "prototype-lists",
   "version": "1.0.0",
   "scripts": {
-    "build": "node scripts/clean-dist.mjs && npx tsc -p tsconfig.app.json && npx tsc -p tsconfig.tests.json && npm run lint:deps && node scripts/copy-static.mjs",
-    "watch": "node scripts/watch.mjs",
+    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json && npx tsc -p tsconfig.tests.json && npm run lint:deps && node tools/build/copy-static.mjs",
+    "watch": "node tools/build/watch.mjs",
     "start": "npm run build && npx http-server dist -p 8000 -c-1",
     "lint:deps": "knip",
     "test:unit": "npm run build && node --test dist/tests/unit/**/*.spec.js",

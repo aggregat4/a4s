@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { TaskListCRDT } from "../../../lib/crdt/task-list-crdt.js";
+import { TaskListCRDT } from "../../../src/domain/crdt/task-list-crdt.js";
 
 test("task list CRDT inserts, toggles, and updates tasks", () => {
     const crdt = new TaskListCRDT({ actorId: "actor-1", title: "Inbox" });

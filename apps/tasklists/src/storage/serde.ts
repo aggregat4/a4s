@@ -1,11 +1,11 @@
-import { normalizePosition } from "../crdt/position.js";
+import { normalizePosition } from "../domain/crdt/position.js";
 import type {
   ListState,
   OrderedSetEntry,
   Position,
   RegistryState,
-} from "../../types/domain.js";
-import type { ListsOperation, TaskListOperation } from "../../types/crdt.js";
+} from "../types/domain.js";
+import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
 
 export const SERIALIZATION_VERSION = 1;
 export const REGISTRY_STATE_ID = "registry";

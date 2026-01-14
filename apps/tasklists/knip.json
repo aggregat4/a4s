@@ -1,16 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip/schema.json",
-  "entry": ["scripts/main.ts", "scripts/demo-seeds.ts"],
+  "entry": ["src/entrypoints/main.ts", "src/entrypoints/demo-seeds.ts"],
   "project": [
-    "scripts/**/*.ts",
-    "lib/**/*.ts",
+    "src/**/*.ts",
     "tests/**/*.ts",
-    "types/**/*.ts"
+    "src/types/**/*.ts"
   ],
   "ignore": [
-    "vendor/**/*.js",
-    "types/global.d.ts",
-    "types/vendor.d.ts"
+    "src/vendor/**/*.js",
+    "src/types/global.d.ts",
+    "src/types/vendor.d.ts"
   ],
   "ignoreDependencies": ["http-server"]
 }

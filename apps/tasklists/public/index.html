@@ -9,8 +9,8 @@
     <body>
         <a4-lists-app data-role="lists-app"></a4-lists-app>
         <script type="module">
-            import { bootstrapListsApp } from "./scripts/main.js";
-            import { SEED_LIST_CONFIGS } from "./scripts/demo-seeds.js";
+            import { bootstrapListsApp } from "./entrypoints/main.js";
+            import { SEED_LIST_CONFIGS } from "./entrypoints/demo-seeds.js";
 
             bootstrapListsApp({ seedConfigs: SEED_LIST_CONFIGS });
         </script>

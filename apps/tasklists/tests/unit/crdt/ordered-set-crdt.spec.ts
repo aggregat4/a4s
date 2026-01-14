@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OrderedSetCRDT } from "../../../lib/crdt/ordered-set-crdt.js";
+import { OrderedSetCRDT } from "../../../src/domain/crdt/ordered-set-crdt.js";
 
 test("ordered set retains positional ordering across inserts", () => {
   const crdt = new OrderedSetCRDT({ actorId: "tester" });

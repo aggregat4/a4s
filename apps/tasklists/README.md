@@ -1,15 +1,15 @@
 # Prototype Lists
 
-Prototype Lists is a browser-based task manager that showcases collaborative-friendly data structures (CRDTs) while keeping the UI deliberately lightweight. Everything ships as static assets (`index.html` plus modules under `lib/`), yet the app maintains ordered collections, multi-list drag-and-drop, keyboard flows, and persistent storage without a traditional backend.
+Prototype Lists is a browser-based task manager that showcases collaborative-friendly data structures (CRDTs) while keeping the UI deliberately lightweight. Everything ships as static assets (`public/index.html` plus modules compiled from `src/`), yet the app maintains ordered collections, multi-list drag-and-drop, keyboard flows, and persistent storage without a traditional backend.
 
 ## Architecture Overview
 
 The application is organized around a clear separation between presentation logic, domain orchestration, and persistence:
 
 - **UI layer (`index.html`)** renders the sidebar, keyboard move dialog, and `<a4-tasklist>` custom elements. `ListsApp` owns these widgets, wires DOM events, and forwards intent to the repository.
-- **List repository (`lib/app/list-repository.js`)** is the single source of truth for domain data. It initializes CRDT instances, hydrates them from IndexedDB via the storage layer, exposes query helpers, and surfaces observable change streams (`subscribeList`, `subscribeRegistry`, `subscribe`).
-- **CRDT layer (`lib/crdt/*.js`)** contains `ListsCRDT` for the registry (which lists exist and in what order) and `TaskListCRDT` for per-list ordered tasks. Both derive from a shared `OrderedSetCRDT`, so operations like insert/move/remove remain conflict-free and commutative.
-- **Storage (`lib/storage/*.js`)** persists serialized snapshots plus the operation log in IndexedDB. `hydrateFromStorage` replays everything back into the CRDTs during boot, while `_persistList` / `_persistRegistry` flush writes asynchronously after every mutation.
+- **List repository (`src/app/list-repository.ts`)** is the single source of truth for domain data. It initializes CRDT instances, hydrates them from IndexedDB via the storage layer, exposes query helpers, and surfaces observable change streams (`subscribeList`, `subscribeRegistry`, `subscribe`).
+- **CRDT layer (`src/domain/crdt/*.ts`)** contains `ListsCRDT` for the registry (which lists exist and in what order) and `TaskListCRDT` for per-list ordered tasks. Both derive from a shared `OrderedSetCRDT`, so operations like insert/move/remove remain conflict-free and commutative.
+- **Storage (`src/storage/*.ts`)** persists serialized snapshots plus the operation log in IndexedDB. `hydrateFromStorage` replays everything back into the CRDTs during boot, while `_persistList` / `_persistRegistry` flush writes asynchronously after every mutation.
 
 ### Data Flow At A Glance
 

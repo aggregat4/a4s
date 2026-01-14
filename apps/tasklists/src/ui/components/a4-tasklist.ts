@@ -1,7 +1,7 @@
 import { html, render, noChange } from "../../vendor/lit-html.js";
 import { live } from "../../vendor/directives/live.js";
-import DraggableBehavior, { FlipAnimator } from "../../lib/drag-behavior.js";
-import InlineTextEditor from "../../lib/inline-text-editor.js";
+import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
+import InlineTextEditor from "../../shared/inline-text-editor.js";
 import {
   createStore,
   listReducer,
@@ -15,7 +15,7 @@ import {
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
-import type { ListRepository } from "../../lib/app/list-repository.js";
+import type { ListRepository } from "../../app/list-repository.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
 import { isOffsetCaret } from "../../types/caret.js";
 
@@ -444,21 +444,11 @@ class A4TaskList extends HTMLElement {
     this.initializeStore();
     this.refreshRepositorySubscription();
 
-    const dragDebugEnabled =
-      (typeof localStorage !== "undefined" &&
-        localStorage.getItem("a4:drag-debug") === "1") ||
-      this.hasAttribute("data-drag-debug");
-
-    const pointerFallbackEnabled =
-      (typeof localStorage !== "undefined" &&
-        localStorage.getItem("a4:drag-pointer-fallback") === "1") ||
-      this.hasAttribute("data-pointer-drag");
-
     if (!this.dragBehavior) {
       this.dragBehavior = new DraggableBehavior(this.listEl, {
         handleClass: "handle",
-        debug: dragDebugEnabled,
-        pointerFallback: pointerFallbackEnabled,
+        debug: false,
+        pointerFallback: false,
         onReorder: (fromIndex, toIndex) => {
           const detail = { fromIndex, toIndex };
           this.lastDragReorderMove = detail;

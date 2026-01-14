@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ListsCRDT } from "../../../lib/crdt/lists-crdt.js";
+import { ListsCRDT } from "../../../src/domain/crdt/lists-crdt.js";
 
 test("lists CRDT creates, reorders, and removes lists", () => {
     const index = new ListsCRDT({ actorId: "actor-idx" });
