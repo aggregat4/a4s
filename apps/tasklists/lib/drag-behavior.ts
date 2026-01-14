@@ -2,11 +2,10 @@ const EMPTY_DRAG_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=";
 
 export class FlipAnimator {
-  [key: string]: any;
+  snapshot(container: HTMLElement, dragging: HTMLElement | null) {
 
-  snapshot(container, dragging) {
-    const map = new Map();
-    [...container.querySelectorAll("li")].forEach((li) => {
+    const map = new Map<Element, number>();
+    Array.from(container.querySelectorAll("li")).forEach((li) => {
       if (li !== dragging) {
         map.set(li, li.getBoundingClientRect().top);
       }
@@ -14,9 +13,13 @@ export class FlipAnimator {
     return map;
   }
 
-  play(container, dragging, prevTops) {
+  play(
+    container: HTMLElement,
+    dragging: HTMLElement | null,
+    prevTops: Map<Element, number> | null
+  ) {
     if (!prevTops) return;
-    [...container.querySelectorAll("li")].forEach((li) => {
+    Array.from(container.querySelectorAll("li")).forEach((li) => {
       if (li === dragging) return;
       const prevTop = prevTops.get(li);
       if (prevTop == null) return;
@@ -44,9 +47,53 @@ export class FlipAnimator {
 }
 
 export default class DraggableBehavior {
-  [key: string]: any;
+  private container: HTMLElement | null;
+  private options: {
+    handleClass: string;
+    threshold: number;
+    onReorder: ((fromIndex: number, toIndex: number) => void) | null;
+    animator: FlipAnimator | null;
+    debug: boolean;
+    pointerFallback?: boolean;
+  };
+  private dragging: HTMLElement | null;
+  private touchStartY: number;
+  private touchStartX: number;
+  private isTouchDragging: boolean;
+  private rafId: number | null;
+  private cachedItems: HTMLElement[] | null;
+  private enabled: boolean;
+  private originalPosition: number | null;
+  private pointerOffsetY: number;
+  private pointerOffsetX: number;
+  private animator: FlipAnimator | null;
+  private _currentPlaceholderIndex: number | null;
+  private _dropHandled: boolean;
+  private dragStartIndex: number | null;
+  private _lastClientY: number | null;
+  private _lastDragOverLogTs: number;
+  private _lastDebugLogTs: number;
+  private _onDragStart: (event: DragEvent) => void;
+  private _onDragEnd: (event: DragEvent) => void;
+  private _onDragOver: (event: DragEvent) => void;
+  private _onDrop: (event: DragEvent) => void;
+  private _onTouchStart: (event: TouchEvent) => void;
+  private _onTouchMove: (event: TouchEvent) => void;
+  private _onTouchEnd: (event: TouchEvent) => void;
+  private deferFloatingInit: boolean;
+  private _pendingInitCoords: { x: number; y: number } | null;
 
-  constructor(container: any, options: any = {}) {
+  constructor(
+    container: HTMLElement,
+    options: {
+      handleClass?: string;
+      threshold?: number;
+      onReorder?: ((fromIndex: number, toIndex: number) => void) | null;
+      animator?: FlipAnimator | null;
+      debug?: boolean;
+      pointerFallback?: boolean;
+    } = {}
+  ) {
     this.container = container;
     this.options = {
       handleClass: "handle",
@@ -132,8 +179,8 @@ export default class DraggableBehavior {
     this.container.removeEventListener("touchend", this._onTouchEnd);
   }
 
-  handleDragStart(event) {
-    const li = event.target.closest("li");
+  handleDragStart(event: DragEvent) {
+    const li = (event.target as HTMLElement | null)?.closest("li");
     if (!li) return;
 
     this.deferFloatingInit = false;
@@ -156,7 +203,7 @@ export default class DraggableBehavior {
     }
   }
 
-  handleDragEnd(event) {
+  handleDragEnd(event: DragEvent) {
     if (
       this.dragging &&
       !this._dropHandled &&
@@ -179,7 +226,7 @@ export default class DraggableBehavior {
     this._lastClientY = null;
   }
 
-  handleDragOver(event) {
+  handleDragOver(event: DragEvent) {
     event.preventDefault();
 
     if (this.dragging && this.deferFloatingInit) {
@@ -206,7 +253,7 @@ export default class DraggableBehavior {
     }
   }
 
-  handleDrop(event) {
+  handleDrop(event: DragEvent) {
     event.preventDefault();
     const dropY =
       event.clientY !== 0 && Number.isFinite(event.clientY)
@@ -218,9 +265,10 @@ export default class DraggableBehavior {
     this.endDrag();
   }
 
-  handleTouchStart(event) {
-    if (!event.target.classList.contains(this.options.handleClass)) return;
-    const li = event.target.closest("li");
+  handleTouchStart(event: TouchEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target?.classList.contains(this.options.handleClass)) return;
+    const li = target.closest("li");
     if (!li) return;
     if (event.cancelable) event.preventDefault();
     this.touchStartY = event.touches[0].clientY;
@@ -228,8 +276,9 @@ export default class DraggableBehavior {
     this.isTouchDragging = false;
   }
 
-  handleTouchMove(event) {
-    if (!event.target.classList.contains(this.options.handleClass)) return;
+  handleTouchMove(event: TouchEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target?.classList.contains(this.options.handleClass)) return;
     if (event.cancelable) event.preventDefault();
 
     const deltaY = event.touches[0].clientY - this.touchStartY;
@@ -241,7 +290,7 @@ export default class DraggableBehavior {
 
     if (!this.isTouchDragging) {
       this.isTouchDragging = true;
-      const li = event.target.closest("li");
+      const li = target.closest("li");
       if (!li) return;
       this.deferFloatingInit = false;
       this.startDrag(li, event.touches[0].clientX, event.touches[0].clientY);
@@ -250,7 +299,7 @@ export default class DraggableBehavior {
     }
   }
 
-  handleTouchEnd(event) {
+  handleTouchEnd(event: TouchEvent) {
     if (this.isTouchDragging && this.dragging) {
       this.drop(event.changedTouches[0].clientY);
       this.endDrag();
@@ -341,11 +390,9 @@ export default class DraggableBehavior {
 
   getDropTarget(mouseY) {
     if (!this.cachedItems) {
-      this.cachedItems = [
-        ...this.container.querySelectorAll(
-          "li:not(.dragging):not(.placeholder)"
-        ),
-      ];
+      this.cachedItems = Array.from(
+        this.container.querySelectorAll("li:not(.dragging):not(.placeholder)")
+      );
     }
     if (this.cachedItems.length === 0) return null;
 

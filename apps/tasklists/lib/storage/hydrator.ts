@@ -1,4 +1,5 @@
 import { TaskListCRDT } from "../crdt/task-list-crdt.js";
+import type { ListsCRDT } from "../crdt/lists-crdt.js";
 import type { ListState, ListId } from "../../types/domain.js";
 import type {
   HydratedListRecord,
@@ -16,8 +17,8 @@ function ensureListFactory(
   if (typeof factory === "function") return factory;
   return (listId: ListId, initialState: ListState | null = null) =>
     new TaskListCRDT({
-      title: initialState.title ?? "",
-      titleUpdatedAt: initialState.titleUpdatedAt ?? 0,
+      title: initialState?.title ?? "",
+      titleUpdatedAt: initialState?.titleUpdatedAt ?? 0,
     });
 }
 
@@ -27,7 +28,7 @@ export async function hydrateFromStorage({
   createListCrdt,
 }: {
   storage: ListStorage;
-  listsCrdt: { resetFromState: (state: any) => void; applyOperation: (op: any) => void };
+  listsCrdt: ListsCRDT;
   createListCrdt?: (listId: ListId, initialState?: ListState | null) => TaskListCRDT;
 }): Promise<HydrationResult> {
   if (!storage || typeof storage.loadRegistry !== "function") {

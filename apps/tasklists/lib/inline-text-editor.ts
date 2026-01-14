@@ -1,9 +1,58 @@
 // InlineTextEditor manages single-click editing for list item text content.
 // We keep it custom so we can honor task keyboard shortcuts without fighting native inputs.
-export default class InlineTextEditor {
-  [key: string]: any;
+import type { CaretPreference } from "../types/caret.js";
+import { isOffsetCaret } from "../types/caret.js";
+type CaretColumnPreference = Extract<CaretPreference, { type: "caret-column" }>;
 
-  constructor(list: any, options: any = {}) {
+export default class InlineTextEditor {
+  private list: HTMLElement | null;
+  private options: {
+    onCommit?: (payload: {
+      element: HTMLElement;
+      previousText: string;
+      newText: string;
+    }) => void;
+    onSplit?: (payload: {
+      element: HTMLElement;
+      beforeText: string;
+      afterText: string;
+      previousText: string;
+      splitIndex: number;
+    }) => void;
+    onMerge?: (payload: {
+      element: HTMLElement;
+      currentItemId: string | null;
+      previousItemId: string | null;
+      currentText: string;
+      previousText: string;
+      selectionStart: number;
+      selectionEnd: number;
+      reason: string;
+    }) => boolean | void;
+    onRemove?: (payload: {
+      element: HTMLElement;
+      previousText: string;
+      currentText: string;
+      selectionStart: number;
+      selectionEnd: number;
+      reason: string;
+    }) => void;
+    onMove?: (payload: {
+      element: HTMLElement;
+      direction: "up" | "down";
+      selectionStart: number;
+      selectionEnd: number;
+    }) => void;
+    onNavigate?: (payload: {
+      direction: "up" | "down";
+      targetElement: HTMLElement;
+      preference: CaretPreference;
+    }) => void;
+  };
+  editingEl: HTMLElement | null;
+  private initialTextValue: string;
+
+  constructor(list: HTMLElement, options: InlineTextEditor["options"] = {}) {
     this.list = list;
     this.options = options;
     this.editingEl = null;
@@ -35,22 +84,32 @@ export default class InlineTextEditor {
     this.list = null;
   }
 
-  handlePointerDown(e) {
+  handlePointerDown(e: PointerEvent) {
     if (!e) return;
     if (e.button != null && e.button !== 0) return;
     if (e.isPrimary === false) return;
-    const text = e.target.closest(".text");
+    if (!this.list) return;
+    const text = (e.target as HTMLElement | null)?.closest(".text") as
+      | HTMLElement
+      | null;
     if (!text || !this.list.contains(text)) return;
     this.startEditing(text, e);
   }
 
-  handleClick(e) {
-    const text = e.target.closest(".text");
+  handleClick(e: Event) {
+    if (!this.list) return;
+    const text = (e.target as HTMLElement | null)?.closest(".text") as
+      | HTMLElement
+      | null;
     if (!text || !this.list.contains(text)) return;
     this.startEditing(text, e);
   }
 
-  startEditing(textEl, triggerEvent = null, caretPreference = null) {
+  startEditing(
+    textEl: HTMLElement,
+    triggerEvent: Event | null = null,
+    caretPreference: CaretPreference | null = null
+  ) {
     if (this.editingEl === textEl) return;
     if (this.editingEl) {
       this.finishEditing(this.editingEl);
@@ -114,7 +173,7 @@ export default class InlineTextEditor {
     });
   }
 
-  placeCaret(element, triggerEvent) {
+  placeCaret(element: HTMLElement, triggerEvent: Event | null) {
     const selection = window.getSelection();
     if (!selection) return;
     // Try to put the caret at the click position.
@@ -124,14 +183,16 @@ export default class InlineTextEditor {
     let desiredOffset = null;
     if (
       triggerEvent &&
-      typeof triggerEvent.clientX === "number" &&
-      typeof triggerEvent.clientY === "number"
+      "clientX" in triggerEvent &&
+      "clientY" in triggerEvent &&
+      typeof (triggerEvent as MouseEvent).clientX === "number" &&
+      typeof (triggerEvent as MouseEvent).clientY === "number"
     ) {
       const doc = element.ownerDocument;
       if (doc.caretPositionFromPoint) {
         const pos = doc.caretPositionFromPoint(
-          triggerEvent.clientX,
-          triggerEvent.clientY
+          (triggerEvent as MouseEvent).clientX,
+          (triggerEvent as MouseEvent).clientY
         );
         if (pos) {
           try {
@@ -146,8 +207,8 @@ export default class InlineTextEditor {
         }
       } else if (doc.caretRangeFromPoint) {
         const pointRange = doc.caretRangeFromPoint(
-          triggerEvent.clientX,
-          triggerEvent.clientY
+          (triggerEvent as MouseEvent).clientX,
+          (triggerEvent as MouseEvent).clientY
         );
         if (pointRange) {
           pointRange.collapse(true);
@@ -180,12 +241,12 @@ export default class InlineTextEditor {
     }
   }
 
-  handleBlur(e) {
-    this.finishEditing(e.target);
+  handleBlur(e: FocusEvent) {
+    this.finishEditing(e.target as HTMLElement);
   }
 
-  handleKeyDown(e) {
-    const textEl = e.target;
+  handleKeyDown(e: KeyboardEvent) {
+    const textEl = e.target as HTMLElement;
     if (!textEl) return;
     const fullText = textEl.textContent ?? "";
     const isMoveShortcut =
@@ -257,9 +318,10 @@ export default class InlineTextEditor {
       fullText.length > 0
     ) {
       const li = textEl.closest("li");
-      let previousLi = li?.previousElementSibling ?? null;
+      let previousLi = (li?.previousElementSibling ?? null) as HTMLElement | null;
       while (previousLi && previousLi.classList?.contains("placeholder")) {
-        previousLi = previousLi.previousElementSibling ?? null;
+        previousLi =
+          (previousLi.previousElementSibling ?? null) as HTMLElement | null;
       }
       const previousItemId = previousLi?.dataset?.itemId ?? null;
       if (previousItemId && typeof this.options.onMerge === "function") {
@@ -311,7 +373,7 @@ export default class InlineTextEditor {
     }
   }
 
-  getSelectionOffsets(element) {
+  getSelectionOffsets(element: HTMLElement) {
     const fallbackLength = element?.textContent?.length ?? 0;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) {
@@ -335,7 +397,7 @@ export default class InlineTextEditor {
     return { start, end };
   }
 
-  getCaretRect(element) {
+  getCaretRect(element: HTMLElement) {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return null;
     const range = selection.getRangeAt(0);
@@ -367,7 +429,7 @@ export default class InlineTextEditor {
     return rect;
   }
 
-  tryMoveVertical(textEl, direction) {
+  tryMoveVertical(textEl: HTMLElement, direction: "up" | "down") {
     // Keep keyboard navigation consistent by moving focus to neighbouring items.
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return false;
@@ -399,19 +461,21 @@ export default class InlineTextEditor {
     const li = textEl.closest("li");
     if (!li) return false;
     let sibling =
-      direction === "down" ? li.nextElementSibling : li.previousElementSibling;
+      direction === "down"
+        ? (li.nextElementSibling as HTMLElement | null)
+        : (li.previousElementSibling as HTMLElement | null);
     while (sibling && sibling.classList?.contains("placeholder")) {
       sibling =
         direction === "down"
-          ? sibling.nextElementSibling
-          : sibling.previousElementSibling;
+          ? (sibling.nextElementSibling as HTMLElement | null)
+          : (sibling.previousElementSibling as HTMLElement | null);
     }
-    const targetText = sibling?.querySelector?.(".text") ?? null;
+    const targetText = sibling?.querySelector?.(".text") as HTMLElement | null;
     if (!targetText) return false;
     // Capture both the visual column (`x`) and the logical offset so we can restore
     // the caret precisely even after DOM reshuffles (e.g. search highlighting).
     const offsets = this.getSelectionOffsets(textEl);
-    const caretPref = {
+    const caretPref: CaretPreference = {
       type: "caret-column",
       x: caretRect.left,
       bias: direction === "down" ? "start" : "end",
@@ -433,7 +497,11 @@ export default class InlineTextEditor {
   }
 
   // Places the caret at a specific text offset within an element regardless of nested markup.
-  setSelectionAtOffset(element, offset, bias = "start") {
+  setSelectionAtOffset(
+    element: HTMLElement,
+    offset: number,
+    bias: "start" | "end" = "start"
+  ) {
     const selection = window.getSelection();
     if (!selection || !element) return false;
     const doc = element.ownerDocument ?? document;
@@ -488,7 +556,7 @@ export default class InlineTextEditor {
   }
 
   // Attempts to position the caret using screen coordinates, mirroring native editors.
-  placeCaretByPoint(element, preference) {
+  placeCaretByPoint(element: HTMLElement, preference: CaretColumnPreference) {
     const selection = window.getSelection();
     if (!selection || !element) return false;
     const rect = element.getBoundingClientRect();
@@ -534,7 +602,7 @@ export default class InlineTextEditor {
 
   // Restores the caret based on a serialized preference, preferring geometry but
   // falling back to logical offsets to stay resilient across DOM churn.
-  applyCaretPreference(element, preference) {
+  applyCaretPreference(element: HTMLElement, preference: CaretPreference) {
     if (preference === "start") {
       this.setSelectionAtOffset(element, 0, "start");
       return;
@@ -544,20 +612,11 @@ export default class InlineTextEditor {
       this.setSelectionAtOffset(element, length, "end");
       return;
     }
-    if (
-      preference &&
-      typeof preference === "object" &&
-      preference.type === "offset" &&
-      typeof preference.value === "number"
-    ) {
+    if (isOffsetCaret(preference)) {
       this.setSelectionAtOffset(element, preference.value, preference.bias);
       return;
     }
-    if (
-      preference &&
-      typeof preference === "object" &&
-      preference.type === "caret-column"
-    ) {
+    if (preference && typeof preference === "object" && preference.type === "caret-column") {
       const length = element?.textContent?.length ?? 0;
       const desiredX =
         typeof preference.x === "number" ? preference.x : null;
@@ -584,7 +643,7 @@ export default class InlineTextEditor {
     this.placeCaret(element, null);
   }
 
-  finishEditing(textEl, skipCallback = false) {
+  finishEditing(textEl: HTMLElement, skipCallback = false) {
     if (!textEl || this.editingEl !== textEl) return;
     const previousText = this.initialTextValue;
     textEl.removeEventListener("blur", this.handleBlur);

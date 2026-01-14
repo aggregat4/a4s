@@ -25,6 +25,11 @@ const STORE_LIST_OPERATIONS = "listOperations";
 const STORE_REGISTRY_STATE = "registryState";
 const STORE_REGISTRY_OPERATIONS = "registryOperations";
 
+type StorageOptions = {
+  dbName?: string;
+  requestPersistence?: boolean;
+};
+
 const TASK_OPERATION_TYPES = new Set([
   "insert",
   "remove",
@@ -90,12 +95,12 @@ async function requestPersistentStorage() {
   }
 }
 
-function openDatabase(options: any = {}) {
+function openDatabase(options: StorageOptions = {}) {
   const name =
     typeof options.dbName === "string" && options.dbName.length
       ? options.dbName
       : DB_NAME;
-  return new Promise((resolve, reject) => {
+  return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -130,14 +135,14 @@ function openDatabase(options: any = {}) {
   });
 }
 
-function promisifyRequest<T = any>(request: IDBRequest<T>) {
+function promisifyRequest<T = unknown>(request: IDBRequest<T>) {
   return new Promise<T>((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-function transactionCompleted(transaction) {
+function transactionCompleted(transaction: IDBTransaction) {
   return new Promise<void>((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onabort = () =>
@@ -146,7 +151,10 @@ function transactionCompleted(transaction) {
   });
 }
 
-function iterateCursor(request, handler) {
+function iterateCursor(
+  request: IDBRequest,
+  handler: (cursor: IDBCursorWithValue) => boolean | void
+) {
   return new Promise<void>((resolve, reject) => {
     request.onsuccess = (event) => {
       const cursor = (event.target as IDBRequest)?.result as IDBCursorWithValue;
@@ -166,9 +174,9 @@ function iterateCursor(request, handler) {
 }
 
 class IndexedDbListStorage implements ListStorage {
-  [key: string]: any;
+  private dbPromise: Promise<IDBDatabase>;
 
-  constructor(options: any = {}) {
+  constructor(options: StorageOptions = {}) {
     this.dbPromise = openDatabase(options);
   }
 
@@ -448,7 +456,7 @@ class IndexedDbListStorage implements ListStorage {
 }
 
 export async function createListStorage(
-  options: any = {}
+  options: StorageOptions = {}
 ): Promise<ListStorage> {
   const storage = new IndexedDbListStorage(options);
   await storage.ready();

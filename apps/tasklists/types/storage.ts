@@ -30,7 +30,7 @@ export type HydrationResult = {
 };
 
 export type ListStorage = {
-  ready: () => Promise<void> | void;
+  ready: () => Promise<unknown> | void;
   clear: () => Promise<void>;
   loadAllLists: () => Promise<PersistedListRecord[]>;
   loadList: (listId: ListId) => Promise<PersistedListRecord>;
