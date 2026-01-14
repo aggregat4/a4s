@@ -49,20 +49,18 @@ type ListEventHandlers = Partial<{
 }>;
 
 class ListRegistry {
-  private repository: { createList?: (options: ListConfig) => void } | null;
   private eventHandlers: ListEventHandlers;
   private records: Map<ListId, ListRecord>;
   private listOrder: ListId[];
   private activeListId: ListId | null;
 
   constructor({
-    repository,
+    repository: _repository,
     eventHandlers = {},
   }: {
     repository?: { createList?: (options: ListConfig) => void } | null;
     eventHandlers?: ListEventHandlers;
   } = {}) {
-    this.repository = repository ?? null;
     this.eventHandlers = eventHandlers;
     this.records = new Map();
     this.listOrder = [];

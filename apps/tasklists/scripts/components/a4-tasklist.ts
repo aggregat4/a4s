@@ -19,13 +19,6 @@ import type { ListRepository } from "../../lib/app/list-repository.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
 import { isOffsetCaret } from "../../types/caret.js";
 
-type TaskDragPayload = {
-  itemId: string;
-  item: TaskItem;
-  sourceListId: ListId | null;
-  trigger: "drag" | "button" | "shortcut";
-};
-
 type PatternDefinition = {
   regex: RegExp;
   className: string;
@@ -50,13 +43,6 @@ type ListAction = Parameters<typeof listReducer>[1];
 type ListStore = ReturnType<typeof createStore<TaskListState, ListAction>>;
 type DragBehavior = InstanceType<typeof DraggableBehavior>;
 type InlineEditor = InstanceType<typeof InlineTextEditor>;
-
-type TaskMoveRequestDetail = {
-  itemId: string;
-  item: TaskItem;
-  sourceListId: ListId | null;
-  trigger: "button" | "shortcut" | "drag";
-};
 
 type ReorderMove = { fromIndex: number; toIndex: number };
 
@@ -308,7 +294,6 @@ class A4TaskList extends HTMLElement {
   private shellRendered: boolean;
   private patternConfig: PatternConfigEntry[];
   private listIdentifier: ListId | null;
-  private lastFocusedItemId: string | null;
   private lastReportedMatches: number | null;
   private lastReportedTotal: number | null;
   private lastReportedQuery: string;
@@ -364,7 +349,6 @@ class A4TaskList extends HTMLElement {
     ]);
 
     this.listIdentifier = this.dataset.listId ?? null;
-    this.lastFocusedItemId = null;
     this.lastReportedMatches = null;
     this.lastReportedTotal = null;
     this.lastReportedQuery = "";
@@ -1895,7 +1879,6 @@ class A4TaskList extends HTMLElement {
     const li = target?.closest?.("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
-    this.lastFocusedItemId = itemId;
     this.dispatchEvent(
       new CustomEvent("taskFocus", {
         detail: {

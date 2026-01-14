@@ -10,7 +10,7 @@ import {
   matchesSearchEntry,
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
-import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
+import type { ListId, TaskItem } from "../../types/domain.js";
 import "./sidebar.js";
 import "./main-pane.js";
 import "./move-dialog.js";
@@ -60,8 +60,6 @@ type MoveDialogElement = HTMLElement & {
 };
 
 type Store = ReturnType<typeof createAppStore>;
-type FocusState = { listId: ListId | null; itemId: string | null };
-
 class ListsAppShellElement extends HTMLElement {
   private shellRendered: boolean;
   private appInitialized: boolean;
@@ -75,8 +73,6 @@ class ListsAppShellElement extends HTMLElement {
   private moveTasksController: MoveTasksController | null;
   private repositorySync: RepositorySync | null;
   private unsubscribeStore: (() => void) | null;
-  private lastFocused: FocusState | null;
-  private lastSearchQuery: string;
   private lastOrder: ListId[];
   private lastActiveId: ListId | null;
   private pendingMainRender: {
@@ -100,8 +96,6 @@ class ListsAppShellElement extends HTMLElement {
     this.moveTasksController = null;
     this.repositorySync = null;
     this.unsubscribeStore = null;
-    this.lastFocused = null;
-    this.lastSearchQuery = "";
     this.lastOrder = [];
     this.lastActiveId = null;
     this.pendingMainRender = null;
@@ -214,7 +208,6 @@ class ListsAppShellElement extends HTMLElement {
         this.moveTasksController.handleSidebarDrop(payload, targetListId),
     });
     this.unsubscribeStore = this.store.subscribe(this.handleStoreChange);
-    this.lastSearchQuery = selectors.getSearchQuery(this.store.getState());
     this.lastOrder = selectors.getListOrder(this.store.getState());
     this.lastActiveId = selectors.getActiveListId(this.store.getState());
     await this.repositorySync.initialize();
@@ -263,7 +256,6 @@ class ListsAppShellElement extends HTMLElement {
       payload: { query: next },
     });
     this.applySearchToLists(next);
-    this.lastSearchQuery = next;
   }
 
   handleSearchClear() {
@@ -410,19 +402,8 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  handleListFocus(event: Event) {
-    const customEvent = event as CustomEvent<{
-      sourceListId?: ListId;
-      itemId?: string;
-    }>;
-    const detail = customEvent.detail ?? {};
-    this.lastFocused = {
-      listId:
-        detail.sourceListId ??
-        (event.currentTarget as { listId?: ListId } | null)?.listId ??
-        null,
-      itemId: detail.itemId ?? null,
-    };
+  handleListFocus(_event: Event) {
+    // No-op; hook reserved for future focus restoration.
   }
 
   applySearchToLists(query: string) {

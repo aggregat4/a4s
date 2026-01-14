@@ -1,7 +1,7 @@
 export type ListId = string;
-export type ItemId = string;
+type ItemId = string;
 
-export type PositionComponent = {
+type PositionComponent = {
   digit: number;
   actor: string;
 };
@@ -34,7 +34,7 @@ export type OrderedSetEntry<TData> = {
 
 export type OrderedSetSnapshot<TData> = Array<OrderedSetEntry<TData>>;
 
-export type OrderedSetState<TData> = {
+type OrderedSetState<TData> = {
   version?: number;
   clock: number;
   entries: OrderedSetSnapshot<TData>;

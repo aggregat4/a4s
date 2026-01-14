@@ -9,7 +9,6 @@ type ListRecord = {
 class MainPaneElement extends HTMLElement {
   private shellRendered: boolean;
   private headerEl: HTMLElement | null;
-  private titleEl: HTMLElement | null;
   private listContainer: HTMLElement | null;
   private currentTitle: string;
   private searchMode: boolean;
@@ -21,7 +20,6 @@ class MainPaneElement extends HTMLElement {
     super();
     this.shellRendered = false;
     this.headerEl = null;
-    this.titleEl = null;
     this.listContainer = null;
     this.currentTitle = "";
     this.searchMode = false;
@@ -65,8 +63,6 @@ class MainPaneElement extends HTMLElement {
       `,
       this.headerEl
     );
-    this.titleEl =
-      this.headerEl.querySelector("[data-role='active-list-title']") ?? null;
   }
 
   setTitle(title: string) {

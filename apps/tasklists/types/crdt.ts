@@ -1,6 +1,6 @@
 import type { OrderedSetEntry, Position } from "./domain.js";
 
-export type OrderedSetOperationType = "insert" | "remove" | "move" | "update";
+type OrderedSetOperationType = "insert" | "remove" | "move" | "update";
 
 export type OrderedSetOperation<TData> = {
   type: OrderedSetOperationType;
@@ -13,14 +13,14 @@ export type OrderedSetOperation<TData> = {
   };
 };
 
-export type OrderedSetSnapshotResult<TData> = Array<OrderedSetEntry<TData>>;
+type OrderedSetSnapshotResult<TData> = Array<OrderedSetEntry<TData>>;
 
 export type OrderedSetExport<TData> = {
   clock: number;
   entries: OrderedSetSnapshotResult<TData>;
 };
 
-export type ListsOperationType =
+type ListsOperationType =
   | "createList"
   | "removeList"
   | "reorderList"
@@ -38,7 +38,7 @@ export type ListsOperation = {
   };
 };
 
-export type TaskListOperationType =
+type TaskListOperationType =
   | OrderedSetOperationType
   | "renameList";
 

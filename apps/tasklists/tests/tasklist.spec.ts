@@ -13,7 +13,7 @@ function globalSearchInput(page: Page) {
   return page.getByRole("searchbox", { name: "Global search" });
 }
 
-async function expectCaretVisible(page: Page, target: Locator) {
+async function expectCaretVisible(_page: Page, target: Locator) {
   const caretInfo = await target.evaluate((el) => {
     const element = el as HTMLElement;
     const selection = element.ownerDocument.getSelection();
@@ -49,7 +49,11 @@ async function expectCaretVisible(page: Page, target: Locator) {
   }
 }
 
-async function dragReorderTask(page: Page, source: Locator, target: Locator) {
+async function dragReorderTask(
+  _page: Page,
+  source: Locator,
+  target: Locator
+) {
   // Drag from the dedicated handle so we don't accidentally enter edit mode
   // (editing is triggered on pointerdown for Firefox caret correctness).
   await source.locator(".handle").dragTo(target, {
@@ -59,7 +63,7 @@ async function dragReorderTask(page: Page, source: Locator, target: Locator) {
 }
 
 async function dragTaskToSidebarTarget(
-  page: Page,
+  _page: Page,
   sourceItem: Locator,
   target: Locator
 ) {
@@ -750,7 +754,7 @@ test.describe("tasklist flows", () => {
 
     await dragReorderTask(page, items.nth(1), items.nth(4));
 
-    const idsAfterDrag = await expect
+    await expect
       .poll(
         async () =>
           (await items.evaluateAll((els) =>

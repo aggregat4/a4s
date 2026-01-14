@@ -19,8 +19,6 @@ type MoveDialogContext = {
 };
 
 class KeyboardMoveDialog extends HTMLElement {
-  private backdropEl: HTMLElement | null;
-  private contentEl: HTMLElement | null;
   private optionsListEl: HTMLElement | null;
   private cancelButton: HTMLButtonElement | null;
   private optionButtons: HTMLButtonElement[];
@@ -30,8 +28,6 @@ class KeyboardMoveDialog extends HTMLElement {
 
   constructor() {
     super();
-    this.backdropEl = null;
-    this.contentEl = null;
     this.optionsListEl = null;
     this.cancelButton = null;
     this.optionButtons = [];
@@ -113,9 +109,6 @@ class KeyboardMoveDialog extends HTMLElement {
   }
 
   cacheElements() {
-    this.backdropEl =
-      this.querySelector("[data-role='move-dialog-backdrop']") ?? null;
-    this.contentEl = this.querySelector(".move-dialog__content") ?? null;
     this.optionsListEl =
       this.querySelector("[data-role='move-dialog-options']") ?? null;
     this.cancelButton =

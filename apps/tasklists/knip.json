@@ -4,7 +4,13 @@
   "project": [
     "scripts/**/*.ts",
     "lib/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "types/**/*.ts"
   ],
-  "ignore": ["vendor/**/*.js"]
+  "ignore": [
+    "vendor/**/*.js",
+    "types/global.d.ts",
+    "types/vendor.d.ts"
+  ],
+  "ignoreDependencies": ["http-server"]
 }

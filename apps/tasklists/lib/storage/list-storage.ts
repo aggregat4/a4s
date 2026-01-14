@@ -54,15 +54,6 @@ const isRegistryOperation = (
 ): operation is ListsOperation =>
   Boolean(operation && REGISTRY_OPERATION_TYPES.has(operation.type));
 
-const toOperationKey = (op: TaskListOperation | ListsOperation) =>
-  [
-    op.type ?? "",
-    op.actor ?? "",
-    op.clock ?? 0,
-    op.itemId ?? "",
-    op.listId ?? "",
-  ].join("|");
-
 const sortOperations = <T extends TaskListOperation | ListsOperation>(
   operations: T[]
 ) =>

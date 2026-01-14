@@ -3,6 +3,8 @@
   "compilerOptions": {
     "types": ["node", "@playwright/test"],
     "lib": ["DOM", "ES2021"],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "rootDir": ".",
     "outDir": "dist"
   },

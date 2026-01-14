@@ -64,15 +64,12 @@ export default class DraggableBehavior {
   private cachedItems: HTMLElement[] | null;
   private enabled: boolean;
   private originalPosition: number | null;
-  private pointerOffsetY: number;
-  private pointerOffsetX: number;
   private animator: FlipAnimator | null;
   private _currentPlaceholderIndex: number | null;
   private _dropHandled: boolean;
   private dragStartIndex: number | null;
   private _lastClientY: number | null;
   private _lastDragOverLogTs: number;
-  private _lastDebugLogTs: number;
   private _onDragStart: (event: DragEvent) => void;
   private _onDragEnd: (event: DragEvent) => void;
   private _onDragOver: (event: DragEvent) => void;
@@ -111,15 +108,12 @@ export default class DraggableBehavior {
     this.cachedItems = null;
     this.enabled = false;
     this.originalPosition = null;
-    this.pointerOffsetY = 0;
-    this.pointerOffsetX = 0;
     this.animator = this.options.animator;
     this._currentPlaceholderIndex = null;
     this._dropHandled = false;
     this.dragStartIndex = null;
     this._lastClientY = null;
     this._lastDragOverLogTs = 0;
-    this._lastDebugLogTs = 0;
 
     this._onDragStart = this.handleDragStart.bind(this);
     this._onDragEnd = this.handleDragEnd.bind(this);
@@ -203,7 +197,7 @@ export default class DraggableBehavior {
     }
   }
 
-  handleDragEnd(event: DragEvent) {
+  handleDragEnd(_event: DragEvent) {
     if (
       this.dragging &&
       !this._dropHandled &&
@@ -383,9 +377,8 @@ export default class DraggableBehavior {
     if (!li) return;
     const rect = li.getBoundingClientRect();
 
-    this.pointerOffsetY =
-      eClientY != null ? eClientY - rect.top : rect.height / 2;
-    this.pointerOffsetX = eClientX != null ? eClientX - rect.left : 16;
+    void (eClientY != null ? eClientY - rect.top : rect.height / 2);
+    void (eClientX != null ? eClientX - rect.left : 16);
   }
 
   getDropTarget(mouseY) {

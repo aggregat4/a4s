@@ -104,7 +104,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
 
   sanitizeInsertPayload(
     data?: Partial<TData>,
-    context: { existingData?: TData } = {}
+    _context: { existingData?: TData } = {}
   ) {
     if (!data || typeof data !== "object") return {} as Partial<TData>;
     return { ...data };
@@ -112,7 +112,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
 
   sanitizeUpdatePayload(
     data?: Partial<TData>,
-    context: { existingData?: TData } = {}
+    _context: { existingData?: TData } = {}
   ) {
     if (!data || typeof data !== "object") return {} as Partial<TData>;
     return { ...data };

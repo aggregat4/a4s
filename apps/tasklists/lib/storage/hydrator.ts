@@ -7,15 +7,11 @@ import type {
   ListStorage,
 } from "../../types/storage.js";
 
-function generateItemId(listId: ListId) {
-  return `${listId}-item-${crypto.randomUUID()}`;
-}
-
 function ensureListFactory(
   factory?: (listId: ListId, initialState?: ListState | null) => TaskListCRDT
 ) {
   if (typeof factory === "function") return factory;
-  return (listId: ListId, initialState: ListState | null = null) =>
+  return (_listId: ListId, initialState: ListState | null = null) =>
     new TaskListCRDT({
       title: initialState?.title ?? "",
       titleUpdatedAt: initialState?.titleUpdatedAt ?? 0,

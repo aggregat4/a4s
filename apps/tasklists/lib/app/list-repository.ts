@@ -27,7 +27,7 @@ type GlobalListener =
   | { type: "registry"; snapshot: ListRegistryEntry[] }
   | { type: "list"; listId: ListId; state: TaskListState };
 
-function defaultListFactory(listId: ListId, state: ListState | null = null) {
+function defaultListFactory(_listId: ListId, state: ListState | null = null) {
   return new TaskListCRDT({
     title: state?.title ?? "",
     titleUpdatedAt: state?.titleUpdatedAt ?? 0,
