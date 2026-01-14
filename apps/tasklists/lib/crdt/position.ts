@@ -37,17 +37,20 @@
 const DEFAULT_BASE = 1024;
 const DEFAULT_DEPTH = 6;
 
-function sanitizeDigit(value) {
-  if (!Number.isFinite(value)) return 0;
+type PositionComponent = { digit: number; actor: string };
+type Position = PositionComponent[];
+
+function sanitizeDigit(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
   const digit = Math.floor(value);
   return digit < 0 ? 0 : digit;
 }
 
-function sanitizeActor(value) {
+function sanitizeActor(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
-export function normalizePosition(position) {
+export function normalizePosition(position: unknown): Position {
   if (!Array.isArray(position)) return [];
   return position
     .map((component) => ({
@@ -60,7 +63,10 @@ export function normalizePosition(position) {
     });
 }
 
-function compareComponents(left = null, right = null) {
+function compareComponents(
+  left: PositionComponent | null = null,
+  right: PositionComponent | null = null
+) {
   const leftDigit = left ? left.digit : 0;
   const rightDigit = right ? right.digit : 0;
   if (leftDigit !== rightDigit) {
@@ -72,7 +78,7 @@ function compareComponents(left = null, right = null) {
   return leftActor < rightActor ? -1 : 1;
 }
 
-export function comparePositions(left, right) {
+export function comparePositions(left: unknown, right: unknown) {
   const a = normalizePosition(left);
   const b = normalizePosition(right);
   const maxLength = Math.max(a.length, b.length);
@@ -86,7 +92,7 @@ export function comparePositions(left, right) {
   return a.length < b.length ? -1 : 1;
 }
 
-function chooseDigit(leftDigit, rightDigit) {
+function chooseDigit(leftDigit: number, rightDigit: number) {
   return Math.floor((leftDigit + rightDigit) / 2);
 }
 
@@ -95,17 +101,25 @@ function chooseDigit(leftDigit, rightDigit) {
  * When either bound is omitted, the algorithm assumes a virtual minimum (0) or
  * maximum (base) component for that depth.
  */
-export function between(left, right, options: any = {}) {
+export function between(
+  left: unknown,
+  right: unknown,
+  options: { actor?: string; base?: number; depth?: number } = {}
+): Position {
   const actor = sanitizeActor(options.actor);
   if (!actor) {
     throw new Error("between() requires an actor identifier");
   }
   const base =
-    Number.isFinite(options.base) && options.base > 2
+    typeof options.base === "number" &&
+    Number.isFinite(options.base) &&
+    options.base > 2
       ? Math.floor(options.base)
       : DEFAULT_BASE;
   const depth =
-    Number.isFinite(options.depth) && options.depth > 0
+    typeof options.depth === "number" &&
+    Number.isFinite(options.depth) &&
+    options.depth > 0
       ? Math.floor(options.depth)
       : DEFAULT_DEPTH;
   const leftNorm = normalizePosition(left);
@@ -120,7 +134,7 @@ export function between(left, right, options: any = {}) {
     }
   }
 
-  const result = [];
+  const result: Position = [];
   for (let level = 0; level < depth; level++) {
     const leftComponent = leftNorm[level] ?? null;
     const rightComponent = rightNorm[level] ?? null;
@@ -163,11 +177,11 @@ export function between(left, right, options: any = {}) {
   return result;
 }
 
-export function clonePosition(position) {
+export function clonePosition(position: unknown): Position {
   return normalizePosition(position).map((component) => ({ ...component }));
 }
 
-export function positionToKey(position) {
+export function positionToKey(position: unknown) {
   return normalizePosition(position)
     .map((component) => `${component.digit}:${component.actor}`)
     .join("|");

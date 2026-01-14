@@ -1,6 +1,11 @@
 const DEFAULT_STORAGE_KEY = "prototypeLists.actorId";
 
-function resolveStorage(customStorage) {
+type StorageLike = {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+};
+
+function resolveStorage(customStorage?: StorageLike): StorageLike {
   if (customStorage) return customStorage;
   const storage = globalThis?.localStorage;
   if (!storage) {
@@ -21,7 +26,9 @@ function generateActorId() {
  * @param {string} [options.storageKey]
  * @param {Storage} [options.storage]
  */
-export function ensureActorId(options: any = {}) {
+export function ensureActorId(
+  options: { storageKey?: string; storage?: StorageLike } = {}
+) {
   const storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
   const storage = resolveStorage(options.storage);
   let actorId = null;
@@ -66,8 +73,11 @@ export class LamportClock {
    * Advances the clock in response to a local event, optionally observing a remote timestamp.
    * @param {number} [remoteTime]
    */
-  tick(remoteTime) {
-    const remote = Number.isFinite(remoteTime) ? remoteTime : 0;
+  tick(remoteTime?: number | null) {
+    const remote =
+      typeof remoteTime === "number" && Number.isFinite(remoteTime)
+        ? remoteTime
+        : 0;
     this.time = Math.max(this.time, Math.floor(remote)) + 1;
     return this.time;
   }
@@ -76,8 +86,10 @@ export class LamportClock {
    * Merges a remote Lamport time into this clock without creating a new event.
    * @param {number} remoteTime
    */
-  merge(remoteTime) {
-    if (!Number.isFinite(remoteTime)) return this.time;
+  merge(remoteTime?: number | null) {
+    if (typeof remoteTime !== "number" || !Number.isFinite(remoteTime)) {
+      return this.time;
+    }
     const candidate = Math.floor(remoteTime);
     if (candidate > this.time) {
       this.time = candidate;

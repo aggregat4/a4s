@@ -1,28 +1,45 @@
 import { normalizePosition } from "../crdt/position.js";
-import type { ListState, RegistryState } from "../../types/domain.js";
+import type {
+  ListState,
+  OrderedSetEntry,
+  Position,
+  RegistryState,
+} from "../../types/domain.js";
 import type { ListsOperation, TaskListOperation } from "../../types/crdt.js";
 
 export const SERIALIZATION_VERSION = 1;
 export const REGISTRY_STATE_ID = "registry";
 
-function encodeDigit(value) {
-  if (!Number.isFinite(value)) return 0;
+type EncodedPositionComponent = { digit: number; actor: string };
+type EncodedPosition = EncodedPositionComponent[];
+type EncodedEntry<TData> = {
+  id: string;
+  pos: EncodedPosition;
+  data: TData;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+};
+type MapDataFn<TIn, TOut> = (data: TIn) => TOut;
+
+function encodeDigit(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
   const digit = Math.floor(value);
   return digit < 0 ? 0 : digit;
 }
 
-function encodeActor(value) {
+function encodeActor(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
-function encodePosition(position) {
+function encodePosition(position: Position | null | undefined): EncodedPosition {
   return normalizePosition(position).map((component) => ({
     digit: encodeDigit(component.digit),
     actor: encodeActor(component.actor),
   }));
 }
 
-function decodePosition(encoded) {
+function decodePosition(encoded: unknown): EncodedPosition {
   if (!Array.isArray(encoded)) return [];
   return encoded
     .map((component) => ({
@@ -35,12 +52,12 @@ function decodePosition(encoded) {
     });
 }
 
-function encodeTimestamp(value) {
-  if (!Number.isFinite(value)) return 0;
+function encodeTimestamp(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
   return Math.max(0, Math.floor(value));
 }
 
-function encodeData(value) {
+function encodeData(value: unknown) {
   if (value == null) return {};
   if (typeof value !== "object") {
     return { value };
@@ -48,9 +65,14 @@ function encodeData(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function encodeEntry(entry, mapData) {
+function encodeEntry<TIn, TOut>(
+  entry: OrderedSetEntry<TIn>,
+  mapData?: MapDataFn<TIn, TOut>
+): EncodedEntry<TOut> | null {
   if (!entry || typeof entry.id !== "string" || !entry.id.length) return null;
-  const data = mapData ? mapData(entry.data) : encodeData(entry.data);
+  const data = mapData
+    ? mapData(entry.data)
+    : (encodeData(entry.data) as TOut);
   return {
     id: entry.id,
     pos: encodePosition(entry.pos),
@@ -64,25 +86,40 @@ function encodeEntry(entry, mapData) {
   };
 }
 
-function decodeEntry(entry, mapData) {
-  if (!entry || typeof entry.id !== "string" || !entry.id.length) return null;
-  const data = mapData ? mapData(entry.data) : entry.data ?? {};
+function decodeEntry<TOut>(
+  entry: unknown,
+  mapData?: MapDataFn<unknown, TOut>
+): OrderedSetEntry<TOut> | null {
+  if (!entry || typeof entry !== "object") return null;
+  const record = entry as {
+    id?: unknown;
+    pos?: unknown;
+    data?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    deletedAt?: unknown;
+  };
+  if (typeof record.id !== "string" || !record.id.length) return null;
+  const data = mapData ? mapData(record.data) : (record.data ?? ({} as TOut));
   const decoded = {
-    id: entry.id,
-    pos: decodePosition(entry.pos),
+    id: record.id,
+    pos: decodePosition(record.pos),
     data,
-    createdAt: encodeTimestamp(entry.createdAt),
-    updatedAt: encodeTimestamp(entry.updatedAt),
+    createdAt: encodeTimestamp(record.createdAt),
+    updatedAt: encodeTimestamp(record.updatedAt),
     deletedAt:
-      entry.deletedAt == null || !Number.isFinite(entry.deletedAt)
+      typeof record.deletedAt !== "number" || !Number.isFinite(record.deletedAt)
         ? null
-        : Math.max(0, Math.floor(entry.deletedAt)),
+        : Math.max(0, Math.floor(record.deletedAt)),
   };
   if (!decoded.pos.length) return null;
-  return decoded;
+  return decoded as OrderedSetEntry<TOut>;
 }
 
-export function serializeOrderedSetSnapshot(entries, mapData) {
+export function serializeOrderedSetSnapshot<TIn, TOut>(
+  entries: OrderedSetEntry<TIn>[],
+  mapData?: MapDataFn<TIn, TOut>
+) {
   if (!Array.isArray(entries)) return [];
   const encoded = entries
     .map((entry) => encodeEntry(entry, mapData))
@@ -90,30 +127,33 @@ export function serializeOrderedSetSnapshot(entries, mapData) {
   return encoded;
 }
 
-export function deserializeOrderedSetSnapshot(entries, mapData) {
+export function deserializeOrderedSetSnapshot<TOut>(
+  entries: unknown,
+  mapData?: MapDataFn<unknown, TOut>
+) {
   if (!Array.isArray(entries)) return [];
   return entries
     .map((entry) => decodeEntry(entry, mapData))
     .filter((entry) => entry != null);
 }
 
-const sanitizeText = (value) => (typeof value === "string" ? value : "");
-const sanitizeBoolean = (value) => {
+const sanitizeText = (value: unknown) => (typeof value === "string" ? value : "");
+const sanitizeBoolean = (value: unknown) => {
   if (typeof value === "boolean") return value;
   if (value === "true") return true;
   if (value === "false") return false;
   return Boolean(value);
 };
 
-const mapListDataEncode = (data) => ({
-  text: sanitizeText(data?.text),
-  done: sanitizeBoolean(data?.done),
+const mapListDataEncode = (data: unknown) => ({
+  text: sanitizeText((data as { text?: unknown })?.text),
+  done: sanitizeBoolean((data as { done?: unknown })?.done),
 });
 
 const mapListDataDecode = mapListDataEncode;
 
-const mapRegistryDataEncode = (data) => ({
-  title: sanitizeText(data?.title),
+const mapRegistryDataEncode = (data: unknown) => ({
+  title: sanitizeText((data as { title?: unknown })?.title),
 });
 
 const mapRegistryDataDecode = mapRegistryDataEncode;
@@ -140,13 +180,21 @@ export function serializeListState(state: ListState) {
   };
 }
 
-export function deserializeListState(encoded: any = {}): ListState {
+export function deserializeListState(encoded: unknown = {}): ListState {
+  const safe = encoded ?? {};
   return {
-    version: encodeTimestamp(encoded.version) || SERIALIZATION_VERSION,
-    clock: encodeTimestamp(encoded.clock),
-    title: sanitizeText(encoded.title),
-    titleUpdatedAt: encodeTimestamp(encoded.titleUpdatedAt),
-    entries: deserializeOrderedSetSnapshot(encoded.entries, mapListDataDecode),
+    version:
+      encodeTimestamp((safe as { version?: unknown }).version) ||
+      SERIALIZATION_VERSION,
+    clock: encodeTimestamp((safe as { clock?: unknown }).clock),
+    title: sanitizeText((safe as { title?: unknown }).title),
+    titleUpdatedAt: encodeTimestamp(
+      (safe as { titleUpdatedAt?: unknown }).titleUpdatedAt
+    ),
+    entries: deserializeOrderedSetSnapshot(
+      (safe as { entries?: unknown }).entries,
+      mapListDataDecode
+    ),
   };
 }
 
@@ -172,30 +220,35 @@ export function serializeRegistryState(state: RegistryState) {
   };
 }
 
-export function deserializeRegistryState(encoded: any = {}): RegistryState {
+export function deserializeRegistryState(encoded: unknown = {}): RegistryState {
+  const safe = encoded ?? {};
   return {
-    version: encodeTimestamp(encoded.version) || SERIALIZATION_VERSION,
-    clock: encodeTimestamp(encoded.clock),
+    version:
+      encodeTimestamp((safe as { version?: unknown }).version) ||
+      SERIALIZATION_VERSION,
+    clock: encodeTimestamp((safe as { clock?: unknown }).clock),
     entries: deserializeOrderedSetSnapshot(
-      encoded.entries,
+      (safe as { entries?: unknown }).entries,
       mapRegistryDataDecode
     ),
   };
 }
 
-function serializePayload(payload) {
+function serializePayload(payload: unknown) {
   if (!payload || typeof payload !== "object") return undefined;
-  const result: any = {};
+  const result: Record<string, unknown> = {};
   Object.entries(payload).forEach(([key, value]) => {
     if (key === "pos") {
-      result.pos = encodePosition(value);
+      result.pos = encodePosition(value as Position);
     } else if (
       Array.isArray(value) &&
       value.length > 0 &&
       typeof value[0] === "object" &&
       value[0]?.digit != null
     ) {
-      result[key] = value.map((component) => encodePosition(component));
+      result[key] = value.map((component) =>
+        encodePosition(component as Position)
+      );
     } else {
       result[key] = value;
     }
@@ -203,9 +256,9 @@ function serializePayload(payload) {
   return result;
 }
 
-function deserializePayload(payload) {
+function deserializePayload(payload: unknown) {
   if (!payload || typeof payload !== "object") return undefined;
-  const result: any = {};
+  const result: Record<string, unknown> = {};
   Object.entries(payload).forEach(([key, value]) => {
     if (key === "pos") {
       result.pos = decodePosition(value);
@@ -237,24 +290,32 @@ export function serializeOperation(operation: TaskListOperation | ListsOperation
 }
 
 export function deserializeOperation(
-  encoded: any
+  encoded: unknown
 ): TaskListOperation | ListsOperation | null {
   if (!encoded || typeof encoded !== "object") return null;
-  const payload = deserializePayload(encoded.payload);
-  const operation = {
-    type: typeof encoded.type === "string" ? encoded.type : "",
-    itemId: typeof encoded.itemId === "string" ? encoded.itemId : undefined,
-    listId: typeof encoded.listId === "string" ? encoded.listId : undefined,
-    payload,
-    clock: encodeTimestamp(encoded.clock),
-    actor: typeof encoded.actor === "string" ? encoded.actor : "",
+  const record = encoded as {
+    type?: unknown;
+    itemId?: unknown;
+    listId?: unknown;
+    payload?: unknown;
+    clock?: unknown;
+    actor?: unknown;
   };
-  return operation;
+  const payload = deserializePayload(record.payload);
+  const operation = {
+    type: typeof record.type === "string" ? record.type : "",
+    itemId: typeof record.itemId === "string" ? record.itemId : undefined,
+    listId: typeof record.listId === "string" ? record.listId : undefined,
+    payload,
+    clock: encodeTimestamp(record.clock),
+    actor: typeof record.actor === "string" ? record.actor : "",
+  };
+  return operation as TaskListOperation | ListsOperation;
 }
 
-function cleanUndefinedKeys(object) {
+function cleanUndefinedKeys<T extends Record<string, unknown>>(object: T | null) {
   if (!object || typeof object !== "object") return object;
-  const next = { ...object };
+  const next: Record<string, unknown> = { ...object };
   Object.keys(next).forEach((key) => {
     if (next[key] === undefined) {
       delete next[key];
