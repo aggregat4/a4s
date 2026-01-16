@@ -1,6 +1,7 @@
 import { html, render, noChange } from "../../vendor/lit-html.js";
 import { live } from "../../vendor/directives/live.js";
-import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
+import { DragCoordinator } from "./drag-coordinator.js";
+import { FlipAnimator } from "../../shared/drag-behavior.js";
 import InlineTextEditor from "../../shared/inline-text-editor.js";
 import {
   createStore,
@@ -41,7 +42,6 @@ const makeOffsetCaret = (value: number, bias?: CaretBias): CaretPreference => ({
 
 type ListAction = Parameters<typeof listReducer>[1];
 type ListStore = ReturnType<typeof createStore<TaskListState, ListAction>>;
-type DragBehavior = InstanceType<typeof DraggableBehavior>;
 type InlineEditor = InstanceType<typeof InlineTextEditor>;
 
 type ReorderMove = { fromIndex: number; toIndex: number };
@@ -279,7 +279,7 @@ class TaskListView {
 // remains drop-in embeddable without a framework runtime.
 class A4TaskList extends HTMLElement {
   private listEl: HTMLOListElement | null;
-  private dragBehavior: DragBehavior | null;
+  private dragCoordinator: DragCoordinator | null;
   private inlineEditor: InlineEditor | null;
   private headerEl: HTMLElement | null;
   private titleEl: HTMLElement | null;
@@ -322,7 +322,7 @@ class A4TaskList extends HTMLElement {
   constructor() {
     super();
     this.listEl = null;
-    this.dragBehavior = null;
+    this.dragCoordinator = null;
     this.inlineEditor = null;
     this.headerEl = null;
     this.titleEl = null;
@@ -444,11 +444,10 @@ class A4TaskList extends HTMLElement {
     this.initializeStore();
     this.refreshRepositorySubscription();
 
-    if (!this.dragBehavior) {
-      this.dragBehavior = new DraggableBehavior(this.listEl, {
+    if (!this.dragCoordinator) {
+      this.dragCoordinator = new DragCoordinator({
         handleClass: "handle",
-        debug: false,
-        pointerFallback: false,
+        animator: new FlipAnimator(),
         onReorder: (fromIndex, toIndex) => {
           const detail = { fromIndex, toIndex };
           this.lastDragReorderMove = detail;
@@ -463,10 +462,12 @@ class A4TaskList extends HTMLElement {
 
           // Persist + store reconciliation happen on drop/dragend so the DOM stays in control while dragging.
         },
-        animator: new FlipAnimator(),
+        onDragStart: this.handleListDragStart,
+        onDragEnd: this.handleDragFinalize,
+        onDrop: this.handleDragFinalize,
       });
     }
-    this.dragBehavior.enable();
+    this.dragCoordinator.attach(this.listEl);
 
     this.ensureInlineEditor();
 
@@ -474,12 +475,6 @@ class A4TaskList extends HTMLElement {
     this.listEl.addEventListener("blur", this.handleItemBlur, true);
     this.listEl.removeEventListener("focusin", this.handleFocusIn);
     this.listEl.addEventListener("focusin", this.handleFocusIn);
-    this.listEl.removeEventListener("dragstart", this.handleListDragStart);
-    this.listEl.addEventListener("dragstart", this.handleListDragStart);
-    this.listEl.removeEventListener("dragend", this.handleDragFinalize);
-    this.listEl.addEventListener("dragend", this.handleDragFinalize);
-    this.listEl.removeEventListener("drop", this.handleDragFinalize);
-    this.listEl.addEventListener("drop", this.handleDragFinalize);
     this.listEl.removeEventListener("touchstart", this.handleTouchGestureStart);
     this.listEl.addEventListener("touchstart", this.handleTouchGestureStart, {
       passive: true,
@@ -617,11 +612,10 @@ class A4TaskList extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this.dragBehavior?.destroy();
-    this.dragBehavior = null;
+    this.dragCoordinator?.destroy();
+    this.dragCoordinator = null;
     this.listEl?.removeEventListener("blur", this.handleItemBlur, true);
     this.listEl?.removeEventListener("focusin", this.handleFocusIn);
-    this.listEl?.removeEventListener("dragstart", this.handleListDragStart);
     this.listEl?.removeEventListener(
       "touchstart",
       this.handleTouchGestureStart
@@ -1555,7 +1549,7 @@ class A4TaskList extends HTMLElement {
       });
     });
     render(html`${itemsTemplate}`, this.listEl);
-    this.dragBehavior?.invalidateItemsCache();
+    this.dragCoordinator?.invalidateItemsCache();
 
     const totalCount = Array.isArray(state.items)
       ? state.items.filter((item) => !item?.done).length
@@ -2166,7 +2160,7 @@ class A4TaskList extends HTMLElement {
   }
 
   cancelActiveDrag() {
-    this.dragBehavior?.cancel?.();
+    this.dragCoordinator?.cancel();
   }
 
   setListName(name: string) {

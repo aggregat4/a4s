@@ -14,3 +14,8 @@ Document any future deviations from these assumptions here so other contributors
 - The default way to execute Playwright end-to-end tests is via the Docker harness baked into `playwright.config.ts`. Always run `PLAYWRIGHT_USE_DOCKER=1 npm run test:e2e` (or the headed variant) so that the HTTP server starts inside a container, mapped to the repository at `/work`.
 - `PLAYWRIGHT_DOCKER_IMAGE` can be overridden if you need a different Playwright release, but keep the default unless there's a documented reason to bump.
 - Running without Docker (`PLAYWRIGHT_USE_DOCKER` unset) is still possible for local debugging, yet do not rely on it in scripts or documentation so CI and Codex have the exact same environment.
+
+## Commit Messages
+
+- First line: concise summary in imperative mood.
+- Body: explain the why and key behavior changes; wrap at ~72 chars.

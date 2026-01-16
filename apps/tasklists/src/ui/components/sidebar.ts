@@ -1,5 +1,6 @@
 import { html, render } from "../../vendor/lit-html.js";
-import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
+import { DragCoordinator } from "./drag-coordinator.js";
+import { FlipAnimator } from "../../shared/drag-behavior.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
 
 type SidebarListEntry = {
@@ -34,8 +35,7 @@ class SidebarElement extends HTMLElement {
   private currentSearch: string;
   private dropTargetDepth: Map<HTMLElement, number>;
   private searchSeq: number;
-  private dragBehavior: DraggableBehavior | null;
-  private dragBehaviorContainer: HTMLElement | null;
+  private dragCoordinator: DragCoordinator | null;
   private dragStartOrder: ListId[] | null;
   private isListDragging: boolean;
   private pendingRender: boolean;
@@ -52,8 +52,7 @@ class SidebarElement extends HTMLElement {
     this.currentSearch = "";
     this.dropTargetDepth = new Map<HTMLElement, number>();
     this.searchSeq = 0;
-    this.dragBehavior = null;
-    this.dragBehaviorContainer = null;
+    this.dragCoordinator = null;
     this.dragStartOrder = null;
     this.isListDragging = false;
     this.pendingRender = false;
@@ -107,9 +106,8 @@ class SidebarElement extends HTMLElement {
   destroy() {
     clearTimeout(this.searchDebounceId);
     document.removeEventListener("dragend", this.handleGlobalDragEnd);
-    this.dragBehavior?.destroy();
-    this.dragBehavior = null;
-    this.dragBehaviorContainer = null;
+    this.dragCoordinator?.destroy();
+    this.dragCoordinator = null;
     this.dragStartOrder = null;
     this.isListDragging = false;
     this.pendingRender = false;
@@ -381,36 +379,18 @@ class SidebarElement extends HTMLElement {
       "[data-role='sidebar-list']"
     ) as HTMLElement | null;
     if (!listEl) return;
-    if (this.dragBehavior && this.dragBehaviorContainer === listEl) {
-      this.dragBehavior.invalidateItemsCache();
-      return;
+    if (!this.dragCoordinator) {
+      this.dragCoordinator = new DragCoordinator({
+        handleClass: "handle",
+        animator: new FlipAnimator(),
+        onReorder: (fromIndex, toIndex) =>
+          this.handleListReorder(fromIndex, toIndex),
+        onDragStart: this.handleListDragStart,
+        onDragEnd: this.handleListDragEnd,
+        onDrop: this.handleListDragEnd,
+      });
     }
-    if (this.dragBehaviorContainer) {
-      this.dragBehaviorContainer.removeEventListener(
-        "dragstart",
-        this.handleListDragStart
-      );
-      this.dragBehaviorContainer.removeEventListener(
-        "dragend",
-        this.handleListDragEnd
-      );
-      this.dragBehaviorContainer.removeEventListener(
-        "drop",
-        this.handleListDragEnd
-      );
-    }
-    this.dragBehavior?.destroy();
-    this.dragBehavior = new DraggableBehavior(listEl, {
-      handleClass: "handle",
-      animator: new FlipAnimator(),
-      onReorder: (fromIndex, toIndex) =>
-        this.handleListReorder(fromIndex, toIndex),
-    });
-    this.dragBehavior.enable();
-    this.dragBehaviorContainer = listEl;
-    listEl.addEventListener("dragstart", this.handleListDragStart);
-    listEl.addEventListener("dragend", this.handleListDragEnd);
-    listEl.addEventListener("drop", this.handleListDragEnd);
+    this.dragCoordinator.attach(listEl);
   }
 
   handleListDragStart(event: DragEvent) {
@@ -486,7 +466,7 @@ class SidebarElement extends HTMLElement {
         listEl.appendChild(item);
       }
     });
-    this.dragBehavior?.invalidateItemsCache();
+    this.dragCoordinator?.invalidateItemsCache();
   }
 
   isReorderOnlyUpdate(
