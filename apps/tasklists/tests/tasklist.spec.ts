@@ -107,6 +107,19 @@ async function addTask(page: Page, text: string) {
   return editor;
 }
 
+async function addBlankTask(page: Page) {
+  await page.getByRole("button", { name: "Add task" }).click();
+  const editor = page.locator(listItemsSelector).first().locator(".text");
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await page.keyboard.press("Escape");
+  await expect(editor).not.toHaveAttribute("contenteditable", "true");
+  return editor;
+}
+
+async function getItemId(editor: Locator) {
+  return editor.evaluate((el) => el.closest("li")?.getAttribute("data-item-id"));
+}
+
 async function setCaretPosition(target: Locator, position: number) {
   await target.evaluate((el, offset) => {
     const selection = el.ownerDocument.getSelection();
@@ -143,29 +156,17 @@ async function getCaretOffset(target: Locator) {
   });
 }
 
+async function getNormalizedText(target: Locator) {
+  const text = await target.textContent();
+  return (text ?? "").replace(/\u00a0/g, " ");
+}
+
 async function pressUndo(page: Page) {
-  await page.evaluate(() => {
-    const event = new KeyboardEvent("keydown", {
-      key: "z",
-      ctrlKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    document.dispatchEvent(event);
-  });
+  await page.keyboard.press("Control+Z");
 }
 
 async function pressRedo(page: Page) {
-  await page.evaluate(() => {
-    const event = new KeyboardEvent("keydown", {
-      key: "z",
-      ctrlKey: true,
-      shiftKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    document.dispatchEvent(event);
-  });
+  await page.keyboard.press("Control+Shift+Z");
 }
 
 test("loads without console errors", async ({ page }) => {
@@ -252,18 +253,14 @@ test("undo/redo shortcuts revert task insertions", async ({ page }) => {
   );
 
   const initialCount = await page.locator(listItemsSelector).count();
-  await addTask(page, "Undo me");
+  await addBlankTask(page);
   await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1);
   const canUndo = await page.evaluate(
     () => (window as any).listsApp?.repository?.canUndo?.() ?? false
   );
   expect(canUndo).toBe(true);
 
-  await page.evaluate(() => {
-    const active = document.activeElement as HTMLElement | null;
-    active?.blur?.();
-  });
-  await page.locator("[data-role='lists-container']").click({ position: { x: 5, y: 5 } });
+  await page.locator(listItemsSelector).first().locator(".text").click();
   await pressUndo(page);
   await pressUndo(page);
   await expect(page.locator(listItemsSelector)).toHaveCount(initialCount);
@@ -271,6 +268,85 @@ test("undo/redo shortcuts revert task insertions", async ({ page }) => {
   await pressRedo(page);
   await pressRedo(page);
   await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1);
+});
+
+test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
+  await page.goto("/?resetStorage=1");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Prototype Tasks"
+  );
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const editor = page.locator(listItemsSelector).first().locator(".text");
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await page.keyboard.type("Hello");
+  await page.keyboard.press(" ");
+  await page.keyboard.type("world");
+  const itemId = await getItemId(editor);
+  const itemEditor = page.locator(
+    `li[data-item-id="${itemId ?? ""}"] .text`
+  );
+  await itemEditor.click();
+
+  await pressUndo(page);
+  await expect
+    .poll(() => getNormalizedText(itemEditor))
+    .not.toBe("Hello world");
+  const fullText = "Hello world";
+  const firstUndoText = await getNormalizedText(itemEditor);
+  expect(firstUndoText).not.toBe(fullText);
+  for (let i = 0; i < 3; i += 1) {
+    const current = await getNormalizedText(itemEditor);
+    if (current === "" || current.length <= 1) break;
+    await pressUndo(page);
+  }
+
+  for (let i = 0; i < 4; i += 1) {
+    const current = await getNormalizedText(itemEditor);
+    if (current === fullText) break;
+    await pressRedo(page);
+  }
+  await expect
+    .poll(() => getNormalizedText(itemEditor), { timeout: 2000 })
+    .toBe(fullText);
+});
+
+test("undo/redo walks through text edits and task insertions", async ({
+  page,
+}) => {
+  await page.goto("/?resetStorage=1");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Prototype Tasks"
+  );
+
+  const initialCount = await page.locator(listItemsSelector).count();
+  await page.getByRole("button", { name: "Add task" }).click();
+  const editor = page.locator(listItemsSelector).first().locator(".text");
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await page.keyboard.type("Hello");
+  const itemId = await getItemId(editor);
+  await page.keyboard.press("Escape");
+
+  await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1);
+  const itemEditor = page.locator(`li[data-item-id="${itemId ?? ""}"] .text`);
+
+  await pressUndo(page);
+  await expect
+    .poll(() => getNormalizedText(itemEditor), { timeout: 15000 })
+    .toBe("");
+  await pressUndo(page);
+  await expect
+    .poll(() => page.locator(listItemsSelector).count(), { timeout: 15000 })
+    .toBe(initialCount);
+
+  await pressRedo(page);
+  await expect
+    .poll(() => page.locator(listItemsSelector).count(), { timeout: 15000 })
+    .toBe(initialCount + 1);
+  await pressRedo(page);
+  await expect
+    .poll(() => getNormalizedText(itemEditor), { timeout: 15000 })
+    .toBe("Hello");
 });
 
 test("sidebar list order updates after drag reorder", async ({ page }) => {

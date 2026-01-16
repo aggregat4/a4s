@@ -43,6 +43,11 @@ export default class InlineTextEditor {
       selectionStart: number;
       selectionEnd: number;
     }) => void;
+    onInput?: (payload: {
+      element: HTMLElement;
+      text: string;
+      previousText: string;
+    }) => void;
     onNavigate?: (payload: {
       direction: "up" | "down";
       targetElement: HTMLElement;
@@ -51,17 +56,20 @@ export default class InlineTextEditor {
   };
   editingEl: HTMLElement | null;
   private initialTextValue: string;
+  private lastInputText: string;
 
   constructor(list: HTMLElement, options: InlineTextEditor["options"] = {}) {
     this.list = list;
     this.options = options;
     this.editingEl = null;
     this.initialTextValue = "";
+    this.lastInputText = "";
     // Bind once so we can add/remove listeners without recreating closures.
     this.handleClick = this.handleClick.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handleBlur = this.handleBlur.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handleInput = this.handleInput.bind(this);
     this.list.addEventListener("click", this.handleClick);
     // Why we start editing on `pointerdown` (capture):
     // - `click` fires after `pointerup`, which is after the browser has already
@@ -121,6 +129,7 @@ export default class InlineTextEditor {
     }
     // Remember the original text so callbacks get precise before/after values.
     this.initialTextValue = textEl.dataset.originalText ?? textEl.textContent;
+    this.lastInputText = this.initialTextValue ?? "";
     this.editingEl = textEl;
     const li = textEl.closest("li");
     if (li) {
@@ -135,6 +144,7 @@ export default class InlineTextEditor {
     textEl.setAttribute("spellcheck", "false");
     textEl.addEventListener("blur", this.handleBlur);
     textEl.addEventListener("keydown", this.handleKeyDown);
+    textEl.addEventListener("input", this.handleInput);
     textEl.focus();
     if (caretPreference) {
       // When we resume editing after merges/moves we honour the stored caret preference.
@@ -648,6 +658,7 @@ export default class InlineTextEditor {
     const previousText = this.initialTextValue;
     textEl.removeEventListener("blur", this.handleBlur);
     textEl.removeEventListener("keydown", this.handleKeyDown);
+    textEl.removeEventListener("input", this.handleInput);
     textEl.removeAttribute("contenteditable");
     textEl.removeAttribute("spellcheck");
     textEl.dataset.originalText = textEl.textContent;
@@ -663,11 +674,28 @@ export default class InlineTextEditor {
     }
     this.editingEl = null;
     this.initialTextValue = "";
+    this.lastInputText = "";
     if (!skipCallback && typeof this.options.onCommit === "function") {
       this.options.onCommit({
         element: textEl,
         previousText,
         newText,
+      });
+    }
+  }
+
+  handleInput(e: Event) {
+    const textEl = e.target as HTMLElement;
+    if (!textEl || textEl !== this.editingEl) return;
+    const nextText = textEl.textContent ?? "";
+    if (nextText === this.lastInputText) return;
+    const previousText = this.lastInputText;
+    this.lastInputText = nextText;
+    if (typeof this.options.onInput === "function") {
+      this.options.onInput({
+        element: textEl,
+        text: nextText,
+        previousText,
       });
     }
   }

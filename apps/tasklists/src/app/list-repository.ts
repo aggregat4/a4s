@@ -51,6 +51,18 @@ function toListState(record?: ListRecord | null): TaskListState {
 }
 
 export class ListRepository {
+  /*
+    Text edits, inserts, and undo/redo are async and can interleave. The queues
+    below make ordering explicit so we don't drop keystrokes or corrupt history:
+    - _pendingInserts: when a new task is inserted, early text updates wait until
+      the CRDT entry exists.
+    - _textUpdateQueue: text edits for a given item are serialized so each update
+      applies in order.
+    - _historyQueue: undo/redo operations run sequentially to avoid overlapping
+      history replays.
+    Coalescing groups adjacent text edits into a single undo step based on time
+    gaps and word boundaries for a native editor feel.
+  */
   private _listsCrdt: ListsCRDT;
   private _createListCrdt: ListFactory;
   private _storageFactory: StorageFactory;
@@ -62,6 +74,16 @@ export class ListRepository {
   private _globalListeners: Set<(payload: GlobalListener) => void>;
   private _history: HistoryManager;
   private _historySuppressed: number;
+  // Serializes undo/redo so history ops never interleave.
+  private _historyQueue: Promise<void>;
+  // Serializes text updates per item so keystrokes apply in order.
+  private _textUpdateQueue: Map<string, Promise<void>>;
+  // Tracks inserts so early text edits can wait until the item exists in CRDT.
+  private _pendingInserts: Map<string, Promise<void>>;
+  private _textEditSessions: Map<
+    string,
+    { segmentId: number; lastAt: number; lastText: string }
+  >;
   private _initialized: boolean;
   private _initializing: Promise<void> | null;
   private _unsubscribeRegistry: (() => void) | null;
@@ -88,6 +110,10 @@ export class ListRepository {
     this._globalListeners = new Set();
     this._history = new HistoryManager();
     this._historySuppressed = 0;
+    this._historyQueue = Promise.resolve();
+    this._textUpdateQueue = new Map();
+    this._pendingInserts = new Map();
+    this._textEditSessions = new Map();
     this._initialized = false;
     this._initializing = null;
     this._unsubscribeRegistry = null;
@@ -129,19 +155,23 @@ export class ListRepository {
   }
 
   async undo() {
-    await this.initialize();
-    const entry = this._history.undo();
-    if (!entry) return false;
-    await this.applyHistoryOps(entry.inverseOps);
-    return true;
+    return this.enqueueHistoryAction(async () => {
+      await this.initialize();
+      const entry = this._history.undo();
+      if (!entry) return false;
+      await this.applyHistoryOps(entry.inverseOps);
+      return true;
+    });
   }
 
   async redo() {
-    await this.initialize();
-    const entry = this._history.redo();
-    if (!entry) return false;
-    await this.applyHistoryOps(entry.forwardOps);
-    return true;
+    return this.enqueueHistoryAction(async () => {
+      await this.initialize();
+      const entry = this._history.redo();
+      if (!entry) return false;
+      await this.applyHistoryOps(entry.forwardOps);
+      return true;
+    });
   }
 
   getNeighborIds(order: string[], targetId: string) {
@@ -206,6 +236,9 @@ export class ListRepository {
     this._listMap.clear();
     this._history.clear();
     this._historySuppressed = 0;
+    this._textEditSessions.clear();
+    this._textUpdateQueue.clear();
+    this._pendingInserts.clear();
     this._initialized = false;
     this._initializing = null;
   }
@@ -441,6 +474,9 @@ export class ListRepository {
       label: "remove-list",
       actor: this._listsCrdt.actorId,
     });
+    this.clearTextEditSessionsForList(listId);
+    this.clearTextUpdateQueueForList(listId);
+    this.clearPendingInsertsForList(listId);
     return true;
   }
 
@@ -530,56 +566,108 @@ export class ListRepository {
   }
 
   async insertTask(listId: ListId, options: TaskInsertInput = {}) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
+    // Mark the insert as pending so updateTask can wait for the CRDT entry.
     const itemId = ensureId(options.itemId, `${listId}-item`);
-    const text = sanitizeText(options.text);
-    const done = options.done == null ? false : Boolean(options.done);
-    const insert = record.crdt.generateInsert({
-      itemId,
-      text,
-      done,
-      afterId: options.afterId,
-      beforeId: options.beforeId,
-      position: options.position,
+    const pendingKey = `${listId}:${itemId}`;
+    let resolvePending: (() => void) | null = null;
+    const pendingPromise = new Promise<void>((resolve) => {
+      resolvePending = resolve;
     });
-    await this._persistList(listId, record.crdt, [insert.op]);
-    this.emitListChange(listId);
-    this.recordHistory({
-      scope: { type: "list", listId },
-      forwardOps: [
-        {
-          type: "insertTask",
-          listId,
-          itemId,
-          text,
-          done,
-          afterId: options.afterId ?? null,
-          beforeId: options.beforeId ?? null,
-          position: options.position ?? null,
-        },
-      ],
-      inverseOps: [
-        {
-          type: "removeTask",
-          listId,
-          itemId,
-        },
-      ],
-      label: "insert-task",
-      actor: record.crdt.actorId,
-    });
-    return { id: itemId, state: record.crdt.toListState() };
+    this._pendingInserts.set(pendingKey, pendingPromise);
+    await this.initialize();
+    try {
+      const record = this._listMap.get(listId);
+      if (!record?.crdt) return null;
+      const text = sanitizeText(options.text);
+      const done = options.done == null ? false : Boolean(options.done);
+      const insert = record.crdt.generateInsert({
+        itemId,
+        text,
+        done,
+        afterId: options.afterId,
+        beforeId: options.beforeId,
+        position: options.position,
+      });
+      await this._persistList(listId, record.crdt, [insert.op]);
+      this.emitListChange(listId);
+      this.recordHistory({
+        scope: { type: "list", listId },
+        forwardOps: [
+          {
+            type: "insertTask",
+            listId,
+            itemId,
+            text,
+            done,
+            afterId: options.afterId ?? null,
+            beforeId: options.beforeId ?? null,
+            position: options.position ?? null,
+          },
+        ],
+        inverseOps: [
+          {
+            type: "removeTask",
+            listId,
+            itemId,
+          },
+        ],
+        label: "insert-task",
+        actor: record.crdt.actorId,
+      });
+      return { id: itemId, state: record.crdt.toListState() };
+    } finally {
+      resolvePending?.();
+      this._pendingInserts.delete(pendingKey);
+    }
   }
 
   async updateTask(listId: ListId, itemId: string, payload: TaskUpdateInput = {}) {
     await this.initialize();
+    if (Object.prototype.hasOwnProperty.call(payload, "text")) {
+      // Keep text updates ordered for this item.
+      return this.enqueueTextUpdate(listId, itemId, () =>
+        this.updateTaskInternal(listId, itemId, payload)
+      );
+    }
+    return this.updateTaskInternal(listId, itemId, payload);
+  }
+
+  private async updateTaskInternal(
+    listId: ListId,
+    itemId: string,
+    payload: TaskUpdateInput = {}
+  ) {
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
     if (typeof itemId !== "string" || !itemId.length) return null;
-    const existing = record.crdt.getSnapshot().find((entry) => entry.id === itemId);
+    let existing = record.crdt.getSnapshot().find((entry) => entry.id === itemId);
+    if (!existing) {
+      // If the task was just inserted, wait so we don't drop early edits.
+      const pending = this._pendingInserts.get(`${listId}:${itemId}`);
+      if (pending) {
+        await pending;
+        const refreshed = this._listMap.get(listId);
+        existing = refreshed?.crdt
+          ?.getSnapshot()
+          .find((entry) => entry.id === itemId);
+      }
+    }
     if (!existing) return null;
+    const now = Date.now();
+    let coalesceKey: string | undefined;
+    if (Object.prototype.hasOwnProperty.call(payload, "text")) {
+      const previousText = existing.text ?? "";
+      const nextText =
+        typeof payload.text === "string" ? payload.text : previousText;
+      // Coalesce adjacent text edits for native-feeling undo (time/word boundaries).
+      coalesceKey = this.getTextEditCoalesceKey({
+        listId,
+        itemId,
+        previousText,
+        nextText,
+        timestamp: now,
+      });
+    }
     const result = record.crdt.generateUpdate({
       itemId,
       text: payload.text,
@@ -596,7 +684,8 @@ export class ListRepository {
     }
     const shouldCoalesce =
       Object.prototype.hasOwnProperty.call(payload, "text") &&
-      !Object.prototype.hasOwnProperty.call(payload, "done");
+      !Object.prototype.hasOwnProperty.call(payload, "done") &&
+      Boolean(coalesceKey);
     this.recordHistory({
       scope: { type: "list", listId },
       forwardOps: [
@@ -617,7 +706,7 @@ export class ListRepository {
       ],
       label: "update-task",
       actor: record.crdt.actorId,
-      coalesceKey: shouldCoalesce ? `${listId}:${itemId}:update` : undefined,
+      coalesceKey: shouldCoalesce ? coalesceKey : undefined,
     });
     return record.crdt.toListState();
   }
@@ -692,6 +781,8 @@ export class ListRepository {
       label: "remove-task",
       actor: record.crdt.actorId,
     });
+    this._textEditSessions.delete(`${listId}:${itemId}`);
+    this._textUpdateQueue.delete(`${listId}:${itemId}`);
     return result;
   }
 
@@ -859,6 +950,33 @@ export class ListRepository {
     ).catch(() => {});
   }
 
+  private enqueueHistoryAction<T>(action: () => Promise<T>) {
+    const next = this._historyQueue.then(action, action);
+    this._historyQueue = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  }
+
+  private enqueueTextUpdate<T>(
+    listId: ListId,
+    itemId: string,
+    action: () => Promise<T>
+  ) {
+    const key = `${listId}:${itemId}`;
+    const chain = this._textUpdateQueue.get(key) ?? Promise.resolve();
+    const next = chain.then(action, action);
+    this._textUpdateQueue.set(
+      key,
+      next.then(
+        () => undefined,
+        () => undefined
+      )
+    );
+    return next;
+  }
+
   private async applyHistoryOps(ops: HistoryOp[]) {
     if (!Array.isArray(ops) || ops.length === 0) return;
     this._historySuppressed += 1;
@@ -930,6 +1048,99 @@ export class ListRepository {
         return;
       default:
         return;
+    }
+  }
+
+  private getTextEditCoalesceKey({
+    listId,
+    itemId,
+    previousText,
+    nextText,
+    timestamp,
+  }: {
+    listId: ListId;
+    itemId: string;
+    previousText: string;
+    nextText: string;
+    timestamp: number;
+  }) {
+    const key = `${listId}:${itemId}`;
+    const session =
+      this._textEditSessions.get(key) ?? {
+        segmentId: 0,
+        lastAt: 0,
+        lastText: previousText,
+      };
+    const gapMs = timestamp - session.lastAt;
+    const { inserted, removed } = this.getTextEditDelta(
+      session.lastText ?? previousText,
+      nextText
+    );
+    const boundaryPattern = /[\s.,;:!?]/;
+    const boundaryChange =
+      boundaryPattern.test(inserted) || boundaryPattern.test(removed);
+    const longEdit = inserted.length > 1 || removed.length > 1;
+    if (gapMs > 1000 || boundaryChange || longEdit) {
+      session.segmentId += 1;
+    }
+    session.lastAt = timestamp;
+    session.lastText = nextText;
+    this._textEditSessions.set(key, session);
+    return `${key}:text:${session.segmentId}`;
+  }
+
+  private getTextEditDelta(previous: string, next: string) {
+    const prevText = typeof previous === "string" ? previous : "";
+    const nextText = typeof next === "string" ? next : "";
+    let start = 0;
+    while (
+      start < prevText.length &&
+      start < nextText.length &&
+      prevText[start] === nextText[start]
+    ) {
+      start += 1;
+    }
+    let endPrev = prevText.length - 1;
+    let endNext = nextText.length - 1;
+    while (
+      endPrev >= start &&
+      endNext >= start &&
+      prevText[endPrev] === nextText[endNext]
+    ) {
+      endPrev -= 1;
+      endNext -= 1;
+    }
+    const removed =
+      endPrev >= start ? prevText.slice(start, endPrev + 1) : "";
+    const inserted =
+      endNext >= start ? nextText.slice(start, endNext + 1) : "";
+    return { inserted, removed };
+  }
+
+  private clearTextEditSessionsForList(listId: ListId) {
+    const prefix = `${listId}:`;
+    for (const key of this._textEditSessions.keys()) {
+      if (key.startsWith(prefix)) {
+        this._textEditSessions.delete(key);
+      }
+    }
+  }
+
+  private clearTextUpdateQueueForList(listId: ListId) {
+    const prefix = `${listId}:`;
+    for (const key of this._textUpdateQueue.keys()) {
+      if (key.startsWith(prefix)) {
+        this._textUpdateQueue.delete(key);
+      }
+    }
+  }
+
+  private clearPendingInsertsForList(listId: ListId) {
+    const prefix = `${listId}:`;
+    for (const key of this._pendingInserts.keys()) {
+      if (key.startsWith(prefix)) {
+        this._pendingInserts.delete(key);
+      }
     }
   }
 }

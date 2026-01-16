@@ -302,6 +302,7 @@ class A4TaskList extends HTMLElement {
   private emptyStateEl: HTMLElement | null;
   private isTitleEditing: boolean;
   private titleOriginalValue: string;
+  private titleLiveUpdates: boolean;
   private openActionsItemId: string | null;
   private touchGestureState: Map<
     number,
@@ -319,6 +320,7 @@ class A4TaskList extends HTMLElement {
   private pendingEditFlushRequested: boolean;
   private _repository: ListRepository | null;
   private repositoryUnsubscribe: (() => void) | null;
+  private editingShadowText: Map<string, string>;
 
   constructor() {
     super();
@@ -357,6 +359,7 @@ class A4TaskList extends HTMLElement {
     this.emptyStateEl = null;
     this.isTitleEditing = false;
     this.titleOriginalValue = "";
+    this.titleLiveUpdates = false;
     this.openActionsItemId = null;
     this.touchGestureState = new Map();
     this.pendingRestoreEdit = null;
@@ -389,12 +392,15 @@ class A4TaskList extends HTMLElement {
     this.handleTitleClick = this.handleTitleClick.bind(this);
     this.handleTitleKeyDown = this.handleTitleKeyDown.bind(this);
     this.handleTitleBlur = this.handleTitleBlur.bind(this);
+    this.handleTitleInput = this.handleTitleInput.bind(this);
     this.handleHeaderErrorDismiss = this.handleHeaderErrorDismiss.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.handleTouchGestureStart = this.handleTouchGestureStart.bind(this);
     this.handleTouchGestureEnd = this.handleTouchGestureEnd.bind(this);
     this.handleTouchGestureCancel = this.handleTouchGestureCancel.bind(this);
     this.handleDragFinalize = this.handleDragFinalize.bind(this);
+    this.handleListKeyDown = this.handleListKeyDown.bind(this);
+    this.handleInlineInput = this.handleInlineInput.bind(this);
 
     this.editController = new EditController({
       getListElement: () => this.listEl,
@@ -408,6 +414,7 @@ class A4TaskList extends HTMLElement {
     this.pendingEditFlushRequested = false;
     this._repository = null;
     this.repositoryUnsubscribe = null;
+    this.editingShadowText = new Map();
   }
 
   static get observedAttributes() {
@@ -474,6 +481,8 @@ class A4TaskList extends HTMLElement {
 
     this.listEl.removeEventListener("blur", this.handleItemBlur, true);
     this.listEl.addEventListener("blur", this.handleItemBlur, true);
+    this.listEl.removeEventListener("keydown", this.handleListKeyDown, true);
+    this.listEl.addEventListener("keydown", this.handleListKeyDown, true);
     this.listEl.removeEventListener("focusin", this.handleFocusIn);
     this.listEl.addEventListener("focusin", this.handleFocusIn);
     this.listEl.removeEventListener("touchstart", this.handleTouchGestureStart);
@@ -617,6 +626,7 @@ class A4TaskList extends HTMLElement {
     this.dragCoordinator = null;
     this.listEl?.removeEventListener("blur", this.handleItemBlur, true);
     this.listEl?.removeEventListener("focusin", this.handleFocusIn);
+    this.listEl?.removeEventListener("keydown", this.handleListKeyDown, true);
     this.listEl?.removeEventListener(
       "touchstart",
       this.handleTouchGestureStart
@@ -762,6 +772,7 @@ class A4TaskList extends HTMLElement {
           aria-multiline=${this.isTitleEditing ? "false" : null}
           aria-label=${this.isTitleEditing ? "List title" : null}
           @click=${this.handleTitleClick}
+          @input=${this.handleTitleInput}
           @keydown=${this.handleTitleKeyDown}
           @blur=${this.handleTitleBlur}
           .textContent=${live(titleText)}
@@ -828,6 +839,7 @@ class A4TaskList extends HTMLElement {
     }
     this.inlineEditor = new InlineTextEditor(this.listEl, {
       onCommit: this.handleEditCommit,
+      onInput: this.handleInlineInput,
       onSplit: this.handleEditSplit,
       onMerge: this.handleEditMerge,
       onRemove: this.handleEditRemove,
@@ -841,6 +853,7 @@ class A4TaskList extends HTMLElement {
     this.isTitleEditing = true;
     // Capture current text before re-render so we can restore on cancel.
     this.titleOriginalValue = this.titleEl?.textContent ?? "";
+    this.titleLiveUpdates = false;
     this.isTitleEditing = true;
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.titleEl?.focus();
@@ -858,6 +871,7 @@ class A4TaskList extends HTMLElement {
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.isTitleEditing = false;
     this.titleOriginalValue = "";
+    this.titleLiveUpdates = false;
   }
 
   commitTitleEditing({ restoreFocus = true } = {}) {
@@ -865,6 +879,7 @@ class A4TaskList extends HTMLElement {
     const rawValue = this.titleEl.textContent ?? "";
     const trimmed = rawValue.trim();
     const previousValue = this.titleOriginalValue ?? "";
+    const hadLiveUpdates = this.titleLiveUpdates;
 
     if (!trimmed.length) {
       this.titleEl.textContent = previousValue;
@@ -885,39 +900,73 @@ class A4TaskList extends HTMLElement {
       return;
     }
 
-    if (this.store) {
-      this.store.dispatch({
-        type: LIST_ACTIONS.setTitle,
-        payload: { title: trimmed },
-      });
-    } else {
-      this.setAttribute("name", trimmed);
-      this.renderHeader(this.getHeaderRenderState());
-    }
+    if (!hadLiveUpdates) {
+      if (this.store) {
+        this.store.dispatch({
+          type: LIST_ACTIONS.setTitle,
+          payload: { title: trimmed },
+        });
+      } else {
+        this.setAttribute("name", trimmed);
+        this.renderHeader(this.getHeaderRenderState());
+      }
 
-    if (this._repository && this.listId) {
-      const promise = this._repository.renameList(this.listId, trimmed);
-      this.runRepositoryOperation(promise);
-    }
+      if (this._repository && this.listId) {
+        const promise = this._repository.renameList(this.listId, trimmed);
+        this.runRepositoryOperation(promise);
+      }
 
-    this.dispatchEvent(
-      new CustomEvent("titlechange", {
-        detail: { title: trimmed },
-        bubbles: true,
-        composed: true,
-      })
-    );
+      this.dispatchEvent(
+        new CustomEvent("titlechange", {
+          detail: { title: trimmed },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
 
     if (restoreFocus) {
       this.titleEl.focus();
     }
   }
 
+  handleTitleInput(event: Event) {
+    if (!this.isTitleEditing) return;
+    const target = event.target as HTMLElement | null;
+    if (!target?.classList?.contains("tasklist-title")) return;
+    if (!this.store) return;
+    const rawValue = target.textContent ?? "";
+    const trimmed = rawValue.trim();
+    const currentTitle = this.store.getState().title ?? "";
+    if (!trimmed.length || trimmed === currentTitle) return;
+    this.titleLiveUpdates = true;
+    this.store.dispatch({
+      type: LIST_ACTIONS.setTitle,
+      payload: { title: trimmed },
+    });
+    if (this._repository && this.listId) {
+      void this._repository.renameList(this.listId, trimmed);
+    }
+  }
+
   cancelTitleEditing({ restoreFocus = true } = {}) {
     if (!this.titleEl || !this.isTitleEditing) return;
     const previousValue = this.titleOriginalValue ?? "";
+    const hadLiveUpdates = this.titleLiveUpdates;
     this.titleEl.textContent = previousValue;
     this.finishTitleEditing();
+    if (hadLiveUpdates) {
+      if (this.store) {
+        this.store.dispatch({
+          type: LIST_ACTIONS.setTitle,
+          payload: { title: previousValue },
+        });
+      }
+      if (this._repository && this.listId) {
+        const promise = this._repository.renameList(this.listId, previousValue);
+        this.runRepositoryOperation(promise);
+      }
+    }
     if (restoreFocus) {
       this.titleEl.focus();
     }
@@ -1593,6 +1642,39 @@ class A4TaskList extends HTMLElement {
       );
     }
 
+    if (this.isTitleEditing && this.titleEl) {
+      const currentTitleText = this.titleEl.textContent ?? "";
+      if (currentTitleText !== nextTitle) {
+        this.titleEl.textContent = nextTitle;
+        const caretTarget = nextTitle.length;
+        if (this.inlineEditor) {
+          this.inlineEditor.setSelectionAtOffset(
+            this.titleEl,
+            caretTarget,
+            "end"
+          );
+        }
+      }
+    }
+
+    if (editingId && this.inlineEditor?.editingEl) {
+      const stateItem = state.items?.find((item) => item.id === editingId) ?? null;
+      if (stateItem) {
+        const desiredText = stateItem.text ?? "";
+        const currentText = this.inlineEditor.editingEl.textContent ?? "";
+        if (currentText !== desiredText) {
+          this.inlineEditor.editingEl.textContent = desiredText;
+          this.inlineEditor.editingEl.dataset.originalText = desiredText;
+          const caretTarget = desiredText.length;
+          this.inlineEditor.setSelectionAtOffset(
+            this.inlineEditor.editingEl,
+            caretTarget,
+            "end"
+          );
+        }
+      }
+    }
+
     let hasPendingEdit = this.editController.hasPending();
 
     let appliedPendingEdit = false;
@@ -1857,6 +1939,58 @@ class A4TaskList extends HTMLElement {
     );
   }
 
+  handleInlineInput({
+    element,
+    text,
+  }: {
+    element: HTMLElement;
+    text: string;
+  }) {
+    if (!element?.classList?.contains("text")) return;
+    if (!element.isContentEditable) return;
+    if (!this.store) return;
+    const li = element.closest("li");
+    const itemId = li?.dataset?.itemId ?? null;
+    if (!itemId) return;
+    const newText = text ?? "";
+    const stateItem = this.store
+      .getState()
+      .items.find((item) => item.id === itemId);
+    if (!stateItem) return;
+    if (stateItem.text === newText) return;
+    this.store.dispatch({
+      type: LIST_ACTIONS.updateItemText,
+      payload: { id: itemId, text: newText },
+    });
+    if (this._repository && this.listId) {
+      const promise = this._repository.updateTask(this.listId, itemId, {
+        text: newText,
+      });
+      void promise;
+    }
+    this.editingShadowText.set(itemId, newText);
+  }
+
+  handleListKeyDown(event: KeyboardEvent) {
+    if (!this._repository) return;
+    if (!event || event.defaultPrevented) return;
+    const target = event.target as HTMLElement | null;
+    const isEditing = Boolean(target?.closest?.("[contenteditable='true']"));
+    if (!isEditing) return;
+    if (matchesShortcut(event, SHORTCUTS.undo)) {
+      event.preventDefault();
+      void this._repository.undo();
+      return;
+    }
+    if (
+      matchesShortcut(event, SHORTCUTS.redo) ||
+      matchesShortcut(event, SHORTCUTS.redoAlt)
+    ) {
+      event.preventDefault();
+      void this._repository.redo();
+    }
+  }
+
   handleFocusIn(event: FocusEvent) {
     const target = event.target as HTMLElement | null;
     const li = target?.closest?.("li");
@@ -1930,14 +2064,16 @@ class A4TaskList extends HTMLElement {
     }
     const currentState = this.store.getState();
     const stateItem = currentState?.items?.find((item) => item.id === id);
-    if (stateItem && stateItem.text !== previousText) {
-      const authoritativeText = stateItem.text ?? "";
-      element.textContent = authoritativeText;
-      element.dataset.originalText = authoritativeText;
+    if (!stateItem) {
       this.scheduleSearchRender(0);
       return;
     }
     if (newText === previousText) {
+      this.scheduleSearchRender(0);
+      return;
+    }
+    if (stateItem.text === newText) {
+      element.dataset.originalText = newText;
       this.scheduleSearchRender(0);
       return;
     }

@@ -228,25 +228,25 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   onGlobalKeyDown(event: KeyboardEvent) {
-    if (!this.repository || event.defaultPrevented) return;
+    if (!this.repository) return;
     if (this.isEditableTarget(event.target)) return;
-    if (matchesShortcut(event, SHORTCUTS.undo)) {
-      event.preventDefault();
+    const isUndo = matchesShortcut(event, SHORTCUTS.undo);
+    const isRedo =
+      matchesShortcut(event, SHORTCUTS.redo) ||
+      matchesShortcut(event, SHORTCUTS.redoAlt);
+    if (!isUndo && !isRedo) return;
+    event.preventDefault();
+    if (isUndo) {
       void this.repository.undo();
       return;
     }
-    if (
-      matchesShortcut(event, SHORTCUTS.redo) ||
-      matchesShortcut(event, SHORTCUTS.redoAlt)
-    ) {
-      event.preventDefault();
+    if (isRedo) {
       void this.repository.redo();
     }
   }
 
   isEditableTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false;
-    if (target.isContentEditable) return true;
     const tag = target.tagName.toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") {
       return true;
