@@ -19,3 +19,7 @@ Document any future deviations from these assumptions here so other contributors
 
 - First line: concise summary in imperative mood.
 - Body: explain the why and key behavior changes; wrap at ~72 chars.
+
+## State Ownership
+
+- Repository/registry updates should populate the store via explicit actions (for example, upsert) before UI events emit metric updates. Avoid using UI event handlers as a backfill path for missing store data.
