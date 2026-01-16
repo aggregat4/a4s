@@ -188,6 +188,9 @@ button {
     align-items: center;
     gap: var(--space-xs);
     font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .sidebar-list-count {
