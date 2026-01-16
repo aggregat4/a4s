@@ -74,6 +74,19 @@ async function getSidebarListNames(page: Page) {
     .allTextContents();
 }
 
+async function getSidebarCountForList(page: Page, name: string) {
+  const listItem = page
+    .locator("[data-role='sidebar-list'] li")
+    .filter({ hasText: name })
+    .first();
+  const countText = await listItem.locator(".sidebar-list-count").innerText();
+  if (!countText || countText.trim() === "Empty") {
+    return 0;
+  }
+  const parsed = Number.parseInt(countText.replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 async function setShowDone(page: Page, value: boolean) {
   const toggle = showDoneToggle(page);
   if (value) {
@@ -591,7 +604,7 @@ test.describe("tasklist flows", () => {
     }
   });
 
-  test("sidebar counts show only open items", async ({ page }) => {
+test("sidebar counts show only open items", async ({ page }) => {
     const prototypeButton = page
       .locator(".sidebar-list-button")
       .filter({ hasText: "Prototype Tasks" });
@@ -1155,4 +1168,30 @@ test.describe("tasklist flows", () => {
     const movedTop = page.locator(listItemsSelector).first().locator(".text");
     await expect(movedTop).toHaveText(originalText);
   });
+});
+
+test("sidebar count updates after adding a task to a new list", async ({
+  page,
+}) => {
+  await page.goto("/?resetStorage=1");
+
+  page.once("dialog", (dialog) => dialog.accept("New List"));
+  await page.locator("[data-role='add-list']").click();
+  await expect
+    .poll(() => getSidebarListNames(page))
+    .toHaveLength(4);
+  const resolvedNames = await getSidebarListNames(page);
+  const newListName = resolvedNames[resolvedNames.length - 1];
+  await page
+    .locator("[data-role='sidebar-list'] li")
+    .filter({ hasText: newListName })
+    .locator(".sidebar-list-button")
+    .click();
+  const before = await getSidebarCountForList(page, newListName);
+
+  await addTask(page, "First task in new list");
+
+  await expect
+    .poll(() => getSidebarCountForList(page, newListName))
+    .toBe(before + 1);
 });

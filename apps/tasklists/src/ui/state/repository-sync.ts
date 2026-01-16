@@ -100,6 +100,15 @@ class RepositorySync {
           totalCount: record.totalCount,
           matchCount: record.matchCount,
         });
+        this.store.dispatch({
+          type: APP_ACTIONS.upsertList,
+          payload: {
+            id: record.id,
+            name: record.name,
+            totalCount: record.totalCount,
+            matchCount: record.matchCount,
+          },
+        });
       }
       seen.add(listId);
     });

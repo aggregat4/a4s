@@ -9,6 +9,7 @@ const APP_ACTIONS = {
   setSearchQuery: "app/setSearchQuery",
   updateListMetrics: "app/updateListMetrics",
   updateListName: "app/updateListName",
+  upsertList: "app/upsertList",
 } as const;
 
 type ListSummary = {
@@ -92,6 +93,10 @@ type AppAction =
   | {
       type: typeof APP_ACTIONS.updateListName;
       payload?: { id?: ListId; name?: string };
+    }
+  | {
+      type: typeof APP_ACTIONS.upsertList;
+      payload?: Partial<ListSummary> & { id?: ListId };
     }
   | { type: "@@INIT"; payload?: unknown };
 
@@ -191,6 +196,59 @@ const appReducer = (
         lists: {
           ...state.lists,
           [id]: { ...state.lists[id], name: nextName },
+        },
+      };
+    }
+    case APP_ACTIONS.upsertList: {
+      const payload = action.payload ?? {};
+      const id = payload.id ?? null;
+      if (!id) return state;
+      const current = state.lists[id];
+      const nextName =
+        typeof payload.name === "string" && payload.name.trim().length
+          ? payload.name.trim()
+          : current?.name ?? "Untitled List";
+      const nextTotal =
+        typeof payload.totalCount === "number" &&
+        Number.isFinite(payload.totalCount)
+          ? payload.totalCount
+          : current?.totalCount ?? 0;
+      const nextMatches =
+        typeof payload.matchCount === "number" &&
+        Number.isFinite(payload.matchCount)
+          ? payload.matchCount
+          : current?.matchCount ?? 0;
+      if (current) {
+        if (
+          current.name === nextName &&
+          current.totalCount === nextTotal &&
+          current.matchCount === nextMatches
+        ) {
+          return state;
+        }
+        return {
+          ...state,
+          lists: {
+            ...state.lists,
+            [id]: {
+              id,
+              name: nextName,
+              totalCount: nextTotal,
+              matchCount: nextMatches,
+            },
+          },
+        };
+      }
+      return {
+        ...state,
+        lists: {
+          ...state.lists,
+          [id]: {
+            id,
+            name: nextName,
+            totalCount: nextTotal,
+            matchCount: nextMatches,
+          },
         },
       };
     }
