@@ -16,6 +16,8 @@ import type {
 } from "../types/domain.js";
 import type { ListStorage } from "../types/storage.js";
 import type { TaskListOperation, ListsOperation } from "../types/crdt.js";
+import { HistoryManager } from "./history-manager.js";
+import type { HistoryOp, HistoryScope } from "./history-types.js";
 
 type ListRecord = { crdt: TaskListCRDT };
 type StorageOptions = Record<string, unknown>;
@@ -58,6 +60,8 @@ export class ListRepository {
   private _registryListeners: Set<RegistryListener>;
   private _listListeners: Map<ListId, Set<ListListener>>;
   private _globalListeners: Set<(payload: GlobalListener) => void>;
+  private _history: HistoryManager;
+  private _historySuppressed: number;
   private _initialized: boolean;
   private _initializing: Promise<void> | null;
   private _unsubscribeRegistry: (() => void) | null;
@@ -82,9 +86,73 @@ export class ListRepository {
     this._registryListeners = new Set();
     this._listListeners = new Map();
     this._globalListeners = new Set();
+    this._history = new HistoryManager();
+    this._historySuppressed = 0;
     this._initialized = false;
     this._initializing = null;
     this._unsubscribeRegistry = null;
+  }
+
+  recordHistory({
+    scope,
+    forwardOps,
+    inverseOps,
+    label,
+    actor,
+    coalesceKey,
+  }: {
+    scope: HistoryScope;
+    forwardOps: HistoryOp[];
+    inverseOps: HistoryOp[];
+    label?: string;
+    actor?: string;
+    coalesceKey?: string;
+  }) {
+    if (this._historySuppressed > 0) return;
+    this._history.record({
+      scope,
+      forwardOps,
+      inverseOps,
+      label,
+      actor,
+      coalesceKey,
+      timestamp: Date.now(),
+    });
+  }
+
+  canUndo() {
+    return this._history.canUndo();
+  }
+
+  canRedo() {
+    return this._history.canRedo();
+  }
+
+  async undo() {
+    await this.initialize();
+    const entry = this._history.undo();
+    if (!entry) return false;
+    await this.applyHistoryOps(entry.inverseOps);
+    return true;
+  }
+
+  async redo() {
+    await this.initialize();
+    const entry = this._history.redo();
+    if (!entry) return false;
+    await this.applyHistoryOps(entry.forwardOps);
+    return true;
+  }
+
+  getNeighborIds(order: string[], targetId: string) {
+    const index = order.indexOf(targetId);
+    if (index === -1) {
+      return { afterId: null, beforeId: null };
+    }
+    return {
+      afterId: order[index - 1] ?? null,
+      beforeId: order[index + 1] ?? null,
+    };
   }
 
   async initialize(): Promise<ListRegistryEntry[]> {
@@ -136,6 +204,8 @@ export class ListRepository {
     this._globalListeners.clear();
     this._storage = null;
     this._listMap.clear();
+    this._history.clear();
+    this._historySuppressed = 0;
     this._initialized = false;
     this._initializing = null;
   }
@@ -268,6 +338,7 @@ export class ListRepository {
       title,
       afterId,
       beforeId,
+      position: options.position ?? null,
     });
 
     const listCrdt = this._createListInstance(listId, null);
@@ -308,17 +379,68 @@ export class ListRepository {
     this.emitRegistryChange();
     this.emitListChange(listId);
 
+    const createdRecord = this._listsCrdt.getRecord(listId);
+    this.recordHistory({
+      scope: { type: "registry" },
+      forwardOps: [
+        {
+          type: "createList",
+          listId,
+          title,
+          items: listCrdt.toListState().items,
+          afterId,
+          beforeId,
+          position: createdRecord?.pos ?? null,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "removeList",
+          listId,
+        },
+      ],
+      label: "create-list",
+      actor: this._listsCrdt.actorId,
+    });
+
     return { id: listId, state: listCrdt.toListState() };
   }
 
   async removeList(listId: ListId) {
     await this.initialize();
-    if (!this._listMap.has(listId)) return false;
+    const record = this._listMap.get(listId);
+    if (!record?.crdt) return false;
+    const registryRecord = this._listsCrdt.getRecord(listId);
+    const listState = record.crdt.toListState();
+    const registryOrder = this.getRegistrySnapshot().map((entry) => entry.id);
+    const { afterId, beforeId } = this.getNeighborIds(registryOrder, listId);
     const removeResult = this._listsCrdt.generateRemove(listId);
     this._listMap.delete(listId);
     await this._persistRegistry([removeResult.op]);
     this.emitRegistryChange();
     this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "registry" },
+      forwardOps: [
+        {
+          type: "removeList",
+          listId,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "createList",
+          listId,
+          title: listState.title,
+          items: listState.items,
+          afterId,
+          beforeId,
+          position: registryRecord?.pos ?? null,
+        },
+      ],
+      label: "remove-list",
+      actor: this._listsCrdt.actorId,
+    });
     return true;
   }
 
@@ -326,6 +448,7 @@ export class ListRepository {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
+    const previousTitle = record.crdt.title;
     const nextTitle = sanitizeText(title);
     const renameTask = record.crdt.generateRename(nextTitle);
     const renameRegistry = this._listsCrdt.generateRename(listId, nextTitle);
@@ -335,24 +458,73 @@ export class ListRepository {
     ]);
     this.emitRegistryChange();
     this.emitListChange(listId);
+    if (previousTitle !== nextTitle) {
+      this.recordHistory({
+        scope: { type: "registry" },
+        forwardOps: [
+          {
+            type: "renameList",
+            listId,
+            title: nextTitle,
+          },
+        ],
+        inverseOps: [
+          {
+            type: "renameList",
+            listId,
+            title: previousTitle,
+          },
+        ],
+        label: "rename-list",
+        actor: record.crdt.actorId,
+      });
+    }
     return record.crdt.toListState();
   }
 
   async reorderList(
     listId: ListId,
-    { afterId = null, beforeId = null }: ListReorderInput = {}
+    { afterId = null, beforeId = null, position = null }: ListReorderInput = {}
   ) {
     await this.initialize();
     const targetId =
       typeof listId === "string" && listId.length ? listId : null;
     if (!targetId || !this._listMap.has(targetId)) return null;
+    const registryOrder = this.getRegistrySnapshot().map((entry) => entry.id);
+    const previousNeighbors = this.getNeighborIds(registryOrder, targetId);
+    const registryRecord = this._listsCrdt.getRecord(targetId);
     const reorder = this._listsCrdt.generateReorder({
       listId: targetId,
       afterId,
       beforeId,
+      position,
     });
+    const nextRecord = this._listsCrdt.getRecord(targetId);
     await this._persistRegistry([reorder.op]);
     this.emitRegistryChange();
+    this.recordHistory({
+      scope: { type: "registry" },
+      forwardOps: [
+        {
+          type: "reorderList",
+          listId: targetId,
+          afterId,
+          beforeId,
+          position: nextRecord?.pos ?? null,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "reorderList",
+          listId: targetId,
+          afterId: previousNeighbors.afterId,
+          beforeId: previousNeighbors.beforeId,
+          position: registryRecord?.pos ?? null,
+        },
+      ],
+      label: "reorder-list",
+      actor: this._listsCrdt.actorId,
+    });
     return reorder.snapshot;
   }
 
@@ -361,16 +533,42 @@ export class ListRepository {
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
     const itemId = ensureId(options.itemId, `${listId}-item`);
+    const text = sanitizeText(options.text);
+    const done = options.done == null ? false : Boolean(options.done);
     const insert = record.crdt.generateInsert({
       itemId,
-      text: sanitizeText(options.text),
-      done: options.done == null ? false : Boolean(options.done),
+      text,
+      done,
       afterId: options.afterId,
       beforeId: options.beforeId,
       position: options.position,
     });
     await this._persistList(listId, record.crdt, [insert.op]);
     this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "insertTask",
+          listId,
+          itemId,
+          text,
+          done,
+          afterId: options.afterId ?? null,
+          beforeId: options.beforeId ?? null,
+          position: options.position ?? null,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "removeTask",
+          listId,
+          itemId,
+        },
+      ],
+      label: "insert-task",
+      actor: record.crdt.actorId,
+    });
     return { id: itemId, state: record.crdt.toListState() };
   }
 
@@ -379,6 +577,8 @@ export class ListRepository {
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
     if (typeof itemId !== "string" || !itemId.length) return null;
+    const existing = record.crdt.getSnapshot().find((entry) => entry.id === itemId);
+    if (!existing) return null;
     const result = record.crdt.generateUpdate({
       itemId,
       text: payload.text,
@@ -386,6 +586,35 @@ export class ListRepository {
     });
     await this._persistList(listId, record.crdt, [result.op]);
     this.emitListChange(listId);
+    const inversePayload: TaskUpdateInput = {};
+    if (Object.prototype.hasOwnProperty.call(payload, "text")) {
+      inversePayload.text = existing.text;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "done")) {
+      inversePayload.done = existing.done;
+    }
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "updateTask",
+          listId,
+          itemId,
+          payload,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "updateTask",
+          listId,
+          itemId,
+          payload: inversePayload,
+        },
+      ],
+      label: "update-task",
+      actor: record.crdt.actorId,
+      coalesceKey: `${listId}:${itemId}:update`,
+    });
     return record.crdt.toListState();
   }
 
@@ -393,9 +622,34 @@ export class ListRepository {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
+    const existing = record.crdt.getSnapshot().find((entry) => entry.id === itemId);
+    if (!existing) return null;
+    const nextDone = explicitState == null ? !existing.done : Boolean(explicitState);
     const result = record.crdt.generateToggle(itemId, explicitState);
     await this._persistList(listId, record.crdt, [result.op]);
     this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "updateTask",
+          listId,
+          itemId,
+          payload: { done: nextDone },
+        },
+      ],
+      inverseOps: [
+        {
+          type: "updateTask",
+          listId,
+          itemId,
+          payload: { done: existing.done },
+        },
+      ],
+      label: "toggle-task",
+      actor: record.crdt.actorId,
+      coalesceKey: `${listId}:${itemId}:toggle`,
+    });
     return record.crdt.toListState();
   }
 
@@ -403,9 +657,38 @@ export class ListRepository {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
+    const snapshot = record.crdt.getSnapshot();
+    const existing = snapshot.find((entry) => entry.id === itemId);
+    if (!existing) return null;
+    const order = snapshot.map((entry) => entry.id);
+    const neighbors = this.getNeighborIds(order, itemId);
     const result = record.crdt.generateRemove(itemId);
     await this._persistList(listId, record.crdt, [result.op]);
     this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "removeTask",
+          listId,
+          itemId,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "insertTask",
+          listId,
+          itemId,
+          text: existing.text,
+          done: existing.done,
+          afterId: neighbors.afterId,
+          beforeId: neighbors.beforeId,
+          position: existing.pos ?? null,
+        },
+      ],
+      label: "remove-task",
+      actor: record.crdt.actorId,
+    });
     return result;
   }
 
@@ -417,6 +700,11 @@ export class ListRepository {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
+    const snapshot = record.crdt.getSnapshot();
+    const existing = snapshot.find((entry) => entry.id === itemId);
+    if (!existing) return null;
+    const order = snapshot.map((entry) => entry.id);
+    const previousNeighbors = this.getNeighborIds(order, itemId);
     const move = record.crdt.generateMove({
       itemId,
       afterId: options.afterId,
@@ -425,6 +713,31 @@ export class ListRepository {
     });
     await this._persistList(listId, record.crdt, [move.op]);
     this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "moveTaskWithinList",
+          listId,
+          itemId,
+          afterId: options.afterId ?? null,
+          beforeId: options.beforeId ?? null,
+          position: options.position ?? null,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "moveTaskWithinList",
+          listId,
+          itemId,
+          afterId: previousNeighbors.afterId,
+          beforeId: previousNeighbors.beforeId,
+          position: existing.pos ?? null,
+        },
+      ],
+      label: "move-task",
+      actor: record.crdt.actorId,
+    });
     return record.crdt.toListState();
   }
 
@@ -440,10 +753,12 @@ export class ListRepository {
     const target = this._listMap.get(targetListId);
     if (!source?.crdt || !target?.crdt) return null;
 
-    const itemSnapshot =
-      options.snapshot ??
-      source.crdt.getSnapshot().find((entry) => entry.id === itemId);
-    if (!itemSnapshot) return null;
+    const sourceSnapshot = source.crdt.getSnapshot();
+    const sourceEntry = sourceSnapshot.find((entry) => entry.id === itemId);
+    const itemSnapshot = options.snapshot ?? sourceEntry;
+    if (!itemSnapshot || !sourceEntry) return null;
+    const sourceOrder = sourceSnapshot.map((entry) => entry.id);
+    const sourceNeighbors = this.getNeighborIds(sourceOrder, itemId);
 
     const remove = source.crdt.generateRemove(itemId);
     const insert = target.crdt.generateInsert({
@@ -462,6 +777,44 @@ export class ListRepository {
 
     this.emitListChange(sourceListId);
     this.emitListChange(targetListId);
+
+    this.recordHistory({
+      scope: { type: "list", listId: sourceListId },
+      forwardOps: [
+        {
+          type: "moveTask",
+          sourceListId,
+          targetListId,
+          itemId,
+          snapshot: {
+            id: itemSnapshot.id,
+            text: itemSnapshot.text,
+            done: Boolean(itemSnapshot.done),
+          },
+          afterId: options.afterId ?? null,
+          beforeId: options.beforeId ?? null,
+          position: options.position ?? null,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "moveTask",
+          sourceListId: targetListId,
+          targetListId: sourceListId,
+          itemId,
+          snapshot: {
+            id: itemSnapshot.id,
+            text: itemSnapshot.text,
+            done: Boolean(itemSnapshot.done),
+          },
+          afterId: sourceNeighbors.afterId,
+          beforeId: sourceNeighbors.beforeId,
+          position: sourceEntry.pos ?? null,
+        },
+      ],
+      label: "move-task-between",
+      actor: source.crdt.actorId,
+    });
 
     return {
       sourceState: source.crdt.toListState(),
@@ -501,5 +854,79 @@ export class ListRepository {
     return Promise.resolve(
       this._storage.persistRegistry({ operations, snapshot })
     ).catch(() => {});
+  }
+
+  private async applyHistoryOps(ops: HistoryOp[]) {
+    if (!Array.isArray(ops) || ops.length === 0) return;
+    this._historySuppressed += 1;
+    try {
+      for (const op of ops) {
+        await this.applyHistoryOp(op);
+      }
+    } finally {
+      this._historySuppressed = Math.max(0, this._historySuppressed - 1);
+    }
+  }
+
+  private async applyHistoryOp(op: HistoryOp) {
+    if (!op) return;
+    switch (op.type) {
+      case "createList":
+        await this.createList({
+          listId: op.listId,
+          title: op.title,
+          items: op.items,
+          afterId: op.afterId ?? null,
+          beforeId: op.beforeId ?? null,
+          position: op.position ?? null,
+        });
+        return;
+      case "removeList":
+        await this.removeList(op.listId);
+        return;
+      case "renameList":
+        await this.renameList(op.listId, op.title);
+        return;
+      case "reorderList":
+        await this.reorderList(op.listId, {
+          afterId: op.afterId ?? null,
+          beforeId: op.beforeId ?? null,
+          position: op.position ?? null,
+        });
+        return;
+      case "insertTask":
+        await this.insertTask(op.listId, {
+          itemId: op.itemId,
+          text: op.text,
+          done: op.done,
+          afterId: op.afterId ?? null,
+          beforeId: op.beforeId ?? null,
+          position: op.position ?? null,
+        });
+        return;
+      case "removeTask":
+        await this.removeTask(op.listId, op.itemId);
+        return;
+      case "updateTask":
+        await this.updateTask(op.listId, op.itemId, op.payload);
+        return;
+      case "moveTaskWithinList":
+        await this.moveTaskWithinList(op.listId, op.itemId, {
+          afterId: op.afterId ?? null,
+          beforeId: op.beforeId ?? null,
+          position: op.position ?? null,
+        });
+        return;
+      case "moveTask":
+        await this.moveTask(op.sourceListId, op.targetListId, op.itemId, {
+          snapshot: op.snapshot,
+          afterId: op.afterId ?? null,
+          beforeId: op.beforeId ?? null,
+          position: op.position ?? null,
+        });
+        return;
+      default:
+        return;
+    }
   }
 }

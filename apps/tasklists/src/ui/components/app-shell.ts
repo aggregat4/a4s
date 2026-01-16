@@ -81,6 +81,7 @@ class ListsAppShellElement extends HTMLElement {
     searchQuery: string;
   } | null;
   private mainRenderScheduled: boolean;
+  private handleGlobalKeyDown: (event: KeyboardEvent) => void;
 
   constructor() {
     super();
@@ -100,6 +101,7 @@ class ListsAppShellElement extends HTMLElement {
     this.lastActiveId = null;
     this.pendingMainRender = null;
     this.mainRenderScheduled = false;
+    this.handleGlobalKeyDown = this.onGlobalKeyDown.bind(this);
 
     this.handleStoreChange = this.handleStoreChange.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
@@ -122,6 +124,11 @@ class ListsAppShellElement extends HTMLElement {
     }
     this.renderShell();
     this.cacheElements();
+    window.addEventListener("keydown", this.handleGlobalKeyDown);
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener("keydown", this.handleGlobalKeyDown);
   }
 
   renderShell() {
@@ -217,6 +224,38 @@ class ListsAppShellElement extends HTMLElement {
     this.sidebarElement?.setSearchValue?.(this.store.getState().searchQuery);
     this.handleStoreChange();
     this.appInitialized = true;
+  }
+
+  onGlobalKeyDown(event: KeyboardEvent) {
+    if (!this.repository || event.defaultPrevented) return;
+    if (this.isEditableTarget(event.target)) return;
+    const isMac = navigator.platform?.toLowerCase?.().includes("mac");
+    const modifier = isMac ? event.metaKey : event.ctrlKey;
+    if (!modifier) return;
+    const key = event.key.toLowerCase();
+    if (key === "z") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        void this.repository.redo();
+      } else {
+        void this.repository.undo();
+      }
+      return;
+    }
+    if (key === "y") {
+      event.preventDefault();
+      void this.repository.redo();
+    }
+  }
+
+  isEditableTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    const tag = target.tagName.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") {
+      return true;
+    }
+    return Boolean(target.closest("[contenteditable='true']"));
   }
 
   dispose() {
