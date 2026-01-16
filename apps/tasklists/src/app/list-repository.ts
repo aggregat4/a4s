@@ -477,6 +477,7 @@ export class ListRepository {
         ],
         label: "rename-list",
         actor: record.crdt.actorId,
+        coalesceKey: `${listId}:rename`,
       });
     }
     return record.crdt.toListState();
@@ -593,6 +594,9 @@ export class ListRepository {
     if (Object.prototype.hasOwnProperty.call(payload, "done")) {
       inversePayload.done = existing.done;
     }
+    const shouldCoalesce =
+      Object.prototype.hasOwnProperty.call(payload, "text") &&
+      !Object.prototype.hasOwnProperty.call(payload, "done");
     this.recordHistory({
       scope: { type: "list", listId },
       forwardOps: [
@@ -613,7 +617,7 @@ export class ListRepository {
       ],
       label: "update-task",
       actor: record.crdt.actorId,
-      coalesceKey: `${listId}:${itemId}:update`,
+      coalesceKey: shouldCoalesce ? `${listId}:${itemId}:update` : undefined,
     });
     return record.crdt.toListState();
   }
@@ -648,7 +652,6 @@ export class ListRepository {
       ],
       label: "toggle-task",
       actor: record.crdt.actorId,
-      coalesceKey: `${listId}:${itemId}:toggle`,
     });
     return record.crdt.toListState();
   }
