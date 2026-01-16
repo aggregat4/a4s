@@ -171,6 +171,7 @@ button {
     font: inherit;
     text-align: left;
     cursor: pointer;
+    flex: 1;
 
     &:hover,
     &:focus-visible {
@@ -200,6 +201,43 @@ button {
     font-size: 14px;
     color: var(--color-muted);
     white-space: nowrap;
+}
+
+.sidebar-list > li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.sidebar-list > li.dragging .sidebar-list-button {
+    outline: 2px dotted #6d7dbd;
+    box-shadow: var(--shadow-drag);
+    background-color: var(--color-surface);
+}
+
+
+.sidebar-list-handle {
+    cursor: grab;
+    color: var(--color-handle);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 20px 20px;
+    background-image: var(--task-handle-icon);
+    margin-left: var(--space-xs);
+
+    &:active {
+        cursor: grabbing;
+    }
 }
 
 .sidebar-actions {

@@ -70,6 +70,12 @@ async function dragTaskToSidebarTarget(
   await sourceItem.locator(".handle").dragTo(target);
 }
 
+async function getSidebarListNames(page: Page) {
+  return page
+    .locator("[data-role='sidebar-list'] .sidebar-list-label")
+    .allTextContents();
+}
+
 async function setShowDone(page: Page, value: boolean) {
   const toggle = showDoneToggle(page);
   if (value) {
@@ -201,6 +207,94 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   const visibleTasks = page.locator(listItemsSelector);
   await expect(visibleTasks).toHaveCount(1);
   await expect(visibleTasks.first().locator(".text")).toContainText("umbrella");
+});
+
+test("sidebar list order updates after drag reorder", async ({ page }) => {
+  await page.goto("/?resetStorage=1");
+
+  const listItems = page.locator("[data-role='sidebar-list'] li");
+  await expect(listItems).toHaveCount(3);
+
+  await expect.poll(async () => getSidebarListNames(page)).toEqual([
+    "Prototype Tasks",
+    "Weekend Projects",
+    "Work Follow-ups",
+  ]);
+  const initialNames = await getSidebarListNames(page);
+
+  const sourceHandle = listItems.nth(2).locator(".sidebar-list-handle");
+  const targetItem = listItems.nth(0);
+  const sourceId = await sourceHandle.evaluate(
+    (el) => (el.closest("li") as HTMLElement | null)?.dataset?.itemId ?? null
+  );
+  expect(sourceId).toBe("list-work");
+  await sourceHandle.dragTo(targetItem, {
+    targetPosition: { x: 10, y: 2 },
+  });
+  const previewOrder = await getSidebarListNames(page);
+  expect(previewOrder).not.toEqual(initialNames);
+  await page.evaluate(() => {
+    const list = document.querySelector("a4-tasklist");
+    if (!list) return;
+    list.dispatchEvent(
+      new CustomEvent("itemcountchange", { detail: { total: 99 } })
+    );
+  });
+
+  await expect
+    .poll(async () => getSidebarListNames(page))
+    .toEqual(previewOrder);
+});
+
+test("sidebar drag can move a middle list to the top", async ({ page }) => {
+  await page.goto("/?resetStorage=1");
+
+  const listItems = page.locator("[data-role='sidebar-list'] li");
+  await expect(listItems).toHaveCount(3);
+
+  await expect.poll(async () => getSidebarListNames(page)).toEqual([
+    "Prototype Tasks",
+    "Weekend Projects",
+    "Work Follow-ups",
+  ]);
+
+  const sourceHandle = listItems.nth(1).locator(".sidebar-list-handle");
+  const targetItem = listItems.nth(0);
+  await sourceHandle.dragTo(targetItem, {
+    targetPosition: { x: 10, y: 2 },
+  });
+
+  await expect.poll(async () => getSidebarListNames(page)).toEqual([
+    "Weekend Projects",
+    "Prototype Tasks",
+    "Work Follow-ups",
+  ]);
+});
+
+test("sidebar drag to top works even when pointer is above first item", async ({
+  page,
+}) => {
+  await page.goto("/?resetStorage=1");
+
+  const listItems = page.locator("[data-role='sidebar-list'] li");
+  await expect(listItems).toHaveCount(3);
+  await expect.poll(async () => getSidebarListNames(page)).toEqual([
+    "Prototype Tasks",
+    "Weekend Projects",
+    "Work Follow-ups",
+  ]);
+
+  const listEl = page.locator("[data-role='sidebar-list']");
+  const sourceHandle = listItems.nth(1).locator(".sidebar-list-handle");
+  await sourceHandle.dragTo(listEl, {
+    targetPosition: { x: 10, y: 2 },
+  });
+
+  await expect.poll(async () => getSidebarListNames(page)).toEqual([
+    "Weekend Projects",
+    "Prototype Tasks",
+    "Work Follow-ups",
+  ]);
 });
 
 test.describe("tasklist flows", () => {

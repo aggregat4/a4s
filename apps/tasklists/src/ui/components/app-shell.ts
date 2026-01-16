@@ -112,6 +112,7 @@ class ListsAppShellElement extends HTMLElement {
     this.handleListFocus = this.handleListFocus.bind(this);
     this.handleListTitleChange = this.handleListTitleChange.bind(this);
     this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
+    this.handleSidebarReorder = this.handleSidebarReorder.bind(this);
   }
 
   connectedCallback() {
@@ -206,6 +207,7 @@ class ListsAppShellElement extends HTMLElement {
       onDeleteList: this.handleDeleteList,
       onItemDropped: (payload, targetListId) =>
         this.moveTasksController.handleSidebarDrop(payload, targetListId),
+      onReorderList: this.handleSidebarReorder,
     });
     this.unsubscribeStore = this.store.subscribe(this.handleStoreChange);
     this.lastOrder = selectors.getListOrder(this.store.getState());
@@ -366,6 +368,38 @@ class ListsAppShellElement extends HTMLElement {
       this.store.dispatch({
         type: APP_ACTIONS.setPendingActiveList,
         payload: { id: null },
+      });
+    });
+  }
+
+  handleSidebarReorder({
+    movedId,
+    order,
+  }: {
+    movedId: ListId;
+    order: ListId[];
+  }) {
+    if (!this.store || !this.repository) return;
+    const previousOrder = selectors.getListOrder(this.store.getState());
+    if (!Array.isArray(previousOrder) || previousOrder.length <= 1) return;
+    if (!Array.isArray(order) || order.length <= 1) return;
+    if (!movedId || !order.includes(movedId)) return;
+    if (order.every((id, idx) => id === previousOrder[idx])) return;
+
+    const movedIndex = order.indexOf(movedId);
+    const beforeId = order[movedIndex + 1] ?? null;
+    const afterId = order[movedIndex - 1] ?? null;
+    this.store.dispatch({
+      type: APP_ACTIONS.setOrder,
+      payload: { order },
+    });
+
+    Promise.resolve(
+      this.repository.reorderList(movedId, { afterId, beforeId })
+    ).catch(() => {
+      this.store.dispatch({
+        type: APP_ACTIONS.setOrder,
+        payload: { order: previousOrder },
       });
     });
   }

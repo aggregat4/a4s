@@ -1,4 +1,5 @@
 import { html, render } from "../../vendor/lit-html.js";
+import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
 
 type SidebarListEntry = {
@@ -22,6 +23,10 @@ class SidebarElement extends HTMLElement {
     onSelectList: (listId: ListId) => void;
     onSearchChange: (value: string) => void;
     onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
+    onReorderList: (payload: {
+      movedId: ListId;
+      order: ListId[];
+    }) => void;
   }>;
   private searchDebounceId: ReturnType<typeof setTimeout> | null;
   private currentLists: SidebarListEntry[];
@@ -29,6 +34,12 @@ class SidebarElement extends HTMLElement {
   private currentSearch: string;
   private dropTargetDepth: Map<HTMLElement, number>;
   private searchSeq: number;
+  private dragBehavior: DraggableBehavior | null;
+  private dragBehaviorContainer: HTMLElement | null;
+  private dragStartOrder: ListId[] | null;
+  private isListDragging: boolean;
+  private pendingRender: boolean;
+  private pendingRenderMode: "reorder" | "render" | null;
 
   private static readonly TASK_MIME = "application/x-a4-task";
 
@@ -41,6 +52,12 @@ class SidebarElement extends HTMLElement {
     this.currentSearch = "";
     this.dropTargetDepth = new Map<HTMLElement, number>();
     this.searchSeq = 0;
+    this.dragBehavior = null;
+    this.dragBehaviorContainer = null;
+    this.dragStartOrder = null;
+    this.isListDragging = false;
+    this.pendingRender = false;
+    this.pendingRenderMode = null;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
     this.handleListDragEnter = this.handleListDragEnter.bind(this);
@@ -49,6 +66,9 @@ class SidebarElement extends HTMLElement {
     this.handleListDrop = this.handleListDrop.bind(this);
     this.handleGlobalDragEnd = this.handleGlobalDragEnd.bind(this);
     this.handleSidebarButtonClick = this.handleSidebarButtonClick.bind(this);
+    this.handleListDragStart = this.handleListDragStart.bind(this);
+    this.handleListDragEnd = this.handleListDragEnd.bind(this);
+    this.handleListReorder = this.handleListReorder.bind(this);
   }
 
   connectedCallback() {
@@ -70,6 +90,10 @@ class SidebarElement extends HTMLElement {
       onSelectList: (listId: ListId) => void;
       onSearchChange: (value: string) => void;
       onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
+      onReorderList: (payload: {
+        movedId: ListId;
+        order: ListId[];
+      }) => void;
     }> = {}
   ) {
     this.handlers = handlers ?? {};
@@ -83,6 +107,13 @@ class SidebarElement extends HTMLElement {
   destroy() {
     clearTimeout(this.searchDebounceId);
     document.removeEventListener("dragend", this.handleGlobalDragEnd);
+    this.dragBehavior?.destroy();
+    this.dragBehavior = null;
+    this.dragBehaviorContainer = null;
+    this.dragStartOrder = null;
+    this.isListDragging = false;
+    this.pendingRender = false;
+    this.pendingRenderMode = null;
   }
 
   setSearchValue(value: string) {
@@ -91,7 +122,12 @@ class SidebarElement extends HTMLElement {
     this.searchDebounceId = null;
     this.searchSeq += 1;
     this.currentSearch = next;
-    this.renderView();
+    if (this.isListDragging) {
+      this.pendingRender = true;
+      this.pendingRenderMode = "render";
+    } else {
+      this.renderView();
+    }
     const input = this.querySelector(
       "[data-role='global-search']"
     ) as HTMLInputElement | null;
@@ -104,12 +140,34 @@ class SidebarElement extends HTMLElement {
     lists: SidebarListEntry[],
     { activeListId, searchQuery }: { activeListId?: ListId | null; searchQuery?: string } = {}
   ) {
-    this.currentLists = Array.isArray(lists) ? lists : [];
-    this.activeListId = activeListId ?? null;
-    if (typeof searchQuery === "string") {
-      this.setSearchValue(searchQuery);
+    const nextLists = Array.isArray(lists) ? lists : [];
+    const nextActiveId = activeListId ?? null;
+    const nextSearch =
+      typeof searchQuery === "string" ? searchQuery : this.currentSearch;
+    const searchChanged = nextSearch !== this.currentSearch;
+    const reorderOnly = !searchChanged
+      ? this.isReorderOnlyUpdate(nextLists, nextActiveId, nextSearch)
+      : false;
+
+    this.currentLists = nextLists;
+    this.activeListId = nextActiveId;
+
+    if (searchChanged) {
+      this.setSearchValue(nextSearch);
       return;
     }
+
+    if (this.isListDragging) {
+      this.pendingRender = true;
+      this.pendingRenderMode = reorderOnly ? "reorder" : "render";
+      return;
+    }
+
+    if (reorderOnly) {
+      this.syncListDomOrder();
+      return;
+    }
+
     this.renderView();
   }
 
@@ -143,7 +201,7 @@ class SidebarElement extends HTMLElement {
                 ? "sidebar-list-button is-active"
                 : "sidebar-list-button";
               return html`
-                <li>
+                <li data-item-id=${list.id}>
                   <button
                     type="button"
                     class=${buttonClass}
@@ -154,12 +212,17 @@ class SidebarElement extends HTMLElement {
                     @dragover=${this.handleListDragOver}
                     @dragleave=${this.handleListDragLeave}
                     @drop=${this.handleListDrop}
-                  >
+                    >
                     <span class="sidebar-list-label">${list.name}</span>
                     <span class="sidebar-list-count"
                       >${list.countLabel ?? ""}</span
                     >
                   </button>
+                  <span
+                    class="sidebar-list-handle handle"
+                    draggable="true"
+                    aria-hidden="true"
+                  ></span>
                 </li>
               `;
             })}
@@ -183,6 +246,8 @@ class SidebarElement extends HTMLElement {
       `,
       this
     );
+    this.ensureDragBehavior();
+    this.syncListDomOrder();
   }
 
   handleSidebarButtonClick(event: Event) {
@@ -215,7 +280,12 @@ class SidebarElement extends HTMLElement {
       }
       this.currentSearch = "";
       this.handlers.onSearchChange?.("");
+    if (this.isListDragging) {
+      this.pendingRender = true;
+      this.pendingRenderMode = "render";
+    } else {
       this.renderView();
+    }
     }
   }
 
@@ -304,6 +374,155 @@ class SidebarElement extends HTMLElement {
       button.classList.remove("is-drop-target");
     });
     this.dropTargetDepth.clear();
+  }
+
+  ensureDragBehavior() {
+    const listEl = this.querySelector(
+      "[data-role='sidebar-list']"
+    ) as HTMLElement | null;
+    if (!listEl) return;
+    if (this.dragBehavior && this.dragBehaviorContainer === listEl) {
+      this.dragBehavior.invalidateItemsCache();
+      return;
+    }
+    if (this.dragBehaviorContainer) {
+      this.dragBehaviorContainer.removeEventListener(
+        "dragstart",
+        this.handleListDragStart
+      );
+      this.dragBehaviorContainer.removeEventListener(
+        "dragend",
+        this.handleListDragEnd
+      );
+      this.dragBehaviorContainer.removeEventListener(
+        "drop",
+        this.handleListDragEnd
+      );
+    }
+    this.dragBehavior?.destroy();
+    this.dragBehavior = new DraggableBehavior(listEl, {
+      handleClass: "handle",
+      animator: new FlipAnimator(),
+      onReorder: (fromIndex, toIndex) =>
+        this.handleListReorder(fromIndex, toIndex),
+    });
+    this.dragBehavior.enable();
+    this.dragBehaviorContainer = listEl;
+    listEl.addEventListener("dragstart", this.handleListDragStart);
+    listEl.addEventListener("dragend", this.handleListDragEnd);
+    listEl.addEventListener("drop", this.handleListDragEnd);
+  }
+
+  handleListDragStart(event: DragEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target?.classList.contains("handle")) return;
+    const li = target.closest("li");
+    if (!li) return;
+    this.isListDragging = true;
+    this.dragStartOrder = this.getCurrentListOrder();
+  }
+
+  handleListDragEnd() {
+    if (!this.isListDragging) return;
+    this.isListDragging = false;
+    this.dragStartOrder = null;
+    if (this.pendingRender) {
+      const mode = this.pendingRenderMode ?? "render";
+      this.pendingRender = false;
+      this.pendingRenderMode = null;
+      if (mode === "reorder") {
+        this.syncListDomOrder();
+      } else {
+        this.renderView();
+      }
+    }
+  }
+
+  handleListReorder(fromIndex: number, toIndex: number) {
+    const order = this.getCurrentListOrder();
+    const movedId =
+      order[toIndex] ??
+      (this.dragStartOrder ? this.dragStartOrder[fromIndex] : null);
+    const beforeOrder = this.dragStartOrder ?? [];
+    if (
+      order.length &&
+      movedId &&
+      !this.areOrdersEqual(order, beforeOrder)
+    ) {
+      this.handlers.onReorderList?.({
+        movedId,
+        order,
+      });
+    }
+  }
+
+  getCurrentListOrder() {
+    return Array.from(
+      this.querySelectorAll<HTMLElement>("li[data-item-id]")
+    )
+      .map((item) => item.dataset.itemId)
+      .filter(
+        (id): id is string => typeof id === "string" && id.length > 0
+      );
+  }
+
+  syncListDomOrder() {
+    const listEl = this.querySelector(
+      "[data-role='sidebar-list']"
+    ) as HTMLElement | null;
+    if (!listEl) return;
+    const desiredOrder = this.currentLists.map((list) => list.id);
+    if (!desiredOrder.length) return;
+    const currentOrder = this.getCurrentListOrder();
+    if (this.areOrdersEqual(currentOrder, desiredOrder)) return;
+    const items = new Map(
+      Array.from(listEl.querySelectorAll<HTMLElement>("li[data-item-id]")).map(
+        (item) => [item.dataset.itemId ?? "", item]
+      )
+    );
+    desiredOrder.forEach((id) => {
+      const item = items.get(id);
+      if (item) {
+        listEl.appendChild(item);
+      }
+    });
+    this.dragBehavior?.invalidateItemsCache();
+  }
+
+  isReorderOnlyUpdate(
+    nextLists: SidebarListEntry[],
+    nextActiveId: ListId | null,
+    nextSearch: string
+  ) {
+    if (nextActiveId !== this.activeListId) return false;
+    if (nextSearch !== this.currentSearch) return false;
+    if (nextLists.length !== this.currentLists.length) return false;
+    const previousById = new Map(
+      this.currentLists.map((entry) => [entry.id, entry])
+    );
+    if (previousById.size !== nextLists.length) return false;
+    for (const entry of nextLists) {
+      const prev = previousById.get(entry.id);
+      if (!prev) return false;
+      if (
+        prev.name !== entry.name ||
+        prev.countLabel !== entry.countLabel ||
+        prev.totalCount !== entry.totalCount ||
+        prev.matchCount !== entry.matchCount
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  areOrdersEqual(a: ListId[] = [], b: ListId[] = []) {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
   }
 }
 
