@@ -15,6 +15,7 @@ import {
   matchesSearchEntry,
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
+import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
@@ -1831,9 +1832,7 @@ class A4TaskList extends HTMLElement {
   handleItemKeyDown(event: KeyboardEvent) {
     if (!event || event.defaultPrevented) return;
     if (event.isComposing) return;
-    const key = event.key?.toLowerCase?.() ?? "";
-    if (key !== "m") return;
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!matchesShortcut(event, SHORTCUTS.moveTask)) return;
     const target = event.target as HTMLElement | null;
     if (!target) return;
     if (target.isContentEditable) return;

@@ -10,6 +10,7 @@ import {
   matchesSearchEntry,
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
+import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
 import "./sidebar.js";
 import "./main-pane.js";
@@ -229,20 +230,15 @@ class ListsAppShellElement extends HTMLElement {
   onGlobalKeyDown(event: KeyboardEvent) {
     if (!this.repository || event.defaultPrevented) return;
     if (this.isEditableTarget(event.target)) return;
-    const isMac = navigator.platform?.toLowerCase?.().includes("mac");
-    const modifier = isMac ? event.metaKey : event.ctrlKey;
-    if (!modifier) return;
-    const key = event.key.toLowerCase();
-    if (key === "z") {
+    if (matchesShortcut(event, SHORTCUTS.undo)) {
       event.preventDefault();
-      if (event.shiftKey) {
-        void this.repository.redo();
-      } else {
-        void this.repository.undo();
-      }
+      void this.repository.undo();
       return;
     }
-    if (key === "y") {
+    if (
+      matchesShortcut(event, SHORTCUTS.redo) ||
+      matchesShortcut(event, SHORTCUTS.redoAlt)
+    ) {
       event.preventDefault();
       void this.repository.redo();
     }
