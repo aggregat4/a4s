@@ -143,6 +143,31 @@ async function getCaretOffset(target: Locator) {
   });
 }
 
+async function pressUndo(page: Page) {
+  await page.evaluate(() => {
+    const event = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(event);
+  });
+}
+
+async function pressRedo(page: Page) {
+  await page.evaluate(() => {
+    const event = new KeyboardEvent("keydown", {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(event);
+  });
+}
+
 test("loads without console errors", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (err) => {
@@ -218,6 +243,34 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   const visibleTasks = page.locator(listItemsSelector);
   await expect(visibleTasks).toHaveCount(1);
   await expect(visibleTasks.first().locator(".text")).toContainText("umbrella");
+});
+
+test("undo/redo shortcuts revert task insertions", async ({ page }) => {
+  await page.goto("/?resetStorage=1");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Prototype Tasks"
+  );
+
+  const initialCount = await page.locator(listItemsSelector).count();
+  await addTask(page, "Undo me");
+  await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1);
+  const canUndo = await page.evaluate(
+    () => (window as any).listsApp?.repository?.canUndo?.() ?? false
+  );
+  expect(canUndo).toBe(true);
+
+  await page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null;
+    active?.blur?.();
+  });
+  await page.locator("[data-role='lists-container']").click({ position: { x: 5, y: 5 } });
+  await pressUndo(page);
+  await pressUndo(page);
+  await expect(page.locator(listItemsSelector)).toHaveCount(initialCount);
+
+  await pressRedo(page);
+  await pressRedo(page);
+  await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1);
 });
 
 test("sidebar list order updates after drag reorder", async ({ page }) => {

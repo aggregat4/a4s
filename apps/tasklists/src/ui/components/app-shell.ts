@@ -125,11 +125,11 @@ class ListsAppShellElement extends HTMLElement {
     }
     this.renderShell();
     this.cacheElements();
-    window.addEventListener("keydown", this.handleGlobalKeyDown);
+    document.addEventListener("keydown", this.handleGlobalKeyDown, true);
   }
 
   disconnectedCallback() {
-    window.removeEventListener("keydown", this.handleGlobalKeyDown);
+    document.removeEventListener("keydown", this.handleGlobalKeyDown, true);
   }
 
   renderShell() {
