@@ -199,7 +199,10 @@ class SidebarElement extends HTMLElement {
                 ? "sidebar-list-button is-active"
                 : "sidebar-list-button";
               return html`
-                <li data-item-id=${list.id}>
+                <li
+                  data-item-id=${list.id}
+                  class=${isActive ? "is-active" : ""}
+                >
                   <button
                     type="button"
                     class=${buttonClass}
