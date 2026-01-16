@@ -1,4 +1,5 @@
 import { test, expect, Page, Locator } from "@playwright/test";
+import { dragHandleToTarget } from "./helpers/drag";
 
 const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
@@ -56,10 +57,7 @@ async function dragReorderTask(
 ) {
   // Drag from the dedicated handle so we don't accidentally enter edit mode
   // (editing is triggered on pointerdown for Firefox caret correctness).
-  await source.locator(".handle").dragTo(target, {
-    sourcePosition: { x: 8, y: 12 },
-    targetPosition: { x: 8, y: 12 },
-  });
+  await dragHandleToTarget(source.locator(".handle"), target);
 }
 
 async function dragTaskToSidebarTarget(
@@ -67,7 +65,7 @@ async function dragTaskToSidebarTarget(
   sourceItem: Locator,
   target: Locator
 ) {
-  await sourceItem.locator(".handle").dragTo(target);
+  await dragHandleToTarget(sourceItem.locator(".handle"), target);
 }
 
 async function getSidebarListNames(page: Page) {
@@ -228,7 +226,7 @@ test("sidebar list order updates after drag reorder", async ({ page }) => {
     (el) => (el.closest("li") as HTMLElement | null)?.dataset?.itemId ?? null
   );
   expect(sourceId).toBe("list-work");
-  await sourceHandle.dragTo(targetItem, {
+  await dragHandleToTarget(sourceHandle, targetItem, {
     targetPosition: { x: 10, y: 2 },
   });
   const previewOrder = await getSidebarListNames(page);
@@ -260,7 +258,7 @@ test("sidebar drag can move a middle list to the top", async ({ page }) => {
 
   const sourceHandle = listItems.nth(1).locator(".sidebar-list-handle");
   const targetItem = listItems.nth(0);
-  await sourceHandle.dragTo(targetItem, {
+  await dragHandleToTarget(sourceHandle, targetItem, {
     targetPosition: { x: 10, y: 2 },
   });
 
@@ -286,7 +284,7 @@ test("sidebar drag to top works even when pointer is above first item", async ({
 
   const listEl = page.locator("[data-role='sidebar-list']");
   const sourceHandle = listItems.nth(1).locator(".sidebar-list-handle");
-  await sourceHandle.dragTo(listEl, {
+  await dragHandleToTarget(sourceHandle, listEl, {
     targetPosition: { x: 10, y: 2 },
   });
 
