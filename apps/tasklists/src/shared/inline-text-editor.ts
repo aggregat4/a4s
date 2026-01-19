@@ -318,7 +318,8 @@ export default class InlineTextEditor {
     const { start, end } = this.getSelectionOffsets(textEl);
     const selectionCollapsed = start === end;
     const isModKey = e.metaKey || e.ctrlKey;
-    const isShortcutRemove = isModKey && !e.altKey && e.key === "Backspace";
+    const isShortcutRemove =
+      isModKey && e.shiftKey && !e.altKey && e.key === "Backspace";
     if (
       !isModKey &&
       !e.altKey &&

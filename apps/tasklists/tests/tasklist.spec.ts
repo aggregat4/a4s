@@ -581,6 +581,43 @@ test.describe("tasklist flows", () => {
     await expect(itemsAfter).toHaveCount(initialCount);
   });
 
+  test("ctrl+backspace deletes a word without removing the task", async ({
+    page,
+  }) => {
+    const items = page.locator(listItemsSelector);
+    const initialCount = await items.count();
+    const firstText = items.nth(0).locator(".text");
+
+    await firstText.click();
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+    await firstText.fill("Alpha Beta Gamma");
+    await page.keyboard.press("Escape");
+
+    await firstText.click();
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+    await setCaretPosition(firstText, "Alpha Beta Gamma".length);
+    await page.keyboard.press("Control+Backspace");
+
+    await expect(items).toHaveCount(initialCount);
+    await expect
+      .poll(() => getNormalizedText(firstText))
+      .toContain("Alpha Beta");
+    await expect(firstText).not.toContainText("Gamma");
+  });
+
+  test("ctrl+shift+backspace removes the current task", async ({ page }) => {
+    const itemsBefore = page.locator(listItemsSelector);
+    const initialCount = await itemsBefore.count();
+    const firstText = itemsBefore.nth(0).locator(".text");
+
+    await firstText.click();
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+    await page.keyboard.press("Control+Shift+Backspace");
+
+    const itemsAfter = page.locator(listItemsSelector);
+    await expect(itemsAfter).toHaveCount(initialCount - 1);
+  });
+
   test("arrow keys move between tasks while editing", async ({ page }) => {
     const items = page.locator(listItemsSelector);
     const firstText = items.nth(0).locator(".text");
