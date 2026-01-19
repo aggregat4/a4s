@@ -8,6 +8,7 @@ import type {
   ListRegistryEntry,
   ListState,
   ListReorderInput,
+  Position,
   TaskInsertInput,
   TaskItem,
   TaskListState,
@@ -157,6 +158,7 @@ export class ListRepository {
   async undo() {
     return this.enqueueHistoryAction(async () => {
       await this.initialize();
+      await this.flushPendingEdits();
       const entry = this._history.undo();
       if (!entry) return false;
       await this.applyHistoryOps(entry.inverseOps);
@@ -167,6 +169,7 @@ export class ListRepository {
   async redo() {
     return this.enqueueHistoryAction(async () => {
       await this.initialize();
+      await this.flushPendingEdits();
       const entry = this._history.redo();
       if (!entry) return false;
       await this.applyHistoryOps(entry.forwardOps);
@@ -621,6 +624,95 @@ export class ListRepository {
     }
   }
 
+  async splitTask(
+    listId: ListId,
+    itemId: string,
+    options: {
+      beforeText: string;
+      afterText: string;
+      previousText: string;
+      newItemId?: string;
+      afterId?: string | null;
+      beforeId?: string | null;
+      position?: Position | null;
+    }
+  ) {
+    const newItemId = ensureId(options.newItemId, `${listId}-item`);
+    const pendingKey = `${listId}:${newItemId}`;
+    let resolvePending: (() => void) | null = null;
+    const pendingPromise = new Promise<void>((resolve) => {
+      resolvePending = resolve;
+    });
+    this._pendingInserts.set(pendingKey, pendingPromise);
+    await this.initialize();
+    try {
+      const record = this._listMap.get(listId);
+      if (!record?.crdt) return null;
+      if (typeof itemId !== "string" || !itemId.length) return null;
+      const existing = record.crdt
+        .getSnapshot()
+        .find((entry) => entry.id === itemId);
+      if (!existing) return null;
+      const beforeText = sanitizeText(options.beforeText);
+      const afterText = sanitizeText(options.afterText);
+      const previousText = sanitizeText(options.previousText);
+      const update = record.crdt.generateUpdate({
+        itemId,
+        text: beforeText,
+      });
+      const insert = record.crdt.generateInsert({
+        itemId: newItemId,
+        text: afterText,
+        done: false,
+        afterId: options.afterId ?? null,
+        beforeId: options.beforeId ?? null,
+        position: options.position ?? null,
+      });
+      await this._persistList(listId, record.crdt, [update.op, insert.op]);
+      this.emitListChange(listId);
+      this.recordHistory({
+        scope: { type: "list", listId },
+        forwardOps: [
+          {
+            type: "updateTask",
+            listId,
+            itemId,
+            payload: { text: beforeText },
+          },
+          {
+            type: "insertTask",
+            listId,
+            itemId: newItemId,
+            text: afterText,
+            done: false,
+            afterId: options.afterId ?? null,
+            beforeId: options.beforeId ?? null,
+            position: options.position ?? null,
+          },
+        ],
+        inverseOps: [
+          {
+            type: "removeTask",
+            listId,
+            itemId: newItemId,
+          },
+          {
+            type: "updateTask",
+            listId,
+            itemId,
+            payload: { text: previousText },
+          },
+        ],
+        label: "split-task",
+        actor: record.crdt.actorId,
+      });
+      return { id: newItemId, state: record.crdt.toListState() };
+    } finally {
+      resolvePending?.();
+      this._pendingInserts.delete(pendingKey);
+    }
+  }
+
   async updateTask(listId: ListId, itemId: string, payload: TaskUpdateInput = {}) {
     await this.initialize();
     if (Object.prototype.hasOwnProperty.call(payload, "text")) {
@@ -957,6 +1049,15 @@ export class ListRepository {
       () => undefined
     );
     return next;
+  }
+
+  private async flushPendingEdits() {
+    const pending = [
+      ...this._textUpdateQueue.values(),
+      ...this._pendingInserts.values(),
+    ];
+    if (pending.length === 0) return;
+    await Promise.allSettled(pending);
   }
 
   private enqueueTextUpdate<T>(

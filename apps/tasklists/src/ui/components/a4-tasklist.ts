@@ -1156,10 +1156,12 @@ class A4TaskList extends HTMLElement {
     element,
     beforeText,
     afterText,
+    previousText: _previousText,
   }: {
     element: HTMLElement;
     beforeText: string;
     afterText: string;
+    previousText: string;
   }) {
     if (!element || !this.store) return;
     const li = element.closest("li");
@@ -1196,18 +1198,15 @@ class A4TaskList extends HTMLElement {
     this.startEditingItem(newId, "start");
     this.schedulePendingEditFlush();
     if (this._repository && this.listId) {
+      const originalText = `${beforeText ?? ""}${afterText ?? ""}`;
       this.pauseRepositorySync();
       const promise = (async () => {
         try {
-          if (typeof beforeText === "string") {
-            await this._repository.updateTask(this.listId, id, {
-              text: beforeText,
-            });
-          }
-          await this._repository.insertTask(this.listId, {
-            itemId: newId,
-            text: typeof afterText === "string" ? afterText : "",
-            done: false,
+          await this._repository.splitTask(this.listId, id, {
+            beforeText: typeof beforeText === "string" ? beforeText : "",
+            afterText: typeof afterText === "string" ? afterText : "",
+            previousText: originalText,
+            newItemId: newId,
             afterId: id,
             beforeId: nextItemId ?? undefined,
           });

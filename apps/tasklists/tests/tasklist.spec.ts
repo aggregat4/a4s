@@ -117,7 +117,7 @@ async function addBlankTask(page: Page) {
 }
 
 async function getItemId(editor: Locator) {
-  return editor.evaluate((el) => el.closest("li")?.getAttribute("data-item-id"));
+  return editor.locator("xpath=ancestor::li[1]").getAttribute("data-item-id");
 }
 
 async function setCaretPosition(target: Locator, position: number) {
@@ -276,17 +276,11 @@ test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
     "Prototype Tasks"
   );
 
-  await page.getByRole("button", { name: "Add task" }).click();
-  const editor = page.locator(listItemsSelector).first().locator(".text");
-  await expect(editor).toHaveAttribute("contenteditable", "true");
-  await page.keyboard.type("Hello");
-  await page.keyboard.press(" ");
-  await page.keyboard.type("world");
-  const itemId = await getItemId(editor);
-  const itemEditor = page.locator(
-    `li[data-item-id="${itemId ?? ""}"] .text`
-  );
+  const itemEditor = page.locator(listItemsSelector).first().locator(".text");
   await itemEditor.click();
+  await expect(itemEditor).toHaveAttribute("contenteditable", "true");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("Hello world");
 
   await pressUndo(page);
   await expect
@@ -309,6 +303,43 @@ test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
   await expect
     .poll(() => getNormalizedText(itemEditor), { timeout: 2000 })
     .toBe(fullText);
+});
+
+test("undo/redo combines split edits into one step", async ({ page }) => {
+  await page.goto("/?resetStorage=1");
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Prototype Tasks"
+  );
+
+  const initialCount = await page.locator(listItemsSelector).count();
+  await page.getByRole("button", { name: "Add task" }).click();
+  const editor = page.locator(listItemsSelector).first().locator(".text");
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await page.keyboard.type("SplitUndoXYZ");
+  const itemId = await getItemId(editor);
+  await expect(editor).toHaveText("SplitUndoXYZ");
+  await editor.click();
+  await setCaretPosition(editor, 5);
+  await expect.poll(() => getCaretOffset(editor)).toBe(5);
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 2);
+  const itemEditor = page.locator(`li[data-item-id="${itemId ?? ""}"] .text`);
+  await expect(itemEditor).toHaveText("Split");
+
+  await pressUndo(page);
+  await expect
+    .poll(() => page.locator(listItemsSelector).count(), { timeout: 15000 })
+    .toBe(initialCount + 1);
+  await expect
+    .poll(() => getNormalizedText(itemEditor), { timeout: 15000 })
+    .toBe("SplitUndoXYZ");
+
+  await pressRedo(page);
+  await expect
+    .poll(() => page.locator(listItemsSelector).count(), { timeout: 15000 })
+    .toBe(initialCount + 2);
+  await expect(itemEditor).toHaveText("Split");
 });
 
 test("undo/redo walks through text edits and task insertions", async ({
