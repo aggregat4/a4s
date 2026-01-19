@@ -177,6 +177,11 @@ button {
         color: var(--color-text);
     }
 
+    &:hover {
+        background-color: transparent;
+        color: inherit;
+    }
+
     &:focus-visible {
         outline: none;
     }
@@ -206,16 +211,17 @@ button {
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background-color: transparent;
+    padding: 0;
 }
 
 .sidebar-list > li:hover,
 .sidebar-list > li:focus-within {
-    background-color: rgba(0, 0, 0, 0.05);
     border-color: var(--outline-color);
 }
 
 .sidebar-list > li.is-active {
     box-shadow: inset 0 0 0 1px var(--outline-color);
+    background-color: rgba(255, 255, 255, 0.6);
 }
 
 .sidebar-list > li.dragging {
@@ -224,6 +230,14 @@ button {
     background-color: var(--color-surface);
 }
 
+.sidebar-list > li.is-drop-target {
+    border-color: #1c7ed6;
+    background-color: rgba(28, 126, 214, 0.12);
+}
+
+.sidebar-list > li.is-drop-target .sidebar-list-count {
+    color: var(--color-text);
+}
 
 .sidebar-list-handle {
     cursor: grab;
@@ -242,7 +256,7 @@ button {
     background-position: center;
     background-size: 20px 20px;
     background-image: var(--task-handle-icon);
-    margin-left: var(--space-xs);
+    margin-left: 0;
 
     &:active {
         cursor: grabbing;

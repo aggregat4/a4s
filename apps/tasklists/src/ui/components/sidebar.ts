@@ -218,12 +218,12 @@ class SidebarElement extends HTMLElement {
                     <span class="sidebar-list-count"
                       >${list.countLabel ?? ""}</span
                     >
+                    <span
+                      class="sidebar-list-handle handle"
+                      draggable="true"
+                      aria-hidden="true"
+                    ></span>
                   </button>
-                  <span
-                    class="sidebar-list-handle handle"
-                    draggable="true"
-                    aria-hidden="true"
-                  ></span>
                 </li>
               `;
             })}
@@ -311,6 +311,8 @@ class SidebarElement extends HTMLElement {
   handleListDragEnter(event: DragEvent) {
     const button = event.currentTarget as HTMLElement | null;
     if (!button) return;
+    const row = button.closest("li");
+    if (!row) return;
     const payload = this.parseTaskData(event.dataTransfer);
     const hasPayload = payload || this.hasTaskPayload(event.dataTransfer);
     if (!hasPayload) return;
@@ -319,15 +321,15 @@ class SidebarElement extends HTMLElement {
     if (this.dropTargetDepth.size) {
       const others = (
         Array.from(this.dropTargetDepth.keys()) as HTMLElement[]
-      ).filter((btn) => btn !== button);
-      others.forEach((btn) => {
-        btn.classList.remove("is-drop-target");
-        this.dropTargetDepth.delete(btn);
+      ).filter((item) => item !== row);
+      others.forEach((item) => {
+        item.classList.remove("is-drop-target");
+        this.dropTargetDepth.delete(item);
       });
     }
-    const nextDepth = (this.dropTargetDepth.get(button) ?? 0) + 1;
-    this.dropTargetDepth.set(button, nextDepth);
-    button.classList.add("is-drop-target");
+    const nextDepth = (this.dropTargetDepth.get(row) ?? 0) + 1;
+    this.dropTargetDepth.set(row, nextDepth);
+    row.classList.add("is-drop-target");
   }
 
   handleListDragOver(event: DragEvent) {
@@ -347,21 +349,25 @@ class SidebarElement extends HTMLElement {
     if (button.contains(event.relatedTarget as Node | null)) {
       return;
     }
-    const nextDepth = (this.dropTargetDepth.get(button) ?? 1) - 1;
+    const row = button.closest("li");
+    if (!row) return;
+    const nextDepth = (this.dropTargetDepth.get(row) ?? 1) - 1;
     if (nextDepth <= 0) {
-      this.dropTargetDepth.delete(button);
-      button.classList.remove("is-drop-target");
+      this.dropTargetDepth.delete(row);
+      row.classList.remove("is-drop-target");
     } else {
-      this.dropTargetDepth.set(button, nextDepth);
+      this.dropTargetDepth.set(row, nextDepth);
     }
   }
 
   handleListDrop(event: DragEvent) {
     const button = event.currentTarget as HTMLElement | null;
     if (!button) return;
+    const row = button.closest("li");
+    if (!row) return;
     const payload = this.parseTaskData(event.dataTransfer);
-    button.classList.remove("is-drop-target");
-    this.dropTargetDepth.delete(button);
+    row.classList.remove("is-drop-target");
+    this.dropTargetDepth.delete(row);
     if (!payload) return;
     const targetListId = button.dataset.listId;
     if (!targetListId || payload.sourceListId === targetListId) return;
