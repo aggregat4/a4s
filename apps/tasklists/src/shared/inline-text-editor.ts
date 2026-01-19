@@ -2,6 +2,7 @@
 // We keep it custom so we can honor task keyboard shortcuts without fighting native inputs.
 import type { CaretPreference } from "../types/caret.js";
 import { isOffsetCaret } from "../types/caret.js";
+import { SHORTCUTS, matchesShortcut } from "../ui/state/shortcuts.js";
 type CaretColumnPreference = Extract<CaretPreference, { type: "caret-column" }>;
 
 export default class InlineTextEditor {
@@ -318,8 +319,7 @@ export default class InlineTextEditor {
     const { start, end } = this.getSelectionOffsets(textEl);
     const selectionCollapsed = start === end;
     const isModKey = e.metaKey || e.ctrlKey;
-    const isShortcutRemove =
-      isModKey && e.shiftKey && !e.altKey && e.key === "Backspace";
+    const isShortcutRemove = matchesShortcut(e, SHORTCUTS.deleteTask);
     if (
       !isModKey &&
       !e.altKey &&

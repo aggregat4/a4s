@@ -26,7 +26,12 @@ const SHORTCUTS = {
   moveTask: {
     id: "move-task",
     key: "m",
-    allowExtraModifiers: ["shift"],
+    modifiers: ["ctrl", "alt"],
+  },
+  deleteTask: {
+    id: "delete-task",
+    key: "backspace",
+    modifiers: ["mod", "shift"],
   },
 } satisfies Record<string, Shortcut>;
 

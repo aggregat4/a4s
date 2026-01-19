@@ -1916,7 +1916,6 @@ class A4TaskList extends HTMLElement {
     if (!matchesShortcut(event, SHORTCUTS.moveTask)) return;
     const target = event.target as HTMLElement | null;
     if (!target) return;
-    if (target.isContentEditable) return;
     const li = target.closest?.("li");
     if (!li) return;
     const itemId = li.dataset?.itemId ?? null;

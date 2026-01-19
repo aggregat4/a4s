@@ -1348,7 +1348,7 @@ test("sidebar counts show only open items", async ({ page }) => {
       .locator(".text");
     const originalText = (await sourceTextLocator.textContent())?.trim() ?? "";
     await sourceTextLocator.focus();
-    await page.keyboard.press("m");
+    await page.keyboard.press("Control+Alt+M");
 
     const targetOption = page
       .locator(".move-dialog__option")
