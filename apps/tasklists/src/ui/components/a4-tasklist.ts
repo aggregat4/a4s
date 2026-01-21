@@ -1982,7 +1982,11 @@ class A4TaskList extends HTMLElement {
     if (!isEditing) return;
     if (matchesShortcut(event, SHORTCUTS.undo)) {
       event.preventDefault();
-      void this._repository.undo();
+      const caretSnapshot = this.captureUndoCaret();
+      void this._repository.undo().then((didUndo) => {
+        if (!didUndo || !caretSnapshot) return;
+        this.startEditingItem(caretSnapshot.id, caretSnapshot.caret ?? null);
+      });
       return;
     }
     if (
@@ -1990,8 +1994,28 @@ class A4TaskList extends HTMLElement {
       matchesShortcut(event, SHORTCUTS.redoAlt)
     ) {
       event.preventDefault();
-      void this._repository.redo();
+      const caretSnapshot = this.captureUndoCaret();
+      void this._repository.redo().then((didRedo) => {
+        if (!didRedo || !caretSnapshot) return;
+        this.startEditingItem(caretSnapshot.id, caretSnapshot.caret ?? null);
+      });
     }
+  }
+
+  captureUndoCaret() {
+    const editingEl = this.inlineEditor?.editingEl;
+    if (!editingEl || !this.inlineEditor) return null;
+    const li = editingEl.closest("li");
+    const itemId = li?.dataset?.itemId ?? null;
+    if (!itemId) return null;
+    const offsets = this.inlineEditor.getSelectionOffsets(editingEl);
+    const caretOffset =
+      typeof offsets?.start === "number" ? offsets.start : null;
+    if (caretOffset == null) return null;
+    return {
+      id: itemId,
+      caret: makeOffsetCaret(caretOffset),
+    };
   }
 
   handleFocusIn(event: FocusEvent) {
