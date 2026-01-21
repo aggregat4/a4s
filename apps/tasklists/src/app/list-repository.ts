@@ -162,6 +162,7 @@ export class ListRepository {
       const entry = this._history.undo();
       if (!entry) return false;
       await this.applyHistoryOps(entry.inverseOps);
+      this._textEditSessions.clear();
       return true;
     });
   }
@@ -173,6 +174,7 @@ export class ListRepository {
       const entry = this._history.redo();
       if (!entry) return false;
       await this.applyHistoryOps(entry.forwardOps);
+      this._textEditSessions.clear();
       return true;
     });
   }
