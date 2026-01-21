@@ -564,6 +564,30 @@ class A4TaskList extends HTMLElement {
       return;
     }
     const next = cloneListState(state);
+    if (this.editingShadowText.size > 0) {
+      const editingId =
+        this.inlineEditor?.editingEl?.closest?.("li")?.dataset?.itemId ?? null;
+      // Repository echoes can arrive out-of-order while typing. Keep a shadow
+      // for the active item so we don't replace the live DOM text (and caret)
+      // with stale repository snapshots. Clear the shadow once the repository
+      // matches or editing ends so state converges quickly.
+      for (const [itemId, shadowText] of this.editingShadowText.entries()) {
+        const item = next.items?.find((entry) => entry.id === itemId);
+        if (!item) {
+          this.editingShadowText.delete(itemId);
+          continue;
+        }
+        if (item.text === shadowText) {
+          this.editingShadowText.delete(itemId);
+          continue;
+        }
+        if (editingId === itemId) {
+          item.text = shadowText;
+          continue;
+        }
+        this.editingShadowText.delete(itemId);
+      }
+    }
     this._initialState = next;
     if (this.store) {
       this.store.dispatch({
@@ -2061,6 +2085,7 @@ class A4TaskList extends HTMLElement {
       this.scheduleSearchRender(0);
       return;
     }
+    this.editingShadowText.delete(id);
     if (typeof newText !== "string") {
       this.scheduleSearchRender(0);
       return;
@@ -2201,6 +2226,10 @@ class A4TaskList extends HTMLElement {
     const target = e.target as HTMLElement | null;
     const textEl = target?.classList?.contains("text") ? target : null;
     if (!textEl) return;
+    const itemId = textEl.closest("li")?.dataset?.itemId;
+    if (itemId) {
+      this.editingShadowText.delete(itemId);
+    }
     textEl.dataset.originalText = textEl.textContent;
     this.scheduleSearchRender(0);
     if (
