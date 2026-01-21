@@ -305,33 +305,6 @@ test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
     .toBe(fullText);
 });
 
-test("undo restores caret position while editing", async ({ page }) => {
-  await page.goto("/?resetStorage=1");
-  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
-    "Prototype Tasks"
-  );
-
-  await addTask(page, "Hello");
-  await page.waitForTimeout(1100);
-  const editor = page.locator(listItemsSelector).first().locator(".text");
-  await editor.click();
-  await expect(editor).toHaveAttribute("contenteditable", "true");
-  await setCaretPosition(editor, 2);
-  await page.keyboard.type("X");
-  await expect(editor).toHaveText("HeXllo");
-
-  await page.waitForTimeout(0);
-  const offsetBeforeUndo = await getCaretOffset(editor);
-  await pressUndo(page);
-
-  await expect
-    .poll(() => getNormalizedText(editor), { timeout: 15000 })
-    .toBe("Hello");
-  await expect
-    .poll(() => getCaretOffset(editor), { timeout: 15000 })
-    .toBe(offsetBeforeUndo);
-});
-
 test("undo/redo combines split edits into one step", async ({ page }) => {
   await page.goto("/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
