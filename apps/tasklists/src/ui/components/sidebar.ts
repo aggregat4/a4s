@@ -1,4 +1,4 @@
-import { html, render } from "../../vendor/lit-html.js";
+import { html, render } from "lit";
 import { DragCoordinator } from "./drag-coordinator.js";
 import { FlipAnimator } from "../../shared/drag-behavior.js";
 import type { ListId, TaskItem } from "../../types/domain.js";

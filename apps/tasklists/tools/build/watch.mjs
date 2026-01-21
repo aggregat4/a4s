@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
 
 const processes = [
-  spawn("npx", ["tsc", "-p", "tsconfig.app.json", "-w"], {
+  spawn("npx", ["tsc", "-p", "tsconfig.app.json", "--noEmit", "-w"], {
+    stdio: "inherit",
+  }),
+  spawn("node", ["tools/build/esbuild.mjs", "--watch"], {
     stdio: "inherit",
   }),
   spawn("npx", ["tsc", "-p", "tsconfig.tests.json", "-w"], {

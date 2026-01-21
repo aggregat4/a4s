@@ -2,7 +2,7 @@
   "name": "prototype-lists",
   "version": "1.0.0",
   "scripts": {
-    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json && npx tsc -p tsconfig.tests.json && npm run lint:deps && node tools/build/copy-static.mjs",
+    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && npx tsc -p tsconfig.tests.json && npm run lint:deps && node tools/build/copy-static.mjs",
     "watch": "node tools/build/watch.mjs",
     "start": "npm run build && npx http-server dist -p 8000 -c-1",
     "lint:deps": "knip",
@@ -15,9 +15,13 @@
   },
   "license": "Apache-2.0",
   "type": "commonjs",
+  "dependencies": {
+    "lit": "3.3.1"
+  },
   "devDependencies": {
     "@playwright/test": "1.56.0",
     "@types/node": "24.7.2",
+    "esbuild": "0.25.0",
     "http-server": "14.1.1",
     "knip": "5.70.2",
     "typescript": "5.9.3"

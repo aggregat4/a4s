@@ -7,10 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const watchedFiles = ["index.html", "styles.css"].map((file) =>
   resolve(root, "public", file)
 );
-const watchedDirs = [
-  resolve(root, "src", "vendor"),
-  resolve(root, "src", "vendor", "directives"),
-];
+const watchedDirs = [];
 
 let pending = false;
 const scheduleCopy = () => {

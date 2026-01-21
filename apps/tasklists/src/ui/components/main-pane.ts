@@ -1,4 +1,4 @@
-import { html, render } from "../../vendor/lit-html.js";
+import { html, render } from "lit";
 import type { ListId } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
 

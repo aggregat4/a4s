@@ -1,4 +1,4 @@
-import { html, render } from "../../vendor/lit-html.js";
+import { html, render } from "lit";
 import { ListRepository } from "../../app/list-repository.js";
 import { generateListId } from "../state/list-store.js";
 import { SidebarCoordinator } from "../state/sidebar-coordinator.js";

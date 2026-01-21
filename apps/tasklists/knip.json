@@ -7,7 +7,6 @@
     "src/types/**/*.ts"
   ],
   "ignore": [
-    "src/vendor/**/*.js",
     "src/types/global.d.ts",
     "src/types/vendor.d.ts"
   ],

@@ -342,6 +342,63 @@ test("undo/redo combines split edits into one step", async ({ page }) => {
   await expect(itemEditor).toHaveText("Split");
 });
 
+test("undo merge after split keeps distinct tasks below", async ({ page }) => {
+  await page.goto("/?resetStorage=1");
+  page.once("dialog", async (dialog) => {
+    await dialog.accept("Undo Merge List");
+  });
+  await page.getByRole("button", { name: "Add list" }).click();
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Undo Merge List"
+  );
+
+  const firstTaskText = "AlphaBeta";
+  const secondTaskText = "Task Two";
+  const thirdTaskText = "Task Three";
+  await addTask(page, thirdTaskText);
+  await addTask(page, secondTaskText);
+  await addTask(page, firstTaskText);
+
+  const firstEditor = page.locator(listItemsSelector).first().locator(".text");
+  await firstEditor.click();
+  await expect(firstEditor).toHaveAttribute("contenteditable", "true");
+  await setCaretPosition(firstEditor, "Alpha".length);
+  await page.keyboard.press("Enter");
+
+  const splitEditor = page
+    .locator(listItemsSelector)
+    .filter({ hasText: "Beta" })
+    .first()
+    .locator(".text");
+  await expect(splitEditor).toHaveText("Beta");
+  await splitEditor.click();
+  await setCaretPosition(splitEditor, "Beta".length);
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("New Task");
+
+  await expect(page.locator(listItemsSelector)).toHaveCount(5);
+
+  let remaining = 10;
+  while (remaining > 0) {
+    await pressUndo(page);
+    await page.waitForTimeout(50);
+    const count = await page.locator(listItemsSelector).count();
+    if (count === 3) {
+      break;
+    }
+    remaining -= 1;
+  }
+  await expect(page.locator(listItemsSelector)).toHaveCount(3);
+
+  const secondText = await getNormalizedText(
+    page.locator(listItemsSelector).nth(1).locator(".text")
+  );
+  const thirdText = await getNormalizedText(
+    page.locator(listItemsSelector).nth(2).locator(".text")
+  );
+  expect([secondText, thirdText]).toEqual([secondTaskText, thirdTaskText]);
+});
+
 test("undo/redo walks through text edits and task insertions", async ({
   page,
 }) => {

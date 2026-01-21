@@ -9,9 +9,6 @@ export async function copyStatic() {
   await mkdir(distRoot, { recursive: true });
   await cp(resolve(root, "public", "index.html"), resolve(distRoot, "index.html"));
   await cp(resolve(root, "public", "styles.css"), resolve(distRoot, "styles.css"));
-  await cp(resolve(root, "src", "vendor"), resolve(distRoot, "vendor"), {
-    recursive: true,
-  });
   await writeFile(
     resolve(distRoot, "package.json"),
     JSON.stringify({ type: "module" }, null, 2)

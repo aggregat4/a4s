@@ -1,5 +1,6 @@
-import { html, render, noChange } from "../../vendor/lit-html.js";
-import { live } from "../../vendor/directives/live.js";
+import { html, render, noChange } from "lit";
+import { live } from "lit/directives/live.js";
+import { repeat } from "lit/directives/repeat.js";
 import { DragCoordinator } from "./drag-coordinator.js";
 import { FlipAnimator } from "../../shared/drag-behavior.js";
 import InlineTextEditor from "../../shared/inline-text-editor.js";
@@ -1567,36 +1568,40 @@ class A4TaskList extends HTMLElement {
       this.inlineEditor?.editingEl?.closest?.("li")?.dataset?.itemId ?? null;
 
     let visibleCount = 0;
-    const itemsTemplate = (state.items ?? []).map((item) => {
-      const text = typeof item.text === "string" ? item.text : "";
-      const isEditing = editingId === item.id;
-      let hidden = false;
-      let markup = null;
-      if (!isEditing) {
-        const result = evaluateSearchEntry({
-          originalText: text,
-          tokens,
-          patternConfig: this.patternConfig,
-          showDone: this.showDone,
-          isDone: item.done,
+    const itemsTemplate = repeat(
+      state.items ?? [],
+      (item) => item.id,
+      (item) => {
+        const text = typeof item.text === "string" ? item.text : "";
+        const isEditing = editingId === item.id;
+        let hidden = false;
+        let markup = null;
+        if (!isEditing) {
+          const result = evaluateSearchEntry({
+            originalText: text,
+            tokens,
+            patternConfig: this.patternConfig,
+            showDone: this.showDone,
+            isDone: item.done,
+          });
+          hidden = result.hidden;
+          markup = result.markup;
+        }
+        if (forceVisible?.has(item.id)) {
+          hidden = false;
+          markup = null;
+        }
+        if (!hidden) {
+          visibleCount += 1;
+        }
+        return this.renderItemTemplate(item, {
+          isOpen: openActionsId === item.id,
+          hidden,
+          markup,
+          isEditing,
         });
-        hidden = result.hidden;
-        markup = result.markup;
       }
-      if (forceVisible?.has(item.id)) {
-        hidden = false;
-        markup = null;
-      }
-      if (!hidden) {
-        visibleCount += 1;
-      }
-      return this.renderItemTemplate(item, {
-        isOpen: openActionsId === item.id,
-        hidden,
-        markup,
-        isEditing,
-      });
-    });
+    );
     render(html`${itemsTemplate}`, this.listEl);
     this.dragCoordinator?.invalidateItemsCache();
 

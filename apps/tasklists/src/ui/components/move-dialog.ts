@@ -1,4 +1,4 @@
-import { html, render } from "../../vendor/lit-html.js";
+import { html, render } from "lit";
 import type { ListId, TaskItem } from "../../types/domain.js";
 
 type MoveTarget = {
