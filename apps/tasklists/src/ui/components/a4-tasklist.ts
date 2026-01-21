@@ -1265,12 +1265,12 @@ class A4TaskList extends HTMLElement {
     });
 
     if (this._repository && this.listId) {
-      const promise = (async () => {
-        await this._repository.updateTask(this.listId, previousItem.id, {
-          text: mergedText,
-        });
-        await this._repository.removeTask(this.listId, currentItemId);
-      })();
+      const promise = this._repository.mergeTask(
+        this.listId,
+        previousItem.id,
+        currentItemId,
+        { mergedText }
+      );
       this.runRepositoryOperation(promise);
     }
 

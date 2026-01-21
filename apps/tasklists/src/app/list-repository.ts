@@ -715,6 +715,75 @@ export class ListRepository {
     }
   }
 
+  async mergeTask(
+    listId: ListId,
+    previousItemId: string,
+    currentItemId: string,
+    options: { mergedText: string }
+  ) {
+    await this.initialize();
+    const record = this._listMap.get(listId);
+    if (!record?.crdt) return null;
+    if (!previousItemId || !currentItemId) return null;
+    if (previousItemId === currentItemId) return null;
+
+    const snapshot = record.crdt.getSnapshot();
+    const previousItem = snapshot.find((entry) => entry.id === previousItemId);
+    const currentItem = snapshot.find((entry) => entry.id === currentItemId);
+    if (!previousItem || !currentItem) return null;
+
+    const order = snapshot.map((entry) => entry.id);
+    const neighbors = this.getNeighborIds(order, currentItemId);
+    const mergedText = sanitizeText(options?.mergedText);
+    const update = record.crdt.generateUpdate({
+      itemId: previousItemId,
+      text: mergedText,
+    });
+    const remove = record.crdt.generateRemove(currentItemId);
+
+    await this._persistList(listId, record.crdt, [update.op, remove.op]);
+    this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "updateTask",
+          listId,
+          itemId: previousItemId,
+          payload: { text: mergedText },
+        },
+        {
+          type: "removeTask",
+          listId,
+          itemId: currentItemId,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "insertTask",
+          listId,
+          itemId: currentItemId,
+          text: currentItem.text,
+          done: currentItem.done,
+          afterId: neighbors.afterId,
+          beforeId: neighbors.beforeId,
+          position: currentItem.pos ?? null,
+        },
+        {
+          type: "updateTask",
+          listId,
+          itemId: previousItemId,
+          payload: { text: previousItem.text },
+        },
+      ],
+      label: "merge-task",
+      actor: record.crdt.actorId,
+    });
+    this._textEditSessions.delete(`${listId}:${currentItemId}`);
+    this._textUpdateQueue.delete(`${listId}:${currentItemId}`);
+    return record.crdt.toListState();
+  }
+
   async updateTask(listId: ListId, itemId: string, payload: TaskUpdateInput = {}) {
     await this.initialize();
     if (Object.prototype.hasOwnProperty.call(payload, "text")) {

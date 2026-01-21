@@ -158,3 +158,35 @@ test("undo/redo restores list registry operations", async () => {
   )?.title;
   assert.equal(titleRedo, "Renamed");
 });
+
+test("undo merges a task split into one history entry", async () => {
+  const repository = new ListRepository({
+    storageFactory: async () => createMemoryStorage(),
+  });
+
+  await repository.createList({ listId: "list-1", title: "Tasks" });
+  await repository.insertTask("list-1", {
+    itemId: "item-1",
+    text: "Alpha",
+    done: false,
+  });
+  await repository.insertTask("list-1", {
+    itemId: "item-2",
+    text: "Beta",
+    done: false,
+    afterId: "item-1",
+  });
+
+  await repository.mergeTask("list-1", "item-1", "item-2", {
+    mergedText: "AlphaBeta",
+  });
+  assert.equal(repository.getListState("list-1").items.length, 1);
+  assert.equal(repository.getListState("list-1").items[0].text, "AlphaBeta");
+
+  const undone = await repository.undo();
+  assert.equal(undone, true);
+  const stateAfter = repository.getListState("list-1");
+  assert.equal(stateAfter.items.length, 2);
+  assert.equal(stateAfter.items[0].text, "Alpha");
+  assert.equal(stateAfter.items[1].text, "Beta");
+});
