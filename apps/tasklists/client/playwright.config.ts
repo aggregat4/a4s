@@ -21,6 +21,8 @@ const webServerCommand = useDockerServer
   : `npx http-server dist -p ${port} -c-1`;
 
 const config: PlaywrightTestConfig = {
+  testDir: "tests",
+  testIgnore: ["**/dist/**"],
   use: {
     baseURL,
   },
