@@ -201,9 +201,9 @@ class ListRegistry {
     if (record.flashTimer) {
       clearTimeout(record.flashTimer);
     }
-    record.wrapper.classList.add("list-section--flash");
+    record.wrapper.classList.add("list-section-flash");
     record.flashTimer = setTimeout(() => {
-      record.wrapper.classList.remove("list-section--flash");
+      record.wrapper.classList.remove("list-section-flash");
       record.flashTimer = null;
     }, 600);
   }

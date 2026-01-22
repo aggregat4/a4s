@@ -2,10 +2,11 @@
   "name": "prototype-lists",
   "version": "1.0.0",
   "scripts": {
-    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && npx tsc -p tsconfig.tests.json && npm run lint:deps && node tools/build/copy-static.mjs",
+    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && npx tsc -p tsconfig.tests.json && npm run lint:deps && npm run lint:css && node tools/build/copy-static.mjs",
     "watch": "node tools/build/watch.mjs",
     "start": "npm run build && npx http-server dist -p 8000 -c-1",
     "lint:deps": "knip",
+    "lint:css": "stylelint \"public/**/*.css\" || true",
     "test:unit": "npm run build && node --test dist/tests/unit/**/*.spec.js",
     "test": "npm run test:e2e",
     "test:e2e": "npm run build && npx playwright test --project=chromium",
@@ -24,6 +25,9 @@
     "esbuild": "0.27.2",
     "http-server": "14.1.1",
     "knip": "5.82.1",
+    "postcss-scss": "4.0.9",
+    "stylelint": "16.24.0",
+    "stylelint-config-standard": "37.0.0",
     "typescript": "5.9.3"
   }
 }

@@ -774,12 +774,12 @@ class A4TaskList extends HTMLElement {
         ${headerError
           ? html`
               <div class="tasklist-header-error" role="alert">
-                <span class="tasklist-header-error__message">
+                <span class="tasklist-header-error-message">
                   ${headerError.message}
                 </span>
                 <button
                   type="button"
-                  class="tasklist-header-error__dismiss"
+                  class="tasklist-header-error-dismiss"
                   @click=${this.handleHeaderErrorDismiss}
                 >
                   Dismiss
@@ -1525,13 +1525,13 @@ class A4TaskList extends HTMLElement {
 
     return html`
       <li
-        class=${`task-item${isOpen ? " task-item--actions" : ""}`}
+        class=${`task-item${isOpen ? " task-item-actions-open" : ""}`}
         data-item-id=${itemId}
         data-done=${isDone ? "true" : "false"}
         draggable="true"
         ?hidden=${hidden}
       >
-        <div class="task-item__main">
+        <div class="task-item-main">
           <input
             type="checkbox"
             class="done-toggle"
@@ -1541,10 +1541,7 @@ class A4TaskList extends HTMLElement {
           ${textSpan}
           <span class="handle" aria-hidden="true"></span>
         </div>
-        <div
-          class="task-item__actions"
-          aria-hidden=${isOpen ? "false" : "true"}
-        >
+        <div class="task-item-actions" aria-hidden=${isOpen ? "false" : "true"}>
           <button
             type="button"
             class="task-move-button"
@@ -1564,8 +1561,8 @@ class A4TaskList extends HTMLElement {
         </div>
         <button
           type="button"
-          class=${`task-item__toggle ${
-            isOpen ? "task-item__toggle--active" : "closed"
+          class=${`task-item-toggle ${
+            isOpen ? "task-item-toggle-active" : "closed"
           }`}
           aria-expanded=${isOpen ? "true" : "false"}
           aria-label=${isOpen
@@ -1899,8 +1896,8 @@ class A4TaskList extends HTMLElement {
       const li = element?.closest?.("li") ?? null;
       if (!li) return;
       if (element.closest(".handle")) return;
-      if (element.closest(".task-item__actions")) return;
-      if (element.closest(".task-item__toggle")) return;
+      if (element.closest(".task-item-actions")) return;
+      if (element.closest(".task-item-toggle")) return;
       this.touchGestureState.set(touch.identifier, {
         startX: touch.clientX,
         startY: touch.clientY,

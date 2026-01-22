@@ -911,8 +911,8 @@ test("sidebar counts show only open items", async ({ page }) => {
 
   test("task action menu toggles inline controls", async ({ page }) => {
     const firstItem = page.locator(listItemsSelector).first();
-    const toggle = firstItem.locator(".task-item__toggle");
-    const actions = firstItem.locator(".task-item__actions");
+    const toggle = firstItem.locator(".task-item-toggle");
+    const actions = firstItem.locator(".task-item-actions");
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(actions).toHaveAttribute("aria-hidden", "true");
@@ -940,11 +940,11 @@ test("sidebar counts show only open items", async ({ page }) => {
   }) => {
     const items = page.locator(listItemsSelector);
     const firstItem = items.first();
-    const toggle = firstItem.locator(".task-item__toggle");
+    const toggle = firstItem.locator(".task-item-toggle");
     await toggle.click();
 
     const moveButton = firstItem
-      .locator(".task-item__actions")
+      .locator(".task-item-actions")
       .locator("button", { hasText: "Move" });
     await expect(moveButton).toBeVisible();
 
@@ -953,16 +953,16 @@ test("sidebar counts show only open items", async ({ page }) => {
 
     await moveButton.click();
 
-    const moveDialog = page.locator(".move-dialog__content");
+    const moveDialog = page.locator(".move-dialog-content");
     await expect(moveDialog).toBeVisible();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(firstItem.locator(".task-item__actions")).toHaveAttribute(
+    await expect(firstItem.locator(".task-item-actions")).toHaveAttribute(
       "aria-hidden",
       "true"
     );
 
     const destination = moveDialog
-      .locator(".move-dialog__option")
+      .locator(".move-dialog-option")
       .filter({ hasText: "Weekend Projects" });
     await destination.click();
     await expect(moveDialog).toBeHidden();
@@ -992,11 +992,11 @@ test("sidebar counts show only open items", async ({ page }) => {
     const items = page.locator(listItemsSelector);
     const itemCount = await items.count();
     const firstItem = items.first();
-    const toggle = firstItem.locator(".task-item__toggle");
+    const toggle = firstItem.locator(".task-item-toggle");
     await toggle.click();
 
     const deleteButton = firstItem
-      .locator(".task-item__actions")
+      .locator(".task-item-actions")
       .locator("button", { hasText: "Delete" });
     await expect(deleteButton).toBeVisible();
 
@@ -1009,11 +1009,11 @@ test("sidebar counts show only open items", async ({ page }) => {
 
     await deleteButton.click();
 
-    await expect(firstItem.locator(".task-item__actions")).toHaveAttribute(
+    await expect(firstItem.locator(".task-item-actions")).toHaveAttribute(
       "aria-hidden",
       "true"
     );
-    await expect(firstItem).not.toHaveClass(/task-item--actions/);
+    await expect(firstItem).not.toHaveClass(/task-item-actions-open/);
     await expect(page.locator(listItemsSelector)).toHaveCount(itemCount - 1);
   });
 
@@ -1408,11 +1408,11 @@ test("sidebar counts show only open items", async ({ page }) => {
     await page.keyboard.press("Control+Alt+M");
 
     const targetOption = page
-      .locator(".move-dialog__option")
+      .locator(".move-dialog-option")
       .filter({ hasText: "Weekend Projects" });
     await expect(targetOption).toBeVisible();
     await targetOption.click();
-    await expect(page.locator(".move-dialog__content")).toBeHidden();
+    await expect(page.locator(".move-dialog-content")).toBeHidden();
 
     await page
       .locator(".sidebar-list-button")

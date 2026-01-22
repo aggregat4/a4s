@@ -71,12 +71,12 @@ class KeyboardMoveDialog extends HTMLElement {
     render(
       html`
         <div
-          class="move-dialog__backdrop"
+          class="move-dialog-backdrop"
           data-role="move-dialog-backdrop"
           @click=${this.handleBackdropClick}
         ></div>
         <div
-          class="move-dialog__content"
+          class="move-dialog-content"
           role="dialog"
           aria-modal="true"
           aria-labelledby="move-dialog-title"
@@ -84,16 +84,16 @@ class KeyboardMoveDialog extends HTMLElement {
           tabindex="-1"
           @keydown=${this.handleKeyDown}
         >
-          <h2 id="move-dialog-title" class="move-dialog__title">Move Task</h2>
-          <p id="move-dialog-description" class="move-dialog__description">
+          <h2 id="move-dialog-title" class="move-dialog-title">Move Task</h2>
+          <p id="move-dialog-description" class="move-dialog-description">
             Select a destination list for this task. Use the arrow keys to
             choose, then press Enter.
           </p>
-          <ul class="move-dialog__options" data-role="move-dialog-options"></ul>
-          <div class="move-dialog__actions">
+          <ul class="move-dialog-options" data-role="move-dialog-options"></ul>
+          <div class="move-dialog-actions">
             <button
               type="button"
-              class="move-dialog__cancel"
+              class="move-dialog-cancel"
               data-role="move-dialog-cancel"
               @click=${this.handleCancel}
             >
@@ -147,12 +147,12 @@ class KeyboardMoveDialog extends HTMLElement {
           <li>
             <button
               type="button"
-              class="move-dialog__option"
+              class="move-dialog-option"
               data-list-id=${target.id}
               @click=${this.handleOptionClick}
             >
-              <span class="move-dialog__option-name">${target.name}</span>
-              <span class="move-dialog__option-count"
+              <span class="move-dialog-option-name">${target.name}</span>
+              <span class="move-dialog-option-count"
                 >${target.countLabel ?? ""}</span
               >
             </button>
@@ -162,7 +162,7 @@ class KeyboardMoveDialog extends HTMLElement {
       this.optionsListEl
     );
     this.optionButtons = Array.from(
-      this.optionsListEl.querySelectorAll<HTMLButtonElement>(".move-dialog__option")
+      this.optionsListEl.querySelectorAll<HTMLButtonElement>(".move-dialog-option")
     );
   }
 
