@@ -7,7 +7,7 @@ const listItemsSelector =
 function showDoneToggle(page: Page) {
   return page
     .locator("[data-role='lists-container'] .list-section.is-active")
-    .locator("input.tasklist-show-done-toggle");
+    .locator(".tasklist-show-done-toggle");
 }
 
 function globalSearchInput(page: Page) {
@@ -204,7 +204,7 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   const header = listSection.locator(".tasklist-header");
   const title = header.locator(".tasklist-title");
   const searchInput = header.locator("input.tasklist-search-input");
-  const showDoneToggle = header.locator("input.tasklist-show-done-toggle");
+  const showDoneToggle = header.locator(".tasklist-show-done-toggle");
 
   await expect(title).toHaveText("Prototype Tasks");
   await expect(title).toHaveAttribute("tabindex", "0");
@@ -1013,7 +1013,9 @@ test("sidebar counts show only open items", async ({ page }) => {
       "aria-hidden",
       "true"
     );
-    await expect(firstItem).not.toHaveClass(/task-item-actions-open/);
+    await expect(
+      firstItem.locator(".task-item-actions")
+    ).not.toHaveClass(/task-item-actions-open/);
     await expect(page.locator(listItemsSelector)).toHaveCount(itemCount - 1);
   });
 

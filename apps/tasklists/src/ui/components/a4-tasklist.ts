@@ -813,9 +813,9 @@ class A4TaskList extends HTMLElement {
             @keydown=${this.handleSearchKeyDown}
           />
           <label class="tasklist-show-done">
-            <input
+          <input
               type="checkbox"
-              class="tasklist-show-done-toggle"
+              class="tasklist-show-done-toggle tasklist-show-done-input"
               ?checked=${showDoneChecked}
               @change=${this.handleShowDoneChange}
             />
@@ -1514,7 +1514,9 @@ class A4TaskList extends HTMLElement {
       : live(markup != null ? markup : escapeHTML(text));
     const textSpan = html`
       <span
-        class="text"
+        class=${`text task-text${isEditing ? " text-editing" : ""}${
+          isDone ? " text-checked" : ""
+        }`}
         tabindex="0"
         role="textbox"
         aria-label="Task"
@@ -1525,7 +1527,7 @@ class A4TaskList extends HTMLElement {
 
     return html`
       <li
-        class=${`task-item${isOpen ? " task-item-actions-open" : ""}`}
+        class="task-item"
         data-item-id=${itemId}
         data-done=${isDone ? "true" : "false"}
         draggable="true"
@@ -1541,7 +1543,10 @@ class A4TaskList extends HTMLElement {
           ${textSpan}
           <span class="handle" aria-hidden="true"></span>
         </div>
-        <div class="task-item-actions" aria-hidden=${isOpen ? "false" : "true"}>
+        <div
+          class=${`task-item-actions${isOpen ? " task-item-actions-open" : ""}`}
+          aria-hidden=${isOpen ? "false" : "true"}
+        >
           <button
             type="button"
             class="task-move-button"
@@ -1559,11 +1564,11 @@ class A4TaskList extends HTMLElement {
             Delete
           </button>
         </div>
-        <button
-          type="button"
-          class=${`task-item-toggle ${
-            isOpen ? "task-item-toggle-active" : "closed"
-          }`}
+          <button
+            type="button"
+            class=${`task-item-toggle ${
+              isOpen ? "task-item-toggle-open" : "closed"
+            }`}
           aria-expanded=${isOpen ? "true" : "false"}
           aria-label=${isOpen
             ? "Hide task actions for this task"
