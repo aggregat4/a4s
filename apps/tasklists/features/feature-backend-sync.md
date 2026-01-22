@@ -41,6 +41,7 @@ Out of scope (initially):
   - `actor`, `clock`.
   - `payload`: serialized op body (opaque to server).
   - `serverSeq` assigned by server.
+  - Full protocol details: `docs/protocol-spec.md`.
 
 - Client tracks:
   - `lastServerSeq` cursor (persisted).
@@ -65,7 +66,7 @@ Out of scope (initially):
 
 2. Push
    - Client sends batched ops from outbox.
-   - Server dedupes, stores, assigns `serverSeq`, and returns acks.
+   - Server dedupes, stores, assigns `serverSeq`.
    - Server records `clientId` cursor for compaction safety.
 
 3. Pull
@@ -85,19 +86,9 @@ Out of scope (initially):
 - Local ops are applied immediately (optimistic), with server ack later.
 - If server sends ops already applied locally, CRDT idempotency handles it.
 
-## API Sketch
+## Protocol Reference
 
-- `GET /sync/bootstrap`
-  - Returns `{ serverSeq, ops[] }` (op log replay).
-  - Future option: `{ serverSeq, registrySnapshot, listSnapshots[] }`.
-
-- `POST /sync/push`
-  - Body: `{ clientId, ops: SyncOp[] }` (payload opaque to server).
-  - Returns `{ acks: SyncAck[], serverSeq }`.
-
-- `GET /sync/pull?since=123`
-  - Returns `{ ops: SyncOp[], serverSeq }`.
-  - Client includes `clientId` as query parameter.
+- See `docs/protocol-spec.md` for the full endpoint definitions and payloads.
 
 ## Server Storage Plan
 
@@ -140,9 +131,8 @@ Tooling options:
 ## Implementation Plan
 
 1. Protocol and shared types
-   - Define the generic `SyncOp` envelope and `SyncBatch` payloads.
+   - Maintain the spec in `docs/protocol-spec.md`.
    - Document the `(actor, clock, scope, resourceId)` dedupe key invariant.
-   - Include `clientId` in push/pull payloads for cursor tracking.
 
 2. Client outbox + cursor storage
    - Persist `outbox` and `lastServerSeq` alongside existing storage.
