@@ -46,7 +46,8 @@ export class SyncEngine {
       typeof options.pollIntervalMs === "number" && options.pollIntervalMs > 0
         ? Math.floor(options.pollIntervalMs)
         : DEFAULT_POLL_INTERVAL_MS;
-    this.fetchFn = options.fetchFn ?? fetch;
+    this.fetchFn =
+      options.fetchFn ?? globalThis.fetch?.bind(globalThis);
     this.onRemoteOps = options.onRemoteOps ?? null;
     this.state = { clientId: "", lastServerSeq: 0 };
     this.outbox = [];

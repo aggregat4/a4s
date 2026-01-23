@@ -85,6 +85,26 @@ function waitForDocumentReady() {
   return Promise.resolve();
 }
 
+async function resolveSyncBaseUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const enableSync =
+    window.location.port === "8080" || params.get("sync") === "1";
+  if (!enableSync) {
+    return null;
+  }
+  try {
+    const response = await fetch(`${window.location.origin}/healthz`, {
+      method: "GET",
+    });
+    if (response.ok) {
+      return window.location.origin;
+    }
+  } catch (err) {
+    // Ignore network failures; sync stays disabled.
+  }
+  return null;
+}
+
 export async function bootstrapListsApp(
   { seedConfigs }: { seedConfigs?: SeedConfig[] } = {}
 ) {
@@ -102,10 +122,9 @@ export async function bootstrapListsApp(
     customElements.upgrade(appRoot);
   }
   await resetPersistentStorageIfNeeded();
+  const syncBaseUrl = await resolveSyncBaseUrl();
   const repository = new ListRepository({
-    sync: {
-      baseUrl: window.location.origin,
-    },
+    sync: syncBaseUrl ? { baseUrl: syncBaseUrl } : null,
   });
   await ensureDemoData(repository, seedConfigs).catch(() => {});
   const appRootElement = appRoot as HTMLElement & {
