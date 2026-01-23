@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"prototype-lists/server/internal/storage"
@@ -208,5 +209,67 @@ func TestHealthz(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+}
+
+func TestTwoClientsSync(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	payload := map[string]any{
+		"clientId": "client-a",
+		"ops": []map[string]any{
+			{
+				"scope":      "registry",
+				"resourceId": "registry",
+				"actor":      "actor-a",
+				"clock":      1,
+				"payload": map[string]any{
+					"type":   "createList",
+					"listId": "list-1",
+					"title":  "Inbox",
+				},
+			},
+		},
+	}
+	body, _ := json.Marshal(payload)
+	resp, err := http.Post(server.URL+"/sync/push", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("push request: %v", err)
+	}
+	resp.Body.Close()
+
+	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-b")
+	if err != nil {
+		t.Fatalf("pull request: %v", err)
+	}
+	defer pullResp.Body.Close()
+	var pullPayload struct {
+		ServerSeq int64        `json:"serverSeq"`
+		Ops       []storage.Op `json:"ops"`
+	}
+	if err := json.NewDecoder(pullResp.Body).Decode(&pullPayload); err != nil {
+		t.Fatalf("decode pull: %v", err)
+	}
+	if pullPayload.ServerSeq == 0 {
+		t.Fatalf("serverSeq not updated")
+	}
+	if len(pullPayload.Ops) != 1 {
+		t.Fatalf("ops length: got %d", len(pullPayload.Ops))
+	}
+
+	pullResp2, err := http.Get(server.URL + "/sync/pull?since=" + strconv.FormatInt(pullPayload.ServerSeq, 10) + "&clientId=client-b")
+	if err != nil {
+		t.Fatalf("pull request: %v", err)
+	}
+	defer pullResp2.Body.Close()
+	var pullPayload2 struct {
+		Ops []storage.Op `json:"ops"`
+	}
+	if err := json.NewDecoder(pullResp2.Body).Decode(&pullPayload2); err != nil {
+		t.Fatalf("decode pull: %v", err)
+	}
+	if len(pullPayload2.Ops) != 0 {
+		t.Fatalf("ops length: got %d", len(pullPayload2.Ops))
 	}
 }
