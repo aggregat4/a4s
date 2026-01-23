@@ -21,6 +21,7 @@ class SidebarElement extends HTMLElement {
   private handlers: Partial<{
     onAddList: () => void;
     onDeleteList: () => void;
+    onSeedDemo: () => void;
     onSelectList: (listId: ListId) => void;
     onSearchChange: (value: string) => void;
     onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
@@ -40,6 +41,7 @@ class SidebarElement extends HTMLElement {
   private isListDragging: boolean;
   private pendingRender: boolean;
   private pendingRenderMode: "reorder" | "render" | null;
+  private showDemoSeed: boolean;
 
   private static readonly TASK_MIME = "application/x-a4-task";
 
@@ -57,6 +59,7 @@ class SidebarElement extends HTMLElement {
     this.isListDragging = false;
     this.pendingRender = false;
     this.pendingRenderMode = null;
+    this.showDemoSeed = false;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
     this.handleListDragEnter = this.handleListDragEnter.bind(this);
@@ -86,6 +89,7 @@ class SidebarElement extends HTMLElement {
     handlers: Partial<{
       onAddList: () => void;
       onDeleteList: () => void;
+      onSeedDemo: () => void;
       onSelectList: (listId: ListId) => void;
       onSearchChange: (value: string) => void;
       onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
@@ -96,6 +100,16 @@ class SidebarElement extends HTMLElement {
     }> = {}
   ) {
     this.handlers = handlers ?? {};
+  }
+
+  setDemoSeedEnabled(enabled: boolean) {
+    this.showDemoSeed = Boolean(enabled);
+    if (this.isListDragging) {
+      this.pendingRender = true;
+      this.pendingRenderMode = "render";
+    } else {
+      this.renderView();
+    }
   }
 
   init() {
@@ -234,6 +248,17 @@ class SidebarElement extends HTMLElement {
             this.handlers.onAddList?.()}>
             Add list
           </button>
+          ${this.showDemoSeed
+            ? html`
+                <button
+                  type="button"
+                  data-role="seed-demo"
+                  @click=${() => this.handlers.onSeedDemo?.()}
+                >
+                  Load demo data
+                </button>
+              `
+            : null}
           <button
             type="button"
             class="danger"
@@ -281,12 +306,12 @@ class SidebarElement extends HTMLElement {
       }
       this.currentSearch = "";
       this.handlers.onSearchChange?.("");
-    if (this.isListDragging) {
-      this.pendingRender = true;
-      this.pendingRenderMode = "render";
-    } else {
-      this.renderView();
-    }
+      if (this.isListDragging) {
+        this.pendingRender = true;
+        this.pendingRenderMode = "render";
+      } else {
+        this.renderView();
+      }
     }
   }
 

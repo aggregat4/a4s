@@ -250,6 +250,7 @@ export class ListRepository {
         onRemoteOps: async (ops) => this.applyRemoteOps(ops),
       });
       await this._sync.initialize();
+      await this._sync.bootstrapIfNeeded((ops) => this.applyRemoteOpsInternal(ops));
       this._sync.start();
     }
   }
@@ -382,6 +383,11 @@ export class ListRepository {
   async applyRemoteOps(ops: SyncOp[]) {
     if (!Array.isArray(ops) || ops.length === 0) return;
     await this.initialize();
+    await this.applyRemoteOpsInternal(ops);
+  }
+
+  private async applyRemoteOpsInternal(ops: SyncOp[]) {
+    if (!Array.isArray(ops) || ops.length === 0) return;
     const registryOps: ListsOperation[] = [];
     const listOps = new Map<ListId, TaskListOperation[]>();
     const changedLists = new Set<ListId>();

@@ -1,7 +1,7 @@
 import { ListRepository } from "../app/list-repository.js";
 import { DEFAULT_DB_NAME as LISTS_DB_NAME } from "../storage/list-storage.js";
+import type { SeedConfig } from "../app/demo-seed.js";
 import "../ui/components/app-shell.js";
-import type { TaskItem } from "../types/domain.js";
 
 async function resetPersistentStorageIfNeeded() {
   const params = new URLSearchParams(window.location.search);
@@ -34,45 +34,6 @@ async function resetPersistentStorageIfNeeded() {
   }
 }
 
-type SeedConfig = {
-  id?: string;
-  title?: string;
-  items?: TaskItem[];
-};
-
-async function ensureDemoData(
-  repository: ListRepository | null,
-  seedConfigs: SeedConfig[] | undefined
-) {
-  if (!repository || typeof repository.initialize !== "function") {
-    return false;
-  }
-  await repository.initialize();
-  if (!Array.isArray(seedConfigs) || !seedConfigs.length) {
-    return false;
-  }
-  if (
-    typeof repository.getListIds === "function" &&
-    repository.getListIds().length
-  ) {
-    return false;
-  }
-  let previousId = null;
-  for (const config of seedConfigs) {
-    const listId =
-      typeof config.id === "string" && config.id.length
-        ? config.id
-        : `seed-${crypto.randomUUID()}`;
-    await repository.createList({
-      listId,
-      title: config.title,
-      items: Array.isArray(config.items) ? config.items : [],
-      afterId: previousId,
-    });
-    previousId = listId;
-  }
-  return true;
-}
 
 function waitForDocumentReady() {
   if (document.readyState === "loading") {
@@ -123,15 +84,24 @@ export async function bootstrapListsApp(
   }
   await resetPersistentStorageIfNeeded();
   const syncBaseUrl = await resolveSyncBaseUrl();
+  const enableDemoSeed =
+    new URLSearchParams(window.location.search).get("demo") === "1";
   const repository = new ListRepository({
     sync: syncBaseUrl ? { baseUrl: syncBaseUrl } : null,
   });
-  await ensureDemoData(repository, seedConfigs).catch(() => {});
   const appRootElement = appRoot as HTMLElement & {
-    initialize?: (options: { repository: ListRepository }) => Promise<void> | void;
+    initialize?: (options: {
+      repository: ListRepository;
+      seedConfigs?: SeedConfig[];
+      enableDemoSeed?: boolean;
+    }) => Promise<void> | void;
   };
   if (typeof appRootElement.initialize === "function") {
-    await appRootElement.initialize({ repository });
+    await appRootElement.initialize({
+      repository,
+      seedConfigs,
+      enableDemoSeed,
+    });
   }
   window.listsApp = appRoot;
   return appRoot;
@@ -139,6 +109,5 @@ export async function bootstrapListsApp(
 
 export {
   resetPersistentStorageIfNeeded,
-  ensureDemoData,
   waitForDocumentReady,
 };

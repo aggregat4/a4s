@@ -23,6 +23,8 @@ type SyncPullResponse = {
   ops?: SyncOp[];
 };
 
+type SyncBootstrapResponse = SyncPullResponse;
+
 const DEFAULT_POLL_INTERVAL_MS = 2000;
 
 export class SyncEngine {
@@ -74,6 +76,28 @@ export class SyncEngine {
       await this.storage.persistSyncState(this.state);
     }
     this.outbox = Array.isArray(outbox) ? outbox : [];
+  }
+
+  async bootstrapIfNeeded(applyOps: (ops: SyncOp[]) => Promise<void>) {
+    if (this.outbox.length > 0) return;
+    if (this.state.lastServerSeq > 0) return;
+    if (!applyOps) return;
+    const response = await this.fetchFn(`${this.baseUrl}/sync/bootstrap`, {
+      method: "GET",
+    });
+    if (!response.ok) {
+      return;
+    }
+    const payload = (await response.json()) as SyncBootstrapResponse;
+    const ops = Array.isArray(payload.ops) ? payload.ops : [];
+    if (ops.length > 0) {
+      await applyOps(ops);
+    }
+    const nextSeq = parseServerSeq(payload.serverSeq);
+    if (nextSeq >= this.state.lastServerSeq) {
+      this.state.lastServerSeq = nextSeq;
+      await this.storage.persistSyncState(this.state);
+    }
   }
 
   start() {

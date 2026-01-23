@@ -98,6 +98,16 @@ async function setShowDone(page: Page, value: boolean) {
   return toggle;
 }
 
+async function gotoWithDemo(page: Page, url: string) {
+  const demoUrl = url.includes("?") ? `${url}&demo=1` : `${url}?demo=1`;
+  await page.goto(demoUrl);
+  const seedButton = page.getByRole("button", { name: "Load demo data" });
+  await seedButton.click();
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Prototype Tasks"
+  );
+}
+
 async function addTask(page: Page, text: string) {
   await page.getByRole("button", { name: "Add task" }).click();
   const editor = page.locator(listItemsSelector).first().locator(".text");
@@ -181,7 +191,7 @@ test("loads without console errors", async ({ page }) => {
     }
   });
 
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -197,7 +207,7 @@ test("loads without console errors", async ({ page }) => {
 test("tasklist header mirrors title, search, and show-done state", async ({
   page,
 }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
 
   const listSection = page.locator(
     "[data-role='lists-container'] .list-section.is-visible"
@@ -248,7 +258,7 @@ test("tasklist header mirrors title, search, and show-done state", async ({
 });
 
 test("undo/redo shortcuts revert task insertions", async ({ page }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -272,7 +282,7 @@ test("undo/redo shortcuts revert task insertions", async ({ page }) => {
 });
 
 test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -307,7 +317,7 @@ test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
 });
 
 test("undo/redo combines split edits into one step", async ({ page }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -344,7 +354,7 @@ test("undo/redo combines split edits into one step", async ({ page }) => {
 });
 
 test("undo merge after split keeps distinct tasks below", async ({ page }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
   page.once("dialog", async (dialog) => {
     await dialog.accept("Undo Merge List");
   });
@@ -403,7 +413,7 @@ test("undo merge after split keeps distinct tasks below", async ({ page }) => {
 test("undo/redo walks through text edits and task insertions", async ({
   page,
 }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -439,7 +449,7 @@ test("undo/redo walks through text edits and task insertions", async ({
 });
 
 test("sidebar list order updates after drag reorder", async ({ page }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
 
   const listItems = page.locator("[data-role='sidebar-list'] li");
   await expect(listItems).toHaveCount(3);
@@ -476,7 +486,7 @@ test("sidebar list order updates after drag reorder", async ({ page }) => {
 });
 
 test("sidebar drag can move a middle list to the top", async ({ page }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
 
   const listItems = page.locator("[data-role='sidebar-list'] li");
   await expect(listItems).toHaveCount(3);
@@ -503,7 +513,7 @@ test("sidebar drag can move a middle list to the top", async ({ page }) => {
 test("sidebar drag to top works even when pointer is above first item", async ({
   page,
 }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
 
   const listItems = page.locator("[data-role='sidebar-list'] li");
   await expect(listItems).toHaveCount(3);
@@ -528,7 +538,7 @@ test("sidebar drag to top works even when pointer is above first item", async ({
 
 test.describe("tasklist flows", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/?resetStorage=1");
+    await gotoWithDemo(page, "/?resetStorage=1");
     await expect(page.locator("[data-role='active-list-title']")).toHaveText(
       "Prototype Tasks"
     );
@@ -1430,7 +1440,7 @@ test("sidebar counts show only open items", async ({ page }) => {
 test("sidebar count updates after adding a task to a new list", async ({
   page,
 }) => {
-  await page.goto("/?resetStorage=1");
+  await gotoWithDemo(page, "/?resetStorage=1");
 
   page.once("dialog", (dialog) => dialog.accept("New List"));
   await page.locator("[data-role='add-list']").click();

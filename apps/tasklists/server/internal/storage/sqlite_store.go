@@ -32,7 +32,9 @@ CREATE TABLE IF NOT EXISTS clients (
 
 // SQLiteStore is a SQLite-backed implementation of Store.
 type SQLiteStore struct {
-	db *sql.DB
+	dbWrite *sql.DB
+	dbRead  *sql.DB
+	path    string
 }
 
 func OpenSQLite(path string) (*SQLiteStore, error) {
@@ -43,63 +45,114 @@ func OpenSQLite(path string) (*SQLiteStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	return &SQLiteStore{db: db}, nil
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	return &SQLiteStore{dbWrite: db, path: path}, nil
 }
 
 func (s *SQLiteStore) Init(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, "PRAGMA foreign_keys = ON;"); err != nil {
+	if _, err := s.dbWrite.ExecContext(ctx, "PRAGMA foreign_keys = ON;"); err != nil {
 		return fmt.Errorf("enable foreign keys: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, "PRAGMA journal_mode = WAL;"); err != nil {
+	if _, err := s.dbWrite.ExecContext(ctx, "PRAGMA journal_mode = WAL;"); err != nil {
 		return fmt.Errorf("enable wal: %w", err)
 	}
-	_, err := s.db.ExecContext(ctx, schema)
+	if _, err := s.dbWrite.ExecContext(ctx, "PRAGMA synchronous = NORMAL;"); err != nil {
+		return fmt.Errorf("set synchronous: %w", err)
+	}
+	if _, err := s.dbWrite.ExecContext(ctx, "PRAGMA busy_timeout = 5000;"); err != nil {
+		return fmt.Errorf("set busy timeout: %w", err)
+	}
+	_, err := s.dbWrite.ExecContext(ctx, schema)
 	if err != nil {
 		return fmt.Errorf("init schema: %w", err)
+	}
+	if s.dbRead == nil {
+		readDB, err := sql.Open("sqlite", s.path)
+		if err != nil {
+			return fmt.Errorf("open read sqlite: %w", err)
+		}
+		readDB.SetMaxOpenConns(10)
+		readDB.SetMaxIdleConns(10)
+		if _, err := readDB.ExecContext(ctx, "PRAGMA query_only = ON;"); err != nil {
+			return fmt.Errorf("set query only: %w", err)
+		}
+		if _, err := readDB.ExecContext(ctx, "PRAGMA busy_timeout = 5000;"); err != nil {
+			return fmt.Errorf("set read busy timeout: %w", err)
+		}
+		if _, err := readDB.ExecContext(ctx, "PRAGMA foreign_keys = ON;"); err != nil {
+			return fmt.Errorf("enable read foreign keys: %w", err)
+		}
+		s.dbRead = readDB
 	}
 	return nil
 }
 
 func (s *SQLiteStore) Close() error {
-	return s.db.Close()
+	var err error
+	if s.dbWrite != nil {
+		err = s.dbWrite.Close()
+	}
+	if s.dbRead != nil {
+		if closeErr := s.dbRead.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}
+	return err
 }
 
 func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 	if len(ops) == 0 {
 		return s.maxServerSeq(ctx)
 	}
-	transaction, err := s.db.BeginTx(ctx, nil)
+	conn, err := s.dbWrite.Conn(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("begin tx: %w", err)
+		return 0, fmt.Errorf("get write conn: %w", err)
 	}
-	stmt, err := transaction.PrepareContext(ctx, `
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE;"); err != nil {
+		return 0, fmt.Errorf("begin immediate: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		_, _ = conn.ExecContext(ctx, "ROLLBACK;")
+	}()
+
+	stmt, err := conn.PrepareContext(ctx, `
 		INSERT OR IGNORE INTO ops (scope, resource_id, actor, clock, payload)
 		VALUES (?, ?, ?, ?, ?)
 	`)
 	if err != nil {
-		_ = transaction.Rollback()
 		return 0, fmt.Errorf("prepare insert: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, op := range ops {
 		if op.Scope == "" || op.Resource == "" || op.Actor == "" || op.Clock <= 0 {
-			_ = transaction.Rollback()
 			return 0, fmt.Errorf("invalid op metadata: scope=%q resource=%q actor=%q clock=%d", op.Scope, op.Resource, op.Actor, op.Clock)
 		}
 		if _, err := stmt.ExecContext(ctx, op.Scope, op.Resource, op.Actor, op.Clock, string(op.Payload)); err != nil {
-			_ = transaction.Rollback()
 			return 0, fmt.Errorf("insert op: %w", err)
 		}
 	}
-	if err := transaction.Commit(); err != nil {
+	if _, err := conn.ExecContext(ctx, "COMMIT;"); err != nil {
 		return 0, fmt.Errorf("commit ops: %w", err)
 	}
+	committed = true
 	return s.maxServerSeq(ctx)
 }
 
 func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	db := s.dbRead
+	if db == nil {
+		db = s.dbWrite
+	}
+	rows, err := db.QueryContext(ctx, `
 		SELECT server_seq, scope, resource_id, actor, clock, payload
 		FROM ops
 		WHERE server_seq > ?
@@ -140,7 +193,7 @@ func (s *SQLiteStore) TouchClient(ctx context.Context, clientID string) error {
 	if clientID == "" {
 		return errors.New("clientId is required")
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.dbWrite.ExecContext(ctx, `
 		INSERT INTO clients (client_id, last_seen_server_seq, updated_at)
 		VALUES (?, 0, ?)
 		ON CONFLICT(client_id) DO UPDATE SET updated_at = excluded.updated_at
@@ -155,7 +208,7 @@ func (s *SQLiteStore) UpdateClientCursor(ctx context.Context, clientID string, s
 	if clientID == "" {
 		return errors.New("clientId is required")
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.dbWrite.ExecContext(ctx, `
 		INSERT INTO clients (client_id, last_seen_server_seq, updated_at)
 		VALUES (?, ?, ?)
 		ON CONFLICT(client_id) DO UPDATE SET
@@ -170,7 +223,11 @@ func (s *SQLiteStore) UpdateClientCursor(ctx context.Context, clientID string, s
 
 func (s *SQLiteStore) maxServerSeq(ctx context.Context) (int64, error) {
 	var maxSeq int64
-	row := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(server_seq), 0) FROM ops")
+	db := s.dbRead
+	if db == nil {
+		db = s.dbWrite
+	}
+	row := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(server_seq), 0) FROM ops")
 	if err := row.Scan(&maxSeq); err != nil {
 		return 0, fmt.Errorf("max server seq: %w", err)
 	}

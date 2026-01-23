@@ -1,5 +1,6 @@
 import { html, render } from "lit";
 import { ListRepository } from "../../app/list-repository.js";
+import { ensureDemoData, type SeedConfig } from "../../app/demo-seed.js";
 import { generateListId } from "../state/list-store.js";
 import { SidebarCoordinator } from "../state/sidebar-coordinator.js";
 import { MoveTasksController } from "../state/move-tasks-controller.js";
@@ -20,6 +21,7 @@ import "./a4-tasklist.js";
 type SidebarElement = HTMLElement & {
   init?: () => void;
   setSearchValue?: (value: string) => void;
+  setDemoSeedEnabled?: (enabled: boolean) => void;
   setLists?: (
     lists: Array<{
       id: ListId;
@@ -73,6 +75,8 @@ class ListsAppShellElement extends HTMLElement {
   private registry: ListRegistry | null;
   private moveTasksController: MoveTasksController | null;
   private repositorySync: RepositorySync | null;
+  private seedConfigs: SeedConfig[] | undefined;
+  private demoSeedEnabled: boolean;
   private unsubscribeStore: (() => void) | null;
   private lastOrder: ListId[];
   private lastActiveId: ListId | null;
@@ -97,6 +101,8 @@ class ListsAppShellElement extends HTMLElement {
     this.registry = null;
     this.moveTasksController = null;
     this.repositorySync = null;
+    this.seedConfigs = undefined;
+    this.demoSeedEnabled = false;
     this.unsubscribeStore = null;
     this.lastOrder = [];
     this.lastActiveId = null;
@@ -116,6 +122,7 @@ class ListsAppShellElement extends HTMLElement {
     this.handleListTitleChange = this.handleListTitleChange.bind(this);
     this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
     this.handleSidebarReorder = this.handleSidebarReorder.bind(this);
+    this.handleSeedDemo = this.handleSeedDemo.bind(this);
   }
 
   connectedCallback() {
@@ -163,7 +170,15 @@ class ListsAppShellElement extends HTMLElement {
     ) as MoveDialogElement | null;
   }
 
-  async initialize({ repository }: { repository?: ListRepository } = {}) {
+  async initialize({
+    repository,
+    seedConfigs,
+    enableDemoSeed,
+  }: {
+    repository?: ListRepository;
+    seedConfigs?: SeedConfig[];
+    enableDemoSeed?: boolean;
+  } = {}) {
     if (this.appInitialized) return;
     this.renderShell();
     await Promise.all([
@@ -176,6 +191,8 @@ class ListsAppShellElement extends HTMLElement {
     }
     this.cacheElements();
     this.repository = repository ?? new ListRepository();
+    this.seedConfigs = seedConfigs;
+    this.demoSeedEnabled = Boolean(enableDemoSeed);
     this.store = createAppStore();
     this.sidebarCoordinator = new SidebarCoordinator({
       sidebarElement: this.sidebarElement,
@@ -213,6 +230,7 @@ class ListsAppShellElement extends HTMLElement {
       onSelectList: this.handleListSelection,
       onAddList: this.handleAddList,
       onDeleteList: this.handleDeleteList,
+      onSeedDemo: this.handleSeedDemo,
       onItemDropped: (payload, targetListId) =>
         this.moveTasksController.handleSidebarDrop(payload, targetListId),
       onReorderList: this.handleSidebarReorder,
@@ -222,6 +240,7 @@ class ListsAppShellElement extends HTMLElement {
     this.lastActiveId = selectors.getActiveListId(this.store.getState());
     await this.repositorySync.initialize();
     this.sidebarElement?.init?.();
+    this.sidebarElement?.setDemoSeedEnabled?.(this.demoSeedEnabled);
     this.sidebarElement?.setSearchValue?.(this.store.getState().searchQuery);
     this.handleStoreChange();
     this.appInitialized = true;
@@ -405,6 +424,11 @@ class ListsAppShellElement extends HTMLElement {
         payload: { id: null },
       });
     });
+  }
+
+  async handleSeedDemo() {
+    if (!this.repository) return;
+    await ensureDemoData(this.repository, this.seedConfigs);
   }
 
   handleSidebarReorder({
