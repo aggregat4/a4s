@@ -10,6 +10,7 @@ import {
 } from "./serde.js";
 import type { ListId, ListState, RegistryState } from "../types/domain.js";
 import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
+import type { SyncOp, SyncState } from "../types/sync.js";
 import type {
   ListStorage,
   PersistedListRecord,
@@ -18,12 +19,17 @@ import type {
 
 const DB_NAME = "protoLists";
 export const DEFAULT_DB_NAME = DB_NAME;
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORE_LIST_STATES = "listStates";
 const STORE_LIST_OPERATIONS = "listOperations";
 const STORE_REGISTRY_STATE = "registryState";
 const STORE_REGISTRY_OPERATIONS = "registryOperations";
+const STORE_SYNC_STATE = "syncState";
+const STORE_SYNC_OUTBOX = "syncOutbox";
+
+const SYNC_STATE_ID = "sync";
+const OUTBOX_ID = "outbox";
 
 type StorageOptions = {
   dbName?: string;
@@ -111,6 +117,12 @@ function openDatabase(options: StorageOptions = {}) {
         db.createObjectStore(STORE_REGISTRY_OPERATIONS, {
           keyPath: ["clock", "actor"],
         });
+      }
+      if (!db.objectStoreNames.contains(STORE_SYNC_STATE)) {
+        db.createObjectStore(STORE_SYNC_STATE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(STORE_SYNC_OUTBOX)) {
+        db.createObjectStore(STORE_SYNC_OUTBOX, { keyPath: "id" });
       }
     };
     request.onerror = () => {
@@ -364,6 +376,55 @@ class IndexedDbListStorage implements ListStorage {
     };
   }
 
+  async loadSyncState(): Promise<SyncState> {
+    const db = await this.ready();
+    const transaction = db.transaction([STORE_SYNC_STATE], "readonly");
+    const completion = transactionCompleted(transaction);
+    const store = transaction.objectStore(STORE_SYNC_STATE);
+    const record = await promisifyRequest(store.get(SYNC_STATE_ID));
+    await completion;
+    return {
+      clientId: record?.clientId ?? "",
+      lastServerSeq: Number.isFinite(record?.lastServerSeq)
+        ? Math.max(0, Math.floor(record.lastServerSeq))
+        : 0,
+    };
+  }
+
+  async persistSyncState(state: SyncState) {
+    const db = await this.ready();
+    const transaction = db.transaction([STORE_SYNC_STATE], "readwrite");
+    const completion = transactionCompleted(transaction);
+    const store = transaction.objectStore(STORE_SYNC_STATE);
+    store.put({
+      id: SYNC_STATE_ID,
+      clientId: state.clientId ?? "",
+      lastServerSeq: Number.isFinite(state.lastServerSeq)
+        ? Math.max(0, Math.floor(state.lastServerSeq))
+        : 0,
+    });
+    await completion;
+  }
+
+  async loadOutbox(): Promise<SyncOp[]> {
+    const db = await this.ready();
+    const transaction = db.transaction([STORE_SYNC_OUTBOX], "readonly");
+    const completion = transactionCompleted(transaction);
+    const store = transaction.objectStore(STORE_SYNC_OUTBOX);
+    const record = await promisifyRequest(store.get(OUTBOX_ID));
+    await completion;
+    return Array.isArray(record?.ops) ? record.ops : [];
+  }
+
+  async persistOutbox(ops: SyncOp[]) {
+    const db = await this.ready();
+    const transaction = db.transaction([STORE_SYNC_OUTBOX], "readwrite");
+    const completion = transactionCompleted(transaction);
+    const store = transaction.objectStore(STORE_SYNC_OUTBOX);
+    store.put({ id: OUTBOX_ID, ops: Array.isArray(ops) ? ops : [] });
+    await completion;
+  }
+
   async persistRegistry({
     operations = [],
     snapshot = null,
@@ -434,6 +495,8 @@ class IndexedDbListStorage implements ListStorage {
         STORE_LIST_OPERATIONS,
         STORE_REGISTRY_STATE,
         STORE_REGISTRY_OPERATIONS,
+        STORE_SYNC_STATE,
+        STORE_SYNC_OUTBOX,
       ],
       "readwrite"
     );
@@ -442,6 +505,8 @@ class IndexedDbListStorage implements ListStorage {
     transaction.objectStore(STORE_LIST_OPERATIONS).clear();
     transaction.objectStore(STORE_REGISTRY_STATE).clear();
     transaction.objectStore(STORE_REGISTRY_OPERATIONS).clear();
+    transaction.objectStore(STORE_SYNC_STATE).clear();
+    transaction.objectStore(STORE_SYNC_OUTBOX).clear();
     await completion;
   }
 }

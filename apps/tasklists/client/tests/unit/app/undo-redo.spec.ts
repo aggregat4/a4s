@@ -18,6 +18,10 @@ const createMemoryStorage = (): ListStorage => ({
     operations: [],
     updatedAt: null,
   }),
+  loadSyncState: async () => ({ clientId: "", lastServerSeq: 0 }),
+  persistSyncState: async () => {},
+  loadOutbox: async () => [],
+  persistOutbox: async () => {},
   persistOperations: async () => {},
   persistRegistry: async () => {},
 });

@@ -17,8 +17,10 @@ import type {
 } from "../types/domain.js";
 import type { ListStorage } from "../types/storage.js";
 import type { TaskListOperation, ListsOperation } from "../types/crdt.js";
+import type { SyncOp } from "../types/sync.js";
 import { HistoryManager } from "./history-manager.js";
 import type { HistoryOp, HistoryScope } from "./history-types.js";
+import { SyncEngine } from "./sync-engine.js";
 
 type ListRecord = { crdt: TaskListCRDT };
 type StorageOptions = Record<string, unknown>;
@@ -29,6 +31,11 @@ type ListListener = (state: TaskListState) => void;
 type GlobalListener =
   | { type: "registry"; snapshot: ListRegistryEntry[] }
   | { type: "list"; listId: ListId; state: TaskListState };
+
+type SyncOptions = {
+  baseUrl?: string;
+  pollIntervalMs?: number;
+};
 
 function defaultListFactory(_listId: ListId, state: ListState | null = null) {
   return new TaskListCRDT({
@@ -88,6 +95,8 @@ export class ListRepository {
   private _initialized: boolean;
   private _initializing: Promise<void> | null;
   private _unsubscribeRegistry: (() => void) | null;
+  private _sync: SyncEngine | null;
+  private _syncOptions: SyncOptions | null;
 
   constructor(
     options: {
@@ -96,6 +105,7 @@ export class ListRepository {
       createListCrdt?: ListFactory;
       storageFactory?: StorageFactory;
       storageOptions?: StorageOptions;
+      sync?: SyncOptions | null;
     } = {}
   ) {
     this._listsCrdt =
@@ -103,6 +113,7 @@ export class ListRepository {
     this._createListCrdt = options.createListCrdt ?? defaultListFactory;
     this._storageFactory = options.storageFactory ?? createListStorage;
     this._storageOptions = options.storageOptions ?? {};
+    this._syncOptions = options.sync ?? null;
 
     this._storage = null;
     this._listMap = new Map();
@@ -118,6 +129,7 @@ export class ListRepository {
     this._initialized = false;
     this._initializing = null;
     this._unsubscribeRegistry = null;
+    this._sync = null;
   }
 
   recordHistory({
@@ -229,6 +241,17 @@ export class ListRepository {
         this.emitRegistryChange();
       }
     });
+
+    if (!this._sync && this._syncOptions?.baseUrl && this._storage) {
+      this._sync = new SyncEngine({
+        storage: this._storage,
+        baseUrl: this._syncOptions.baseUrl,
+        pollIntervalMs: this._syncOptions.pollIntervalMs,
+        onRemoteOps: async (ops) => this.applyRemoteOps(ops),
+      });
+      await this._sync.initialize();
+      this._sync.start();
+    }
   }
 
   dispose() {
@@ -238,6 +261,8 @@ export class ListRepository {
     this._listListeners.clear();
     this._globalListeners.clear();
     this._storage = null;
+    this._sync?.stop();
+    this._sync = null;
     this._listMap.clear();
     this._history.clear();
     this._historySuppressed = 0;
@@ -352,6 +377,81 @@ export class ListRepository {
         // ignore listener errors
       }
     });
+  }
+
+  async applyRemoteOps(ops: SyncOp[]) {
+    if (!Array.isArray(ops) || ops.length === 0) return;
+    await this.initialize();
+    const registryOps: ListsOperation[] = [];
+    const listOps = new Map<ListId, TaskListOperation[]>();
+    const changedLists = new Set<ListId>();
+    let registryChanged = false;
+
+    this._historySuppressed += 1;
+    try {
+      for (const entry of ops) {
+        if (!entry || typeof entry !== "object") continue;
+        if (entry.scope === "registry") {
+          const payload = entry.payload as ListsOperation;
+          if (!payload || typeof payload !== "object") continue;
+          const applied = this._listsCrdt.applyOperation(payload);
+          if (applied) {
+            registryChanged = true;
+            registryOps.push(payload);
+            if (payload.type === "createList" && payload.listId) {
+              if (!this._listMap.has(payload.listId)) {
+                const listCrdt = this._createListInstance(payload.listId, null);
+                this._listMap.set(payload.listId, { crdt: listCrdt });
+              }
+            }
+            if (payload.type === "removeList" && payload.listId) {
+              this._listMap.delete(payload.listId);
+              this.clearTextEditSessionsForList(payload.listId);
+              this.clearTextUpdateQueueForList(payload.listId);
+              this.clearPendingInsertsForList(payload.listId);
+            }
+          }
+          continue;
+        }
+        if (entry.scope === "list") {
+          const listId = entry.resourceId as ListId;
+          if (!listId) continue;
+          const payload = entry.payload as TaskListOperation;
+          if (!payload || typeof payload !== "object") continue;
+          let record = this._listMap.get(listId);
+          if (!record) {
+            record = { crdt: this._createListInstance(listId, null) };
+            this._listMap.set(listId, record);
+          }
+          const applied = record.crdt.applyOperation(payload);
+          if (applied) {
+            changedLists.add(listId);
+            if (!listOps.has(listId)) {
+              listOps.set(listId, []);
+            }
+            listOps.get(listId)?.push(payload);
+          }
+        }
+      }
+    } finally {
+      this._historySuppressed = Math.max(0, this._historySuppressed - 1);
+    }
+
+    if (registryOps.length > 0) {
+      await this._persistRegistry(registryOps, { origin: "remote" });
+    }
+    for (const [listId, opsForList] of listOps.entries()) {
+      const record = this._listMap.get(listId);
+      if (!record?.crdt) continue;
+      await this._persistList(listId, record.crdt, opsForList, {
+        origin: "remote",
+      });
+    }
+
+    if (registryChanged) {
+      this.emitRegistryChange();
+    }
+    changedLists.forEach((listId) => this.emitListChange(listId));
   }
 
   async createList(options: ListCreateInput = {}) {
@@ -1094,23 +1194,37 @@ export class ListRepository {
   _persistList(
     listId: ListId,
     crdt: TaskListCRDT,
-    ops: TaskListOperation[] = []
+    ops: TaskListOperation[] = [],
+    options: { origin?: "local" | "remote" } = {}
   ) {
     if (!this._storage || !crdt) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
     const snapshot = crdt.exportState();
-    return Promise.resolve(
+    const persist = Promise.resolve(
       this._storage.persistOperations(listId, operations, { snapshot })
     ).catch(() => {});
+    if (options.origin !== "remote" && operations.length > 0) {
+      persist.then(() => this._sync?.enqueueOps("list", listId, operations));
+    }
+    return persist;
   }
 
-  _persistRegistry(ops: ListsOperation[] = []) {
+  _persistRegistry(
+    ops: ListsOperation[] = [],
+    options: { origin?: "local" | "remote" } = {}
+  ) {
     if (!this._storage) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
     const snapshot = this._listsCrdt.exportState();
-    return Promise.resolve(
+    const persist = Promise.resolve(
       this._storage.persistRegistry({ operations, snapshot })
     ).catch(() => {});
+    if (options.origin !== "remote" && operations.length > 0) {
+      persist.then(() =>
+        this._sync?.enqueueOps("registry", "registry", operations)
+      );
+    }
+    return persist;
   }
 
   private enqueueHistoryAction<T>(action: () => Promise<T>) {

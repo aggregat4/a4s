@@ -10,10 +10,14 @@ const clone = (value) =>
 class MemoryListStorage {
     lists: Map<string, any>;
     registry: any;
+    syncState: any;
+    outbox: any[];
 
     constructor() {
         this.lists = new Map();
         this.registry = { state: null, operations: [], updatedAt: null };
+        this.syncState = { clientId: "", lastServerSeq: 0 };
+        this.outbox = [];
     }
 
     async ready() {}
@@ -38,6 +42,22 @@ class MemoryListStorage {
             operations: this.registry.operations.map((op) => clone(op)),
             updatedAt: this.registry.updatedAt,
         };
+    }
+
+    async loadSyncState() {
+        return clone(this.syncState);
+    }
+
+    async persistSyncState(state: any) {
+        this.syncState = clone(state);
+    }
+
+    async loadOutbox() {
+        return this.outbox.map((op) => clone(op));
+    }
+
+    async persistOutbox(ops: any[] = []) {
+        this.outbox = Array.isArray(ops) ? ops.map((op) => clone(op)) : [];
     }
 
     async persistOperations(listId, operations = [], options: any = {}) {
