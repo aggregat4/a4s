@@ -1,6 +1,7 @@
 import type { PlaywrightTestConfig } from "@playwright/test";
 
-const port = 8000;
+const useGoServer = process.env.PLAYWRIGHT_USE_GO_SERVER === "1";
+const port = useGoServer ? 8080 : 8000;
 const baseURL =
   process.env.PLAYWRIGHT_TEST_BASE_URL ?? `http://127.0.0.1:${port}`;
 
@@ -9,16 +10,18 @@ const dockerImage =
   "mcr.microsoft.com/playwright:v1.56.0-jammy";
 const repositoryPath = process.cwd();
 const useDockerServer = process.env.PLAYWRIGHT_USE_DOCKER === "1";
-const webServerCommand = useDockerServer
-  ? [
-      "docker run --rm -i",
-      `-p ${port}:${port}`,
-      `-v "${repositoryPath}":/work`,
-      "-w /work",
-      dockerImage,
-      `bash -lc "npx http-server dist -p ${port} -c-1"`,
-    ].join(" ")
-  : `npx http-server dist -p ${port} -c-1`;
+const webServerCommand = useGoServer
+  ? 'bash -lc "cd .. && ./scripts/run-local.sh"'
+  : useDockerServer
+    ? [
+        "docker run --rm -i",
+        `-p ${port}:${port}`,
+        `-v "${repositoryPath}":/work`,
+        "-w /work",
+        dockerImage,
+        `bash -lc "npx http-server dist -p ${port} -c-1"`,
+      ].join(" ")
+    : `npx http-server dist -p ${port} -c-1`;
 
 const config: PlaywrightTestConfig = {
   testDir: "tests",

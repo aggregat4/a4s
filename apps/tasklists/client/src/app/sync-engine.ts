@@ -23,7 +23,7 @@ type SyncPullResponse = {
   ops?: SyncOp[];
 };
 
-const DEFAULT_POLL_INTERVAL_MS = 4000;
+const DEFAULT_POLL_INTERVAL_MS = 2000;
 
 export class SyncEngine {
   private storage: ListStorage;
@@ -33,7 +33,9 @@ export class SyncEngine {
   private onRemoteOps: ((ops: SyncOp[]) => Promise<void> | void) | null;
   private state: SyncState;
   private outbox: SyncOp[];
-  private timer: ReturnType<typeof setInterval> | null;
+  private timer: ReturnType<typeof setTimeout> | null;
+  private isPolling: boolean;
+  private isActive: boolean;
   private syncQueue: Promise<void>;
   private defaultClientId: string | null;
 
@@ -51,6 +53,8 @@ export class SyncEngine {
     this.timer = null;
     this.syncQueue = Promise.resolve();
     this.defaultClientId = options.clientId ?? null;
+    this.isPolling = false;
+    this.isActive = false;
   }
 
   async initialize() {
@@ -73,16 +77,34 @@ export class SyncEngine {
 
   start() {
     if (this.timer != null) return;
-    this.timer = setInterval(() => {
-      void this.syncOnce();
-    }, this.pollIntervalMs);
-    void this.syncOnce();
+    this.isActive = true;
+    void this.poll();
   }
 
   stop() {
     if (this.timer != null) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
+    }
+    this.isActive = false;
+  }
+
+  private async poll() {
+    if (this.isPolling) return;
+    this.isPolling = true;
+    try {
+      await this.syncOnce();
+    } finally {
+      this.isPolling = false;
+      if (!this.isActive) {
+        return;
+      }
+      if (this.timer != null) {
+        clearTimeout(this.timer);
+      }
+      this.timer = setTimeout(() => {
+        void this.poll();
+      }, this.pollIntervalMs);
     }
   }
 
