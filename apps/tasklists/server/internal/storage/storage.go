@@ -1,6 +1,13 @@
 package storage
 
-// Store is a placeholder for the op-log backed storage layer.
+import "context"
+
+// Store provides access to the op log and client cursor tracking.
 type Store interface {
-	// TODO: define op ingestion, pull, and cursor tracking APIs.
+	Init(ctx context.Context) error
+	Close() error
+	InsertOps(ctx context.Context, ops []Op) (int64, error)
+	GetOpsSince(ctx context.Context, since int64) ([]Op, int64, error)
+	TouchClient(ctx context.Context, clientID string) error
+	UpdateClientCursor(ctx context.Context, clientID string, serverSeq int64) error
 }

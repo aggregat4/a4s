@@ -7,6 +7,7 @@ currently stubbed.
 
 ```
 cd server
+export SERVER_DB_PATH=./data.db
 go run ./cmd/server
 ```
 
