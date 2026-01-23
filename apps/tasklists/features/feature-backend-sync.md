@@ -12,7 +12,7 @@
 
 In scope:
 - Sync protocol for registry + list operations.
-- Server storage for op log + optional snapshots.
+- Server storage for op log.
 - Client outbox + pull updates with safe merge behavior.
 - Fixed-interval polling for refresh.
 - Monorepo layout proposal.
@@ -52,17 +52,16 @@ Out of scope (initially):
 
 - Accept op batches and dedupe on `(actor, clock, scope, resourceId)`.
 - Assign `serverSeq` in arrival order to enable incremental pulls.
-- Store op log and (optionally) periodic snapshots for fast bootstrap.
-- Serve bootstrap payload with the latest merged snapshot + current `serverSeq`.
-  - If snapshots are deferred, serve a full op log replay.
+- Store op log for bootstrap and incremental pulls.
+- Serve bootstrap payload with full op log replay + current `serverSeq`.
 - Track `clientId` cursors to make compaction safe.
 
 ### Sync Flow
 
 1. Bootstrap
    - Client calls `GET /sync/bootstrap`.
-   - Response includes op log (or snapshots if later added) and current `serverSeq`.
-   - Client hydrates repository with op replay or snapshot, then starts live sync.
+   - Response includes op log and current `serverSeq`.
+   - Client hydrates repository with op replay, then starts live sync.
 
 2. Push
    - Client sends batched ops from outbox.
@@ -94,7 +93,6 @@ Out of scope (initially):
 
 - Storage tables (SQLite):
   - `ops`: `serverSeq`, `scope`, `resourceId`, `actor`, `clock`, `payload`.
-  - `snapshots`: registry + list snapshots, `serverSeq` (future).
   - `clients`: `clientId`, `lastSeenServerSeq`.
 
 - Compaction:
@@ -152,8 +150,7 @@ Tooling options:
    - Implement fixed-interval polling for updates.
    - Update client to poll and apply remote ops.
 
-6. Compaction + snapshots
-   - Periodic snapshot generation (optional, later phase).
+6. Compaction
    - Prune old ops only when safe for all known clients.
    - Future improvement: expire inactive clients to unblock compaction.
 
@@ -166,6 +163,11 @@ Tooling options:
 
 - Decision: Go backend with op-log storage; server treats payload as opaque.
 - CRDT logic stays client-side; snapshots are deferred and optional.
+
+## Future Enhancements (Optional)
+
+- Add server-side snapshots to speed up bootstrap on large datasets.
+- Add compaction that leverages snapshots once they exist.
 
 ## Decision Log
 
