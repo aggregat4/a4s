@@ -85,7 +85,7 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 	for _, op := range ops {
 		if op.Scope == "" || op.Resource == "" || op.Actor == "" || op.Clock <= 0 {
 			_ = transaction.Rollback()
-			return 0, errors.New("invalid op metadata")
+			return 0, fmt.Errorf("invalid op metadata: scope=%q resource=%q actor=%q clock=%d", op.Scope, op.Resource, op.Actor, op.Clock)
 		}
 		if _, err := stmt.ExecContext(ctx, op.Scope, op.Resource, op.Actor, op.Clock, string(op.Payload)); err != nil {
 			_ = transaction.Rollback()

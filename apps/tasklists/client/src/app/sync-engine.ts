@@ -143,15 +143,9 @@ export class SyncEngine {
       return;
     }
     const payload = (await response.json()) as SyncPushResponse;
-    this.state.lastServerSeq = Math.max(
-      this.state.lastServerSeq,
-      parseServerSeq(payload.serverSeq)
-    );
+    parseServerSeq(payload.serverSeq);
     this.outbox = [];
-    await Promise.all([
-      this.storage.persistOutbox(this.outbox),
-      this.storage.persistSyncState(this.state),
-    ]);
+    await this.storage.persistOutbox(this.outbox);
   }
 
   private async pullRemoteOps() {
