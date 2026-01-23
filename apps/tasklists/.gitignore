@@ -3,3 +3,4 @@ dist/
 test-results/
 playwright-output.log
 data.db*
+test.db*
