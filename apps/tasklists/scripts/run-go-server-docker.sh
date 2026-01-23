@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-PORT=${PORT:-8000}
-IMAGE=${PLAYWRIGHT_GO_DOCKER_IMAGE:-golang:1.25-bookworm}
-CONTAINER_NAME=${PLAYWRIGHT_GO_SERVER_CONTAINER_NAME:-prototype-lists-go-server}
+PORT=8000
+IMAGE=golang:1.25-bookworm
+CONTAINER_NAME=prototype-lists-go-server
 
 CID=$(docker run -d --rm \
   --name "${CONTAINER_NAME}" \

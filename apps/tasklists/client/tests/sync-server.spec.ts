@@ -4,11 +4,6 @@ const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
 
 test("sync propagates tasks between clients", async ({ browser }) => {
-  test.skip(
-    process.env.PLAYWRIGHT_USE_GO_SERVER !== "1",
-    "requires Go server"
-  );
-
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
   const pageA = await contextA.newPage();

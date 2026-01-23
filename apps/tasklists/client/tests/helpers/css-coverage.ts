@@ -48,7 +48,7 @@ function shouldTrackSheet(sourceURL?: string) {
 }
 
 export function isCssCoverageEnabled() {
-  return process.env.PLAYWRIGHT_CSS_COVERAGE === "1";
+  return true;
 }
 
 export async function startCssCoverage(page: Page) {
