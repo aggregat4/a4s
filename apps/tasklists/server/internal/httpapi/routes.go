@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -53,6 +54,7 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		Ops      []storage.Op `json:"ops"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
+		log.Printf("sync push decode error: %v", err)
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -62,10 +64,12 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 	}
 	serverSeq, err := s.store.InsertOps(r.Context(), payload.Ops)
 	if err != nil {
+		log.Printf("sync push insert error client=%s ops=%d: %v", payload.ClientID, len(payload.Ops), err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	if err := s.store.TouchClient(r.Context(), payload.ClientID); err != nil {
+		log.Printf("sync push touch error client=%s: %v", payload.ClientID, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -94,10 +98,12 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 	}
 	ops, serverSeq, err := s.store.GetOpsSince(r.Context(), since)
 	if err != nil {
+		log.Printf("sync pull error client=%s since=%d: %v", clientID, since, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	if err := s.store.UpdateClientCursor(r.Context(), clientID, serverSeq); err != nil {
+		log.Printf("sync pull cursor error client=%s seq=%d: %v", clientID, serverSeq, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

@@ -11,7 +11,7 @@
     "test": "npm run test:e2e",
     "test:e2e": "PLAYWRIGHT_CSS_COVERAGE=1 npm run build && npx playwright test --project=chromium",
     "test:e2e:no-coverage": "npm run build && npx playwright test --project=chromium",
-    "test:e2e:server": "PLAYWRIGHT_USE_GO_SERVER=1 PLAYWRIGHT_CSS_COVERAGE=1 npx playwright test --project=chromium",
+    "test:e2e:server": "npm run build && PLAYWRIGHT_USE_GO_SERVER=1 PLAYWRIGHT_CSS_COVERAGE=1 npx playwright test --project=chromium",
     "test:e2e:headed": "npm run build && npx playwright test --project=chromium --headed",
     "test:e2e:firefox": "npm run build && npx playwright test --project=firefox",
     "test:e2e:firefox:headed": "npm run build && npx playwright test --project=firefox --headed",
