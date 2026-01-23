@@ -102,7 +102,11 @@ export async function bootstrapListsApp(
     customElements.upgrade(appRoot);
   }
   await resetPersistentStorageIfNeeded();
-  const repository = new ListRepository();
+  const repository = new ListRepository({
+    sync: {
+      baseUrl: window.location.origin,
+    },
+  });
   await ensureDemoData(repository, seedConfigs).catch(() => {});
   const appRootElement = appRoot as HTMLElement & {
     initialize?: (options: { repository: ListRepository }) => Promise<void> | void;

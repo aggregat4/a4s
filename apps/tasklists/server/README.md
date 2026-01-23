@@ -1,14 +1,11 @@
 # Server
 
-Skeleton for the Go backend. Endpoints match `docs/protocol-spec.md` but are
-currently stubbed.
+Go backend for sync and static hosting. Endpoints match `docs/protocol-spec.md`.
 
 ## Run
 
 ```
-cd server
-export SERVER_DB_PATH=./data.db
-go run ./cmd/server
+./scripts/run-local.sh
 ```
 
 ## Build and Lint

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -38,6 +39,7 @@ func main() {
 	mux := http.NewServeMux()
 	serverAPI := httpapi.NewServer(store)
 	serverAPI.RegisterRoutes(mux)
+	registerStatic(mux)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -57,4 +59,28 @@ func ensureParentDir(path string) error {
 		return nil
 	}
 	return os.MkdirAll(dir, 0o755)
+}
+
+func registerStatic(mux *http.ServeMux) {
+	staticDir := os.Getenv("SERVER_STATIC_DIR")
+	if staticDir == "" {
+		staticDir = filepath.Join("..", "client", "dist")
+	}
+	info, err := os.Stat(staticDir)
+	if err != nil || !info.IsDir() {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Printf("static dir error: %v", err)
+		}
+		return
+	}
+	fileServer := http.FileServer(http.Dir(staticDir))
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(staticDir, filepath.Clean(r.URL.Path))
+		if _, err := os.Stat(path); err == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+	}))
+	log.Printf("serving static files from %s", staticDir)
 }
