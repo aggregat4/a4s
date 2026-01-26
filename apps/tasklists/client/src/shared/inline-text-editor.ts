@@ -2,7 +2,7 @@
 // We keep it custom so we can honor task keyboard shortcuts without fighting native inputs.
 import type { CaretPreference } from "../types/caret.js";
 import { isOffsetCaret } from "../types/caret.js";
-import { SHORTCUTS, matchesShortcut } from "../ui/state/shortcuts.js";
+import { SHORTCUTS, matchesShortcut, pickShortcut } from "../ui/state/shortcuts.js";
 type CaretColumnPreference = Extract<CaretPreference, { type: "caret-column" }>;
 
 export default class InlineTextEditor {
@@ -261,15 +261,14 @@ export default class InlineTextEditor {
     if (!textEl) return;
     const fullText = textEl.textContent ?? "";
     const isMoveShortcut =
-      (e.key === "ArrowDown" || e.key === "ArrowUp") &&
-      !e.altKey &&
-      (e.metaKey || e.ctrlKey);
+      matchesShortcut(e, SHORTCUTS.moveItemDown) ||
+      matchesShortcut(e, SHORTCUTS.moveItemUp);
     if (isMoveShortcut) {
       e.preventDefault();
       const { start, end } = this.getSelectionOffsets(textEl);
       this.options.onMove?.({
         element: textEl,
-        direction: e.key === "ArrowDown" ? "down" : "up",
+        direction: matchesShortcut(e, SHORTCUTS.moveItemDown) ? "down" : "up",
         selectionStart: start,
         selectionEnd: end,
       });
@@ -288,6 +287,10 @@ export default class InlineTextEditor {
       }
     }
     if (e.key === "Enter") {
+      const match = pickShortcut(e, [SHORTCUTS.splitTask, SHORTCUTS.toggleDone]);
+      if (!match || match.id !== SHORTCUTS.splitTask.id) {
+        return;
+      }
       e.preventDefault();
       const { start, end } = this.getSelectionOffsets(textEl);
       const beforeText = fullText.slice(0, start);
@@ -475,7 +478,12 @@ export default class InlineTextEditor {
       direction === "down"
         ? (li.nextElementSibling as HTMLElement | null)
         : (li.previousElementSibling as HTMLElement | null);
-    while (sibling && sibling.classList?.contains("placeholder")) {
+    const isHidden = (node: HTMLElement) =>
+      node.hasAttribute("hidden") || node.hidden === true;
+    while (
+      sibling &&
+      (sibling.classList?.contains("placeholder") || isHidden(sibling))
+    ) {
       sibling =
         direction === "down"
           ? (sibling.nextElementSibling as HTMLElement | null)

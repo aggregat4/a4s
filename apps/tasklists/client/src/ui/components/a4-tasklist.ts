@@ -1964,6 +1964,68 @@ class A4TaskList extends HTMLElement {
     textTarget?.focus();
   }
 
+  toggleItemDone(itemId: string) {
+    if (!this.store) return;
+    const snapshot = this.getItemSnapshot(itemId);
+    if (!snapshot) return;
+    const nextDone = !Boolean(snapshot.done);
+    const shouldMoveFocus = nextDone && this.showDone === false;
+    if (shouldMoveFocus) {
+      const state = this.store.getState();
+      const items = Array.isArray(state?.items) ? state.items : [];
+      const tokens = tokenizeSearchQuery(this.searchQuery);
+      const isVisible = (item: TaskItem) =>
+        matchesSearchEntry({
+          originalText: item?.text ?? "",
+          noteText: item?.note ?? "",
+          tokens,
+          showDone: this.showDone,
+          isDone: Boolean(item?.done),
+        });
+      const currentIndex = items.findIndex((item) => item.id === itemId);
+      let focusTargetId: string | null = null;
+      if (currentIndex !== -1) {
+        for (let i = currentIndex + 1; i < items.length; i += 1) {
+          if (isVisible(items[i])) {
+            focusTargetId = items[i].id;
+            break;
+          }
+        }
+        if (!focusTargetId) {
+          for (let i = currentIndex - 1; i >= 0; i -= 1) {
+            if (isVisible(items[i])) {
+              focusTargetId = items[i].id;
+              break;
+            }
+          }
+        }
+      }
+      if (this.inlineEditor?.editingEl) {
+        this.inlineEditor.finishEditing(this.inlineEditor.editingEl);
+      }
+      if (focusTargetId) {
+        this.editController.queue(focusTargetId, "end");
+        this.schedulePendingEditFlush();
+      } else {
+        this.editController.clear();
+      }
+    }
+    setTimeout(() => {
+      this.store?.dispatch({
+        type: LIST_ACTIONS.setItemDone,
+        payload: { id: itemId, done: nextDone },
+      });
+      if (this._repository && this.listId) {
+        const promise = this._repository.toggleTask(
+          this.listId,
+          itemId,
+          nextDone
+        );
+        this.runRepositoryOperation(promise);
+      }
+    }, 0);
+  }
+
   toggleNoteForItem(itemId: string, { focus = false } = {}) {
     if (!itemId) return;
     if (this.openNoteItemIds.has(itemId)) {
@@ -2080,6 +2142,31 @@ class A4TaskList extends HTMLElement {
       this.toggleNoteForItem(itemId, { focus: true });
       return;
     }
+    if (
+      matchesShortcut(event, SHORTCUTS.jumpToListStart) ||
+      matchesShortcut(event, SHORTCUTS.jumpToListEnd)
+    ) {
+      if (!this.store) return;
+      const items = this.store.getState()?.items ?? [];
+      if (!items.length) return;
+      const isEnd = matchesShortcut(event, SHORTCUTS.jumpToListEnd);
+      const targetItem = isEnd ? items[items.length - 1] : items[0];
+      if (!targetItem?.id) return;
+      event.preventDefault();
+      this.startEditingItem(targetItem.id, isEnd ? "end" : "start");
+      return;
+    }
+    if (matchesShortcut(event, SHORTCUTS.toggleDone)) {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const li = target.closest?.("li");
+      if (!li) return;
+      const itemId = li.dataset?.itemId ?? null;
+      if (!itemId) return;
+      event.preventDefault();
+      this.toggleItemDone(itemId);
+      return;
+    }
     if (!matchesShortcut(event, SHORTCUTS.moveTask)) return;
     const target = event.target as HTMLElement | null;
     if (!target) return;
@@ -2142,6 +2229,15 @@ class A4TaskList extends HTMLElement {
     const target = event.target as HTMLElement | null;
     const isEditing = Boolean(target?.closest?.("[contenteditable='true']"));
     if (!isEditing) return;
+    if (matchesShortcut(event, SHORTCUTS.toggleDone)) {
+      const li = target?.closest?.("li");
+      const itemId = li?.dataset?.itemId ?? null;
+      if (!itemId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleItemDone(itemId);
+      return;
+    }
     if (matchesShortcut(event, SHORTCUTS.undo)) {
       event.preventDefault();
       void this._repository.undo();

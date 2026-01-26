@@ -24,6 +24,8 @@
     --color-accent-rgb: 28 126 214;
     --color-border-strong-rgb: 77 77 77;
     --color-editing-outline: rgb(var(--color-border-strong-rgb) / 20%);
+    --field-focus-outline: 2px solid var(--color-editing-outline);
+    --field-focus-outline-offset: 2px;
     --shadow-drag: 0 8px 24px rgb(var(--color-black-rgb) / 18%);
     --radius-sm: 4px;
     --space-xs: 6px;
@@ -158,8 +160,8 @@ button {
     color: var(--color-text);
 
     &:focus {
-        outline: 2px solid var(--outline-color);
-        outline-offset: 2px;
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
     }
 }
 
@@ -412,8 +414,8 @@ a4-tasklist {
     max-width: 100%;
 
     &:focus {
-        outline: 2px solid var(--outline-color);
-        outline-offset: 2px;
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
     }
 }
 
@@ -489,14 +491,11 @@ a4-tasklist {
 }
 
 .task-text:focus-visible,
-.task-item.is-focused.editing .task-text,
+.task-item.is-focused .task-text,
 .task-text.text-editing {
-    outline: 2px solid var(--color-editing-outline);
-    outline-offset: 2px;
-}
-
-.task-item.is-focused.editing .task-text {
-    background-color: white;
+    background-color: var(--color-surface-muted);
+    outline: var(--field-focus-outline);
+    outline-offset: var(--field-focus-outline-offset);
 }
 
 .task-text mark {
@@ -537,8 +536,8 @@ a4-tasklist {
     border: none;
     background: transparent;
     color: var(--color-muted);
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     padding: 0;
     flex-shrink: 0;
     display: inline-flex;
@@ -546,7 +545,7 @@ a4-tasklist {
     justify-content: center;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 20px 20px;
+    background-size: 22px 22px;
     background-image: var(--task-note-icon);
     cursor: pointer;
 
@@ -556,8 +555,8 @@ a4-tasklist {
     }
 
     &:focus-visible {
-        outline: 2px solid var(--outline-color);
-        outline-offset: 2px;
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
     }
 }
 
@@ -571,8 +570,6 @@ a4-tasklist {
 }
 
 .task-note-panel {
-    /* border-top: 1px solid var(--color-border-muted); */
-    /* background: var(--color-surface-muted); */
     padding: var(--space-xs) var(--space-sm) var(--space-sm)
         calc(20px + var(--space-sm) * 2);
 }
@@ -582,7 +579,6 @@ a4-tasklist {
     min-height: 64px;
     resize: vertical;
     box-sizing: border-box;
-    /* border-radius: var(--radius-sm); */
     border: 1px solid var(--color-border-muted);
     padding: var(--space-xs);
     font: inherit;
@@ -590,8 +586,8 @@ a4-tasklist {
     background: var(--color-surface);
 
     &:focus-visible {
-        outline: 2px solid var(--color-editing-outline);
-        outline-offset: 2px;
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
     }
 }
 
@@ -636,7 +632,6 @@ a4-tasklist {
     gap: var(--space-xs);
     padding: 0;
     margin: 0;
-    /* background-color: var(--color-surface); */
     max-width: 0;
     opacity: 0;
     pointer-events: none;

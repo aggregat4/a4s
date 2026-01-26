@@ -8,6 +8,10 @@ type Shortcut = {
 };
 
 const SHORTCUTS = {
+  splitTask: {
+    id: "split-task",
+    key: "enter",
+  },
   undo: {
     id: "undo",
     key: "z",
@@ -37,6 +41,31 @@ const SHORTCUTS = {
     id: "toggle-note",
     key: "n",
     modifiers: ["alt"],
+  },
+  jumpToListStart: {
+    id: "jump-list-start",
+    key: "home",
+    modifiers: ["ctrl"],
+  },
+  jumpToListEnd: {
+    id: "jump-list-end",
+    key: "end",
+    modifiers: ["ctrl"],
+  },
+  toggleDone: {
+    id: "toggle-done",
+    key: "enter",
+    modifiers: ["ctrl"],
+  },
+  moveItemUp: {
+    id: "move-item-up",
+    key: "arrowup",
+    modifiers: ["mod"],
+  },
+  moveItemDown: {
+    id: "move-item-down",
+    key: "arrowdown",
+    modifiers: ["mod"],
   },
 } satisfies Record<string, Shortcut>;
 
@@ -78,4 +107,20 @@ const matchesShortcut = (event: KeyboardEvent, shortcut: Shortcut) => {
   return true;
 };
 
-export { SHORTCUTS, matchesShortcut };
+const getShortcutSpecificity = (shortcut: Shortcut) => {
+  const modifiers = new Set(shortcut.modifiers ?? []);
+  return modifiers.size;
+};
+
+const pickShortcut = (
+  event: KeyboardEvent,
+  shortcuts: Shortcut[]
+) => {
+  if (!event || !Array.isArray(shortcuts)) return null;
+  const matches = shortcuts.filter((shortcut) => matchesShortcut(event, shortcut));
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => getShortcutSpecificity(b) - getShortcutSpecificity(a));
+  return matches[0];
+};
+
+export { SHORTCUTS, matchesShortcut, pickShortcut };

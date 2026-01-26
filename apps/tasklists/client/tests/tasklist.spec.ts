@@ -1103,6 +1103,75 @@ test("sidebar counts show only open items", async ({ page }) => {
     expect(offsetAfterUp).toBe(3);
   });
 
+  test("keyboard shortcuts jump to list start and end", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    const items = page.locator(listItemsSelector);
+    const thirdText = items.nth(2).locator(".text");
+    await thirdText.click();
+    await expect(thirdText).toHaveAttribute("contenteditable", "true");
+
+    await page.keyboard.press("Control+End");
+    const lastText = items.last().locator(".text");
+    await expect(lastText).toHaveAttribute("contenteditable", "true");
+
+    await page.keyboard.press("Control+Home");
+    const firstText = items.first().locator(".text");
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+  });
+
+  test("keyboard shortcut toggles completion", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    await setShowDone(page, true);
+    const firstItem = page.locator(listItemsSelector).first();
+    const checkbox = firstItem.locator("input.done-toggle");
+    await expect(checkbox).not.toBeChecked();
+    await firstItem.locator(".text").click();
+    const itemsBefore = await page.locator(listItemsSelector).count();
+    await page.keyboard.press("Control+Enter");
+    await expect(checkbox).toBeChecked();
+    const itemsAfter = await page.locator(listItemsSelector).count();
+    expect(itemsAfter).toBe(itemsBefore);
+  });
+
+  test("ctrl+enter hides done item and moves focus when show-done is off", async ({
+    page,
+  }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    await setShowDone(page, false);
+    const items = page.locator(listItemsSelector);
+    const firstItem = items.first();
+    const firstId = await firstItem.getAttribute("data-item-id");
+    expect(firstId).not.toBeNull();
+    const firstText = firstItem.locator(".text");
+    await firstText.click();
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+
+    await page.keyboard.press("Control+Enter");
+    const toggledItem = page.locator(
+      `ol.tasklist li[data-item-id="${firstId}"]`
+    );
+    await expect(toggledItem).toHaveAttribute("data-done", "true");
+    await expect(toggledItem).toHaveAttribute("hidden", "");
+
+    const focusedText = items.first().locator(".text");
+    await expect(focusedText).toHaveAttribute("contenteditable", "true");
+    await expect(focusedText).toBeFocused();
+  });
+
+  test("ctrl+enter stays on item when show-done is on", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    await setShowDone(page, true);
+    const items = page.locator(listItemsSelector);
+    const firstText = items.first().locator(".text");
+    await firstText.click();
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+
+    await page.keyboard.press("Control+Enter");
+    await expect(items.first()).toHaveAttribute("data-done", "true");
+    await expect(items.first()).not.toHaveAttribute("hidden", "");
+    await expect(firstText).toHaveAttribute("contenteditable", "true");
+  });
+
   test("dragging reorders tasks within the active list", async ({ page }) => {
     const items = page.locator(listItemsSelector);
     const count = await items.count();
