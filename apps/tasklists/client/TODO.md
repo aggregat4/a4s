@@ -1,6 +1,6 @@
 # TODO
 
-- add some css style checking/validation, how else can we keep it in check?
+- Make Ctrl+Home and Ctrl+End move to begining of first item and end of last item
 - Make Ctrl+Enter toggle completion on an item
 - when searching across lists, don't show the Add button (do we need to show the show Done checkbox? Takes place but useful? but hide when no results?)
 - find out if there are any GUI affordances we can make to inline editable things to make it clearer for the user (show list rename with a floating pencil icon or something)
