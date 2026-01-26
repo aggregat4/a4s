@@ -506,6 +506,7 @@ export class ListRepository {
           itemId,
           text: sanitizeText(item?.text),
           done: Boolean(item?.done),
+          note: sanitizeText(item?.note),
           afterId: previousId,
         });
         ops.push(insert.op);
@@ -691,10 +692,12 @@ export class ListRepository {
       if (!record?.crdt) return null;
       const text = sanitizeText(options.text);
       const done = options.done == null ? false : Boolean(options.done);
+      const note = sanitizeText(options.note);
       const insert = record.crdt.generateInsert({
         itemId,
         text,
         done,
+        note,
         afterId: options.afterId,
         beforeId: options.beforeId,
         position: options.position,
@@ -710,6 +713,7 @@ export class ListRepository {
             itemId,
             text,
             done,
+            note,
             afterId: options.afterId ?? null,
             beforeId: options.beforeId ?? null,
             position: options.position ?? null,
@@ -772,6 +776,7 @@ export class ListRepository {
         itemId: newItemId,
         text: afterText,
         done: false,
+        note: "",
         afterId: options.afterId ?? null,
         beforeId: options.beforeId ?? null,
         position: options.position ?? null,
@@ -793,6 +798,7 @@ export class ListRepository {
             itemId: newItemId,
             text: afterText,
             done: false,
+            note: "",
             afterId: options.afterId ?? null,
             beforeId: options.beforeId ?? null,
             position: options.position ?? null,
@@ -871,6 +877,7 @@ export class ListRepository {
           itemId: currentItemId,
           text: currentItem.text,
           done: currentItem.done,
+          note: currentItem.note ?? "",
           afterId: neighbors.afterId,
           beforeId: neighbors.beforeId,
           position: currentItem.pos ?? null,
@@ -941,6 +948,7 @@ export class ListRepository {
       itemId,
       text: payload.text,
       done: payload.done,
+      note: payload.note,
     });
     await this._persistList(listId, record.crdt, [result.op]);
     this.emitListChange(listId);
@@ -950,6 +958,9 @@ export class ListRepository {
     }
     if (Object.prototype.hasOwnProperty.call(payload, "done")) {
       inversePayload.done = existing.done;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "note")) {
+      inversePayload.note = existing.note ?? "";
     }
     const shouldCoalesce =
       Object.prototype.hasOwnProperty.call(payload, "text") &&
@@ -1128,6 +1139,7 @@ export class ListRepository {
       itemId,
       text: sanitizeText(itemSnapshot.text),
       done: Boolean(itemSnapshot.done),
+      note: sanitizeText(itemSnapshot.note),
       afterId: options.afterId,
       beforeId: options.beforeId,
       position: options.position,
@@ -1153,6 +1165,7 @@ export class ListRepository {
             id: itemSnapshot.id,
             text: itemSnapshot.text,
             done: Boolean(itemSnapshot.done),
+            note: itemSnapshot.note ?? "",
           },
           afterId: options.afterId ?? null,
           beforeId: options.beforeId ?? null,
@@ -1169,6 +1182,7 @@ export class ListRepository {
             id: itemSnapshot.id,
             text: itemSnapshot.text,
             done: Boolean(itemSnapshot.done),
+            note: itemSnapshot.note ?? "",
           },
           afterId: sourceNeighbors.afterId,
           beforeId: sourceNeighbors.beforeId,
@@ -1312,6 +1326,7 @@ export class ListRepository {
           itemId: op.itemId,
           text: op.text,
           done: op.done,
+          note: op.note,
           afterId: op.afterId ?? null,
           beforeId: op.beforeId ?? null,
           position: op.position ?? null,

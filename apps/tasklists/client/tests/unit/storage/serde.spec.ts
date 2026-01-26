@@ -24,7 +24,7 @@ test("list state serialization round-trips entries and metadata", () => {
                     { digit: 10, actor: "a" },
                     { digit: 5, actor: "b" },
                 ],
-                data: { text: "Task", done: true },
+                data: { text: "Task", done: true, note: "Context" },
                 createdAt: 1,
                 updatedAt: 2,
                 deletedAt: null,
@@ -38,6 +38,7 @@ test("list state serialization round-trips entries and metadata", () => {
     assert.equal(decoded.entries.length, 1);
     assert.equal(decoded.entries[0].data.text, "Task");
     assert.equal(decoded.entries[0].data.done, true);
+    assert.equal(decoded.entries[0].data.note, "Context");
 });
 
 test("registry state serialization retains ordering data", () => {

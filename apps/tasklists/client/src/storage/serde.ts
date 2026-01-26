@@ -148,6 +148,7 @@ const sanitizeBoolean = (value: unknown) => {
 const mapListDataEncode = (data: unknown) => ({
   text: sanitizeText((data as { text?: unknown })?.text),
   done: sanitizeBoolean((data as { done?: unknown })?.done),
+  note: sanitizeText((data as { note?: unknown })?.note),
 });
 
 const mapListDataDecode = mapListDataEncode;
@@ -164,6 +165,7 @@ export function serializeListState(state: ListState) {
       const data = entry?.data ?? {
         text: sanitizeText((entry as { text?: string })?.text),
         done: sanitizeBoolean((entry as { done?: boolean })?.done),
+        note: sanitizeText((entry as { note?: string })?.note),
       };
       return {
         ...entry,

@@ -196,13 +196,14 @@ class TaskListView {
     if (!activeElement || !listEl.contains(activeElement)) return null;
     const activeLi = activeElement.closest("li");
     if (!activeLi?.dataset?.itemId) return null;
-    const role: "toggle" | "text" | null = activeElement.classList.contains(
-      "done-toggle"
-    )
-      ? "toggle"
-      : activeElement.classList.contains("text")
-      ? "text"
-      : null;
+    const role: "toggle" | "text" | "note" | null =
+      activeElement.classList.contains("done-toggle")
+        ? "toggle"
+        : activeElement.classList.contains("text")
+        ? "text"
+        : activeElement.classList.contains("task-note-input")
+        ? "note"
+        : null;
     return role ? { itemId: activeLi.dataset.itemId, role } : null;
   }
 
@@ -258,7 +259,7 @@ class TaskListView {
   }
 
   restoreFocus(
-    preservedFocus: { itemId: string; role: "toggle" | "text" } | null,
+    preservedFocus: { itemId: string; role: "toggle" | "text" | "note" } | null,
     { skip }: { skip?: boolean } = {}
   ) {
     if (skip || !preservedFocus) return;
@@ -272,6 +273,8 @@ class TaskListView {
         ? targetLi.querySelector(".done-toggle")
         : preservedFocus.role === "text"
         ? targetLi.querySelector(".text")
+        : preservedFocus.role === "note"
+        ? targetLi.querySelector(".task-note-input")
         : null;
     (focusTarget as HTMLElement | null)?.focus();
   }
@@ -305,6 +308,8 @@ class A4TaskList extends HTMLElement {
   private titleOriginalValue: string;
   private titleLiveUpdates: boolean;
   private openActionsItemId: string | null;
+  private openNoteItemIds: Set<string>;
+  private pendingNoteFocusId: string | null;
   private touchGestureState: Map<
     number,
     { startX: number; startY: number; target: HTMLElement }
@@ -362,6 +367,8 @@ class A4TaskList extends HTMLElement {
     this.titleOriginalValue = "";
     this.titleLiveUpdates = false;
     this.openActionsItemId = null;
+    this.openNoteItemIds = new Set();
+    this.pendingNoteFocusId = null;
     this.touchGestureState = new Map();
     this.pendingRestoreEdit = null;
     this.resumeEditOnBlur = null;
@@ -387,6 +394,9 @@ class A4TaskList extends HTMLElement {
     this.handleMoveButtonClick = this.handleMoveButtonClick.bind(this);
     this.handleDeleteButtonClick = this.handleDeleteButtonClick.bind(this);
     this.handleActionToggleClick = this.handleActionToggleClick.bind(this);
+    this.handleNoteToggleClick = this.handleNoteToggleClick.bind(this);
+    this.handleNoteInput = this.handleNoteInput.bind(this);
+    this.handleNoteKeyDown = this.handleNoteKeyDown.bind(this);
     this.handleItemKeyDown = this.handleItemKeyDown.bind(this);
     this.handleFocusIn = this.handleFocusIn.bind(this);
     this.handleListDragStart = this.handleListDragStart.bind(this);
@@ -1509,6 +1519,10 @@ class A4TaskList extends HTMLElement {
     const isDone = Boolean(item.done);
     const itemId = item.id;
     const text = typeof item.text === "string" ? item.text : "";
+    const note = typeof item.note === "string" ? item.note : "";
+    const notePresent = note.trim().length > 0;
+    const noteOpen = this.openNoteItemIds.has(itemId);
+    const noteLabel = notePresent ? "Edit note" : "Add note";
     const htmlContent = isEditing
       ? noChange
       : live(markup != null ? markup : escapeHTML(text));
@@ -1533,15 +1547,40 @@ class A4TaskList extends HTMLElement {
         draggable="true"
         ?hidden=${hidden}
       >
-        <div class="task-item-main">
-          <input
-            type="checkbox"
-            class="done-toggle"
-            ?checked=${isDone}
-            @change=${this.handleToggle}
-          />
-          ${textSpan}
-          <span class="handle" aria-hidden="true"></span>
+        <div class="task-item-body">
+          <div class="task-item-main">
+            <input
+              type="checkbox"
+              class="done-toggle"
+              ?checked=${isDone}
+              @change=${this.handleToggle}
+            />
+            ${textSpan}
+            <button
+              type="button"
+              class=${`task-note-toggle${notePresent ? " has-note" : ""}`}
+              aria-pressed=${noteOpen ? "true" : "false"}
+              aria-expanded=${noteOpen ? "true" : "false"}
+              aria-label=${noteLabel}
+              title=${noteLabel}
+              @click=${this.handleNoteToggleClick}
+            ></button>
+            <span class="handle" aria-hidden="true"></span>
+          </div>
+          ${noteOpen
+            ? html`
+                <div class="task-note-panel">
+                  <textarea
+                    class="task-note-input"
+                    rows="3"
+                    placeholder="Add a note..."
+                    .value=${note}
+                    @input=${this.handleNoteInput}
+                    @keydown=${this.handleNoteKeyDown}
+                  ></textarea>
+                </div>
+              `
+            : null}
         </div>
         <div
           class=${`task-item-actions${isOpen ? " task-item-actions-open" : ""}`}
@@ -1599,12 +1638,14 @@ class A4TaskList extends HTMLElement {
       (item) => item.id,
       (item) => {
         const text = typeof item.text === "string" ? item.text : "";
+        const note = typeof item.note === "string" ? item.note : "";
         const isEditing = editingId === item.id;
         let hidden = false;
         let markup = null;
         if (!isEditing) {
           const result = evaluateSearchEntry({
             originalText: text,
+            noteText: note,
             tokens,
             patternConfig: this.patternConfig,
             showDone: this.showDone,
@@ -1722,6 +1763,23 @@ class A4TaskList extends HTMLElement {
       !state.items?.some((item) => item.id === this.openActionsItemId)
     ) {
       this.openActionsItemId = null;
+    }
+    if (this.openNoteItemIds.size && Array.isArray(state.items)) {
+      const validIds = new Set(state.items.map((item) => item.id));
+      for (const id of this.openNoteItemIds) {
+        if (!validIds.has(id)) {
+          this.openNoteItemIds.delete(id);
+        }
+      }
+    }
+    if (this.pendingNoteFocusId) {
+      const targetId = this.pendingNoteFocusId;
+      this.pendingNoteFocusId = null;
+      const selectorId = escapeSelectorId(targetId);
+      const target = this.listEl?.querySelector(
+        `li[data-item-id="${selectorId}"] .task-note-input`
+      ) as HTMLTextAreaElement | null;
+      target?.focus();
     }
 
     if (this.pendingRestoreEdit?.id) {
@@ -1853,6 +1911,65 @@ class A4TaskList extends HTMLElement {
     this.renderFromState(this.store?.getState?.());
   }
 
+  handleNoteToggleClick(event: Event) {
+    const button = event.currentTarget as HTMLElement | null;
+    const li = button?.closest("li");
+    if (!li) return;
+    const itemId = li.dataset?.itemId ?? null;
+    if (!itemId) return;
+    const shouldFocus = this.openNoteItemIds.has(itemId) === false;
+    this.toggleNoteForItem(itemId, { focus: shouldFocus });
+  }
+
+  handleNoteInput(event: Event) {
+    if (!this.store) return;
+    const target = event.currentTarget as HTMLTextAreaElement | null;
+    const li = target?.closest("li");
+    const itemId = li?.dataset?.itemId ?? null;
+    if (!itemId) return;
+    const nextNote = target?.value ?? "";
+    const stateItem = this.store
+      .getState()
+      .items.find((item) => item.id === itemId);
+    if (!stateItem) return;
+    if ((stateItem.note ?? "") === nextNote) return;
+    this.store.dispatch({
+      type: LIST_ACTIONS.updateItemNote,
+      payload: { id: itemId, note: nextNote },
+    });
+    if (this._repository && this.listId) {
+      const promise = this._repository.updateTask(this.listId, itemId, {
+        note: nextNote,
+      });
+      void promise;
+    }
+  }
+
+  handleNoteKeyDown(event: KeyboardEvent) {
+    if (event.key !== "Escape") return;
+    const target = event.currentTarget as HTMLElement | null;
+    const li = target?.closest("li");
+    const itemId = li?.dataset?.itemId ?? null;
+    if (!itemId) return;
+    event.preventDefault();
+    this.openNoteItemIds.delete(itemId);
+    this.renderFromState(this.store?.getState?.());
+    const textTarget = li?.querySelector(".text") as HTMLElement | null;
+    textTarget?.focus();
+  }
+
+  toggleNoteForItem(itemId: string, { focus = false } = {}) {
+    if (!itemId) return;
+    if (this.openNoteItemIds.has(itemId)) {
+      this.openNoteItemIds.delete(itemId);
+      this.pendingNoteFocusId = null;
+    } else {
+      this.openNoteItemIds.add(itemId);
+      this.pendingNoteFocusId = focus ? itemId : null;
+    }
+    this.renderFromState(this.store?.getState?.());
+  }
+
   closeActionsForItem(
     target: string | HTMLElement,
     { immediateRender = false }: { immediateRender?: boolean } = {}
@@ -1903,6 +2020,8 @@ class A4TaskList extends HTMLElement {
       if (element.closest(".handle")) return;
       if (element.closest(".task-item-actions")) return;
       if (element.closest(".task-item-toggle")) return;
+      if (element.closest(".task-note-toggle")) return;
+      if (element.closest(".task-note-panel")) return;
       this.touchGestureState.set(touch.identifier, {
         startX: touch.clientX,
         startY: touch.clientY,
@@ -1944,6 +2063,17 @@ class A4TaskList extends HTMLElement {
   handleItemKeyDown(event: KeyboardEvent) {
     if (!event || event.defaultPrevented) return;
     if (event.isComposing) return;
+    if (matchesShortcut(event, SHORTCUTS.toggleNote)) {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const li = target.closest?.("li");
+      if (!li) return;
+      const itemId = li.dataset?.itemId ?? null;
+      if (!itemId) return;
+      event.preventDefault();
+      this.toggleNoteForItem(itemId, { focus: true });
+      return;
+    }
     if (!matchesShortcut(event, SHORTCUTS.moveTask)) return;
     const target = event.target as HTMLElement | null;
     if (!target) return;
@@ -2367,10 +2497,12 @@ class A4TaskList extends HTMLElement {
     let count = 0;
     items.forEach((item) => {
       const text = typeof item?.text === "string" ? item.text : "";
+      const note = typeof item?.note === "string" ? item.note : "";
       const isDone = Boolean(item?.done);
       if (
         matchesSearchEntry({
           originalText: text,
+          noteText: note,
           tokens,
           showDone: this.showDone,
           isDone,

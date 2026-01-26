@@ -29,6 +29,7 @@ export const cloneListState = (source: unknown): TaskListState => ({
             : `item-${index}`,
         text: typeof item?.text === "string" ? item.text : "",
         done: Boolean(item?.done),
+        note: typeof item?.note === "string" ? item.note : "",
       }))
     : [],
   headerError: normalizeHeaderError(
@@ -44,6 +45,7 @@ export const LIST_ACTIONS = {
   setTitle: "list/setTitle",
   setItemDone: "list/setItemDone",
   updateItemText: "list/updateItemText",
+  updateItemNote: "list/updateItemNote",
   reorderItems: "list/reorderItems",
   replaceAll: "list/replaceAll",
   insertItem: "list/insertItem",
@@ -61,6 +63,10 @@ type ListAction =
   | {
       type: typeof LIST_ACTIONS.updateItemText;
       payload?: { id?: string; text?: string };
+    }
+  | {
+      type: typeof LIST_ACTIONS.updateItemNote;
+      payload?: { id?: string; note?: string };
     }
   | {
       type: typeof LIST_ACTIONS.reorderItems;
@@ -127,6 +133,19 @@ export const listReducer = (
       });
       return changed ? { ...state, items: nextItems } : state;
     }
+    case LIST_ACTIONS.updateItemNote: {
+      const { id, note } = action.payload ?? {};
+      if (!id || typeof note !== "string") return state;
+      const nextNote = note;
+      let changed = false;
+      const nextItems = state.items.map((item) => {
+        if (item.id !== id) return item;
+        if ((item.note ?? "") === nextNote) return item;
+        changed = true;
+        return { ...item, note: nextNote };
+      });
+      return changed ? { ...state, items: nextItems } : state;
+    }
     case LIST_ACTIONS.reorderItems: {
       const order = Array.isArray(action.payload?.order)
         ? action.payload.order
@@ -153,6 +172,7 @@ export const listReducer = (
         id: item.id,
         text: typeof item.text === "string" ? item.text : "",
         done: Boolean(item.done),
+        note: typeof item.note === "string" ? item.note : "",
       };
       const nextItems = state.items.slice();
       nextItems.splice(insertionIndex, 0, nextItem);

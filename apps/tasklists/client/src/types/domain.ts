@@ -12,6 +12,7 @@ export type TaskItem = {
   id: ItemId;
   text: string;
   done: boolean;
+  note?: string;
 };
 
 export type TaskListState = {
@@ -48,7 +49,7 @@ export type ListRegistryEntry = {
 
 export type RegistryState = OrderedSetState<{ title: string }>;
 
-export type ListState = OrderedSetState<{ text: string; done: boolean }> & {
+export type ListState = OrderedSetState<{ text: string; done: boolean; note?: string }> & {
   title: string;
   titleUpdatedAt?: number | null;
 };
@@ -66,6 +67,7 @@ export type TaskInsertInput = {
   itemId?: ItemId | null;
   text?: string | null;
   done?: boolean | null;
+  note?: string | null;
   afterId?: ItemId | null;
   beforeId?: ItemId | null;
   position?: Position | null;
@@ -74,6 +76,7 @@ export type TaskInsertInput = {
 export type TaskUpdateInput = {
   text?: string | null;
   done?: boolean | null;
+  note?: string | null;
 };
 
 export type TaskMoveInput = {

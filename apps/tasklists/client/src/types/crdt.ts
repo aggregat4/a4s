@@ -52,7 +52,8 @@ export type TaskListOperation = {
     title?: string;
     text?: string;
     done?: boolean;
-    data?: { text?: string; done?: boolean };
+    note?: string;
+    data?: { text?: string; done?: boolean; note?: string };
     pos?: Position | null;
   };
 };

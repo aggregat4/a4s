@@ -36,6 +36,7 @@ type HistoryOp =
       itemId: string;
       text: string;
       done: boolean;
+      note?: string;
       afterId?: string | null;
       beforeId?: string | null;
       position?: Position | null;

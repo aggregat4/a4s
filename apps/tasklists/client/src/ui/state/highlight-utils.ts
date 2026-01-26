@@ -125,6 +125,7 @@ export const tokenizeSearchQuery = (query) => {
 
 export const evaluateSearchEntry = ({
   originalText,
+  noteText,
   tokens,
   patternConfig,
   showDone,
@@ -135,11 +136,11 @@ export const evaluateSearchEntry = ({
     return { hidden: true, markup: null };
   }
 
-  const { markup, matchesAllTokens } = buildDecoratedMarkup(
-    originalText,
-    tokens,
-    patternConfig
-  );
+  const safeText = typeof originalText === "string" ? originalText : "";
+  const safeNote = typeof noteText === "string" ? noteText : "";
+  const haystack = `${safeText}\n${safeNote}`.toLowerCase();
+  const matchesAllTokens = tokens.every((token) => haystack.includes(token));
+  const { markup } = buildDecoratedMarkup(safeText, tokens, patternConfig);
   if (tokens.length > 0 && !matchesAllTokens) {
     return { hidden: true, markup: null };
   }
@@ -149,6 +150,7 @@ export const evaluateSearchEntry = ({
 
 export const matchesSearchEntry = ({
   originalText,
+  noteText,
   tokens,
   showDone,
   isDone,
@@ -159,7 +161,8 @@ export const matchesSearchEntry = ({
   if (!tokens || tokens.length === 0) {
     return true;
   }
-  const haystack =
-    typeof originalText === "string" ? originalText.toLowerCase() : "";
+  const safeText = typeof originalText === "string" ? originalText : "";
+  const safeNote = typeof noteText === "string" ? noteText : "";
+  const haystack = `${safeText}\n${safeNote}`.toLowerCase();
   return tokens.every((token) => haystack.includes(token));
 };

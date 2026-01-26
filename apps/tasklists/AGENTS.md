@@ -23,3 +23,8 @@ Document any future deviations from these assumptions here so other contributors
 ## State Ownership
 
 - Repository/registry updates should populate the store via explicit actions (for example, upsert) before UI events emit metric updates. Avoid using UI event handlers as a backfill path for missing store data.
+
+## UI Guidelines
+
+- Avoid UI that is hidden until hover; controls and indicators should remain visible.
+- Do not use toast notifications.

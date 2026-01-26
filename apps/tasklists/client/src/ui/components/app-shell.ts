@@ -535,10 +535,12 @@ class ListsAppShellElement extends HTMLElement {
     let matchCount = 0;
     items.forEach((item) => {
       const text = typeof item?.text === "string" ? item.text : "";
+      const note = typeof item?.note === "string" ? item.note : "";
       const isDone = Boolean(item?.done);
       if (
         matchesSearchEntry({
           originalText: text,
+          noteText: note,
           tokens,
           showDone,
           isDone,

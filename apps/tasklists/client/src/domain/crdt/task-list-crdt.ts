@@ -34,26 +34,28 @@ type TaskEntry = {
   pos: Position | null;
   text: string;
   done: boolean;
+  note: string;
   createdAt?: number | null;
   updatedAt?: number | null;
   deletedAt?: number | null;
 };
 
 function cloneRecordEntry(
-  entry: OrderedSetEntry<{ text: string; done: boolean }>
+  entry: OrderedSetEntry<{ text: string; done: boolean; note: string }>
 ): TaskEntry {
   return {
     id: entry.id,
     pos: entry.pos,
     text: entry.data.text,
     done: entry.data.done,
+    note: entry.data.note,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     deletedAt: entry.deletedAt,
   };
 }
 
-type TaskPayloadData = { text?: string; done?: boolean };
+type TaskPayloadData = { text?: string; done?: boolean; note?: string };
 type TaskPayload = { data?: TaskPayloadData } | TaskPayloadData | null;
 
 function sanitizePayloadData(payload?: TaskPayload) {
@@ -66,6 +68,7 @@ function sanitizePayloadData(payload?: TaskPayload) {
   return {
     text: sanitizeText(normalized.text),
     done: sanitizeBoolean(normalized.done, false),
+    note: sanitizeText(normalized.note),
   };
 }
 
@@ -96,6 +99,9 @@ function makeBaseUpdateOp(operation: TaskListOperation) {
   if (Object.prototype.hasOwnProperty.call(normalized, "done")) {
     data.done = sanitizeBoolean(normalized.done, false);
   }
+  if (Object.prototype.hasOwnProperty.call(normalized, "note")) {
+    data.note = sanitizeText(normalized.note);
+  }
   return {
     ...operation,
     type: ORDERED_SET_OPERATIONS.update,
@@ -106,14 +112,14 @@ function makeBaseUpdateOp(operation: TaskListOperation) {
 }
 
 export class TaskListCRDT {
-  private _orderedSet: OrderedSetCRDT<{ text: string; done: boolean }>;
+  private _orderedSet: OrderedSetCRDT<{ text: string; done: boolean; note: string }>;
   title: string;
   titleUpdatedAt: number;
 
   constructor(
     options: { actorId?: string; title?: string; titleUpdatedAt?: number } = {}
   ) {
-    this._orderedSet = new OrderedSetCRDT<{ text: string; done: boolean }>(
+    this._orderedSet = new OrderedSetCRDT<{ text: string; done: boolean; note: string }>(
       options
     );
     this.title = sanitizeText(options.title);
@@ -150,6 +156,7 @@ export class TaskListCRDT {
           data: {
             text: sanitizeText(entry?.data?.text),
             done: sanitizeBoolean(entry?.data?.done, false),
+            note: sanitizeText(entry?.data?.note),
           },
         }))
       : [];
@@ -164,7 +171,7 @@ export class TaskListCRDT {
   }
 
   resetFromSnapshot(
-    snapshot: OrderedSetSnapshot<{ text: string; done: boolean }> = [],
+    snapshot: OrderedSetSnapshot<{ text: string; done: boolean; note: string }> = [],
     metadata: { clock?: number; title?: string; titleUpdatedAt?: number } = {}
   ) {
     const entries = Array.isArray(snapshot)
@@ -174,6 +181,7 @@ export class TaskListCRDT {
           data: {
             text: sanitizeText(item.data?.text),
             done: sanitizeBoolean(item.data?.done, false),
+            note: sanitizeText(item.data?.note),
           },
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
@@ -202,6 +210,7 @@ export class TaskListCRDT {
         makeBaseInsertOp(operation) as OrderedSetOperation<{
           text: string;
           done: boolean;
+          note: string;
         }>
       );
     }
@@ -210,6 +219,7 @@ export class TaskListCRDT {
         makeBaseUpdateOp(operation) as OrderedSetOperation<{
           text: string;
           done: boolean;
+          note: string;
         }>
       );
     }
@@ -254,6 +264,7 @@ export class TaskListCRDT {
         id: item.id,
         text: item.text,
         done: item.done,
+        note: item.note,
       })),
     };
   }
@@ -270,6 +281,7 @@ export class TaskListCRDT {
     const data = {
       text: sanitizeText(options.text),
       done: options.done != null ? sanitizeBoolean(options.done, false) : false,
+      note: sanitizeText(options.note),
     };
     const result = this._orderedSet.generateInsert({
       itemId,
@@ -283,6 +295,7 @@ export class TaskListCRDT {
       payload: {
         text: result.op.payload.data.text,
         done: result.op.payload.data.done,
+        note: result.op.payload.data.note,
         pos: result.op.payload.pos,
       },
     };
@@ -304,6 +317,9 @@ export class TaskListCRDT {
     if (options.done != null) {
       data.done = sanitizeBoolean(options.done, false);
     }
+    if (options.note != null) {
+      data.note = sanitizeText(options.note);
+    }
     const result = this._orderedSet.generateUpdate({
       itemId,
       data,
@@ -316,6 +332,9 @@ export class TaskListCRDT {
           : {}),
         ...(Object.prototype.hasOwnProperty.call(result.op.payload.data, "done")
           ? { done: result.op.payload.data.done }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(result.op.payload.data, "note")
+          ? { note: result.op.payload.data.note }
           : {}),
       },
     };

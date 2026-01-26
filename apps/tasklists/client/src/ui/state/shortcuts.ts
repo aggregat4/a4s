@@ -33,6 +33,11 @@ const SHORTCUTS = {
     key: "backspace",
     modifiers: ["mod", "shift"],
   },
+  toggleNote: {
+    id: "toggle-note",
+    key: "n",
+    modifiers: ["ctrl"],
+  },
 } satisfies Record<string, Shortcut>;
 
 const normalizeKey = (key: string | undefined | null) =>

@@ -35,6 +35,8 @@
     --list-width: 70ch;
     --search-width: 250px;
     --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4K");
+    --task-note-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjIuNSIgd2lkdGg9IjEwIiBoZWlnaHQ9IjExIiByeD0iMS41Ii8+PGxpbmUgeDE9IjUiIHkxPSI2IiB4Mj0iMTEiIHkyPSI2Ii8+PGxpbmUgeDE9IjUiIHkxPSI4LjUiIHgyPSIxMSIgeTI9IjguNSIvPjwvc3ZnPg==");
+    --task-note-icon-filled: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3QgeD0iMyIgeT0iMi41IiB3aWR0aD0iMTAiIGhlaWdodD0iMTEiIHJ4PSIxLjUiIGZpbGw9ImN1cnJlbnRDb2xvciIvPjxsaW5lIHgxPSI1IiB5MT0iNiIgeDI9IjExIiB5Mj0iNiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxsaW5lIHgxPSI1IiB5MT0iOC41IiB4Mj0iMTEiIHkyPSI4LjUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=");
     --task-options-icon-left: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1sZWZ0IiB2aWV3Qm94PSIwIDAgMTYgMTYiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkuMjI0IDEuNTUzYS41LjUgMCAwIDEgLjIyMy42N0w2LjU2IDhsMi44ODggNS43NzZhLjUuNSAwIDEgMS0uODk0LjQ0OGwtMy02YS41LjUgMCAwIDEgMC0uNDQ4bDMtNmEuNS41IDAgMCAxIC42Ny0uMjIzIi8+Cjwvc3ZnPg==");
     --task-options-icon-right: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1yaWdodCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik02Ljc3NiAxLjU1M2EuNS41IDAgMCAxIC42NzEuMjIzbDMgNmEuNS41IDAgMCAxIDAgLjQ0OGwtMyA2YS41LjUgMCAxIDEtLjg5NC0uNDQ4TDkuNDQgOCA2LjU1MyAyLjIyNGEuNS41IDAgMCAxIC4yMjMtLjY3MSIvPgo8L3N2Zz4=");
 }
@@ -448,11 +450,17 @@ a4-tasklist {
 }
 
 .task-item-main {
-    flex: 1 1 auto;
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     min-height: 38px;
+}
+
+.task-item-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 }
 
 .done-toggle {
@@ -512,6 +520,67 @@ a4-tasklist {
 
     &:active {
         cursor: grabbing;
+    }
+}
+
+.task-note-toggle {
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 18px 18px;
+    background-image: var(--task-note-icon);
+    cursor: pointer;
+
+    &:hover {
+        background-color: var(--color-surface-muted);
+        color: var(--color-text);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--outline-color);
+        outline-offset: 2px;
+    }
+}
+
+.task-note-toggle.has-note {
+    color: var(--color-accent);
+    background-image: var(--task-note-icon-filled);
+
+    &:hover {
+        color: var(--color-accent);
+    }
+}
+
+.task-note-panel {
+    border-top: 1px solid var(--color-border-muted);
+    background: var(--color-surface-muted);
+    padding: var(--space-xs) var(--space-sm) var(--space-sm)
+        calc(20px + var(--space-sm) * 2);
+}
+
+.task-note-input {
+    width: 100%;
+    min-height: 64px;
+    resize: vertical;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-muted);
+    padding: var(--space-xs);
+    font: inherit;
+    color: inherit;
+    background: var(--color-surface);
+
+    &:focus-visible {
+        outline: 2px solid var(--outline-color);
+        outline-offset: 2px;
     }
 }
 

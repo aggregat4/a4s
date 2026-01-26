@@ -127,6 +127,15 @@ async function addBlankTask(page: Page) {
   return editor;
 }
 
+async function addNoteToFirstTask(page: Page, noteText: string) {
+  const item = page.locator(listItemsSelector).first();
+  await item.locator(".task-note-toggle").click();
+  const noteInput = item.locator(".task-note-input");
+  await expect(noteInput).toBeVisible();
+  await noteInput.fill(noteText);
+  return item;
+}
+
 async function getItemId(editor: Locator) {
   return editor.locator("xpath=ancestor::li[1]").getAttribute("data-item-id");
 }
@@ -815,6 +824,21 @@ test.describe("tasklist flows", () => {
       0
     );
     await expect(pageHeader).toBeHidden();
+  });
+
+  test("search matches note text", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    const uniqueText = `Note search task ${Date.now()}`;
+    await addTask(page, uniqueText);
+    const noteToken = `note-only-${Date.now()}`;
+    await addNoteToFirstTask(page, noteToken);
+
+    const searchInput = globalSearchInput(page);
+    await searchInput.fill(noteToken);
+    const matching = page
+      .locator(listItemsSelector)
+      .locator(".text", { hasText: uniqueText });
+    await expect(matching).toBeVisible();
   });
 
   test("completed tasks stay checked after performing a search", async ({
