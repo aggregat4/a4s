@@ -1480,6 +1480,9 @@ class A4TaskList extends HTMLElement {
   }
 
   startEditingItem(itemId: string, caretPreference: CaretPreference | null = null) {
+    if (!this.inlineEditor) {
+      this.ensureInlineEditor();
+    }
     if (!this.inlineEditor) return false;
     const textEl = this.getEditingTarget(itemId);
     if (!textEl) return false;
@@ -1952,12 +1955,22 @@ class A4TaskList extends HTMLElement {
   }
 
   handleNoteKeyDown(event: KeyboardEvent) {
-    if (event.key !== "Escape") return;
+    if (!event) return;
+    if (
+      event.key !== "Escape" &&
+      !matchesShortcut(event, SHORTCUTS.toggleNote)
+    ) {
+      return;
+    }
     const target = event.currentTarget as HTMLElement | null;
     const li = target?.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
     event.preventDefault();
+    if (matchesShortcut(event, SHORTCUTS.toggleNote)) {
+      this.toggleNoteForItem(itemId, { restoreEdit: true });
+      return;
+    }
     this.openNoteItemIds.delete(itemId);
     this.renderFromState(this.store?.getState?.());
     const textTarget = li?.querySelector(".text") as HTMLElement | null;
@@ -2026,16 +2039,31 @@ class A4TaskList extends HTMLElement {
     }, 0);
   }
 
-  toggleNoteForItem(itemId: string, { focus = false } = {}) {
+  toggleNoteForItem(
+    itemId: string,
+    { focus = false, restoreEdit = false } = {}
+  ) {
     if (!itemId) return;
+    let shouldRestoreEdit = false;
     if (this.openNoteItemIds.has(itemId)) {
       this.openNoteItemIds.delete(itemId);
       this.pendingNoteFocusId = null;
+      if (restoreEdit) {
+        this.pendingRestoreEdit = { id: itemId, caret: "end" };
+        this.editController.queue(itemId, "end");
+        this.schedulePendingEditFlush();
+        shouldRestoreEdit = true;
+      }
     } else {
       this.openNoteItemIds.add(itemId);
       this.pendingNoteFocusId = focus ? itemId : null;
     }
     this.renderFromState(this.store?.getState?.());
+    if (shouldRestoreEdit) {
+      requestAnimationFrame(() => {
+        this.startEditingItem(itemId, "end");
+      });
+    }
   }
 
   closeActionsForItem(
@@ -2149,8 +2177,32 @@ class A4TaskList extends HTMLElement {
       if (!this.store) return;
       const items = this.store.getState()?.items ?? [];
       if (!items.length) return;
+      const tokens = tokenizeSearchQuery(this.searchQuery);
+      const isVisible = (item: TaskItem) =>
+        matchesSearchEntry({
+          originalText: item?.text ?? "",
+          noteText: item?.note ?? "",
+          tokens,
+          showDone: this.showDone,
+          isDone: Boolean(item?.done),
+        });
       const isEnd = matchesShortcut(event, SHORTCUTS.jumpToListEnd);
-      const targetItem = isEnd ? items[items.length - 1] : items[0];
+      let targetItem: TaskItem | null = null;
+      if (isEnd) {
+        for (let i = items.length - 1; i >= 0; i -= 1) {
+          if (isVisible(items[i])) {
+            targetItem = items[i];
+            break;
+          }
+        }
+      } else {
+        for (let i = 0; i < items.length; i += 1) {
+          if (isVisible(items[i])) {
+            targetItem = items[i];
+            break;
+          }
+        }
+      }
       if (!targetItem?.id) return;
       event.preventDefault();
       this.startEditingItem(targetItem.id, isEnd ? "end" : "start");

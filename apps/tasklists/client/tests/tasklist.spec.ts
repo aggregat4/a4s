@@ -841,6 +841,24 @@ test.describe("tasklist flows", () => {
     await expect(matching).toBeVisible();
   });
 
+  test("alt+n toggles note input and returns to editing", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    const firstItem = page.locator(listItemsSelector).first();
+    const textEl = firstItem.locator(".text");
+    await textEl.click();
+    await expect(textEl).toHaveAttribute("contenteditable", "true");
+
+    await page.keyboard.press("Alt+N");
+    const noteInput = firstItem.locator(".task-note-input");
+    await expect(noteInput).toBeVisible();
+    await expect(noteInput).toBeFocused();
+
+    await page.keyboard.press("Alt+N");
+    await expect(noteInput).toHaveCount(0);
+    await expect(textEl).toHaveAttribute("contenteditable", "true");
+    await expect(textEl).toBeFocused();
+  });
+
   test("completed tasks stay checked after performing a search", async ({
     page,
   }) => {
@@ -1117,6 +1135,31 @@ test("sidebar counts show only open items", async ({ page }) => {
     await page.keyboard.press("Control+Home");
     const firstText = items.first().locator(".text");
     await expect(firstText).toHaveAttribute("contenteditable", "true");
+  });
+
+  test("jump to end skips hidden completed items", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    await setShowDone(page, false);
+    const items = page.locator(listItemsSelector);
+    const lastItem = items.last();
+    const lastId = await lastItem.getAttribute("data-item-id");
+    expect(lastId).not.toBeNull();
+    await lastItem.locator("input.done-toggle").check();
+
+    const targetText = items.first().locator(".text");
+    await targetText.click();
+    await expect(targetText).toHaveAttribute("contenteditable", "true");
+
+    await page.keyboard.press("Control+End");
+    const focused = page.locator(".text[contenteditable='true']");
+    const focusedId = await focused.evaluate((el) =>
+      el.closest("li")?.getAttribute("data-item-id")
+    );
+    expect(focusedId).not.toBe(lastId);
+    await expect(focused.locator("xpath=ancestor::li[1]")).not.toHaveAttribute(
+      "data-done",
+      "true"
+    );
   });
 
   test("keyboard shortcut toggles completion", async ({ page }) => {

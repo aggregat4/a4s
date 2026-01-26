@@ -253,7 +253,19 @@ export default class InlineTextEditor {
   }
 
   handleBlur(e: FocusEvent) {
-    this.finishEditing(e.target as HTMLElement);
+    const textEl = e.target as HTMLElement;
+    const related = e.relatedTarget as HTMLElement | null;
+    const noteInput = related?.classList?.contains("task-note-input")
+      ? related
+      : null;
+    if (noteInput) {
+      const textLi = textEl?.closest("li");
+      const noteLi = noteInput.closest("li");
+      if (textLi && noteLi && textLi === noteLi) {
+        return;
+      }
+    }
+    this.finishEditing(textEl);
   }
 
   handleKeyDown(e: KeyboardEvent) {
