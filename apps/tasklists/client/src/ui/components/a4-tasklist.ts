@@ -310,6 +310,7 @@ class A4TaskList extends HTMLElement {
   private openActionsItemId: string | null;
   private openNoteItemIds: Set<string>;
   private pendingNoteFocusId: string | null;
+  private focusedItemId: string | null;
   private touchGestureState: Map<
     number,
     { startX: number; startY: number; target: HTMLElement }
@@ -369,6 +370,7 @@ class A4TaskList extends HTMLElement {
     this.openActionsItemId = null;
     this.openNoteItemIds = new Set();
     this.pendingNoteFocusId = null;
+    this.focusedItemId = null;
     this.touchGestureState = new Map();
     this.pendingRestoreEdit = null;
     this.resumeEditOnBlur = null;
@@ -399,6 +401,7 @@ class A4TaskList extends HTMLElement {
     this.handleNoteKeyDown = this.handleNoteKeyDown.bind(this);
     this.handleItemKeyDown = this.handleItemKeyDown.bind(this);
     this.handleFocusIn = this.handleFocusIn.bind(this);
+    this.handleFocusOut = this.handleFocusOut.bind(this);
     this.handleListDragStart = this.handleListDragStart.bind(this);
     this.handleTitleClick = this.handleTitleClick.bind(this);
     this.handleTitleKeyDown = this.handleTitleKeyDown.bind(this);
@@ -496,6 +499,8 @@ class A4TaskList extends HTMLElement {
     this.listEl.addEventListener("keydown", this.handleListKeyDown, true);
     this.listEl.removeEventListener("focusin", this.handleFocusIn);
     this.listEl.addEventListener("focusin", this.handleFocusIn);
+    this.listEl.removeEventListener("focusout", this.handleFocusOut);
+    this.listEl.addEventListener("focusout", this.handleFocusOut);
     this.listEl.removeEventListener("touchstart", this.handleTouchGestureStart);
     this.listEl.addEventListener("touchstart", this.handleTouchGestureStart, {
       passive: true,
@@ -1523,6 +1528,7 @@ class A4TaskList extends HTMLElement {
     const notePresent = note.trim().length > 0;
     const noteOpen = this.openNoteItemIds.has(itemId);
     const noteLabel = notePresent ? "Edit note" : "Add note";
+    const isFocused = this.focusedItemId === itemId;
     const htmlContent = isEditing
       ? noChange
       : live(markup != null ? markup : escapeHTML(text));
@@ -1541,7 +1547,7 @@ class A4TaskList extends HTMLElement {
 
     return html`
       <li
-        class="task-item"
+        class=${`task-item${isFocused ? " is-focused" : ""}`}
         data-item-id=${itemId}
         data-done=${isDone ? "true" : "false"}
         draggable="true"
@@ -2155,6 +2161,14 @@ class A4TaskList extends HTMLElement {
     const li = target?.closest?.("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
+    if (this.focusedItemId && this.focusedItemId !== itemId) {
+      const previous = this.listEl?.querySelector(
+        `li[data-item-id="${escapeSelectorId(this.focusedItemId)}"]`
+      );
+      previous?.classList.remove("is-focused");
+    }
+    this.focusedItemId = itemId;
+    li?.classList.add("is-focused");
     this.dispatchEvent(
       new CustomEvent("taskFocus", {
         detail: {
@@ -2165,6 +2179,19 @@ class A4TaskList extends HTMLElement {
         composed: true,
       })
     );
+  }
+
+  handleFocusOut(event: FocusEvent) {
+    const target = event.target as HTMLElement | null;
+    const li = target?.closest?.("li");
+    if (!li) return;
+    const related = event.relatedTarget as HTMLElement | null;
+    if (related && li.contains(related)) return;
+    const itemId = li?.dataset?.itemId ?? null;
+    if (itemId && this.focusedItemId === itemId) {
+      this.focusedItemId = null;
+    }
+    li.classList.remove("is-focused");
   }
 
   handleListDragStart(event: DragEvent) {

@@ -36,7 +36,7 @@ const SHORTCUTS = {
   toggleNote: {
     id: "toggle-note",
     key: "n",
-    modifiers: ["ctrl"],
+    modifiers: ["alt"],
   },
 } satisfies Record<string, Shortcut>;
 
