@@ -13,6 +13,7 @@ type Op struct {
 }
 
 type Snapshot struct {
-	DatasetID string `json:"datasetId"`
-	Blob      string `json:"snapshot"`
+	DatasetGenerationID  int64  `json:"-"`
+	DatasetGenerationKey string `json:"datasetGenerationKey"`
+	Blob                 string `json:"snapshot"`
 }

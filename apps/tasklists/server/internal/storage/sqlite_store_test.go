@@ -105,8 +105,8 @@ func TestSnapshotReplaceResetsOps(t *testing.T) {
 		t.Fatalf("insert ops: %v", err)
 	}
 	if err := store.ReplaceSnapshot(ctx, Snapshot{
-		DatasetID: "dataset-new",
-		Blob:      `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
+		DatasetGenerationKey: "dataset-new",
+		Blob:                 `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
 	}); err != nil {
 		t.Fatalf("replace snapshot: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestSnapshotReplaceResetsOps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get snapshot: %v", err)
 	}
-	if snapshot.DatasetID != "dataset-new" {
-		t.Fatalf("snapshot datasetId mismatch: %s", snapshot.DatasetID)
+	if snapshot.DatasetGenerationKey != "dataset-new" {
+		t.Fatalf("snapshot datasetGenerationKey mismatch: %s", snapshot.DatasetGenerationKey)
 	}
 }

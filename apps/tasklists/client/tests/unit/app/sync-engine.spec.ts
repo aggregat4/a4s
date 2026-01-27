@@ -5,12 +5,12 @@ import type { ListStorage } from "../../../src/types/storage.js";
 import type { SyncOp, SyncState } from "../../../src/types/sync.js";
 
 const createStorage = () => {
-  let syncState: SyncState = { clientId: "", lastServerSeq: 0, datasetId: "" };
+  let syncState: SyncState = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
   let outbox: SyncOp[] = [];
   const storage: ListStorage = {
     ready: async () => {},
     clear: async () => {
-      syncState = { clientId: "", lastServerSeq: 0, datasetId: "" };
+      syncState = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
       outbox = [];
     },
     loadAllLists: async () => [],
@@ -36,10 +36,10 @@ test("SyncEngine flushes outbox and updates server seq", async () => {
   const fetchFn = async (url: string, init?: RequestInit) => {
     fetchCalls.push({ url, body: init?.body as string | undefined });
     if (url.includes("/sync/push")) {
-      return new Response(JSON.stringify({ serverSeq: 5, datasetId: "dataset-1" }), { status: 200 });
+      return new Response(JSON.stringify({ serverSeq: 5, datasetGenerationKey: "dataset-1" }), { status: 200 });
     }
     if (url.includes("/sync/pull")) {
-      return new Response(JSON.stringify({ serverSeq: 5, datasetId: "dataset-1", ops: [] }), { status: 200 });
+      return new Response(JSON.stringify({ serverSeq: 5, datasetGenerationKey: "dataset-1", ops: [] }), { status: 200 });
     }
     return new Response("", { status: 404 });
   };
@@ -57,7 +57,7 @@ test("SyncEngine flushes outbox and updates server seq", async () => {
 
   assert.equal(getOutbox().length, 0);
   assert.equal(getState().lastServerSeq, 5);
-  assert.equal(getState().datasetId, "dataset-1");
+  assert.equal(getState().datasetGenerationKey, "dataset-1");
   assert.ok(fetchCalls.some((call) => call.url.includes("/sync/push")));
 });
 
@@ -69,7 +69,7 @@ test("SyncEngine applies remote ops", async () => {
       return new Response(
         JSON.stringify({
           serverSeq: 3,
-          datasetId: "dataset-1",
+          datasetGenerationKey: "dataset-1",
           ops: [
             {
               scope: "registry",
@@ -83,7 +83,7 @@ test("SyncEngine applies remote ops", async () => {
         { status: 200 }
       );
     }
-    return new Response(JSON.stringify({ serverSeq: 3, datasetId: "dataset-1" }), { status: 200 });
+    return new Response(JSON.stringify({ serverSeq: 3, datasetGenerationKey: "dataset-1" }), { status: 200 });
   };
 
   const engine = new SyncEngine({

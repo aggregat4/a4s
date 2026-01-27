@@ -7,40 +7,47 @@ import (
 	"fmt"
 	"time"
 
-	_ "modernc.org/sqlite"
 	"github.com/google/uuid"
+	_ "modernc.org/sqlite"
 )
 
 const schema = `
+CREATE TABLE IF NOT EXISTS snapshots (
+	dataset_generation_id INTEGER PRIMARY KEY,
+	dataset_generation_key TEXT NOT NULL UNIQUE,
+	snapshot_blob TEXT NOT NULL,
+	created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+	id INTEGER PRIMARY KEY CHECK (id = 1),
+	active_dataset_generation_id INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL,
+	FOREIGN KEY(active_dataset_generation_id) REFERENCES snapshots(dataset_generation_id)
+);
+
 CREATE TABLE IF NOT EXISTS ops (
 	server_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+	dataset_generation_id INTEGER NOT NULL,
 	scope TEXT NOT NULL,
 	resource_id TEXT NOT NULL,
 	actor TEXT NOT NULL,
 	clock INTEGER NOT NULL,
-	payload TEXT NOT NULL
+	payload TEXT NOT NULL,
+	FOREIGN KEY(dataset_generation_id) REFERENCES snapshots(dataset_generation_id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_dedupe
-ON ops(actor, clock, scope, resource_id);
+ON ops(dataset_generation_id, actor, clock, scope, resource_id);
+
+CREATE INDEX IF NOT EXISTS idx_ops_dataset_seq
+ON ops(dataset_generation_id, server_seq);
 
 CREATE TABLE IF NOT EXISTS clients (
-	client_id TEXT PRIMARY KEY,
+	client_id TEXT NOT NULL,
 	last_seen_server_seq INTEGER NOT NULL,
-	updated_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS snapshot (
-	id INTEGER PRIMARY KEY CHECK (id = 1),
-	dataset_id TEXT NOT NULL,
-	snapshot_blob TEXT NOT NULL,
-	updated_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS snapshot_history (
-	dataset_id TEXT PRIMARY KEY,
-	snapshot_blob TEXT NOT NULL,
-	archived_at INTEGER NOT NULL
+	updated_at INTEGER NOT NULL,
+	PRIMARY KEY (client_id)
 );
 `
 
@@ -81,7 +88,7 @@ func (s *SQLiteStore) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("init schema: %w", err)
 	}
-	if err := s.ensureSnapshot(ctx); err != nil {
+	if err := s.ensureActiveSnapshot(ctx); err != nil {
 		return err
 	}
 	if s.dbRead == nil {
@@ -122,6 +129,10 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 	if len(ops) == 0 {
 		return s.maxServerSeq(ctx)
 	}
+	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx)
+	if err != nil {
+		return 0, err
+	}
 	conn, err := s.dbWrite.Conn(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get write conn: %w", err)
@@ -141,8 +152,8 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 	}()
 
 	stmt, err := conn.PrepareContext(ctx, `
-		INSERT OR IGNORE INTO ops (scope, resource_id, actor, clock, payload)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT OR IGNORE INTO ops (dataset_generation_id, scope, resource_id, actor, clock, payload)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return 0, fmt.Errorf("prepare insert: %w", err)
@@ -153,7 +164,7 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 		if op.Scope == "" || op.Resource == "" || op.Actor == "" || op.Clock <= 0 {
 			return 0, fmt.Errorf("invalid op metadata: scope=%q resource=%q actor=%q clock=%d", op.Scope, op.Resource, op.Actor, op.Clock)
 		}
-		if _, err := stmt.ExecContext(ctx, op.Scope, op.Resource, op.Actor, op.Clock, string(op.Payload)); err != nil {
+		if _, err := stmt.ExecContext(ctx, datasetGenerationID, op.Scope, op.Resource, op.Actor, op.Clock, string(op.Payload)); err != nil {
 			return 0, fmt.Errorf("insert op: %w", err)
 		}
 	}
@@ -165,6 +176,10 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 }
 
 func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64, error) {
+	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
 	db := s.dbRead
 	if db == nil {
 		db = s.dbWrite
@@ -172,9 +187,9 @@ func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64
 	rows, err := db.QueryContext(ctx, `
 		SELECT server_seq, scope, resource_id, actor, clock, payload
 		FROM ops
-		WHERE server_seq > ?
+		WHERE dataset_generation_id = ? AND server_seq > ?
 		ORDER BY server_seq ASC
-	`, since)
+	`, datasetGenerationID, since)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query ops: %w", err)
 	}
@@ -239,55 +254,113 @@ func (s *SQLiteStore) UpdateClientCursor(ctx context.Context, clientID string, s
 }
 
 func (s *SQLiteStore) maxServerSeq(ctx context.Context) (int64, error) {
+	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx)
+	if err != nil {
+		return 0, err
+	}
 	var maxSeq int64
 	db := s.dbRead
 	if db == nil {
 		db = s.dbWrite
 	}
-	row := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(server_seq), 0) FROM ops")
+	row := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(server_seq), 0) FROM ops WHERE dataset_generation_id = ?", datasetGenerationID)
 	if err := row.Scan(&maxSeq); err != nil {
 		return 0, fmt.Errorf("max server seq: %w", err)
 	}
 	return maxSeq, nil
 }
 
-func (s *SQLiteStore) ensureSnapshot(ctx context.Context) error {
-	row := s.dbWrite.QueryRowContext(ctx, "SELECT dataset_id FROM snapshot WHERE id = 1")
-	var datasetID string
-	err := row.Scan(&datasetID)
-	if err == nil {
+func (s *SQLiteStore) ensureActiveSnapshot(ctx context.Context) error {
+	row := s.dbWrite.QueryRowContext(ctx, "SELECT active_dataset_generation_id FROM meta WHERE id = 1")
+	var datasetGenerationID int64
+	err := row.Scan(&datasetGenerationID)
+	if err == nil && datasetGenerationID != 0 {
 		return nil
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("check snapshot: %w", err)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("check meta: %w", err)
 	}
-	newID := uuid.NewString()
-	_, err = s.dbWrite.ExecContext(ctx, `
-		INSERT INTO snapshot (id, dataset_id, snapshot_blob, updated_at)
-		VALUES (1, ?, ?, ?)
-	`, newID, "", time.Now().Unix())
+	newKey := uuid.NewString()
+	now := time.Now().Unix()
+	result, err := s.dbWrite.ExecContext(ctx, `
+		INSERT INTO snapshots (dataset_generation_key, snapshot_blob, created_at)
+		VALUES (?, ?, ?)
+	`, newKey, "", now)
 	if err != nil {
 		return fmt.Errorf("insert snapshot: %w", err)
+	}
+	datasetGenerationID, err = result.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("snapshot id: %w", err)
+	}
+	if _, err := s.dbWrite.ExecContext(ctx, `
+		INSERT INTO meta (id, active_dataset_generation_id, updated_at)
+		VALUES (1, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			active_dataset_generation_id = excluded.active_dataset_generation_id,
+			updated_at = excluded.updated_at
+	`, datasetGenerationID, now); err != nil {
+		return fmt.Errorf("insert meta: %w", err)
 	}
 	return nil
 }
 
-func (s *SQLiteStore) GetSnapshot(ctx context.Context) (Snapshot, error) {
-	var snapshot Snapshot
-	row := s.dbWrite.QueryRowContext(ctx, `
-		SELECT dataset_id, snapshot_blob
-		FROM snapshot
+func (s *SQLiteStore) GetActiveDatasetGenerationKey(ctx context.Context) (string, error) {
+	db := s.dbRead
+	if db == nil {
+		db = s.dbWrite
+	}
+	row := db.QueryRowContext(ctx, `
+		SELECT s.dataset_generation_key
+		FROM meta m
+		JOIN snapshots s ON s.dataset_generation_id = m.active_dataset_generation_id
+		WHERE m.id = 1
+	`)
+	var datasetGenerationKey string
+	if err := row.Scan(&datasetGenerationKey); err != nil {
+		return "", fmt.Errorf("load active dataset_generation_key: %w", err)
+	}
+	return datasetGenerationKey, nil
+}
+
+func (s *SQLiteStore) getActiveDatasetGenerationID(ctx context.Context) (int64, error) {
+	db := s.dbRead
+	if db == nil {
+		db = s.dbWrite
+	}
+	row := db.QueryRowContext(ctx, `
+		SELECT active_dataset_generation_id
+		FROM meta
 		WHERE id = 1
 	`)
-	if err := row.Scan(&snapshot.DatasetID, &snapshot.Blob); err != nil {
+	var datasetGenerationID int64
+	if err := row.Scan(&datasetGenerationID); err != nil {
+		return 0, fmt.Errorf("load active dataset_generation_id: %w", err)
+	}
+	return datasetGenerationID, nil
+}
+
+func (s *SQLiteStore) GetSnapshot(ctx context.Context) (Snapshot, error) {
+	var snapshot Snapshot
+	db := s.dbRead
+	if db == nil {
+		db = s.dbWrite
+	}
+	row := db.QueryRowContext(ctx, `
+		SELECT s.dataset_generation_id, s.dataset_generation_key, s.snapshot_blob
+		FROM snapshots s
+		JOIN meta m ON m.active_dataset_generation_id = s.dataset_generation_id
+		WHERE m.id = 1
+	`)
+	if err := row.Scan(&snapshot.DatasetGenerationID, &snapshot.DatasetGenerationKey, &snapshot.Blob); err != nil {
 		return Snapshot{}, fmt.Errorf("load snapshot: %w", err)
 	}
 	return snapshot, nil
 }
 
 func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) error {
-	if snapshot.DatasetID == "" {
-		return errors.New("datasetId is required")
+	if snapshot.DatasetGenerationKey == "" {
+		return errors.New("datasetGenerationKey is required")
 	}
 	conn, err := s.dbWrite.Conn(ctx)
 	if err != nil {
@@ -305,30 +378,28 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) er
 		_, _ = conn.ExecContext(ctx, "ROLLBACK;")
 	}()
 
-	var existingID string
-	var existingBlob string
-	row := conn.QueryRowContext(ctx, `
-		SELECT dataset_id, snapshot_blob
-		FROM snapshot
-		WHERE id = 1
-	`)
-	if err := row.Scan(&existingID, &existingBlob); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("load existing snapshot: %w", err)
+	now := time.Now().Unix()
+	if _, err := conn.ExecContext(ctx, `
+		INSERT INTO snapshots (dataset_generation_key, snapshot_blob, created_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(dataset_generation_key) DO UPDATE SET
+			snapshot_blob = excluded.snapshot_blob,
+			created_at = excluded.created_at
+	`, snapshot.DatasetGenerationKey, snapshot.Blob, now); err != nil {
+		return fmt.Errorf("insert snapshot: %w", err)
 	}
-	if existingID != "" && existingBlob != "" {
-		_, _ = conn.ExecContext(ctx, `
-			INSERT OR IGNORE INTO snapshot_history (dataset_id, snapshot_blob, archived_at)
-			VALUES (?, ?, ?)
-		`, existingID, existingBlob, time.Now().Unix())
+	var datasetGenerationID int64
+	row := conn.QueryRowContext(ctx, "SELECT dataset_generation_id FROM snapshots WHERE dataset_generation_key = ?", snapshot.DatasetGenerationKey)
+	if err := row.Scan(&datasetGenerationID); err != nil {
+		return fmt.Errorf("lookup snapshot id: %w", err)
 	}
 	if _, err := conn.ExecContext(ctx, `
-		INSERT INTO snapshot (id, dataset_id, snapshot_blob, updated_at)
-		VALUES (1, ?, ?, ?)
+		INSERT INTO meta (id, active_dataset_generation_id, updated_at)
+		VALUES (1, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
-			dataset_id = excluded.dataset_id,
-			snapshot_blob = excluded.snapshot_blob,
+			active_dataset_generation_id = excluded.active_dataset_generation_id,
 			updated_at = excluded.updated_at
-	`, snapshot.DatasetID, snapshot.Blob, time.Now().Unix()); err != nil {
+	`, datasetGenerationID, now); err != nil {
 		return fmt.Errorf("store snapshot: %w", err)
 	}
 	if _, err := conn.ExecContext(ctx, "DELETE FROM ops"); err != nil {

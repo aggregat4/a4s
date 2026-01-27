@@ -13,18 +13,18 @@ import (
 )
 
 type bootstrapResponse struct {
-	DatasetID string `json:"datasetId"`
-	Snapshot  string `json:"snapshot"`
-	ServerSeq int64  `json:"serverSeq"`
+	DatasetGenerationKey string `json:"datasetGenerationKey"`
+	Snapshot             string `json:"snapshot"`
+	ServerSeq            int64  `json:"serverSeq"`
 }
 
-func newTestServer(t *testing.T) *httptest.Server {
+func newTestMux(t *testing.T) *http.ServeMux {
 	t.Helper()
 	store := newTestStore(t)
 	server := NewServer(store)
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
-	return httptest.NewServer(mux)
+	return mux
 }
 
 func newTestStore(t *testing.T) storage.Store {
@@ -43,29 +43,23 @@ func newTestStore(t *testing.T) storage.Store {
 }
 
 func TestBootstrapEmpty(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
+	mux := newTestMux(t)
 
-	resp, err := http.Get(server.URL + "/sync/bootstrap")
-	if err != nil {
-		t.Fatalf("bootstrap request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status: got %d", resp.StatusCode)
+	resp := doRequest(t, mux, http.MethodGet, "/sync/bootstrap", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status: got %d", resp.Code)
 	}
 	var payload struct {
-		DatasetID string `json:"datasetId"`
-		Snapshot  string `json:"snapshot"`
-		ServerSeq int64 `json:"serverSeq"`
-		Ops       []any `json:"ops"`
+		DatasetGenerationKey string `json:"datasetGenerationKey"`
+		Snapshot             string `json:"snapshot"`
+		ServerSeq            int64  `json:"serverSeq"`
+		Ops                  []any  `json:"ops"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if payload.DatasetID == "" {
-		t.Fatalf("datasetId should be set")
+	if payload.DatasetGenerationKey == "" {
+		t.Fatalf("datasetGenerationKey should be set")
 	}
 	if payload.ServerSeq != 0 {
 		t.Fatalf("serverSeq: got %d", payload.ServerSeq)
@@ -76,13 +70,12 @@ func TestBootstrapEmpty(t *testing.T) {
 }
 
 func TestPushPullRoundTrip(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
+	mux := newTestMux(t)
 
-	bootstrap := fetchBootstrap(t, server.URL)
+	bootstrap := fetchBootstrap(t, mux)
 	body := map[string]any{
-		"clientId": "client-1",
-		"datasetId": bootstrap.DatasetID,
+		"clientId":             "client-1",
+		"datasetGenerationKey": bootstrap.DatasetGenerationKey,
 		"ops": []map[string]any{
 			{
 				"scope":      "list",
@@ -94,33 +87,25 @@ func TestPushPullRoundTrip(t *testing.T) {
 		},
 	}
 	requestBody, _ := json.Marshal(body)
-	resp, err := http.Post(server.URL+"/sync/push", "application/json", bytes.NewReader(requestBody))
-	if err != nil {
-		t.Fatalf("push request: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("push status: got %d", resp.StatusCode)
+	resp := doRequest(t, mux, http.MethodPost, "/sync/push", requestBody)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("push status: got %d", resp.Code)
 	}
 
-	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1&datasetId=" + bootstrap.DatasetID)
-	if err != nil {
-		t.Fatalf("pull request: %v", err)
-	}
-	defer pullResp.Body.Close()
-	if pullResp.StatusCode != http.StatusOK {
-		t.Fatalf("pull status: got %d", pullResp.StatusCode)
+	pullResp := doRequest(t, mux, http.MethodGet, "/sync/pull?since=0&clientId=client-1&datasetGenerationKey="+bootstrap.DatasetGenerationKey, nil)
+	if pullResp.Code != http.StatusOK {
+		t.Fatalf("pull status: got %d", pullResp.Code)
 	}
 	var pullPayload struct {
-		DatasetID string       `json:"datasetId"`
-		ServerSeq int64        `json:"serverSeq"`
-		Ops       []storage.Op `json:"ops"`
+		DatasetGenerationKey string       `json:"datasetGenerationKey"`
+		ServerSeq            int64        `json:"serverSeq"`
+		Ops                  []storage.Op `json:"ops"`
 	}
 	if err := json.NewDecoder(pullResp.Body).Decode(&pullPayload); err != nil {
 		t.Fatalf("decode pull: %v", err)
 	}
-	if pullPayload.DatasetID != bootstrap.DatasetID {
-		t.Fatalf("datasetId mismatch: %s", pullPayload.DatasetID)
+	if pullPayload.DatasetGenerationKey != bootstrap.DatasetGenerationKey {
+		t.Fatalf("datasetGenerationKey mismatch: %s", pullPayload.DatasetGenerationKey)
 	}
 	if pullPayload.ServerSeq == 0 {
 		t.Fatalf("serverSeq not updated")
@@ -134,13 +119,12 @@ func TestPushPullRoundTrip(t *testing.T) {
 }
 
 func TestPushDedupe(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
+	mux := newTestMux(t)
 
-	bootstrap := fetchBootstrap(t, server.URL)
+	bootstrap := fetchBootstrap(t, mux)
 	body := map[string]any{
-		"clientId": "client-1",
-		"datasetId": bootstrap.DatasetID,
+		"clientId":             "client-1",
+		"datasetGenerationKey": bootstrap.DatasetGenerationKey,
 		"ops": []map[string]any{
 			{
 				"scope":      "list",
@@ -152,20 +136,10 @@ func TestPushDedupe(t *testing.T) {
 		},
 	}
 	requestBody, _ := json.Marshal(body)
-	_, err := http.Post(server.URL+"/sync/push", "application/json", bytes.NewReader(requestBody))
-	if err != nil {
-		t.Fatalf("push request: %v", err)
-	}
-	_, err = http.Post(server.URL+"/sync/push", "application/json", bytes.NewReader(requestBody))
-	if err != nil {
-		t.Fatalf("push request: %v", err)
-	}
+	doRequest(t, mux, http.MethodPost, "/sync/push", requestBody)
+	doRequest(t, mux, http.MethodPost, "/sync/push", requestBody)
 
-	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1&datasetId=" + bootstrap.DatasetID)
-	if err != nil {
-		t.Fatalf("pull request: %v", err)
-	}
-	defer pullResp.Body.Close()
+	pullResp := doRequest(t, mux, http.MethodGet, "/sync/pull?since=0&clientId=client-1&datasetGenerationKey="+bootstrap.DatasetGenerationKey, nil)
 	var pullPayload struct {
 		Ops []storage.Op `json:"ops"`
 	}
@@ -178,25 +152,19 @@ func TestPushDedupe(t *testing.T) {
 }
 
 func TestPullMissingClientID(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
+	mux := newTestMux(t)
 
-	resp, err := http.Get(server.URL + "/sync/pull?since=0&datasetId=missing")
-	if err != nil {
-		t.Fatalf("pull request: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: got %d", resp.StatusCode)
+	resp := doRequest(t, mux, http.MethodGet, "/sync/pull?since=0&datasetGenerationKey=missing", nil)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.Code)
 	}
 }
 
 func TestPushMissingClientID(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
+	mux := newTestMux(t)
 
 	body := map[string]any{
-		"datasetId": "dataset-x",
+		"datasetGenerationKey": "dataset-x",
 		"ops": []map[string]any{
 			{
 				"scope":      "list",
@@ -208,111 +176,96 @@ func TestPushMissingClientID(t *testing.T) {
 		},
 	}
 	requestBody, _ := json.Marshal(body)
-	resp, err := http.Post(server.URL+"/sync/push", "application/json", bytes.NewReader(requestBody))
-	if err != nil {
-		t.Fatalf("push request: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status: got %d", resp.StatusCode)
+	resp := doRequest(t, mux, http.MethodPost, "/sync/push", requestBody)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d", resp.Code)
 	}
 }
 
 func TestResetSnapshot(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
+	mux := newTestMux(t)
 
-	bootstrap := fetchBootstrap(t, server.URL)
+	bootstrap := fetchBootstrap(t, mux)
 	resetPayload := map[string]any{
-		"clientId":  "client-1",
-		"datasetId": "dataset-new",
-		"snapshot":  `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
+		"clientId":             "client-1",
+		"datasetGenerationKey": "dataset-new",
+		"snapshot":             `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
 	}
 	body, _ := json.Marshal(resetPayload)
-	resp, err := http.Post(server.URL+"/sync/reset", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("reset request: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("reset status: got %d", resp.StatusCode)
+	resp := doRequest(t, mux, http.MethodPost, "/sync/reset", body)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("reset status: got %d", resp.Code)
 	}
 
-	after := fetchBootstrap(t, server.URL)
-	if after.DatasetID == bootstrap.DatasetID {
-		t.Fatalf("datasetId should change after reset")
+	after := fetchBootstrap(t, mux)
+	if after.DatasetGenerationKey == bootstrap.DatasetGenerationKey {
+		t.Fatalf("datasetGenerationKey should change after reset")
 	}
-	if after.DatasetID != "dataset-new" {
-		t.Fatalf("unexpected datasetId: %s", after.DatasetID)
+	if after.DatasetGenerationKey != "dataset-new" {
+		t.Fatalf("unexpected datasetGenerationKey: %s", after.DatasetGenerationKey)
 	}
 }
 
 func TestPullDatasetMismatch(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
+	mux := newTestMux(t)
 
-	resp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1&datasetId=wrong")
-	if err != nil {
-		t.Fatalf("pull request: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusConflict {
-		t.Fatalf("status: got %d", resp.StatusCode)
+	resp := doRequest(t, mux, http.MethodGet, "/sync/pull?since=0&clientId=client-1&datasetGenerationKey=wrong", nil)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("status: got %d", resp.Code)
 	}
 	var payload struct {
-		DatasetID string `json:"datasetId"`
-		Snapshot  string `json:"snapshot"`
+		DatasetGenerationKey string `json:"datasetGenerationKey"`
+		Snapshot             string `json:"snapshot"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if payload.DatasetID == "" {
-		t.Fatalf("datasetId should be returned")
+	if payload.DatasetGenerationKey == "" {
+		t.Fatalf("datasetGenerationKey should be returned")
 	}
 }
 
-func fetchBootstrap(t *testing.T, baseURL string) bootstrapResponse {
+func fetchBootstrap(t *testing.T, mux *http.ServeMux) bootstrapResponse {
 	t.Helper()
-	resp, err := http.Get(baseURL + "/sync/bootstrap")
-	if err != nil {
-		t.Fatalf("bootstrap request: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("bootstrap status: got %d", resp.StatusCode)
+	resp := doRequest(t, mux, http.MethodGet, "/sync/bootstrap", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("bootstrap status: got %d", resp.Code)
 	}
 	var payload bootstrapResponse
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode bootstrap: %v", err)
 	}
-	if payload.DatasetID == "" {
-		t.Fatalf("datasetId missing")
+	if payload.DatasetGenerationKey == "" {
+		t.Fatalf("datasetGenerationKey missing")
 	}
 	return payload
 }
 
-func TestHealthz(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
-
-	resp, err := http.Get(server.URL + "/healthz")
-	if err != nil {
-		t.Fatalf("healthz request: %v", err)
+func doRequest(t *testing.T, mux *http.ServeMux, method, path string, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status: got %d", resp.StatusCode)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, req)
+	return recorder
+}
+
+func TestHealthz(t *testing.T) {
+	mux := newTestMux(t)
+	resp := doRequest(t, mux, http.MethodGet, "/healthz", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status: got %d", resp.Code)
 	}
 }
 
 func TestTwoClientsSync(t *testing.T) {
-	server := newTestServer(t)
-	defer server.Close()
-
-	bootstrap := fetchBootstrap(t, server.URL)
+	mux := newTestMux(t)
+	bootstrap := fetchBootstrap(t, mux)
 	payload := map[string]any{
-		"clientId":  "client-a",
-		"datasetId": bootstrap.DatasetID,
+		"clientId":             "client-a",
+		"datasetGenerationKey": bootstrap.DatasetGenerationKey,
 		"ops": []map[string]any{
 			{
 				"scope":      "registry",
@@ -328,17 +281,8 @@ func TestTwoClientsSync(t *testing.T) {
 		},
 	}
 	body, _ := json.Marshal(payload)
-	resp, err := http.Post(server.URL+"/sync/push", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("push request: %v", err)
-	}
-	resp.Body.Close()
-
-	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-b&datasetId=" + bootstrap.DatasetID)
-	if err != nil {
-		t.Fatalf("pull request: %v", err)
-	}
-	defer pullResp.Body.Close()
+	doRequest(t, mux, http.MethodPost, "/sync/push", body)
+	pullResp := doRequest(t, mux, http.MethodGet, "/sync/pull?since=0&clientId=client-b&datasetGenerationKey="+bootstrap.DatasetGenerationKey, nil)
 	var pullPayload struct {
 		ServerSeq int64        `json:"serverSeq"`
 		Ops       []storage.Op `json:"ops"`
@@ -353,11 +297,7 @@ func TestTwoClientsSync(t *testing.T) {
 		t.Fatalf("ops length: got %d", len(pullPayload.Ops))
 	}
 
-	pullResp2, err := http.Get(server.URL + "/sync/pull?since=" + strconv.FormatInt(pullPayload.ServerSeq, 10) + "&clientId=client-b&datasetId=" + bootstrap.DatasetID)
-	if err != nil {
-		t.Fatalf("pull request: %v", err)
-	}
-	defer pullResp2.Body.Close()
+	pullResp2 := doRequest(t, mux, http.MethodGet, "/sync/pull?since="+strconv.FormatInt(pullPayload.ServerSeq, 10)+"&clientId=client-b&datasetGenerationKey="+bootstrap.DatasetGenerationKey, nil)
 	var pullPayload2 struct {
 		Ops []storage.Op `json:"ops"`
 	}

@@ -33,10 +33,10 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
 
 ### Server
 - Stores **snapshot blob** (the export JSON) as opaque bytes.
-- Stores **datasetId** (generation id).
+- Stores **datasetGenerationKey** (generation id).
 - Stores **op log** for incremental sync since snapshot.
 - On **reset/import**:
-  - Generate a new datasetId.
+  - Generate a new datasetGenerationKey.
   - Store the new snapshot blob as the active snapshot.
   - Optionally retain the previous snapshot blob for rollback.
   - Clear op log and reset serverSeq.
@@ -49,13 +49,13 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
   - Clear outbox and reset sync cursor.
   - Send snapshot blob to server (reset/import endpoint).
 - Bootstrap:
-  - Fetch snapshot blob + datasetId + ops since snapshot.
+  - Fetch snapshot blob + datasetGenerationKey + ops since snapshot.
   - Apply snapshot (hydrate) then apply ops.
-  - Persist datasetId and serverSeq.
+  - Persist datasetGenerationKey and serverSeq.
 
 ### Sync Handshake
-- Every sync request includes `datasetId`.
-- If server datasetId != client datasetId:
+- Every sync request includes `datasetGenerationKey`.
+- If server datasetGenerationKey != client datasetGenerationKey:
   - client clears local data,
   - fetches snapshot blob from server,
   - resets lastServerSeq,
@@ -64,16 +64,16 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
 ## Storage & API Changes
 
 ### Server tables
-- `snapshot`: { datasetId, snapshotBlob, updatedAt }
-- `snapshot_history` (optional): { datasetId, snapshotBlob, archivedAt }
+- `snapshot`: { datasetGenerationKey, snapshotBlob, updatedAt }
+- `snapshot_history` (optional): { datasetGenerationKey, snapshotBlob, archivedAt }
 - `ops`: existing op log (opaque payload)
-- `clients`: lastSeenServerSeq + datasetId for compaction safety
+- `clients`: lastSeenServerSeq for compaction safety (active generation only)
 
 ### Endpoints
 - `GET /sync/bootstrap` returns:
-  - `datasetId`, `snapshotBlob`, `serverSeq`, `ops` (since snapshot)
+  - `datasetGenerationKey`, `snapshotBlob`, `serverSeq`, `ops` (since snapshot)
 - `POST /sync/reset` accepts:
-  - `datasetId` (new), `snapshotBlob`
+  - `datasetGenerationKey` (new), `snapshotBlob`
   - clears ops, sets serverSeq to 0
 
 ## Validation & Safety
@@ -90,8 +90,8 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
 1. Client export: build snapshot via `serializeRegistryState` + `serializeListState`, download JSON.
 2. Client import: validate schema, clear storage, write snapshot state, clear outbox + reset sync cursor.
 3. Server storage: add snapshot blob store (active snapshot + optional history).
-4. Server reset endpoint: accept new snapshot blob, create datasetId, reset serverSeq + ops.
-5. Sync handshake: include datasetId on push/pull/bootstrap; on mismatch, fetch snapshot blob and reset local state.
+4. Server reset endpoint: accept new snapshot blob, create datasetGenerationKey, reset serverSeq + ops.
+5. Sync handshake: include datasetGenerationKey on push/pull/bootstrap; on mismatch, fetch snapshot blob and reset local state.
 6. UI: sidebar Export/Import buttons + confirmation modal (no toasts).
 7. Tests: snapshot round‑trip, import reset locally, multi-client convergence after reset.
 

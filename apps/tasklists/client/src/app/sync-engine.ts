@@ -11,19 +11,19 @@ type SyncEngineOptions = {
   pollIntervalMs?: number;
   fetchFn?: FetchFn;
   onRemoteOps?: (ops: SyncOp[]) => Promise<void> | void;
-  onSnapshot?: (payload: { datasetId: string; snapshot: string }) => Promise<void> | void;
+  onSnapshot?: (payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void;
   clientId?: string;
 };
 
 type SyncPushResponse = {
   serverSeq?: number;
-  datasetId?: string;
+  datasetGenerationKey?: string;
 };
 
 type SyncPullResponse = {
   serverSeq?: number;
   ops?: SyncOp[];
-  datasetId?: string;
+  datasetGenerationKey?: string;
   snapshot?: string;
 };
 
@@ -37,7 +37,7 @@ export class SyncEngine {
   private pollIntervalMs: number;
   private fetchFn: FetchFn;
   private onRemoteOps: ((ops: SyncOp[]) => Promise<void> | void) | null;
-  private onSnapshot: ((payload: { datasetId: string; snapshot: string }) => Promise<void> | void) | null;
+  private onSnapshot: ((payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void) | null;
   private state: SyncState;
   private outbox: SyncOp[];
   private timer: ReturnType<typeof setTimeout> | null;
@@ -57,7 +57,7 @@ export class SyncEngine {
       options.fetchFn ?? globalThis.fetch?.bind(globalThis);
     this.onRemoteOps = options.onRemoteOps ?? null;
     this.onSnapshot = options.onSnapshot ?? null;
-    this.state = { clientId: "", lastServerSeq: 0, datasetId: "" };
+    this.state = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
     this.outbox = [];
     this.timer = null;
     this.syncQueue = Promise.resolve();
@@ -76,7 +76,7 @@ export class SyncEngine {
       lastServerSeq: Number.isFinite(state.lastServerSeq)
         ? Math.max(0, Math.floor(state.lastServerSeq))
         : 0,
-      datasetId: typeof state.datasetId === "string" ? state.datasetId : "",
+      datasetGenerationKey: typeof state.datasetGenerationKey === "string" ? state.datasetGenerationKey : "",
     };
     if (!this.state.clientId) {
       this.state.clientId = this.defaultClientId || ensureActorId();
@@ -87,7 +87,7 @@ export class SyncEngine {
 
   async bootstrapIfNeeded(applyOps: (ops: SyncOp[]) => Promise<void>) {
     if (this.outbox.length > 0) return;
-    if (this.state.lastServerSeq > 0 && this.state.datasetId) return;
+    if (this.state.lastServerSeq > 0 && this.state.datasetGenerationKey) return;
     if (!applyOps) return;
     const response = await this.fetchFn(`${this.baseUrl}/sync/bootstrap`, {
       method: "GET",
@@ -174,7 +174,7 @@ export class SyncEngine {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: this.state.clientId,
-        datasetId: this.state.datasetId ?? "",
+        datasetGenerationKey: this.state.datasetGenerationKey ?? "",
         ops: this.outbox,
       }),
     });
@@ -186,8 +186,8 @@ export class SyncEngine {
       return;
     }
     const payload = (await response.json()) as SyncPushResponse;
-    if (payload.datasetId) {
-      this.state.datasetId = payload.datasetId;
+    if (payload.datasetGenerationKey) {
+      this.state.datasetGenerationKey = payload.datasetGenerationKey;
     }
     parseServerSeq(payload.serverSeq);
     this.outbox = [];
@@ -199,7 +199,7 @@ export class SyncEngine {
     const response = await this.fetchFn(
       `${this.baseUrl}/sync/pull?since=${this.state.lastServerSeq}&clientId=${encodeURIComponent(
         this.state.clientId
-      )}&datasetId=${encodeURIComponent(this.state.datasetId ?? "")}`,
+      )}&datasetGenerationKey=${encodeURIComponent(this.state.datasetGenerationKey ?? "")}`,
       { method: "GET" }
     );
     if (response.status === 409) {
@@ -210,8 +210,8 @@ export class SyncEngine {
       return;
     }
     const payload = (await response.json()) as SyncPullResponse;
-    if (payload.datasetId) {
-      this.state.datasetId = payload.datasetId;
+    if (payload.datasetGenerationKey) {
+      this.state.datasetGenerationKey = payload.datasetGenerationKey;
     }
     const nextSeq = parseServerSeq(payload.serverSeq);
     if (nextSeq >= this.state.lastServerSeq) {
@@ -226,13 +226,13 @@ export class SyncEngine {
 
   async resetWithSnapshot(snapshot: string) {
     if (!snapshot || typeof snapshot !== "string") return false;
-    const datasetId = crypto.randomUUID();
+    const datasetGenerationKey = crypto.randomUUID();
     const response = await this.fetchFn(`${this.baseUrl}/sync/reset`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: this.state.clientId,
-        datasetId,
+        datasetGenerationKey,
         snapshot,
       }),
     });
@@ -240,7 +240,7 @@ export class SyncEngine {
       return false;
     }
     const payload = (await response.json()) as SyncPushResponse;
-    this.state.datasetId = payload.datasetId ?? datasetId;
+    this.state.datasetGenerationKey = payload.datasetGenerationKey ?? datasetGenerationKey;
     this.state.lastServerSeq = parseServerSeq(payload.serverSeq);
     this.outbox = [];
     await this.storage.persistOutbox(this.outbox);
@@ -249,14 +249,14 @@ export class SyncEngine {
   }
 
   private async handleSnapshotResponse(payload: SyncPullResponse) {
-    const datasetId = parseDatasetId(payload?.datasetId);
+    const datasetGenerationKey = parseDatasetGenerationKey(payload?.datasetGenerationKey);
     const snapshot = typeof payload?.snapshot === "string" ? payload.snapshot : "";
-    if (!datasetId) {
+    if (!datasetGenerationKey) {
       return false;
     }
-    const changed = datasetId !== this.state.datasetId;
+    const changed = datasetGenerationKey !== this.state.datasetGenerationKey;
     if (changed) {
-      this.state.datasetId = datasetId;
+      this.state.datasetGenerationKey = datasetGenerationKey;
       this.state.lastServerSeq = parseServerSeq(payload?.serverSeq);
       this.outbox = [];
       await this.storage.persistOutbox(this.outbox);
@@ -265,7 +265,7 @@ export class SyncEngine {
     if (!snapshot || !this.onSnapshot || !changed) {
       return false;
     }
-    await this.onSnapshot({ datasetId, snapshot });
+    await this.onSnapshot({ datasetGenerationKey, snapshot });
     return true;
   }
 }
@@ -275,6 +275,6 @@ function parseServerSeq(value: unknown) {
   return Math.max(0, Math.floor(value as number));
 }
 
-function parseDatasetId(value: unknown) {
-  return typeof value === "string" && value.length ? value : "";
+function parseDatasetGenerationKey(value: unknown) {
+ return typeof value === "string" && value.length ? value : "";
 }

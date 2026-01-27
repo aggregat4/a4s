@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -48,10 +49,10 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, jsonResponse{
-		"datasetId": snapshot.DatasetID,
-		"snapshot":  snapshot.Blob,
-		"serverSeq": serverSeq,
-		"ops":       ops,
+		"datasetGenerationKey": snapshot.DatasetGenerationKey,
+		"snapshot":             snapshot.Blob,
+		"serverSeq":            serverSeq,
+		"ops":                  ops,
 	})
 }
 
@@ -61,9 +62,9 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var payload struct {
-		ClientID  string       `json:"clientId"`
-		DatasetID string       `json:"datasetId"`
-		Ops       []storage.Op `json:"ops"`
+		ClientID             string       `json:"clientId"`
+		DatasetGenerationKey string       `json:"datasetGenerationKey"`
+		Ops                  []storage.Op `json:"ops"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
 		log.Printf("sync push decode error: %v", err)
@@ -74,20 +75,12 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "clientId is required"})
 		return
 	}
-	if payload.DatasetID == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetId is required"})
+	if payload.DatasetGenerationKey == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetGenerationKey is required"})
 		return
 	}
-	snapshot, err := s.store.GetSnapshot(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if payload.DatasetID != snapshot.DatasetID {
-		writeJSON(w, http.StatusConflict, jsonResponse{
-			"datasetId": snapshot.DatasetID,
-			"snapshot":  snapshot.Blob,
-		})
+	datasetGenerationKey, ok := s.ensureDatasetMatch(r.Context(), payload.DatasetGenerationKey, w)
+	if !ok {
 		return
 	}
 	serverSeq, err := s.store.InsertOps(r.Context(), payload.Ops)
@@ -102,8 +95,8 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, jsonResponse{
-		"serverSeq": serverSeq,
-		"datasetId": snapshot.DatasetID,
+		"serverSeq":            serverSeq,
+		"datasetGenerationKey": datasetGenerationKey,
 	})
 }
 
@@ -117,21 +110,13 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "clientId is required"})
 		return
 	}
-	datasetID := r.URL.Query().Get("datasetId")
-	if datasetID == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetId is required"})
+	datasetGenerationKey := r.URL.Query().Get("datasetGenerationKey")
+	if datasetGenerationKey == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetGenerationKey is required"})
 		return
 	}
-	snapshot, err := s.store.GetSnapshot(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if datasetID != snapshot.DatasetID {
-		writeJSON(w, http.StatusConflict, jsonResponse{
-			"datasetId": snapshot.DatasetID,
-			"snapshot":  snapshot.Blob,
-		})
+	currentDatasetGenerationKey, ok := s.ensureDatasetMatch(r.Context(), datasetGenerationKey, w)
+	if !ok {
 		return
 	}
 	sinceValue := r.URL.Query().Get("since")
@@ -156,9 +141,9 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, jsonResponse{
-		"serverSeq": serverSeq,
-		"datasetId": snapshot.DatasetID,
-		"ops":       ops,
+		"serverSeq":            serverSeq,
+		"datasetGenerationKey": currentDatasetGenerationKey,
+		"ops":                  ops,
 	})
 }
 
@@ -168,9 +153,9 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var payload struct {
-		ClientID  string `json:"clientId"`
-		DatasetID string `json:"datasetId"`
-		Snapshot  string `json:"snapshot"`
+		ClientID             string `json:"clientId"`
+		DatasetGenerationKey string `json:"datasetGenerationKey"`
+		Snapshot             string `json:"snapshot"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
 		log.Printf("sync reset decode error: %v", err)
@@ -181,21 +166,21 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "clientId is required"})
 		return
 	}
-	if payload.DatasetID == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetId is required"})
+	if payload.DatasetGenerationKey == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetGenerationKey is required"})
 		return
 	}
 	if err := s.store.ReplaceSnapshot(r.Context(), storage.Snapshot{
-		DatasetID: payload.DatasetID,
-		Blob:      payload.Snapshot,
+		DatasetGenerationKey: payload.DatasetGenerationKey,
+		Blob:                 payload.Snapshot,
 	}); err != nil {
 		log.Printf("sync reset error client=%s: %v", payload.ClientID, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, jsonResponse{
-		"serverSeq": int64(0),
-		"datasetId": payload.DatasetID,
+		"serverSeq":            int64(0),
+		"datasetGenerationKey": payload.DatasetGenerationKey,
 	})
 }
 
@@ -208,6 +193,27 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (s *Server) ensureDatasetMatch(ctx context.Context, clientDatasetGenerationKey string, w http.ResponseWriter) (string, bool) {
+	datasetGenerationKey, err := s.store.GetActiveDatasetGenerationKey(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return "", false
+	}
+	if clientDatasetGenerationKey == datasetGenerationKey {
+		return datasetGenerationKey, true
+	}
+	snapshot, err := s.store.GetSnapshot(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return "", false
+	}
+	writeJSON(w, http.StatusConflict, jsonResponse{
+		"datasetGenerationKey": snapshot.DatasetGenerationKey,
+		"snapshot":             snapshot.Blob,
+	})
+	return datasetGenerationKey, false
 }
 
 func methodNotAllowed(w http.ResponseWriter) {

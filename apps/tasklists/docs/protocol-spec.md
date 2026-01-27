@@ -45,7 +45,7 @@ Returns the current snapshot blob, op log replay since snapshot, and current `se
 Response:
 ```json
 {
-  "datasetId": "dataset-uuid",
+  "datasetGenerationKey": "dataset-uuid",
   "snapshot": "{...snapshot json...}",
   "serverSeq": 100,
   "ops": [ /* SyncOp[] */ ]
@@ -60,7 +60,7 @@ Request:
 ```json
 {
   "clientId": "client-abc",
-  "datasetId": "dataset-uuid",
+  "datasetGenerationKey": "dataset-uuid",
   "ops": [ /* SyncOp[] without serverSeq */ ]
 }
 ```
@@ -69,11 +69,11 @@ Response:
 ```json
 {
   "serverSeq": 120,
-  "datasetId": "dataset-uuid"
+  "datasetGenerationKey": "dataset-uuid"
 }
 ```
 
-### GET /sync/pull?since=123&clientId=client-abc&datasetId=dataset-uuid
+### GET /sync/pull?since=123&clientId=client-abc&datasetGenerationKey=dataset-uuid
 
 Pulls operations newer than `since` and updates the client's cursor.
 
@@ -81,16 +81,16 @@ Response:
 ```json
 {
   "serverSeq": 130,
-  "datasetId": "dataset-uuid",
+  "datasetGenerationKey": "dataset-uuid",
   "ops": [ /* SyncOp[] */ ]
 }
 ```
 
-If the dataset id is stale, the server responds with `409 Conflict` and:
+If the dataset key is stale, the server responds with `409 Conflict` and:
 
 ```json
 {
-  "datasetId": "dataset-uuid",
+  "datasetGenerationKey": "dataset-uuid",
   "snapshot": "{...snapshot json...}"
 }
 ```
@@ -103,7 +103,7 @@ Request:
 ```json
 {
   "clientId": "client-abc",
-  "datasetId": "dataset-uuid",
+  "datasetGenerationKey": "dataset-uuid",
   "snapshot": "{...snapshot json...}"
 }
 ```
@@ -112,7 +112,7 @@ Response:
 ```json
 {
   "serverSeq": 0,
-  "datasetId": "dataset-uuid"
+  "datasetGenerationKey": "dataset-uuid"
 }
 ```
 
@@ -125,7 +125,7 @@ Response:
 ## Client Cursor Tracking
 
 - Client includes `clientId` on every push and pull.
-- Server records `clientId` -> `lastSeenServerSeq` for safe compaction.
+- Server records `clientId` -> `lastSeenServerSeq` for safe compaction (only for the active generation).
 
 ## Notes
 
