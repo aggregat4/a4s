@@ -14,4 +14,5 @@ export type SyncOp = {
 export type SyncState = {
   clientId: string;
   lastServerSeq: number;
+  datasetId?: string;
 };

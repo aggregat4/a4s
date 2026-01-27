@@ -28,6 +28,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/sync/bootstrap", s.handleBootstrap)
 	mux.HandleFunc("/sync/push", s.handlePush)
 	mux.HandleFunc("/sync/pull", s.handlePull)
+	mux.HandleFunc("/sync/reset", s.handleReset)
 	mux.HandleFunc("/healthz", handleHealthz)
 }
 
@@ -36,12 +37,22 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	snapshot, err := s.store.GetSnapshot(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
 	ops, serverSeq, err := s.store.GetOpsSince(r.Context(), 0)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, jsonResponse{"serverSeq": serverSeq, "ops": ops})
+	writeJSON(w, http.StatusOK, jsonResponse{
+		"datasetId": snapshot.DatasetID,
+		"snapshot":  snapshot.Blob,
+		"serverSeq": serverSeq,
+		"ops":       ops,
+	})
 }
 
 func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
@@ -50,8 +61,9 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var payload struct {
-		ClientID string       `json:"clientId"`
-		Ops      []storage.Op `json:"ops"`
+		ClientID  string       `json:"clientId"`
+		DatasetID string       `json:"datasetId"`
+		Ops       []storage.Op `json:"ops"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
 		log.Printf("sync push decode error: %v", err)
@@ -60,6 +72,22 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 	}
 	if payload.ClientID == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "clientId is required"})
+		return
+	}
+	if payload.DatasetID == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetId is required"})
+		return
+	}
+	snapshot, err := s.store.GetSnapshot(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if payload.DatasetID != snapshot.DatasetID {
+		writeJSON(w, http.StatusConflict, jsonResponse{
+			"datasetId": snapshot.DatasetID,
+			"snapshot":  snapshot.Blob,
+		})
 		return
 	}
 	serverSeq, err := s.store.InsertOps(r.Context(), payload.Ops)
@@ -73,7 +101,10 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, jsonResponse{"serverSeq": serverSeq})
+	writeJSON(w, http.StatusOK, jsonResponse{
+		"serverSeq": serverSeq,
+		"datasetId": snapshot.DatasetID,
+	})
 }
 
 func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +115,23 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 	clientID := r.URL.Query().Get("clientId")
 	if clientID == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "clientId is required"})
+		return
+	}
+	datasetID := r.URL.Query().Get("datasetId")
+	if datasetID == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetId is required"})
+		return
+	}
+	snapshot, err := s.store.GetSnapshot(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if datasetID != snapshot.DatasetID {
+		writeJSON(w, http.StatusConflict, jsonResponse{
+			"datasetId": snapshot.DatasetID,
+			"snapshot":  snapshot.Blob,
+		})
 		return
 	}
 	sinceValue := r.URL.Query().Get("since")
@@ -107,7 +155,48 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, jsonResponse{"serverSeq": serverSeq, "ops": ops})
+	writeJSON(w, http.StatusOK, jsonResponse{
+		"serverSeq": serverSeq,
+		"datasetId": snapshot.DatasetID,
+		"ops":       ops,
+	})
+}
+
+func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	var payload struct {
+		ClientID  string `json:"clientId"`
+		DatasetID string `json:"datasetId"`
+		Snapshot  string `json:"snapshot"`
+	}
+	if err := decodeJSON(r, &payload); err != nil {
+		log.Printf("sync reset decode error: %v", err)
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if payload.ClientID == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "clientId is required"})
+		return
+	}
+	if payload.DatasetID == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetId is required"})
+		return
+	}
+	if err := s.store.ReplaceSnapshot(r.Context(), storage.Snapshot{
+		DatasetID: payload.DatasetID,
+		Blob:      payload.Snapshot,
+	}); err != nil {
+		log.Printf("sync reset error client=%s: %v", payload.ClientID, err)
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, jsonResponse{
+		"serverSeq": int64(0),
+		"datasetId": payload.DatasetID,
+	})
 }
 
 func handleHealthz(w http.ResponseWriter, r *http.Request) {

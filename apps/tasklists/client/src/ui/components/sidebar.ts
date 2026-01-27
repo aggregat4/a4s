@@ -21,6 +21,8 @@ class SidebarElement extends HTMLElement {
   private handlers: Partial<{
     onAddList: () => void;
     onDeleteList: () => void;
+    onExportSnapshot: () => void;
+    onImportSnapshot: () => void;
     onSeedDemo: () => void;
     onSelectList: (listId: ListId) => void;
     onSearchChange: (value: string) => void;
@@ -89,6 +91,8 @@ class SidebarElement extends HTMLElement {
     handlers: Partial<{
       onAddList: () => void;
       onDeleteList: () => void;
+      onExportSnapshot: () => void;
+      onImportSnapshot: () => void;
       onSeedDemo: () => void;
       onSelectList: (listId: ListId) => void;
       onSearchChange: (value: string) => void;
@@ -247,6 +251,20 @@ class SidebarElement extends HTMLElement {
           <button type="button" data-role="add-list" @click=${() =>
             this.handlers.onAddList?.()}>
             Add list
+          </button>
+          <button
+            type="button"
+            data-role="export-snapshot"
+            @click=${() => this.handlers.onExportSnapshot?.()}
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            data-role="import-snapshot"
+            @click=${() => this.handlers.onImportSnapshot?.()}
+          >
+            Import
           </button>
           ${this.showDemoSeed
             ? html`

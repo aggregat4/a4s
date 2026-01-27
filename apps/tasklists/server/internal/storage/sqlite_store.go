@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+	"github.com/google/uuid"
 )
 
 const schema = `
@@ -27,6 +28,19 @@ CREATE TABLE IF NOT EXISTS clients (
 	client_id TEXT PRIMARY KEY,
 	last_seen_server_seq INTEGER NOT NULL,
 	updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS snapshot (
+	id INTEGER PRIMARY KEY CHECK (id = 1),
+	dataset_id TEXT NOT NULL,
+	snapshot_blob TEXT NOT NULL,
+	updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS snapshot_history (
+	dataset_id TEXT PRIMARY KEY,
+	snapshot_blob TEXT NOT NULL,
+	archived_at INTEGER NOT NULL
 );
 `
 
@@ -66,6 +80,9 @@ func (s *SQLiteStore) Init(ctx context.Context) error {
 	_, err := s.dbWrite.ExecContext(ctx, schema)
 	if err != nil {
 		return fmt.Errorf("init schema: %w", err)
+	}
+	if err := s.ensureSnapshot(ctx); err != nil {
+		return err
 	}
 	if s.dbRead == nil {
 		readDB, err := sql.Open("sqlite", s.path)
@@ -232,4 +249,97 @@ func (s *SQLiteStore) maxServerSeq(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("max server seq: %w", err)
 	}
 	return maxSeq, nil
+}
+
+func (s *SQLiteStore) ensureSnapshot(ctx context.Context) error {
+	row := s.dbWrite.QueryRowContext(ctx, "SELECT dataset_id FROM snapshot WHERE id = 1")
+	var datasetID string
+	err := row.Scan(&datasetID)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("check snapshot: %w", err)
+	}
+	newID := uuid.NewString()
+	_, err = s.dbWrite.ExecContext(ctx, `
+		INSERT INTO snapshot (id, dataset_id, snapshot_blob, updated_at)
+		VALUES (1, ?, ?, ?)
+	`, newID, "", time.Now().Unix())
+	if err != nil {
+		return fmt.Errorf("insert snapshot: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) GetSnapshot(ctx context.Context) (Snapshot, error) {
+	var snapshot Snapshot
+	row := s.dbWrite.QueryRowContext(ctx, `
+		SELECT dataset_id, snapshot_blob
+		FROM snapshot
+		WHERE id = 1
+	`)
+	if err := row.Scan(&snapshot.DatasetID, &snapshot.Blob); err != nil {
+		return Snapshot{}, fmt.Errorf("load snapshot: %w", err)
+	}
+	return snapshot, nil
+}
+
+func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) error {
+	if snapshot.DatasetID == "" {
+		return errors.New("datasetId is required")
+	}
+	conn, err := s.dbWrite.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("get write conn: %w", err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE;"); err != nil {
+		return fmt.Errorf("begin immediate: %w", err)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		_, _ = conn.ExecContext(ctx, "ROLLBACK;")
+	}()
+
+	var existingID string
+	var existingBlob string
+	row := conn.QueryRowContext(ctx, `
+		SELECT dataset_id, snapshot_blob
+		FROM snapshot
+		WHERE id = 1
+	`)
+	if err := row.Scan(&existingID, &existingBlob); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("load existing snapshot: %w", err)
+	}
+	if existingID != "" && existingBlob != "" {
+		_, _ = conn.ExecContext(ctx, `
+			INSERT OR IGNORE INTO snapshot_history (dataset_id, snapshot_blob, archived_at)
+			VALUES (?, ?, ?)
+		`, existingID, existingBlob, time.Now().Unix())
+	}
+	if _, err := conn.ExecContext(ctx, `
+		INSERT INTO snapshot (id, dataset_id, snapshot_blob, updated_at)
+		VALUES (1, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			dataset_id = excluded.dataset_id,
+			snapshot_blob = excluded.snapshot_blob,
+			updated_at = excluded.updated_at
+	`, snapshot.DatasetID, snapshot.Blob, time.Now().Unix()); err != nil {
+		return fmt.Errorf("store snapshot: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, "DELETE FROM ops"); err != nil {
+		return fmt.Errorf("clear ops: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, "DELETE FROM clients"); err != nil {
+		return fmt.Errorf("clear clients: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, "COMMIT;"); err != nil {
+		return fmt.Errorf("commit snapshot: %w", err)
+	}
+	committed = true
+	return nil
 }

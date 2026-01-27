@@ -388,6 +388,7 @@ class IndexedDbListStorage implements ListStorage {
       lastServerSeq: Number.isFinite(record?.lastServerSeq)
         ? Math.max(0, Math.floor(record.lastServerSeq))
         : 0,
+      datasetId: typeof record?.datasetId === "string" ? record.datasetId : "",
     };
   }
 
@@ -402,6 +403,7 @@ class IndexedDbListStorage implements ListStorage {
       lastServerSeq: Number.isFinite(state.lastServerSeq)
         ? Math.max(0, Math.floor(state.lastServerSeq))
         : 0,
+      datasetId: typeof state.datasetId === "string" ? state.datasetId : "",
     });
     await completion;
   }

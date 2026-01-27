@@ -1,4 +1,11 @@
 import { Page, Locator } from "@playwright/test";
+import { readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  buildExportSnapshot,
+  stringifyExportSnapshot,
+} from "../src/app/export-snapshot.js";
 import { test, expect } from "./fixtures";
 import { dragHandleToTarget } from "./helpers/drag";
 
@@ -13,6 +20,13 @@ function showDoneToggle(page: Page) {
 
 function globalSearchInput(page: Page) {
   return page.getByRole("searchbox", { name: "Global search" });
+}
+
+function writeSnapshotFile(payload: string) {
+  const filename = `tasklist-snapshot-${Date.now()}.json`;
+  const path = join(tmpdir(), filename);
+  writeFileSync(path, payload, "utf8");
+  return path;
 }
 
 async function expectCaretVisible(_page: Page, target: Locator) {
@@ -839,6 +853,76 @@ test.describe("tasklist flows", () => {
       .locator(listItemsSelector)
       .locator(".text", { hasText: uniqueText });
     await expect(matching).toBeVisible();
+  });
+
+  test("export downloads snapshot json", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Export" }).click(),
+    ]);
+    const targetPath = join(tmpdir(), `export-${Date.now()}.json`);
+    await download.saveAs(targetPath);
+    const raw = readFileSync(targetPath, "utf8");
+    const parsed = JSON.parse(raw);
+    expect(parsed.schema).toBe("net.aggregat4.tasklist.snapshot@v1");
+    expect(parsed.data).toBeTruthy();
+  });
+
+  test("import replaces lists with snapshot data", async ({ page }) => {
+    await gotoWithDemo(page, "/?resetStorage=1");
+    const listId = "imported-list";
+    const taskId = "imported-task";
+    const registryState = {
+      clock: 1,
+      entries: [
+        {
+          id: listId,
+          pos: [{ digit: 1, actor: "importer" }],
+          data: { title: "Imported List" },
+          createdAt: 1,
+          updatedAt: 1,
+          deletedAt: null,
+        },
+      ],
+    };
+    const listState = {
+      clock: 1,
+      title: "Imported List",
+      titleUpdatedAt: 1,
+      entries: [
+        {
+          id: taskId,
+          pos: [{ digit: 1, actor: "importer" }],
+          data: { text: "Imported Task", done: false, note: "" },
+          createdAt: 1,
+          updatedAt: 1,
+          deletedAt: null,
+        },
+      ],
+    };
+    const snapshot = buildExportSnapshot({
+      registryState,
+      lists: [{ listId, state: listState }],
+      exportedAt: "2026-01-27T00:00:00.000Z",
+    });
+    const snapshotPath = writeSnapshotFile(stringifyExportSnapshot(snapshot));
+
+    page.once("dialog", (dialog) => dialog.accept());
+    const fileInput = page.locator("[data-role='import-snapshot-input']");
+    await fileInput.setInputFiles(snapshotPath);
+
+    const importedListButton = page.locator(
+      ".sidebar-list-button",
+      { hasText: "Imported List" }
+    );
+    await expect(importedListButton).toBeVisible();
+    await importedListButton.click();
+    await expect(
+      page.locator(listItemsSelector).locator(".text", {
+        hasText: "Imported Task",
+      })
+    ).toBeVisible();
   });
 
   test("alt+n toggles note input and returns to editing", async ({ page }) => {

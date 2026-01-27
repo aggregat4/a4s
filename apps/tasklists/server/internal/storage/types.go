@@ -11,3 +11,8 @@ type Op struct {
 	Clock     int64           `json:"clock"`
 	Payload   json.RawMessage `json:"payload"`
 }
+
+type Snapshot struct {
+	DatasetID string `json:"datasetId"`
+	Blob      string `json:"snapshot"`
+}

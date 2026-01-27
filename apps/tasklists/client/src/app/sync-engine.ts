@@ -11,16 +11,20 @@ type SyncEngineOptions = {
   pollIntervalMs?: number;
   fetchFn?: FetchFn;
   onRemoteOps?: (ops: SyncOp[]) => Promise<void> | void;
+  onSnapshot?: (payload: { datasetId: string; snapshot: string }) => Promise<void> | void;
   clientId?: string;
 };
 
 type SyncPushResponse = {
   serverSeq?: number;
+  datasetId?: string;
 };
 
 type SyncPullResponse = {
   serverSeq?: number;
   ops?: SyncOp[];
+  datasetId?: string;
+  snapshot?: string;
 };
 
 type SyncBootstrapResponse = SyncPullResponse;
@@ -33,6 +37,7 @@ export class SyncEngine {
   private pollIntervalMs: number;
   private fetchFn: FetchFn;
   private onRemoteOps: ((ops: SyncOp[]) => Promise<void> | void) | null;
+  private onSnapshot: ((payload: { datasetId: string; snapshot: string }) => Promise<void> | void) | null;
   private state: SyncState;
   private outbox: SyncOp[];
   private timer: ReturnType<typeof setTimeout> | null;
@@ -51,7 +56,8 @@ export class SyncEngine {
     this.fetchFn =
       options.fetchFn ?? globalThis.fetch?.bind(globalThis);
     this.onRemoteOps = options.onRemoteOps ?? null;
-    this.state = { clientId: "", lastServerSeq: 0 };
+    this.onSnapshot = options.onSnapshot ?? null;
+    this.state = { clientId: "", lastServerSeq: 0, datasetId: "" };
     this.outbox = [];
     this.timer = null;
     this.syncQueue = Promise.resolve();
@@ -70,6 +76,7 @@ export class SyncEngine {
       lastServerSeq: Number.isFinite(state.lastServerSeq)
         ? Math.max(0, Math.floor(state.lastServerSeq))
         : 0,
+      datasetId: typeof state.datasetId === "string" ? state.datasetId : "",
     };
     if (!this.state.clientId) {
       this.state.clientId = this.defaultClientId || ensureActorId();
@@ -80,7 +87,7 @@ export class SyncEngine {
 
   async bootstrapIfNeeded(applyOps: (ops: SyncOp[]) => Promise<void>) {
     if (this.outbox.length > 0) return;
-    if (this.state.lastServerSeq > 0) return;
+    if (this.state.lastServerSeq > 0 && this.state.datasetId) return;
     if (!applyOps) return;
     const response = await this.fetchFn(`${this.baseUrl}/sync/bootstrap`, {
       method: "GET",
@@ -89,6 +96,10 @@ export class SyncEngine {
       return;
     }
     const payload = (await response.json()) as SyncBootstrapResponse;
+    const resetApplied = await this.handleSnapshotResponse(payload);
+    if (resetApplied) {
+      return;
+    }
     const ops = Array.isArray(payload.ops) ? payload.ops : [];
     if (ops.length > 0) {
       await applyOps(ops);
@@ -161,28 +172,47 @@ export class SyncEngine {
     const response = await this.fetchFn(`${this.baseUrl}/sync/push`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: this.state.clientId, ops: this.outbox }),
+      body: JSON.stringify({
+        clientId: this.state.clientId,
+        datasetId: this.state.datasetId ?? "",
+        ops: this.outbox,
+      }),
     });
+    if (response.status === 409) {
+      await this.handleSnapshotResponse(await response.json());
+      return;
+    }
     if (!response.ok) {
       return;
     }
     const payload = (await response.json()) as SyncPushResponse;
+    if (payload.datasetId) {
+      this.state.datasetId = payload.datasetId;
+    }
     parseServerSeq(payload.serverSeq);
     this.outbox = [];
     await this.storage.persistOutbox(this.outbox);
+    await this.storage.persistSyncState(this.state);
   }
 
   private async pullRemoteOps() {
     const response = await this.fetchFn(
       `${this.baseUrl}/sync/pull?since=${this.state.lastServerSeq}&clientId=${encodeURIComponent(
         this.state.clientId
-      )}`,
+      )}&datasetId=${encodeURIComponent(this.state.datasetId ?? "")}`,
       { method: "GET" }
     );
+    if (response.status === 409) {
+      await this.handleSnapshotResponse(await response.json());
+      return;
+    }
     if (!response.ok) {
       return;
     }
     const payload = (await response.json()) as SyncPullResponse;
+    if (payload.datasetId) {
+      this.state.datasetId = payload.datasetId;
+    }
     const nextSeq = parseServerSeq(payload.serverSeq);
     if (nextSeq >= this.state.lastServerSeq) {
       this.state.lastServerSeq = nextSeq;
@@ -193,9 +223,58 @@ export class SyncEngine {
       await this.onRemoteOps(ops);
     }
   }
+
+  async resetWithSnapshot(snapshot: string) {
+    if (!snapshot || typeof snapshot !== "string") return false;
+    const datasetId = crypto.randomUUID();
+    const response = await this.fetchFn(`${this.baseUrl}/sync/reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId: this.state.clientId,
+        datasetId,
+        snapshot,
+      }),
+    });
+    if (!response.ok) {
+      return false;
+    }
+    const payload = (await response.json()) as SyncPushResponse;
+    this.state.datasetId = payload.datasetId ?? datasetId;
+    this.state.lastServerSeq = parseServerSeq(payload.serverSeq);
+    this.outbox = [];
+    await this.storage.persistOutbox(this.outbox);
+    await this.storage.persistSyncState(this.state);
+    return true;
+  }
+
+  private async handleSnapshotResponse(payload: SyncPullResponse) {
+    const datasetId = parseDatasetId(payload?.datasetId);
+    const snapshot = typeof payload?.snapshot === "string" ? payload.snapshot : "";
+    if (!datasetId) {
+      return false;
+    }
+    const changed = datasetId !== this.state.datasetId;
+    if (changed) {
+      this.state.datasetId = datasetId;
+      this.state.lastServerSeq = parseServerSeq(payload?.serverSeq);
+      this.outbox = [];
+      await this.storage.persistOutbox(this.outbox);
+      await this.storage.persistSyncState(this.state);
+    }
+    if (!snapshot || !this.onSnapshot || !changed) {
+      return false;
+    }
+    await this.onSnapshot({ datasetId, snapshot });
+    return true;
+  }
 }
 
 function parseServerSeq(value: unknown) {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.floor(value as number));
+}
+
+function parseDatasetId(value: unknown) {
+  return typeof value === "string" && value.length ? value : "";
 }

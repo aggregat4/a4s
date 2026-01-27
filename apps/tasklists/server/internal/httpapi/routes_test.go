@@ -12,6 +12,12 @@ import (
 	"prototype-lists/server/internal/storage"
 )
 
+type bootstrapResponse struct {
+	DatasetID string `json:"datasetId"`
+	Snapshot  string `json:"snapshot"`
+	ServerSeq int64  `json:"serverSeq"`
+}
+
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	store := newTestStore(t)
@@ -50,11 +56,16 @@ func TestBootstrapEmpty(t *testing.T) {
 		t.Fatalf("status: got %d", resp.StatusCode)
 	}
 	var payload struct {
+		DatasetID string `json:"datasetId"`
+		Snapshot  string `json:"snapshot"`
 		ServerSeq int64 `json:"serverSeq"`
 		Ops       []any `json:"ops"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	if payload.DatasetID == "" {
+		t.Fatalf("datasetId should be set")
 	}
 	if payload.ServerSeq != 0 {
 		t.Fatalf("serverSeq: got %d", payload.ServerSeq)
@@ -68,8 +79,10 @@ func TestPushPullRoundTrip(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
 
+	bootstrap := fetchBootstrap(t, server.URL)
 	body := map[string]any{
 		"clientId": "client-1",
+		"datasetId": bootstrap.DatasetID,
 		"ops": []map[string]any{
 			{
 				"scope":      "list",
@@ -90,7 +103,7 @@ func TestPushPullRoundTrip(t *testing.T) {
 		t.Fatalf("push status: got %d", resp.StatusCode)
 	}
 
-	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1")
+	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1&datasetId=" + bootstrap.DatasetID)
 	if err != nil {
 		t.Fatalf("pull request: %v", err)
 	}
@@ -99,11 +112,15 @@ func TestPushPullRoundTrip(t *testing.T) {
 		t.Fatalf("pull status: got %d", pullResp.StatusCode)
 	}
 	var pullPayload struct {
+		DatasetID string       `json:"datasetId"`
 		ServerSeq int64        `json:"serverSeq"`
 		Ops       []storage.Op `json:"ops"`
 	}
 	if err := json.NewDecoder(pullResp.Body).Decode(&pullPayload); err != nil {
 		t.Fatalf("decode pull: %v", err)
+	}
+	if pullPayload.DatasetID != bootstrap.DatasetID {
+		t.Fatalf("datasetId mismatch: %s", pullPayload.DatasetID)
 	}
 	if pullPayload.ServerSeq == 0 {
 		t.Fatalf("serverSeq not updated")
@@ -120,8 +137,10 @@ func TestPushDedupe(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
 
+	bootstrap := fetchBootstrap(t, server.URL)
 	body := map[string]any{
 		"clientId": "client-1",
+		"datasetId": bootstrap.DatasetID,
 		"ops": []map[string]any{
 			{
 				"scope":      "list",
@@ -142,7 +161,7 @@ func TestPushDedupe(t *testing.T) {
 		t.Fatalf("push request: %v", err)
 	}
 
-	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1")
+	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1&datasetId=" + bootstrap.DatasetID)
 	if err != nil {
 		t.Fatalf("pull request: %v", err)
 	}
@@ -162,7 +181,7 @@ func TestPullMissingClientID(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/sync/pull?since=0")
+	resp, err := http.Get(server.URL + "/sync/pull?since=0&datasetId=missing")
 	if err != nil {
 		t.Fatalf("pull request: %v", err)
 	}
@@ -177,6 +196,7 @@ func TestPushMissingClientID(t *testing.T) {
 	defer server.Close()
 
 	body := map[string]any{
+		"datasetId": "dataset-x",
 		"ops": []map[string]any{
 			{
 				"scope":      "list",
@@ -198,6 +218,79 @@ func TestPushMissingClientID(t *testing.T) {
 	}
 }
 
+func TestResetSnapshot(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	bootstrap := fetchBootstrap(t, server.URL)
+	resetPayload := map[string]any{
+		"clientId":  "client-1",
+		"datasetId": "dataset-new",
+		"snapshot":  `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
+	}
+	body, _ := json.Marshal(resetPayload)
+	resp, err := http.Post(server.URL+"/sync/reset", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("reset request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("reset status: got %d", resp.StatusCode)
+	}
+
+	after := fetchBootstrap(t, server.URL)
+	if after.DatasetID == bootstrap.DatasetID {
+		t.Fatalf("datasetId should change after reset")
+	}
+	if after.DatasetID != "dataset-new" {
+		t.Fatalf("unexpected datasetId: %s", after.DatasetID)
+	}
+}
+
+func TestPullDatasetMismatch(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-1&datasetId=wrong")
+	if err != nil {
+		t.Fatalf("pull request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status: got %d", resp.StatusCode)
+	}
+	var payload struct {
+		DatasetID string `json:"datasetId"`
+		Snapshot  string `json:"snapshot"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload.DatasetID == "" {
+		t.Fatalf("datasetId should be returned")
+	}
+}
+
+func fetchBootstrap(t *testing.T, baseURL string) bootstrapResponse {
+	t.Helper()
+	resp, err := http.Get(baseURL + "/sync/bootstrap")
+	if err != nil {
+		t.Fatalf("bootstrap request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("bootstrap status: got %d", resp.StatusCode)
+	}
+	var payload bootstrapResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode bootstrap: %v", err)
+	}
+	if payload.DatasetID == "" {
+		t.Fatalf("datasetId missing")
+	}
+	return payload
+}
+
 func TestHealthz(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
@@ -216,8 +309,10 @@ func TestTwoClientsSync(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
 
+	bootstrap := fetchBootstrap(t, server.URL)
 	payload := map[string]any{
-		"clientId": "client-a",
+		"clientId":  "client-a",
+		"datasetId": bootstrap.DatasetID,
 		"ops": []map[string]any{
 			{
 				"scope":      "registry",
@@ -239,7 +334,7 @@ func TestTwoClientsSync(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-b")
+	pullResp, err := http.Get(server.URL + "/sync/pull?since=0&clientId=client-b&datasetId=" + bootstrap.DatasetID)
 	if err != nil {
 		t.Fatalf("pull request: %v", err)
 	}
@@ -258,7 +353,7 @@ func TestTwoClientsSync(t *testing.T) {
 		t.Fatalf("ops length: got %d", len(pullPayload.Ops))
 	}
 
-	pullResp2, err := http.Get(server.URL + "/sync/pull?since=" + strconv.FormatInt(pullPayload.ServerSeq, 10) + "&clientId=client-b")
+	pullResp2, err := http.Get(server.URL + "/sync/pull?since=" + strconv.FormatInt(pullPayload.ServerSeq, 10) + "&clientId=client-b&datasetId=" + bootstrap.DatasetID)
 	if err != nil {
 		t.Fatalf("pull request: %v", err)
 	}

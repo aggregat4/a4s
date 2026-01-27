@@ -7,7 +7,7 @@ ordering and deduplication.
 ## Overview
 
 - Transport: HTTP + JSON.
-- Server storage: SQLite op log (no snapshots initially).
+- Server storage: SQLite snapshot blob + op log since snapshot.
 - Live updates: fixed-interval polling via `GET /sync/pull`.
 - Dedupe key: `(actor, clock, scope, resourceId)`.
 
@@ -40,11 +40,13 @@ understand CRDT payloads.
 
 ### GET /sync/bootstrap
 
-Returns the full op log replay and current `serverSeq`.
+Returns the current snapshot blob, op log replay since snapshot, and current `serverSeq`.
 
 Response:
 ```json
 {
+  "datasetId": "dataset-uuid",
+  "snapshot": "{...snapshot json...}",
   "serverSeq": 100,
   "ops": [ /* SyncOp[] */ ]
 }
@@ -58,6 +60,7 @@ Request:
 ```json
 {
   "clientId": "client-abc",
+  "datasetId": "dataset-uuid",
   "ops": [ /* SyncOp[] without serverSeq */ ]
 }
 ```
@@ -65,11 +68,12 @@ Request:
 Response:
 ```json
 {
-  "serverSeq": 120
+  "serverSeq": 120,
+  "datasetId": "dataset-uuid"
 }
 ```
 
-### GET /sync/pull?since=123&clientId=client-abc
+### GET /sync/pull?since=123&clientId=client-abc&datasetId=dataset-uuid
 
 Pulls operations newer than `since` and updates the client's cursor.
 
@@ -77,7 +81,38 @@ Response:
 ```json
 {
   "serverSeq": 130,
+  "datasetId": "dataset-uuid",
   "ops": [ /* SyncOp[] */ ]
+}
+```
+
+If the dataset id is stale, the server responds with `409 Conflict` and:
+
+```json
+{
+  "datasetId": "dataset-uuid",
+  "snapshot": "{...snapshot json...}"
+}
+```
+
+### POST /sync/reset
+
+Replaces the current dataset with a new snapshot (import/reset).
+
+Request:
+```json
+{
+  "clientId": "client-abc",
+  "datasetId": "dataset-uuid",
+  "snapshot": "{...snapshot json...}"
+}
+```
+
+Response:
+```json
+{
+  "serverSeq": 0,
+  "datasetId": "dataset-uuid"
 }
 ```
 
@@ -94,6 +129,5 @@ Response:
 
 ## Notes
 
-- Snapshots are deferred; all bootstrap relies on op log replay.
-- Compaction can be added later by pruning ops below the minimum client cursor
-  once all active clients have seen them.
+- The server treats `snapshot` as an opaque JSON string.
+- Compaction can drop ops prior to the current snapshot.

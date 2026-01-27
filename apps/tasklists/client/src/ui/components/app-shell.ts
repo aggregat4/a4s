@@ -8,6 +8,11 @@ import { ListRegistry } from "../state/list-registry.js";
 import { RepositorySync } from "../state/repository-sync.js";
 import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
 import {
+  buildExportSnapshot,
+  parseExportSnapshotText,
+  stringifyExportSnapshot,
+} from "../../app/export-snapshot.js";
+import {
   matchesSearchEntry,
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
@@ -77,6 +82,7 @@ class ListsAppShellElement extends HTMLElement {
   private repositorySync: RepositorySync | null;
   private seedConfigs: SeedConfig[] | undefined;
   private demoSeedEnabled: boolean;
+  private importInput: HTMLInputElement | null;
   private unsubscribeStore: (() => void) | null;
   private lastOrder: ListId[];
   private lastActiveId: ListId | null;
@@ -103,6 +109,7 @@ class ListsAppShellElement extends HTMLElement {
     this.repositorySync = null;
     this.seedConfigs = undefined;
     this.demoSeedEnabled = false;
+    this.importInput = null;
     this.unsubscribeStore = null;
     this.lastOrder = [];
     this.lastActiveId = null;
@@ -123,6 +130,9 @@ class ListsAppShellElement extends HTMLElement {
     this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
     this.handleSidebarReorder = this.handleSidebarReorder.bind(this);
     this.handleSeedDemo = this.handleSeedDemo.bind(this);
+    this.handleExportSnapshot = this.handleExportSnapshot.bind(this);
+    this.handleImportSnapshot = this.handleImportSnapshot.bind(this);
+    this.handleImportInputChange = this.handleImportInputChange.bind(this);
   }
 
   connectedCallback() {
@@ -152,6 +162,12 @@ class ListsAppShellElement extends HTMLElement {
           data-role="move-dialog"
           hidden
         ></a4-move-dialog>
+        <input
+          type="file"
+          accept="application/json"
+          data-role="import-snapshot-input"
+          hidden
+        />
       `,
       this
     );
@@ -168,6 +184,19 @@ class ListsAppShellElement extends HTMLElement {
     this.moveDialogElement = this.querySelector(
       "[data-role='move-dialog']"
     ) as MoveDialogElement | null;
+    this.importInput = this.querySelector(
+      "[data-role='import-snapshot-input']"
+    ) as HTMLInputElement | null;
+    if (this.importInput) {
+      this.importInput.removeEventListener(
+        "change",
+        this.handleImportInputChange
+      );
+      this.importInput.addEventListener(
+        "change",
+        this.handleImportInputChange
+      );
+    }
   }
 
   async initialize({
@@ -230,6 +259,8 @@ class ListsAppShellElement extends HTMLElement {
       onSelectList: this.handleListSelection,
       onAddList: this.handleAddList,
       onDeleteList: this.handleDeleteList,
+      onExportSnapshot: this.handleExportSnapshot,
+      onImportSnapshot: this.handleImportSnapshot,
       onSeedDemo: this.handleSeedDemo,
       onItemDropped: (payload, targetListId) =>
         this.moveTasksController.handleSidebarDrop(payload, targetListId),
@@ -429,6 +460,59 @@ class ListsAppShellElement extends HTMLElement {
   async handleSeedDemo() {
     if (!this.repository) return;
     await ensureDemoData(this.repository, this.seedConfigs);
+  }
+
+  async handleExportSnapshot() {
+    if (!this.repository) return;
+    const snapshot = await this.repository.exportSnapshotData();
+    const envelope = buildExportSnapshot({
+      registryState: snapshot.registryState,
+      lists: snapshot.lists,
+    });
+    const content = stringifyExportSnapshot(envelope);
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `net-aggregat4-tasklist-${timestamp}.json`;
+    anchor.rel = "noopener";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  handleImportSnapshot() {
+    if (!this.importInput) return;
+    this.importInput.value = "";
+    this.importInput.click();
+  }
+
+  async handleImportInputChange(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0] ?? null;
+    if (!file || !this.repository) return;
+    let text = "";
+    try {
+      text = await file.text();
+    } catch (err) {
+      window.alert("Could not read the snapshot file.");
+      return;
+    }
+    const parsed = parseExportSnapshotText(text);
+    if (parsed.ok === false) {
+      window.alert(parsed.error);
+      return;
+    }
+    const confirmImport = window.confirm(
+      "Importing a snapshot replaces all current lists. Continue?"
+    );
+    if (!confirmImport) return;
+    await this.repository.replaceWithSnapshot({
+      registryState: parsed.value.registryState,
+      lists: parsed.value.lists,
+      snapshotText: text,
+      publishSnapshot: true,
+    });
   }
 
   handleSidebarReorder({

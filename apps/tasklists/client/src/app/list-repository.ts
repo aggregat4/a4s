@@ -1,5 +1,6 @@
 import { ListsCRDT } from "../domain/crdt/lists-crdt.js";
 import { TaskListCRDT } from "../domain/crdt/task-list-crdt.js";
+import { ensureActorId } from "../domain/crdt/ids.js";
 import { createListStorage } from "../storage/list-storage.js";
 import { hydrateFromStorage } from "../storage/hydrator.js";
 import type {
@@ -15,12 +16,14 @@ import type {
   TaskMoveInput,
   TaskUpdateInput,
 } from "../types/domain.js";
+import type { RegistryState } from "../types/domain.js";
 import type { ListStorage } from "../types/storage.js";
 import type { TaskListOperation, ListsOperation } from "../types/crdt.js";
 import type { SyncOp } from "../types/sync.js";
 import { HistoryManager } from "./history-manager.js";
 import type { HistoryOp, HistoryScope } from "./history-types.js";
 import { SyncEngine } from "./sync-engine.js";
+import { parseExportSnapshotText } from "./export-snapshot.js";
 
 type ListRecord = { crdt: TaskListCRDT };
 type StorageOptions = Record<string, unknown>;
@@ -248,6 +251,9 @@ export class ListRepository {
         baseUrl: this._syncOptions.baseUrl,
         pollIntervalMs: this._syncOptions.pollIntervalMs,
         onRemoteOps: async (ops) => this.applyRemoteOps(ops),
+        onSnapshot: async ({ snapshot }) => {
+          await this.applySnapshotBlob(snapshot);
+        },
       });
       await this._sync.initialize();
       await this._sync.bootstrapIfNeeded((ops) => this.applyRemoteOpsInternal(ops));
@@ -295,6 +301,98 @@ export class ListRepository {
     const record = this._listMap.get(listId);
     if (!record?.crdt) return [];
     return record.crdt.getSnapshot();
+  }
+
+  async exportSnapshotData(): Promise<{
+    registryState: RegistryState;
+    lists: Array<{ listId: ListId; state: ListState }>;
+  }> {
+    await this.initialize();
+    const registryState = this._listsCrdt.exportState();
+    const lists: Array<{ listId: ListId; state: ListState }> = [];
+    this.getRegistrySnapshot().forEach((entry) => {
+      const record = this._listMap.get(entry.id);
+      if (!record?.crdt) return;
+      lists.push({ listId: entry.id, state: record.crdt.exportState() });
+    });
+    return { registryState, lists };
+  }
+
+  async replaceWithSnapshot({
+    registryState,
+    lists,
+    snapshotText,
+    publishSnapshot = false,
+  }: {
+    registryState: RegistryState;
+    lists: Array<{ listId: ListId; state: ListState }>;
+    snapshotText?: string;
+    publishSnapshot?: boolean;
+  }) {
+    await this.initialize();
+    await this.flushPendingEdits();
+    if (!this._storage) return;
+
+    this._sync?.stop();
+
+    const existingSync = await this._storage.loadSyncState();
+    const clientId =
+      existingSync.clientId && existingSync.clientId.length
+        ? existingSync.clientId
+        : ensureActorId();
+
+    await this._storage.clear();
+    await this._storage.persistSyncState({
+      clientId,
+      lastServerSeq: 0,
+    });
+    await this._storage.persistOutbox([]);
+    await this._storage.persistRegistry({
+      operations: [],
+      snapshot: registryState,
+    });
+    const listEntries = Array.isArray(lists) ? lists : [];
+    for (const entry of listEntries) {
+      if (!entry?.listId) continue;
+      await this._storage.persistOperations(entry.listId, [], {
+        snapshot: entry.state,
+      });
+    }
+
+    const hydration = await hydrateFromStorage({
+      storage: this._storage,
+      listsCrdt: this._listsCrdt,
+      createListCrdt: (listId, state) => this._createListInstance(listId, state),
+    });
+    this._listMap = (hydration.lists ?? new Map()) as Map<ListId, ListRecord>;
+    this._history.clear();
+    this._historySuppressed = 0;
+    this._textEditSessions.clear();
+    this._textUpdateQueue.clear();
+    this._pendingInserts.clear();
+    this.emitRegistryChange();
+    this._listMap.forEach((_record, listId) => this.emitListChange(listId));
+
+    if (this._sync) {
+      await this._sync.initialize();
+      if (publishSnapshot && typeof snapshotText === "string") {
+        await this._sync.resetWithSnapshot(snapshotText);
+      }
+      this._sync.start();
+    }
+  }
+
+  async applySnapshotBlob(snapshotText: string) {
+    const parsed = parseExportSnapshotText(snapshotText);
+    if (parsed.ok === false) {
+      return false;
+    }
+    await this.replaceWithSnapshot({
+      registryState: parsed.value.registryState,
+      lists: parsed.value.lists,
+      publishSnapshot: false,
+    });
+    return true;
   }
 
   subscribe(handler: (payload: GlobalListener) => void) {

@@ -89,3 +89,39 @@ func TestClientCursorTracking(t *testing.T) {
 		t.Fatalf("cursor should not regress: %v", err)
 	}
 }
+
+func TestSnapshotReplaceResetsOps(t *testing.T) {
+	store := newSQLiteStore(t)
+	ctx := context.Background()
+	if _, err := store.InsertOps(ctx, []Op{
+		{
+			Scope:    "list",
+			Resource: "list-1",
+			Actor:    "actor-1",
+			Clock:    1,
+			Payload:  []byte(`{"type":"insert","itemId":"item-1"}`),
+		},
+	}); err != nil {
+		t.Fatalf("insert ops: %v", err)
+	}
+	if err := store.ReplaceSnapshot(ctx, Snapshot{
+		DatasetID: "dataset-new",
+		Blob:      `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
+	}); err != nil {
+		t.Fatalf("replace snapshot: %v", err)
+	}
+	ops, _, err := store.GetOpsSince(ctx, 0)
+	if err != nil {
+		t.Fatalf("get ops: %v", err)
+	}
+	if len(ops) != 0 {
+		t.Fatalf("ops should be cleared after snapshot replace")
+	}
+	snapshot, err := store.GetSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	if snapshot.DatasetID != "dataset-new" {
+		t.Fatalf("snapshot datasetId mismatch: %s", snapshot.DatasetID)
+	}
+}
