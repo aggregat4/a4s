@@ -9,9 +9,11 @@ type SyncEngineOptions = {
   storage: ListStorage;
   baseUrl: string;
   pollIntervalMs?: number;
+  requestTimeoutMs?: number;
   fetchFn?: FetchFn;
   onRemoteOps?: (ops: SyncOp[]) => Promise<void> | void;
   onSnapshot?: (payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void;
+  onConnectionError?: (error: unknown) => void;
   clientId?: string;
 };
 
@@ -30,14 +32,17 @@ type SyncPullResponse = {
 type SyncBootstrapResponse = SyncPullResponse;
 
 const DEFAULT_POLL_INTERVAL_MS = 2000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 
 export class SyncEngine {
   private storage: ListStorage;
   private baseUrl: string;
   private pollIntervalMs: number;
+  private requestTimeoutMs: number;
   private fetchFn: FetchFn;
   private onRemoteOps: ((ops: SyncOp[]) => Promise<void> | void) | null;
   private onSnapshot: ((payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void) | null;
+  private onConnectionError: ((error: unknown) => void) | null;
   private state: SyncState;
   private outbox: SyncOp[];
   private timer: ReturnType<typeof setTimeout> | null;
@@ -53,10 +58,15 @@ export class SyncEngine {
       typeof options.pollIntervalMs === "number" && options.pollIntervalMs > 0
         ? Math.floor(options.pollIntervalMs)
         : DEFAULT_POLL_INTERVAL_MS;
+    this.requestTimeoutMs =
+      typeof options.requestTimeoutMs === "number" && options.requestTimeoutMs > 0
+        ? Math.floor(options.requestTimeoutMs)
+        : DEFAULT_REQUEST_TIMEOUT_MS;
     this.fetchFn =
       options.fetchFn ?? globalThis.fetch?.bind(globalThis);
     this.onRemoteOps = options.onRemoteOps ?? null;
     this.onSnapshot = options.onSnapshot ?? null;
+    this.onConnectionError = options.onConnectionError ?? null;
     this.state = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
     this.outbox = [];
     this.timer = null;
@@ -89,9 +99,12 @@ export class SyncEngine {
     if (this.outbox.length > 0) return;
     if (this.state.lastServerSeq > 0 && this.state.datasetGenerationKey) return;
     if (!applyOps) return;
-    const response = await this.fetchFn(`${this.baseUrl}/sync/bootstrap`, {
+    const response = await this.safeFetch(`${this.baseUrl}/sync/bootstrap`, {
       method: "GET",
     });
+    if (!response) {
+      return;
+    }
     if (!response.ok) {
       return;
     }
@@ -169,7 +182,7 @@ export class SyncEngine {
 
   private async flushOutbox() {
     if (this.outbox.length === 0) return;
-    const response = await this.fetchFn(`${this.baseUrl}/sync/push`, {
+    const response = await this.safeFetch(`${this.baseUrl}/sync/push`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -178,6 +191,9 @@ export class SyncEngine {
         ops: this.outbox,
       }),
     });
+    if (!response) {
+      return;
+    }
     if (response.status === 409) {
       await this.handleSnapshotResponse(await response.json());
       return;
@@ -196,12 +212,15 @@ export class SyncEngine {
   }
 
   private async pullRemoteOps() {
-    const response = await this.fetchFn(
+    const response = await this.safeFetch(
       `${this.baseUrl}/sync/pull?since=${this.state.lastServerSeq}&clientId=${encodeURIComponent(
         this.state.clientId
       )}&datasetGenerationKey=${encodeURIComponent(this.state.datasetGenerationKey ?? "")}`,
       { method: "GET" }
     );
+    if (!response) {
+      return;
+    }
     if (response.status === 409) {
       await this.handleSnapshotResponse(await response.json());
       return;
@@ -224,10 +243,12 @@ export class SyncEngine {
     }
   }
 
-  async resetWithSnapshot(snapshot: string) {
-    if (!snapshot || typeof snapshot !== "string") return false;
+  async resetWithSnapshot(snapshot: string): Promise<{ ok: boolean; error?: string; status?: number }> {
+    if (!snapshot || typeof snapshot !== "string") {
+      return { ok: false, error: "Snapshot payload is required." };
+    }
     const datasetGenerationKey = crypto.randomUUID();
-    const response = await this.fetchFn(`${this.baseUrl}/sync/reset`, {
+    const response = await this.safeFetch(`${this.baseUrl}/sync/reset`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -236,8 +257,29 @@ export class SyncEngine {
         snapshot,
       }),
     });
+    if (!response) {
+      return { ok: false, error: "Sync server is unavailable. Please try again." };
+    }
     if (!response.ok) {
-      return false;
+      const status = response.status;
+      let message = "Failed to publish snapshot to the server.";
+      try {
+        const payload = (await response.json()) as { error?: string };
+        if (payload?.error) {
+          message = payload.error;
+        }
+      } catch {
+        try {
+          const text = await response.text();
+          if (text) {
+            message = text;
+          }
+        } catch {}
+      }
+      if (status === 409) {
+        message = "Server rejected the snapshot because the dataset generation key already exists.";
+      }
+      return { ok: false, error: message, status };
     }
     const payload = (await response.json()) as SyncPushResponse;
     this.state.datasetGenerationKey = payload.datasetGenerationKey ?? datasetGenerationKey;
@@ -245,7 +287,7 @@ export class SyncEngine {
     this.outbox = [];
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);
-    return true;
+    return { ok: true };
   }
 
   private async handleSnapshotResponse(payload: SyncPullResponse) {
@@ -267,6 +309,26 @@ export class SyncEngine {
     }
     await this.onSnapshot({ datasetGenerationKey, snapshot });
     return true;
+  }
+
+  private async safeFetch(
+    url: string,
+    init: RequestInit
+  ): Promise<Response | null> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    try {
+      const response = await this.fetchFn(url, {
+        ...init,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      return response;
+    } catch (err) {
+      clearTimeout(timeout);
+      this.onConnectionError?.(err);
+      return null;
+    }
   }
 }
 

@@ -46,24 +46,82 @@ function waitForDocumentReady() {
   return Promise.resolve();
 }
 
-async function resolveSyncBaseUrl() {
+function shouldEnableSync() {
   const params = new URLSearchParams(window.location.search);
-  const enableSync =
-    window.location.port === "8080" || params.get("sync") === "1";
-  if (!enableSync) {
-    return null;
-  }
-  try {
-    const response = await fetch(`${window.location.origin}/healthz`, {
-      method: "GET",
-    });
-    if (response.ok) {
-      return window.location.origin;
+  return window.location.port === "8080" || params.get("sync") === "1";
+}
+
+const SYNC_HEALTH_TIMEOUT_MS = 2000;
+const SYNC_BACKOFF_START_MS = 500;
+const SYNC_BACKOFF_MAX_MS = 10_000;
+
+function createSyncAvailabilityMonitor({
+  repository,
+  baseUrl,
+}: {
+  repository: ListRepository;
+  baseUrl: string;
+}) {
+  let stopped = false;
+  let timer: number | null = null;
+  let backoffMs = SYNC_BACKOFF_START_MS;
+
+  const scheduleRetry = () => {
+    if (stopped) return;
+    if (timer !== null) {
+      window.clearTimeout(timer);
     }
-  } catch (err) {
-    // Ignore network failures; sync stays disabled.
-  }
-  return null;
+    const delay = backoffMs;
+    backoffMs = Math.min(backoffMs * 2, SYNC_BACKOFF_MAX_MS);
+    timer = window.setTimeout(() => {
+      void check();
+    }, delay);
+  };
+
+  const check = async () => {
+    if (stopped) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(
+      () => controller.abort(),
+      SYNC_HEALTH_TIMEOUT_MS
+    );
+    try {
+      const response = await fetch(`${baseUrl}/healthz`, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      window.clearTimeout(timeout);
+      if (response.ok) {
+        backoffMs = SYNC_BACKOFF_START_MS;
+        await repository.enableSync(baseUrl, {
+          onConnectionError: () => {
+            repository.disableSync();
+            scheduleRetry();
+          },
+        });
+        return;
+      }
+    } catch (err) {
+      window.clearTimeout(timeout);
+    }
+    repository.disableSync();
+    scheduleRetry();
+  };
+
+  return {
+    start() {
+      stopped = false;
+      backoffMs = SYNC_BACKOFF_START_MS;
+      void check();
+    },
+    stop() {
+      stopped = true;
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+    },
+  };
 }
 
 export async function bootstrapListsApp(
@@ -83,11 +141,11 @@ export async function bootstrapListsApp(
     customElements.upgrade(appRoot);
   }
   await resetPersistentStorageIfNeeded();
-  const syncBaseUrl = await resolveSyncBaseUrl();
+  const enableSync = shouldEnableSync();
   const enableDemoSeed =
     new URLSearchParams(window.location.search).get("demo") === "1";
   const repository = new ListRepository({
-    sync: syncBaseUrl ? { baseUrl: syncBaseUrl } : null,
+    sync: null,
   });
   const appRootElement = appRoot as HTMLElement & {
     initialize?: (options: {
@@ -102,6 +160,13 @@ export async function bootstrapListsApp(
       seedConfigs,
       enableDemoSeed,
     });
+  }
+  if (enableSync) {
+    const monitor = createSyncAvailabilityMonitor({
+      repository,
+      baseUrl: window.location.origin,
+    });
+    monitor.start();
   }
   window.listsApp = appRoot;
   return appRoot;

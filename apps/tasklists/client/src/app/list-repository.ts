@@ -100,6 +100,7 @@ export class ListRepository {
   private _unsubscribeRegistry: (() => void) | null;
   private _sync: SyncEngine | null;
   private _syncOptions: SyncOptions | null;
+  private _syncErrorHandler: ((error: unknown) => void) | null;
 
   constructor(
     options: {
@@ -133,6 +134,7 @@ export class ListRepository {
     this._initializing = null;
     this._unsubscribeRegistry = null;
     this._sync = null;
+    this._syncErrorHandler = null;
   }
 
   recordHistory({
@@ -246,18 +248,9 @@ export class ListRepository {
     });
 
     if (!this._sync && this._syncOptions?.baseUrl && this._storage) {
-      this._sync = new SyncEngine({
-        storage: this._storage,
-        baseUrl: this._syncOptions.baseUrl,
-        pollIntervalMs: this._syncOptions.pollIntervalMs,
-        onRemoteOps: async (ops) => this.applyRemoteOps(ops),
-        onSnapshot: async ({ snapshot }) => {
-          await this.applySnapshotBlob(snapshot);
-        },
+      await this.enableSync(this._syncOptions.baseUrl, {
+        onConnectionError: this._syncErrorHandler ?? undefined,
       });
-      await this._sync.initialize();
-      await this._sync.bootstrapIfNeeded((ops) => this.applyRemoteOpsInternal(ops));
-      this._sync.start();
     }
   }
 
@@ -270,6 +263,8 @@ export class ListRepository {
     this._storage = null;
     this._sync?.stop();
     this._sync = null;
+    this._syncOptions = null;
+    this._syncErrorHandler = null;
     this._listMap.clear();
     this._history.clear();
     this._historySuppressed = 0;
@@ -278,6 +273,53 @@ export class ListRepository {
     this._pendingInserts.clear();
     this._initialized = false;
     this._initializing = null;
+  }
+
+  isSyncEnabled() {
+    return Boolean(this._sync);
+  }
+
+  async enableSync(
+    baseUrl: string,
+    options: { onConnectionError?: (error: unknown) => void } = {}
+  ) {
+    if (!baseUrl) return;
+    await this.initialize();
+    const normalized = baseUrl.replace(/\/$/, "");
+    if (this._sync && this._syncOptions?.baseUrl === normalized) {
+      if (options.onConnectionError) {
+        this._syncErrorHandler = options.onConnectionError;
+      }
+      return;
+    }
+    this.disableSync();
+    this._syncOptions = { baseUrl: normalized };
+    this._syncErrorHandler = options.onConnectionError ?? null;
+    if (!this._storage) return;
+    this._sync = new SyncEngine({
+      storage: this._storage,
+      baseUrl: normalized,
+      pollIntervalMs: this._syncOptions.pollIntervalMs,
+      onRemoteOps: async (ops) => this.applyRemoteOps(ops),
+      onSnapshot: async ({ snapshot }) => {
+        await this.applySnapshotBlob(snapshot);
+      },
+      onConnectionError: (error) => {
+        this._syncErrorHandler?.(error);
+        this.disableSync();
+      },
+    });
+    await this._sync.initialize();
+    await this._sync.bootstrapIfNeeded((ops) => this.applyRemoteOpsInternal(ops));
+    this._sync.start();
+  }
+
+  disableSync() {
+    if (this._sync) {
+      this._sync.stop();
+      this._sync = null;
+    }
+    this._syncOptions = null;
   }
 
   isInitialized() {
