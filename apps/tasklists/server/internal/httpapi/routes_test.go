@@ -206,6 +206,22 @@ func TestResetSnapshot(t *testing.T) {
 	}
 }
 
+func TestResetRejectsDuplicateDatasetGenerationKey(t *testing.T) {
+	mux := newTestMux(t)
+	bootstrap := fetchBootstrap(t, mux)
+
+	resetPayload := map[string]any{
+		"clientId":             "client-1",
+		"datasetGenerationKey": bootstrap.DatasetGenerationKey,
+		"snapshot":             `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
+	}
+	body, _ := json.Marshal(resetPayload)
+	resp := doRequest(t, mux, http.MethodPost, "/sync/reset", body)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("reset status: got %d", resp.Code)
+	}
+}
+
 func TestPullDatasetMismatch(t *testing.T) {
 	mux := newTestMux(t)
 

@@ -1,6 +1,9 @@
 package storage
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // Op is the generic sync envelope stored by the server.
 type Op struct {
@@ -17,3 +20,5 @@ type Snapshot struct {
 	DatasetGenerationKey string `json:"datasetGenerationKey"`
 	Blob                 string `json:"snapshot"`
 }
+
+var ErrDatasetGenerationKeyExists = errors.New("datasetGenerationKey already exists")

@@ -362,6 +362,13 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) er
 	if snapshot.DatasetGenerationKey == "" {
 		return errors.New("datasetGenerationKey is required")
 	}
+	exists, err := s.datasetGenerationKeyExists(ctx, snapshot.DatasetGenerationKey)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrDatasetGenerationKeyExists
+	}
 	conn, err := s.dbWrite.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("get write conn: %w", err)
@@ -382,9 +389,6 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) er
 	if _, err := conn.ExecContext(ctx, `
 		INSERT INTO snapshots (dataset_generation_key, snapshot_blob, created_at)
 		VALUES (?, ?, ?)
-		ON CONFLICT(dataset_generation_key) DO UPDATE SET
-			snapshot_blob = excluded.snapshot_blob,
-			created_at = excluded.created_at
 	`, snapshot.DatasetGenerationKey, snapshot.Blob, now); err != nil {
 		return fmt.Errorf("insert snapshot: %w", err)
 	}
@@ -413,4 +417,25 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) er
 	}
 	committed = true
 	return nil
+}
+
+func (s *SQLiteStore) datasetGenerationKeyExists(ctx context.Context, key string) (bool, error) {
+	db := s.dbRead
+	if db == nil {
+		db = s.dbWrite
+	}
+	row := db.QueryRowContext(ctx, `
+		SELECT 1
+		FROM snapshots
+		WHERE dataset_generation_key = ?
+		LIMIT 1
+	`, key)
+	var exists int
+	if err := row.Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check datasetGenerationKey: %w", err)
+	}
+	return true, nil
 }

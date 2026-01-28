@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -174,6 +175,10 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		DatasetGenerationKey: payload.DatasetGenerationKey,
 		Blob:                 payload.Snapshot,
 	}); err != nil {
+		if errors.Is(err, storage.ErrDatasetGenerationKeyExists) {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error()})
+			return
+		}
 		log.Printf("sync reset error client=%s: %v", payload.ClientID, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
