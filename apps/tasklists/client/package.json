@@ -8,9 +8,9 @@
     "lint:deps": "knip",
     "lint:css": "stylelint \"public/**/*.css\" || true",
     "test:unit": "npm run build && node --test dist/tests/unit/**/*.spec.js",
-    "test": "npm run test:e2e",
-    "test:e2e": "npm run build && npx playwright test --project=chromium",
-    "test:e2e:firefox": "npm run build && npx playwright test --project=firefox"
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:e2e": "PLAYWRIGHT_USE_DOCKER=1 npm run build && npx playwright test --project=chromium",
+    "test:e2e:firefox": "PLAYWRIGHT_USE_DOCKER=1 npm run build && npx playwright test --project=firefox"
   },
   "license": "Apache-2.0",
   "type": "commonjs",
