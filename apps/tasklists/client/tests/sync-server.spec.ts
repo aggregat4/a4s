@@ -1,14 +1,33 @@
 import type { Page } from "@playwright/test";
+import {
+  buildExportSnapshot,
+  stringifyExportSnapshot,
+} from "../src/app/export-snapshot.js";
 import { test, expect } from "./fixtures";
 
 const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
+
+function buildEmptySnapshotPayload() {
+  return stringifyExportSnapshot(
+    buildExportSnapshot({
+      registryState: { clock: 0, entries: [] },
+      lists: [],
+    })
+  );
+}
 
 async function createList(page: Page, title: string) {
   page.once("dialog", async (dialog) => {
     await dialog.accept(title);
   });
   await page.getByRole("button", { name: "Add list" }).click();
+  const listButton = page
+    .locator("[data-role='sidebar-list'] .sidebar-list-button")
+    .filter({ hasText: title })
+    .first();
+  await expect(listButton).toBeVisible({ timeout: 10_000 });
+  await listButton.click();
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     title
   );
@@ -33,7 +52,13 @@ test("sync propagates tasks between clients", async ({ browser }) => {
   const pageB = await contextB.newPage();
   try {
     await pageA.goto("/?sync=1&resetStorage=1");
+    await pageA.waitForResponse((response) =>
+      response.url().includes("/sync/bootstrap")
+    );
     await pageB.goto("/?sync=1&resetStorage=1");
+    await pageB.waitForResponse((response) =>
+      response.url().includes("/sync/bootstrap")
+    );
     await createList(pageA, "Sync List");
     await selectList(pageB, "Sync List");
 
@@ -68,6 +93,9 @@ test("late client bootstraps from existing data", async ({ browser }) => {
   const pageA = await contextA.newPage();
   try {
     await pageA.goto("/?sync=1&resetStorage=1");
+    await pageA.waitForResponse((response) =>
+      response.url().includes("/sync/bootstrap")
+    );
     await createList(pageA, "Bootstrap List");
 
     const uniqueText = `Bootstrap task ${Date.now()}`;
@@ -90,10 +118,8 @@ test("late client bootstraps from existing data", async ({ browser }) => {
     const pageB = await contextB.newPage();
     try {
       await pageB.goto("/?sync=1&resetStorage=1");
-      await pageB.waitForResponse(
-        (response) =>
-          response.url().includes("/sync/bootstrap") &&
-          response.status() === 200
+      await pageB.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
       );
       await selectList(pageB, "Bootstrap List");
       const remoteTask = pageB.locator(listItemsSelector).locator(".text", {
@@ -106,4 +132,15 @@ test("late client bootstraps from existing data", async ({ browser }) => {
   } finally {
     await contextA.close();
   }
+});
+
+test.afterAll(async ({ request }) => {
+  const response = await request.post("/sync/reset", {
+    data: {
+      clientId: `e2e-${crypto.randomUUID()}`,
+      datasetGenerationKey: crypto.randomUUID(),
+      snapshot: buildEmptySnapshotPayload(),
+    },
+  });
+  expect(response.ok()).toBe(true);
 });

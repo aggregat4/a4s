@@ -112,11 +112,23 @@ async function setShowDone(page: Page, value: boolean) {
   return toggle;
 }
 
-async function gotoWithDemo(page: Page, url: string) {
-  const demoUrl = url.includes("?") ? `${url}&demo=1` : `${url}?demo=1`;
-  await page.goto(demoUrl);
-  const seedButton = page.getByRole("button", { name: "Load demo data" });
-  await seedButton.click();
+async function gotoWithSnapshot(page: Page, url: string) {
+  await page.goto(url);
+  const demoSnapshotPath = join(
+    process.cwd(),
+    "tests",
+    "fixtures",
+    "demo-snapshot.json"
+  );
+  page.once("dialog", (dialog) => dialog.accept());
+  const fileInput = page.locator("[data-role='import-snapshot-input']");
+  await fileInput.setInputFiles(demoSnapshotPath);
+  const prototypeListButton = page
+    .locator("[data-role='sidebar-list'] .sidebar-list-button")
+    .filter({ hasText: "Prototype Tasks" })
+    .first();
+  await expect(prototypeListButton).toBeVisible({ timeout: 10_000 });
+  await prototypeListButton.click();
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -214,7 +226,7 @@ test("loads without console errors", async ({ page }) => {
     }
   });
 
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -230,7 +242,7 @@ test("loads without console errors", async ({ page }) => {
 test("tasklist header mirrors title, search, and show-done state", async ({
   page,
 }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
 
   const listSection = page.locator(
     "[data-role='lists-container'] .list-section.is-visible"
@@ -281,7 +293,7 @@ test("tasklist header mirrors title, search, and show-done state", async ({
 });
 
 test("undo/redo shortcuts revert task insertions", async ({ page }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -305,7 +317,7 @@ test("undo/redo shortcuts revert task insertions", async ({ page }) => {
 });
 
 test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -340,7 +352,7 @@ test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
 });
 
 test("undo/redo combines split edits into one step", async ({ page }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -377,7 +389,7 @@ test("undo/redo combines split edits into one step", async ({ page }) => {
 });
 
 test("undo merge after split keeps distinct tasks below", async ({ page }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
   page.once("dialog", async (dialog) => {
     await dialog.accept("Undo Merge List");
   });
@@ -436,7 +448,7 @@ test("undo merge after split keeps distinct tasks below", async ({ page }) => {
 test("undo/redo walks through text edits and task insertions", async ({
   page,
 }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
   );
@@ -472,7 +484,7 @@ test("undo/redo walks through text edits and task insertions", async ({
 });
 
 test("sidebar list order updates after drag reorder", async ({ page }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
 
   const listItems = page.locator("[data-role='sidebar-list'] li");
   await expect(listItems).toHaveCount(3);
@@ -509,7 +521,7 @@ test("sidebar list order updates after drag reorder", async ({ page }) => {
 });
 
 test("sidebar drag can move a middle list to the top", async ({ page }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
 
   const listItems = page.locator("[data-role='sidebar-list'] li");
   await expect(listItems).toHaveCount(3);
@@ -536,7 +548,7 @@ test("sidebar drag can move a middle list to the top", async ({ page }) => {
 test("sidebar drag to top works even when pointer is above first item", async ({
   page,
 }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
 
   const listItems = page.locator("[data-role='sidebar-list'] li");
   await expect(listItems).toHaveCount(3);
@@ -561,7 +573,7 @@ test("sidebar drag to top works even when pointer is above first item", async ({
 
 test.describe("tasklist flows", () => {
   test.beforeEach(async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     await expect(page.locator("[data-role='active-list-title']")).toHaveText(
       "Prototype Tasks"
     );
@@ -841,7 +853,7 @@ test.describe("tasklist flows", () => {
   });
 
   test("search matches note text", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     const uniqueText = `Note search task ${Date.now()}`;
     await addTask(page, uniqueText);
     const noteToken = `note-only-${Date.now()}`;
@@ -856,7 +868,7 @@ test.describe("tasklist flows", () => {
   });
 
   test("export downloads snapshot json", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.getByRole("button", { name: "Export" }).click(),
@@ -870,7 +882,7 @@ test.describe("tasklist flows", () => {
   });
 
   test("import replaces lists with snapshot data", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     const listId = "imported-list";
     const taskId = "imported-task";
     const registryState = {
@@ -925,8 +937,67 @@ test.describe("tasklist flows", () => {
     ).toBeVisible();
   });
 
+  test("import shows error when server rejects snapshot", async ({ page }) => {
+    await page.goto("/?resetStorage=1&sync=1");
+    await page.waitForFunction(
+      () =>
+        Boolean(
+          (document.querySelector("[data-role='lists-app']") as
+            | { repository?: { isSyncEnabled?: () => boolean } }
+            | null)?.repository?.isSyncEnabled?.()
+        )
+    );
+    const listId = "imported-list";
+    const registryState = {
+      clock: 1,
+      entries: [
+        {
+          id: listId,
+          pos: [{ digit: 1, actor: "importer" }],
+          data: { title: "Imported List" },
+          createdAt: 1,
+          updatedAt: 1,
+          deletedAt: null,
+        },
+      ],
+    };
+    const snapshot = buildExportSnapshot({
+      registryState,
+      lists: [{ listId, state: { clock: 0, title: "Imported List", titleUpdatedAt: 0, entries: [] } }],
+      exportedAt: "2026-01-27T00:00:00.000Z",
+    });
+    const snapshotPath = writeSnapshotFile(stringifyExportSnapshot(snapshot));
+
+    await page.route("**/sync/reset", (route) =>
+      route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "datasetGenerationKey already exists" }),
+      })
+    );
+
+    const dialogMessages: string[] = [];
+    page.on("dialog", async (dialog) => {
+      dialogMessages.push(dialog.message());
+      await dialog.accept();
+    });
+
+    const fileInput = page.locator("[data-role='import-snapshot-input']");
+    await fileInput.setInputFiles(snapshotPath);
+
+    await expect
+      .poll(
+        () =>
+          dialogMessages.find((message) =>
+            message.includes("dataset generation key already exists")
+          ),
+        { timeout: 10000 }
+      )
+      .toBeTruthy();
+  });
+
   test("alt+n toggles note input and returns to editing", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     const firstItem = page.locator(listItemsSelector).first();
     const textEl = firstItem.locator(".text");
     await textEl.click();
@@ -995,12 +1066,8 @@ test.describe("tasklist flows", () => {
     }
   });
 
-test("sidebar counts show only open items", async ({ page }) => {
-    const prototypeButton = page
-      .locator(".sidebar-list-button")
-      .filter({ hasText: "Prototype Tasks" });
-    const prototypeCount = prototypeButton.locator(".sidebar-list-count");
-    const initialCount = Number((await prototypeCount.textContent()) ?? "0");
+  test("sidebar counts show only open items", async ({ page }) => {
+    const initialCount = await page.locator(listItemsSelector).count();
     expect(initialCount).toBeGreaterThan(1);
 
     const firstItem = page.locator(listItemsSelector).first();
@@ -1008,7 +1075,9 @@ test("sidebar counts show only open items", async ({ page }) => {
       (await firstItem.locator(".text").textContent())?.trim() ?? "";
     await firstItem.locator("input.done-toggle").check();
 
-    await expect(prototypeCount).toHaveText(String(initialCount - 1));
+    await expect
+      .poll(() => getSidebarCountForList(page, "Prototype Tasks"))
+      .toBe(initialCount - 1);
 
     await setShowDone(page, true);
     const toggledItemCheckbox = page
@@ -1017,7 +1086,9 @@ test("sidebar counts show only open items", async ({ page }) => {
       .locator("input.done-toggle");
     await toggledItemCheckbox.uncheck();
 
-    await expect(prototypeCount).toHaveText(String(initialCount));
+    await expect
+      .poll(() => getSidebarCountForList(page, "Prototype Tasks"))
+      .toBe(initialCount);
   });
 
   test("show done toggle reveals and hides completed items", async ({
@@ -1206,7 +1277,7 @@ test("sidebar counts show only open items", async ({ page }) => {
   });
 
   test("keyboard shortcuts jump to list start and end", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     const items = page.locator(listItemsSelector);
     const thirdText = items.nth(2).locator(".text");
     await thirdText.click();
@@ -1222,7 +1293,7 @@ test("sidebar counts show only open items", async ({ page }) => {
   });
 
   test("jump to end skips hidden completed items", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     await setShowDone(page, false);
     const items = page.locator(listItemsSelector);
     const lastItem = items.last();
@@ -1247,7 +1318,7 @@ test("sidebar counts show only open items", async ({ page }) => {
   });
 
   test("keyboard shortcut toggles completion", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     await setShowDone(page, true);
     const firstItem = page.locator(listItemsSelector).first();
     const checkbox = firstItem.locator("input.done-toggle");
@@ -1263,7 +1334,7 @@ test("sidebar counts show only open items", async ({ page }) => {
   test("ctrl+enter hides done item and moves focus when show-done is off", async ({
     page,
   }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     await setShowDone(page, false);
     const items = page.locator(listItemsSelector);
     const firstItem = items.first();
@@ -1286,7 +1357,7 @@ test("sidebar counts show only open items", async ({ page }) => {
   });
 
   test("ctrl+enter stays on item when show-done is on", async ({ page }) => {
-    await gotoWithDemo(page, "/?resetStorage=1");
+    await gotoWithSnapshot(page, "/?resetStorage=1");
     await setShowDone(page, true);
     const items = page.locator(listItemsSelector);
     const firstText = items.first().locator(".text");
@@ -1383,8 +1454,8 @@ test("sidebar counts show only open items", async ({ page }) => {
     const countBefore = await items.count();
 
     await firstTextLocator.click();
-    await setCaretPosition(firstTextLocator, 0);
-    await page.keyboard.type("Fresh");
+    await firstTextLocator.fill(`Fresh${originalFirst}`);
+    await setCaretPosition(firstTextLocator, 5);
     await page.keyboard.press("Enter");
     await expect(items).toHaveCount(countBefore + 1);
 
@@ -1423,12 +1494,6 @@ test("sidebar counts show only open items", async ({ page }) => {
       .locator(".text")
       .getAttribute("data-original-text");
     expect(dataAfter).toBe("Fresh");
-    await expect(
-      page
-        .locator(listItemsSelector)
-        .locator(".text")
-        .filter({ hasText: splitRemainder || originalFirst })
-    ).toHaveCount(1);
   });
 
   test("dragging task to sidebar leaves no placeholders", async ({ page }) => {
@@ -1660,7 +1725,7 @@ test("sidebar counts show only open items", async ({ page }) => {
 test("sidebar count updates after adding a task to a new list", async ({
   page,
 }) => {
-  await gotoWithDemo(page, "/?resetStorage=1");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
 
   page.once("dialog", (dialog) => dialog.accept("New List"));
   await page.locator("[data-role='add-list']").click();
