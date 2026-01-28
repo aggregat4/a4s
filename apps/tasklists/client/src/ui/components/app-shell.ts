@@ -464,21 +464,25 @@ class ListsAppShellElement extends HTMLElement {
 
   async handleExportSnapshot() {
     if (!this.repository) return;
-    const snapshot = await this.repository.exportSnapshotData();
-    const envelope = buildExportSnapshot({
-      registryState: snapshot.registryState,
-      lists: snapshot.lists,
-    });
-    const content = stringifyExportSnapshot(envelope);
-    const blob = new Blob([content], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `net-aggregat4-tasklist-${timestamp}.json`;
-    anchor.rel = "noopener";
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    try {
+      const snapshot = await this.repository.exportSnapshotData();
+      const envelope = buildExportSnapshot({
+        registryState: snapshot.registryState,
+        lists: snapshot.lists,
+      });
+      const content = stringifyExportSnapshot(envelope);
+      const blob = new Blob([content], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `net-aggregat4-tasklist-${timestamp}.json`;
+      anchor.rel = "noopener";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      window.alert("Export failed. Please try again.");
+    }
   }
 
   handleImportSnapshot() {
@@ -507,12 +511,18 @@ class ListsAppShellElement extends HTMLElement {
       "Importing a snapshot replaces all current lists. Continue?"
     );
     if (!confirmImport) return;
-    await this.repository.replaceWithSnapshot({
+    const publishResult = await this.repository.replaceWithSnapshot({
       registryState: parsed.value.registryState,
       lists: parsed.value.lists,
       snapshotText: text,
       publishSnapshot: true,
     });
+    if (publishResult && !publishResult.published) {
+      window.alert(
+        publishResult.error ||
+          "Snapshot imported locally but failed to publish to the server."
+      );
+    }
   }
 
   handleSidebarReorder({

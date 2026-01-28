@@ -328,7 +328,7 @@ export class ListRepository {
     lists: Array<{ listId: ListId; state: ListState }>;
     snapshotText?: string;
     publishSnapshot?: boolean;
-  }) {
+  }): Promise<{ published: boolean; error?: string } | null> {
     await this.initialize();
     await this.flushPendingEdits();
     if (!this._storage) return;
@@ -373,13 +373,18 @@ export class ListRepository {
     this.emitRegistryChange();
     this._listMap.forEach((_record, listId) => this.emitListChange(listId));
 
+    let publishResult: { published: boolean; error?: string } | null = null;
     if (this._sync) {
       await this._sync.initialize();
       if (publishSnapshot && typeof snapshotText === "string") {
-        await this._sync.resetWithSnapshot(snapshotText);
+        const result = await this._sync.resetWithSnapshot(snapshotText);
+        publishResult = result.ok
+          ? { published: true }
+          : { published: false, error: result.error };
       }
       this._sync.start();
     }
+    return publishResult;
   }
 
   async applySnapshotBlob(snapshotText: string) {
