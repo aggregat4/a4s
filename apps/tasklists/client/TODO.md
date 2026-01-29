@@ -8,4 +8,3 @@
 
 - **Tombstone cleanup:** Introduce optional garbage collection when a majority of replicas confirm deletion (future multi-client work).
 - **Schema migrations:** Plan version bump strategy for CRDT snapshots so we can evolve data structure without losing user data.
-- **Background sync:** For eventual server support, design API to sync batched operations (probably via POST `/lists/{id}/ops`) using same envelopes.
