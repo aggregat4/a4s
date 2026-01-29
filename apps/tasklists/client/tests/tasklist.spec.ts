@@ -867,6 +867,29 @@ test.describe("tasklist flows", () => {
     await expect(matching).toBeVisible();
   });
 
+  test("demo snapshot notes render when opened", async ({ page }) => {
+    await gotoWithSnapshot(page, "/?resetStorage=1");
+    const noteText = "Remember the spare key is in the planter.";
+    const noteTask = page
+      .locator(listItemsSelector)
+      .filter({ hasText: "Check the fridge light still turns off" })
+      .first();
+    await expect(noteTask).toBeVisible();
+    await noteTask.locator(".task-note-toggle").click();
+    await expect(noteTask.locator(".task-note-input")).toHaveValue(noteText);
+  });
+
+  test("demo snapshot notes are searchable", async ({ page }) => {
+    await gotoWithSnapshot(page, "/?resetStorage=1");
+    const noteText = "Remember the spare key is in the planter.";
+    const searchInput = globalSearchInput(page);
+    await searchInput.fill(noteText);
+    const matching = page
+      .locator(listItemsSelector)
+      .locator(".text", { hasText: "Check the fridge light still turns off" });
+    await expect(matching).toBeVisible();
+  });
+
   test("export downloads snapshot json", async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
     const [download] = await Promise.all([
