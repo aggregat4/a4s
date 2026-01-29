@@ -283,6 +283,10 @@ button {
     gap: var(--space-sm);
 }
 
+.sidebar-actions-secondary {
+    margin-top: auto;
+}
+
 .lists-main {
     padding: var(--space-lg);
     display: flex;

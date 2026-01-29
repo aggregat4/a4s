@@ -252,20 +252,6 @@ class SidebarElement extends HTMLElement {
             this.handlers.onAddList?.()}>
             Add list
           </button>
-          <button
-            type="button"
-            data-role="export-snapshot"
-            @click=${() => this.handlers.onExportSnapshot?.()}
-          >
-            Export
-          </button>
-          <button
-            type="button"
-            data-role="import-snapshot"
-            @click=${() => this.handlers.onImportSnapshot?.()}
-          >
-            Import
-          </button>
           ${this.showDemoSeed
             ? html`
                 <button
@@ -285,6 +271,22 @@ class SidebarElement extends HTMLElement {
             @click=${() => this.handlers.onDeleteList?.()}
           >
             Delete list
+          </button>
+        </div>
+        <div class="sidebar-section sidebar-actions sidebar-actions-secondary">
+          <button
+            type="button"
+            data-role="export-snapshot"
+            @click=${() => this.handlers.onExportSnapshot?.()}
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            data-role="import-snapshot"
+            @click=${() => this.handlers.onImportSnapshot?.()}
+          >
+            Import
           </button>
         </div>
       `,
