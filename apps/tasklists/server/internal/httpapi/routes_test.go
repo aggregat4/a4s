@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	"prototype-lists/server/internal/auth"
 	"prototype-lists/server/internal/storage"
 )
 
@@ -260,6 +261,7 @@ func fetchBootstrap(t *testing.T, mux *http.ServeMux) bootstrapResponse {
 func doRequest(t *testing.T, mux *http.ServeMux, method, path string, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithUserID(req.Context(), "user-1"))
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

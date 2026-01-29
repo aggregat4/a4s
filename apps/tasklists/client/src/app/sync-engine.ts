@@ -323,6 +323,11 @@ export class SyncEngine {
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      if (response.status === 401 && typeof window !== "undefined") {
+        try {
+          window.location.assign("/auth/login");
+        } catch {}
+      }
       return response;
     } catch (err) {
       clearTimeout(timeout);

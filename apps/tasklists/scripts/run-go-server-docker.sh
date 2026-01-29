@@ -12,7 +12,7 @@ CID=$(docker run -d --rm \
   -v "${ROOT_DIR}":/work \
   -w /work/client \
   "${IMAGE}" \
-  bash -lc "set -euxo pipefail; pwd; ls -la /work; ls -la /work/server; export PATH=$PATH:/usr/local/go/bin; command -v go; go version; cd /work/server; rm -f /work/server/test.db; SERVER_STATIC_DIR=/work/client/dist SERVER_DB_PATH=/work/server/test.db PORT=${PORT} exec go run ./cmd/server")
+  bash -lc "set -euxo pipefail; pwd; ls -la /work; ls -la /work/server; export PATH=$PATH:/usr/local/go/bin; command -v go; go version; cd /work/server; rm -f /work/server/test.db; SERVER_STATIC_DIR=/work/client/dist SERVER_DB_PATH=/work/server/test.db PORT=${PORT} SERVER_AUTH_MODE=dev exec go run ./cmd/server")
 
 if [ -z "${CID}" ]; then
   echo "Failed to start Go server container." >&2

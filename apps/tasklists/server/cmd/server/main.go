@@ -9,10 +9,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"prototype-lists/server/internal/auth"
 	"prototype-lists/server/internal/httpapi"
 	"prototype-lists/server/internal/storage"
+
+	baselibmiddleware "github.com/aggregat4/go-baselib-services/v4/middleware"
 )
 
 //go:embed all:static
@@ -45,14 +49,91 @@ func main() {
 		log.Fatalf("storage init error: %v", err)
 	}
 
+	issuerURL := os.Getenv("OIDC_ISSUER_URL")
+	clientID := os.Getenv("OIDC_CLIENT_ID")
+	clientSecret := os.Getenv("OIDC_CLIENT_SECRET")
+	redirectURL := os.Getenv("OIDC_REDIRECT_URL")
+	sessionKey := os.Getenv("SERVER_SESSION_KEY")
+	cookieSecure := envBoolDefault("SERVER_COOKIE_SECURE", true)
+	cookieDomain := os.Getenv("SERVER_COOKIE_DOMAIN")
+	authMode := strings.ToLower(strings.TrimSpace(os.Getenv("SERVER_AUTH_MODE")))
+	devUserID := os.Getenv("SERVER_DEV_USER_ID")
+
+	var authManager *auth.Manager
+	if authMode != "dev" {
+		if issuerURL == "" || clientID == "" || redirectURL == "" {
+			log.Fatalf("oidc config error: OIDC_ISSUER_URL, OIDC_CLIENT_ID, and OIDC_REDIRECT_URL are required unless SERVER_AUTH_MODE=dev")
+		}
+		var err error
+		authManager, err = auth.NewManager(auth.Config{
+			IssuerURL:      issuerURL,
+			ClientID:       clientID,
+			ClientSecret:   clientSecret,
+			RedirectURL:    redirectURL,
+			SessionKey:     sessionKey,
+			SessionTTL:     30 * 24 * time.Hour,
+			CookieSecure:   cookieSecure,
+			CookieSameSite: http.SameSiteLaxMode,
+			CookieDomain:   cookieDomain,
+			FallbackURL:    "/",
+		})
+		if err != nil {
+			log.Fatalf("auth config error: %v", err)
+		}
+	}
+
 	mux := http.NewServeMux()
+	if authManager != nil {
+		mux.Handle("/auth/login", authManager.LoginHandler())
+		mux.Handle("/auth/callback", authManager.CallbackHandler())
+		mux.Handle("/auth/logout", authManager.LogoutHandler())
+	} else {
+		mux.HandleFunc("/auth/login", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			http.Redirect(w, r, "/", http.StatusFound)
+		})
+		mux.HandleFunc("/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
+	}
+
 	serverAPI := httpapi.NewServer(store)
 	serverAPI.RegisterRoutes(mux)
 	registerStatic(mux)
 
+	skipAuthPaths := map[string]struct{}{
+		"/auth/login":    {},
+		"/auth/callback": {},
+		"/auth/logout":   {},
+		"/healthz":       {},
+	}
+	authSkipper := func(r *http.Request) bool {
+		if strings.HasPrefix(r.URL.Path, "/sync/") {
+			return true
+		}
+		_, ok := skipAuthPaths[r.URL.Path]
+		return ok
+	}
+
+	handler := http.Handler(mux)
+	if authMode == "dev" {
+		handler = auth.DevUserMiddleware(devUserID)(handler)
+	} else {
+		handler = authManager.WithUser(handler)
+		handler = baselibmiddleware.CsrfMiddlewareStd(handler)
+		handler = authManager.OIDCMiddleware(authSkipper)(handler)
+	}
+
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -136,5 +217,20 @@ func serveIndexFallback(w http.ResponseWriter, r *http.Request, fs fs.FS) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := w.Write(content); err != nil {
 		log.Printf("error writing index.html: %v", err)
+	}
+}
+
+func envBoolDefault(key string, defaultValue bool) bool {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultValue
+	}
+	switch strings.ToLower(value) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return defaultValue
 	}
 }

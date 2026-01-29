@@ -17,7 +17,7 @@
 ## Assumptions
 
 - The app remains a browser SPA with a Go backend.
-- The IDP supports Authorization Code + PKCE.
+- The IDP supports the Authorization Code flow.
 - The backend handles the OIDC flow and maintains a session for the browser.
 - Client still owns local CRDT state and syncs via existing endpoints.
 
@@ -30,7 +30,7 @@ Use `github.com/aggregat4/go-baselib-services` for OIDC, sessions, and CSRF:
 
 ## Proposed Auth Flow (Backend-Handled)
 
-- Authorization Code + PKCE initiated by the backend.
+- Authorization Code flow initiated by the backend.
 - Browser hits `/auth/login` on the backend, which redirects to the IDP.
 - IDP redirects back to `/auth/callback`; backend exchanges code for tokens.
 - Backend creates a session (cookie) and stores identity claims server-side.

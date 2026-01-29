@@ -2,25 +2,28 @@
 
 Go backend for sync and static hosting. Endpoints match `docs/protocol-spec.md`.
 
-## Quick Start
+## Run
 
-```bash
-# Development (serves frontend from ../client/dist or SERVER_STATIC_DIR)
-cd server
-go run ./cmd/server
-
-# Production (requires built frontend embedded)
-./scripts/build-release.sh
-./prototype-lists
+```
+./scripts/run-local.sh
 ```
 
 ## Configuration
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `PORT` | HTTP server port | `8080` |
-| `SERVER_DB_PATH` | SQLite database file path | `data.db` |
-| `SERVER_STATIC_DIR` | External static files directory (optional) | - |
+Required environment variables:
+
+- `OIDC_ISSUER_URL`
+- `OIDC_CLIENT_ID`
+- `OIDC_REDIRECT_URL`
+
+Optional:
+
+- `SERVER_AUTH_MODE` (`dev` to bypass OIDC and force a fixed user id)
+- `SERVER_DEV_USER_ID` (default `dev-user` when `SERVER_AUTH_MODE=dev`)
+- `OIDC_CLIENT_SECRET`
+- `SERVER_SESSION_KEY` (base64 or >=32 chars; defaults to random per startup)
+- `SERVER_COOKIE_SECURE` (default `true`, set to `false` for http dev)
+- `SERVER_COOKIE_DOMAIN`
 
 ## Build and Lint
 
@@ -52,6 +55,9 @@ cd ../server && go build ./cmd/server
 ## Endpoints
 
 - `GET /` - Static files (SPA)
+- `GET /auth/login`
+- `GET /auth/callback`
+- `POST /auth/logout`
 - `GET /sync/bootstrap` - Get initial sync data
 - `POST /sync/push` - Push operations
 - `GET /sync/pull?since=` - Pull operations since seq

@@ -23,6 +23,7 @@ func newSQLiteStore(t *testing.T) *SQLiteStore {
 
 func TestInsertAndGetOps(t *testing.T) {
 	store := newSQLiteStore(t)
+	userID := "user-1"
 	ops := []Op{
 		{
 			Scope:    "list",
@@ -32,14 +33,14 @@ func TestInsertAndGetOps(t *testing.T) {
 			Payload:  []byte(`{"type":"insert","itemId":"item-1"}`),
 		},
 	}
-	seq, err := store.InsertOps(context.Background(), ops)
+	seq, err := store.InsertOps(context.Background(), userID, ops)
 	if err != nil {
 		t.Fatalf("insert ops: %v", err)
 	}
 	if seq == 0 {
 		t.Fatalf("serverSeq should advance")
 	}
-	pulled, seq2, err := store.GetOpsSince(context.Background(), 0)
+	pulled, seq2, err := store.GetOpsSince(context.Background(), userID, 0)
 	if err != nil {
 		t.Fatalf("get ops: %v", err)
 	}
@@ -53,6 +54,7 @@ func TestInsertAndGetOps(t *testing.T) {
 
 func TestInsertOpsDedupe(t *testing.T) {
 	store := newSQLiteStore(t)
+	userID := "user-1"
 	ops := []Op{
 		{
 			Scope:    "list",
@@ -62,13 +64,13 @@ func TestInsertOpsDedupe(t *testing.T) {
 			Payload:  []byte(`{"type":"insert","itemId":"item-1"}`),
 		},
 	}
-	if _, err := store.InsertOps(context.Background(), ops); err != nil {
+	if _, err := store.InsertOps(context.Background(), userID, ops); err != nil {
 		t.Fatalf("insert ops: %v", err)
 	}
-	if _, err := store.InsertOps(context.Background(), ops); err != nil {
+	if _, err := store.InsertOps(context.Background(), userID, ops); err != nil {
 		t.Fatalf("insert ops: %v", err)
 	}
-	pulled, _, err := store.GetOpsSince(context.Background(), 0)
+	pulled, _, err := store.GetOpsSince(context.Background(), userID, 0)
 	if err != nil {
 		t.Fatalf("get ops: %v", err)
 	}
@@ -79,21 +81,23 @@ func TestInsertOpsDedupe(t *testing.T) {
 
 func TestClientCursorTracking(t *testing.T) {
 	store := newSQLiteStore(t)
-	if err := store.TouchClient(context.Background(), "client-1"); err != nil {
+	userID := "user-1"
+	if err := store.TouchClient(context.Background(), userID, "client-1"); err != nil {
 		t.Fatalf("touch client: %v", err)
 	}
-	if err := store.UpdateClientCursor(context.Background(), "client-1", 5); err != nil {
+	if err := store.UpdateClientCursor(context.Background(), userID, "client-1", 5); err != nil {
 		t.Fatalf("update cursor: %v", err)
 	}
-	if err := store.UpdateClientCursor(context.Background(), "client-1", 3); err != nil {
+	if err := store.UpdateClientCursor(context.Background(), userID, "client-1", 3); err != nil {
 		t.Fatalf("cursor should not regress: %v", err)
 	}
 }
 
 func TestSnapshotReplaceResetsOps(t *testing.T) {
 	store := newSQLiteStore(t)
+	userID := "user-1"
 	ctx := context.Background()
-	if _, err := store.InsertOps(ctx, []Op{
+	if _, err := store.InsertOps(ctx, userID, []Op{
 		{
 			Scope:    "list",
 			Resource: "list-1",
@@ -104,20 +108,20 @@ func TestSnapshotReplaceResetsOps(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("insert ops: %v", err)
 	}
-	if err := store.ReplaceSnapshot(ctx, Snapshot{
+	if err := store.ReplaceSnapshot(ctx, userID, Snapshot{
 		DatasetGenerationKey: "dataset-new",
 		Blob:                 `{"schema":"net.aggregat4.tasklist.snapshot@v1","data":{"registry":{"clock":0,"entries":[]},"lists":[]}}`,
 	}); err != nil {
 		t.Fatalf("replace snapshot: %v", err)
 	}
-	ops, _, err := store.GetOpsSince(ctx, 0)
+	ops, _, err := store.GetOpsSince(ctx, userID, 0)
 	if err != nil {
 		t.Fatalf("get ops: %v", err)
 	}
 	if len(ops) != 0 {
 		t.Fatalf("ops should be cleared after snapshot replace")
 	}
-	snapshot, err := store.GetSnapshot(ctx)
+	snapshot, err := store.GetSnapshot(ctx, userID)
 	if err != nil {
 		t.Fatalf("get snapshot: %v", err)
 	}

@@ -14,13 +14,17 @@ import (
 const schema = `
 CREATE TABLE IF NOT EXISTS snapshots (
 	dataset_generation_id INTEGER PRIMARY KEY,
-	dataset_generation_key TEXT NOT NULL UNIQUE,
+	user_id TEXT NOT NULL,
+	dataset_generation_key TEXT NOT NULL,
 	snapshot_blob TEXT NOT NULL,
 	created_at INTEGER NOT NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_snapshots_user_key
+ON snapshots(user_id, dataset_generation_key);
+
 CREATE TABLE IF NOT EXISTS meta (
-	id INTEGER PRIMARY KEY CHECK (id = 1),
+	user_id TEXT NOT NULL PRIMARY KEY,
 	active_dataset_generation_id INTEGER NOT NULL,
 	updated_at INTEGER NOT NULL,
 	FOREIGN KEY(active_dataset_generation_id) REFERENCES snapshots(dataset_generation_id)
@@ -29,6 +33,7 @@ CREATE TABLE IF NOT EXISTS meta (
 CREATE TABLE IF NOT EXISTS ops (
 	server_seq INTEGER PRIMARY KEY AUTOINCREMENT,
 	dataset_generation_id INTEGER NOT NULL,
+	user_id TEXT NOT NULL,
 	scope TEXT NOT NULL,
 	resource_id TEXT NOT NULL,
 	actor TEXT NOT NULL,
@@ -38,16 +43,17 @@ CREATE TABLE IF NOT EXISTS ops (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_dedupe
-ON ops(dataset_generation_id, actor, clock, scope, resource_id);
+ON ops(user_id, dataset_generation_id, actor, clock, scope, resource_id);
 
 CREATE INDEX IF NOT EXISTS idx_ops_dataset_seq
-ON ops(dataset_generation_id, server_seq);
+ON ops(user_id, dataset_generation_id, server_seq);
 
 CREATE TABLE IF NOT EXISTS clients (
+	user_id TEXT NOT NULL,
 	client_id TEXT NOT NULL,
 	last_seen_server_seq INTEGER NOT NULL,
 	updated_at INTEGER NOT NULL,
-	PRIMARY KEY (client_id)
+	PRIMARY KEY (user_id, client_id)
 );
 `
 
@@ -88,9 +94,6 @@ func (s *SQLiteStore) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("init schema: %w", err)
 	}
-	if err := s.ensureActiveSnapshot(ctx); err != nil {
-		return err
-	}
 	if s.dbRead == nil {
 		readDB, err := sql.Open("sqlite", s.path)
 		if err != nil {
@@ -125,11 +128,17 @@ func (s *SQLiteStore) Close() error {
 	return err
 }
 
-func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
-	if len(ops) == 0 {
-		return s.maxServerSeq(ctx)
+func (s *SQLiteStore) InsertOps(ctx context.Context, userID string, ops []Op) (int64, error) {
+	if userID == "" {
+		return 0, errors.New("userId is required")
 	}
-	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx)
+	if err := s.ensureActiveSnapshot(ctx, userID); err != nil {
+		return 0, err
+	}
+	if len(ops) == 0 {
+		return s.maxServerSeq(ctx, userID)
+	}
+	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -152,8 +161,8 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 	}()
 
 	stmt, err := conn.PrepareContext(ctx, `
-		INSERT OR IGNORE INTO ops (dataset_generation_id, scope, resource_id, actor, clock, payload)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT OR IGNORE INTO ops (dataset_generation_id, user_id, scope, resource_id, actor, clock, payload)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return 0, fmt.Errorf("prepare insert: %w", err)
@@ -164,7 +173,7 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 		if op.Scope == "" || op.Resource == "" || op.Actor == "" || op.Clock <= 0 {
 			return 0, fmt.Errorf("invalid op metadata: scope=%q resource=%q actor=%q clock=%d", op.Scope, op.Resource, op.Actor, op.Clock)
 		}
-		if _, err := stmt.ExecContext(ctx, datasetGenerationID, op.Scope, op.Resource, op.Actor, op.Clock, string(op.Payload)); err != nil {
+		if _, err := stmt.ExecContext(ctx, datasetGenerationID, userID, op.Scope, op.Resource, op.Actor, op.Clock, string(op.Payload)); err != nil {
 			return 0, fmt.Errorf("insert op: %w", err)
 		}
 	}
@@ -172,11 +181,17 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 		return 0, fmt.Errorf("commit ops: %w", err)
 	}
 	committed = true
-	return s.maxServerSeq(ctx)
+	return s.maxServerSeq(ctx, userID)
 }
 
-func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64, error) {
-	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx)
+func (s *SQLiteStore) GetOpsSince(ctx context.Context, userID string, since int64) ([]Op, int64, error) {
+	if userID == "" {
+		return nil, 0, errors.New("userId is required")
+	}
+	if err := s.ensureActiveSnapshot(ctx, userID); err != nil {
+		return nil, 0, err
+	}
+	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx, userID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -187,9 +202,9 @@ func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64
 	rows, err := db.QueryContext(ctx, `
 		SELECT server_seq, scope, resource_id, actor, clock, payload
 		FROM ops
-		WHERE dataset_generation_id = ? AND server_seq > ?
+		WHERE user_id = ? AND dataset_generation_id = ? AND server_seq > ?
 		ORDER BY server_seq ASC
-	`, datasetGenerationID, since)
+	`, userID, datasetGenerationID, since)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query ops: %w", err)
 	}
@@ -213,7 +228,7 @@ func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64
 		return nil, 0, fmt.Errorf("iterate ops: %w", err)
 	}
 	if maxSeq == 0 {
-		maxSeq, err = s.maxServerSeq(ctx)
+		maxSeq, err = s.maxServerSeq(ctx, userID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -221,40 +236,46 @@ func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64
 	return ops, maxSeq, nil
 }
 
-func (s *SQLiteStore) TouchClient(ctx context.Context, clientID string) error {
+func (s *SQLiteStore) TouchClient(ctx context.Context, userID string, clientID string) error {
+	if userID == "" {
+		return errors.New("userId is required")
+	}
 	if clientID == "" {
 		return errors.New("clientId is required")
 	}
 	_, err := s.dbWrite.ExecContext(ctx, `
-		INSERT INTO clients (client_id, last_seen_server_seq, updated_at)
-		VALUES (?, 0, ?)
-		ON CONFLICT(client_id) DO UPDATE SET updated_at = excluded.updated_at
-	`, clientID, time.Now().Unix())
+		INSERT INTO clients (user_id, client_id, last_seen_server_seq, updated_at)
+		VALUES (?, ?, 0, ?)
+		ON CONFLICT(user_id, client_id) DO UPDATE SET updated_at = excluded.updated_at
+	`, userID, clientID, time.Now().Unix())
 	if err != nil {
 		return fmt.Errorf("touch client: %w", err)
 	}
 	return nil
 }
 
-func (s *SQLiteStore) UpdateClientCursor(ctx context.Context, clientID string, serverSeq int64) error {
+func (s *SQLiteStore) UpdateClientCursor(ctx context.Context, userID string, clientID string, serverSeq int64) error {
+	if userID == "" {
+		return errors.New("userId is required")
+	}
 	if clientID == "" {
 		return errors.New("clientId is required")
 	}
 	_, err := s.dbWrite.ExecContext(ctx, `
-		INSERT INTO clients (client_id, last_seen_server_seq, updated_at)
-		VALUES (?, ?, ?)
-		ON CONFLICT(client_id) DO UPDATE SET
+		INSERT INTO clients (user_id, client_id, last_seen_server_seq, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(user_id, client_id) DO UPDATE SET
 			last_seen_server_seq = MAX(clients.last_seen_server_seq, excluded.last_seen_server_seq),
 			updated_at = excluded.updated_at
-	`, clientID, serverSeq, time.Now().Unix())
+	`, userID, clientID, serverSeq, time.Now().Unix())
 	if err != nil {
 		return fmt.Errorf("update client cursor: %w", err)
 	}
 	return nil
 }
 
-func (s *SQLiteStore) maxServerSeq(ctx context.Context) (int64, error) {
-	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx)
+func (s *SQLiteStore) maxServerSeq(ctx context.Context, userID string) (int64, error) {
+	datasetGenerationID, err := s.getActiveDatasetGenerationID(ctx, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -263,15 +284,18 @@ func (s *SQLiteStore) maxServerSeq(ctx context.Context) (int64, error) {
 	if db == nil {
 		db = s.dbWrite
 	}
-	row := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(server_seq), 0) FROM ops WHERE dataset_generation_id = ?", datasetGenerationID)
+	row := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(server_seq), 0) FROM ops WHERE user_id = ? AND dataset_generation_id = ?", userID, datasetGenerationID)
 	if err := row.Scan(&maxSeq); err != nil {
 		return 0, fmt.Errorf("max server seq: %w", err)
 	}
 	return maxSeq, nil
 }
 
-func (s *SQLiteStore) ensureActiveSnapshot(ctx context.Context) error {
-	row := s.dbWrite.QueryRowContext(ctx, "SELECT active_dataset_generation_id FROM meta WHERE id = 1")
+func (s *SQLiteStore) ensureActiveSnapshot(ctx context.Context, userID string) error {
+	if userID == "" {
+		return errors.New("userId is required")
+	}
+	row := s.dbWrite.QueryRowContext(ctx, "SELECT active_dataset_generation_id FROM meta WHERE user_id = ?", userID)
 	var datasetGenerationID int64
 	err := row.Scan(&datasetGenerationID)
 	if err == nil && datasetGenerationID != 0 {
@@ -283,9 +307,9 @@ func (s *SQLiteStore) ensureActiveSnapshot(ctx context.Context) error {
 	newKey := uuid.NewString()
 	now := time.Now().Unix()
 	result, err := s.dbWrite.ExecContext(ctx, `
-		INSERT INTO snapshots (dataset_generation_key, snapshot_blob, created_at)
-		VALUES (?, ?, ?)
-	`, newKey, "", now)
+		INSERT INTO snapshots (user_id, dataset_generation_key, snapshot_blob, created_at)
+		VALUES (?, ?, ?, ?)
+	`, userID, newKey, "", now)
 	if err != nil {
 		return fmt.Errorf("insert snapshot: %w", err)
 	}
@@ -294,18 +318,24 @@ func (s *SQLiteStore) ensureActiveSnapshot(ctx context.Context) error {
 		return fmt.Errorf("snapshot id: %w", err)
 	}
 	if _, err := s.dbWrite.ExecContext(ctx, `
-		INSERT INTO meta (id, active_dataset_generation_id, updated_at)
-		VALUES (1, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
+		INSERT INTO meta (user_id, active_dataset_generation_id, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET
 			active_dataset_generation_id = excluded.active_dataset_generation_id,
 			updated_at = excluded.updated_at
-	`, datasetGenerationID, now); err != nil {
+	`, userID, datasetGenerationID, now); err != nil {
 		return fmt.Errorf("insert meta: %w", err)
 	}
 	return nil
 }
 
-func (s *SQLiteStore) GetActiveDatasetGenerationKey(ctx context.Context) (string, error) {
+func (s *SQLiteStore) GetActiveDatasetGenerationKey(ctx context.Context, userID string) (string, error) {
+	if userID == "" {
+		return "", errors.New("userId is required")
+	}
+	if err := s.ensureActiveSnapshot(ctx, userID); err != nil {
+		return "", err
+	}
 	db := s.dbRead
 	if db == nil {
 		db = s.dbWrite
@@ -314,8 +344,8 @@ func (s *SQLiteStore) GetActiveDatasetGenerationKey(ctx context.Context) (string
 		SELECT s.dataset_generation_key
 		FROM meta m
 		JOIN snapshots s ON s.dataset_generation_id = m.active_dataset_generation_id
-		WHERE m.id = 1
-	`)
+		WHERE m.user_id = ?
+	`, userID)
 	var datasetGenerationKey string
 	if err := row.Scan(&datasetGenerationKey); err != nil {
 		return "", fmt.Errorf("load active dataset_generation_key: %w", err)
@@ -323,7 +353,7 @@ func (s *SQLiteStore) GetActiveDatasetGenerationKey(ctx context.Context) (string
 	return datasetGenerationKey, nil
 }
 
-func (s *SQLiteStore) getActiveDatasetGenerationID(ctx context.Context) (int64, error) {
+func (s *SQLiteStore) getActiveDatasetGenerationID(ctx context.Context, userID string) (int64, error) {
 	db := s.dbRead
 	if db == nil {
 		db = s.dbWrite
@@ -331,8 +361,8 @@ func (s *SQLiteStore) getActiveDatasetGenerationID(ctx context.Context) (int64, 
 	row := db.QueryRowContext(ctx, `
 		SELECT active_dataset_generation_id
 		FROM meta
-		WHERE id = 1
-	`)
+		WHERE user_id = ?
+	`, userID)
 	var datasetGenerationID int64
 	if err := row.Scan(&datasetGenerationID); err != nil {
 		return 0, fmt.Errorf("load active dataset_generation_id: %w", err)
@@ -340,8 +370,14 @@ func (s *SQLiteStore) getActiveDatasetGenerationID(ctx context.Context) (int64, 
 	return datasetGenerationID, nil
 }
 
-func (s *SQLiteStore) GetSnapshot(ctx context.Context) (Snapshot, error) {
+func (s *SQLiteStore) GetSnapshot(ctx context.Context, userID string) (Snapshot, error) {
 	var snapshot Snapshot
+	if userID == "" {
+		return Snapshot{}, errors.New("userId is required")
+	}
+	if err := s.ensureActiveSnapshot(ctx, userID); err != nil {
+		return Snapshot{}, err
+	}
 	db := s.dbRead
 	if db == nil {
 		db = s.dbWrite
@@ -350,19 +386,22 @@ func (s *SQLiteStore) GetSnapshot(ctx context.Context) (Snapshot, error) {
 		SELECT s.dataset_generation_id, s.dataset_generation_key, s.snapshot_blob
 		FROM snapshots s
 		JOIN meta m ON m.active_dataset_generation_id = s.dataset_generation_id
-		WHERE m.id = 1
-	`)
+		WHERE m.user_id = ?
+	`, userID)
 	if err := row.Scan(&snapshot.DatasetGenerationID, &snapshot.DatasetGenerationKey, &snapshot.Blob); err != nil {
 		return Snapshot{}, fmt.Errorf("load snapshot: %w", err)
 	}
 	return snapshot, nil
 }
 
-func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) error {
+func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, userID string, snapshot Snapshot) error {
+	if userID == "" {
+		return errors.New("userId is required")
+	}
 	if snapshot.DatasetGenerationKey == "" {
 		return errors.New("datasetGenerationKey is required")
 	}
-	exists, err := s.datasetGenerationKeyExists(ctx, snapshot.DatasetGenerationKey)
+	exists, err := s.datasetGenerationKeyExists(ctx, userID, snapshot.DatasetGenerationKey)
 	if err != nil {
 		return err
 	}
@@ -387,29 +426,29 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) er
 
 	now := time.Now().Unix()
 	if _, err := conn.ExecContext(ctx, `
-		INSERT INTO snapshots (dataset_generation_key, snapshot_blob, created_at)
-		VALUES (?, ?, ?)
-	`, snapshot.DatasetGenerationKey, snapshot.Blob, now); err != nil {
+		INSERT INTO snapshots (user_id, dataset_generation_key, snapshot_blob, created_at)
+		VALUES (?, ?, ?, ?)
+	`, userID, snapshot.DatasetGenerationKey, snapshot.Blob, now); err != nil {
 		return fmt.Errorf("insert snapshot: %w", err)
 	}
 	var datasetGenerationID int64
-	row := conn.QueryRowContext(ctx, "SELECT dataset_generation_id FROM snapshots WHERE dataset_generation_key = ?", snapshot.DatasetGenerationKey)
+	row := conn.QueryRowContext(ctx, "SELECT dataset_generation_id FROM snapshots WHERE user_id = ? AND dataset_generation_key = ?", userID, snapshot.DatasetGenerationKey)
 	if err := row.Scan(&datasetGenerationID); err != nil {
 		return fmt.Errorf("lookup snapshot id: %w", err)
 	}
 	if _, err := conn.ExecContext(ctx, `
-		INSERT INTO meta (id, active_dataset_generation_id, updated_at)
-		VALUES (1, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
+		INSERT INTO meta (user_id, active_dataset_generation_id, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET
 			active_dataset_generation_id = excluded.active_dataset_generation_id,
 			updated_at = excluded.updated_at
-	`, datasetGenerationID, now); err != nil {
+	`, userID, datasetGenerationID, now); err != nil {
 		return fmt.Errorf("store snapshot: %w", err)
 	}
-	if _, err := conn.ExecContext(ctx, "DELETE FROM ops"); err != nil {
+	if _, err := conn.ExecContext(ctx, "DELETE FROM ops WHERE user_id = ?", userID); err != nil {
 		return fmt.Errorf("clear ops: %w", err)
 	}
-	if _, err := conn.ExecContext(ctx, "DELETE FROM clients"); err != nil {
+	if _, err := conn.ExecContext(ctx, "DELETE FROM clients WHERE user_id = ?", userID); err != nil {
 		return fmt.Errorf("clear clients: %w", err)
 	}
 	if _, err := conn.ExecContext(ctx, "COMMIT;"); err != nil {
@@ -419,7 +458,10 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) er
 	return nil
 }
 
-func (s *SQLiteStore) datasetGenerationKeyExists(ctx context.Context, key string) (bool, error) {
+func (s *SQLiteStore) datasetGenerationKeyExists(ctx context.Context, userID string, key string) (bool, error) {
+	if userID == "" {
+		return false, errors.New("userId is required")
+	}
 	db := s.dbRead
 	if db == nil {
 		db = s.dbWrite
@@ -427,9 +469,9 @@ func (s *SQLiteStore) datasetGenerationKeyExists(ctx context.Context, key string
 	row := db.QueryRowContext(ctx, `
 		SELECT 1
 		FROM snapshots
-		WHERE dataset_generation_key = ?
+		WHERE user_id = ? AND dataset_generation_key = ?
 		LIMIT 1
-	`, key)
+	`, userID, key)
 	var exists int
 	if err := row.Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"prototype-lists/server/internal/auth"
 	"prototype-lists/server/internal/storage"
 )
 
@@ -39,12 +40,16 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	snapshot, err := s.store.GetSnapshot(r.Context())
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+	snapshot, err := s.store.GetSnapshot(r.Context(), userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	ops, serverSeq, err := s.store.GetOpsSince(r.Context(), 0)
+	ops, serverSeq, err := s.store.GetOpsSince(r.Context(), userID, 0)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -60,6 +65,10 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
+		return
+	}
+	userID, ok := requireUserID(w, r)
+	if !ok {
 		return
 	}
 	var payload struct {
@@ -80,17 +89,17 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetGenerationKey is required"})
 		return
 	}
-	datasetGenerationKey, ok := s.ensureDatasetMatch(r.Context(), payload.DatasetGenerationKey, w)
+	datasetGenerationKey, ok := s.ensureDatasetMatch(r.Context(), userID, payload.DatasetGenerationKey, w)
 	if !ok {
 		return
 	}
-	serverSeq, err := s.store.InsertOps(r.Context(), payload.Ops)
+	serverSeq, err := s.store.InsertOps(r.Context(), userID, payload.Ops)
 	if err != nil {
 		log.Printf("sync push insert error client=%s ops=%d: %v", payload.ClientID, len(payload.Ops), err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	if err := s.store.TouchClient(r.Context(), payload.ClientID); err != nil {
+	if err := s.store.TouchClient(r.Context(), userID, payload.ClientID); err != nil {
 		log.Printf("sync push touch error client=%s: %v", payload.ClientID, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -106,6 +115,10 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
 	clientID := r.URL.Query().Get("clientId")
 	if clientID == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "clientId is required"})
@@ -116,7 +129,7 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetGenerationKey is required"})
 		return
 	}
-	currentDatasetGenerationKey, ok := s.ensureDatasetMatch(r.Context(), datasetGenerationKey, w)
+	currentDatasetGenerationKey, ok := s.ensureDatasetMatch(r.Context(), userID, datasetGenerationKey, w)
 	if !ok {
 		return
 	}
@@ -130,13 +143,13 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		}
 		since = parsed
 	}
-	ops, serverSeq, err := s.store.GetOpsSince(r.Context(), since)
+	ops, serverSeq, err := s.store.GetOpsSince(r.Context(), userID, since)
 	if err != nil {
 		log.Printf("sync pull error client=%s since=%d: %v", clientID, since, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	if err := s.store.UpdateClientCursor(r.Context(), clientID, serverSeq); err != nil {
+	if err := s.store.UpdateClientCursor(r.Context(), userID, clientID, serverSeq); err != nil {
 		log.Printf("sync pull cursor error client=%s seq=%d: %v", clientID, serverSeq, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -151,6 +164,10 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
+		return
+	}
+	userID, ok := requireUserID(w, r)
+	if !ok {
 		return
 	}
 	var payload struct {
@@ -171,7 +188,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "datasetGenerationKey is required"})
 		return
 	}
-	if err := s.store.ReplaceSnapshot(r.Context(), storage.Snapshot{
+	if err := s.store.ReplaceSnapshot(r.Context(), userID, storage.Snapshot{
 		DatasetGenerationKey: payload.DatasetGenerationKey,
 		Blob:                 payload.Snapshot,
 	}); err != nil {
@@ -200,8 +217,8 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) ensureDatasetMatch(ctx context.Context, clientDatasetGenerationKey string, w http.ResponseWriter) (string, bool) {
-	datasetGenerationKey, err := s.store.GetActiveDatasetGenerationKey(ctx)
+func (s *Server) ensureDatasetMatch(ctx context.Context, userID string, clientDatasetGenerationKey string, w http.ResponseWriter) (string, bool) {
+	datasetGenerationKey, err := s.store.GetActiveDatasetGenerationKey(ctx, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return "", false
@@ -209,7 +226,7 @@ func (s *Server) ensureDatasetMatch(ctx context.Context, clientDatasetGeneration
 	if clientDatasetGenerationKey == datasetGenerationKey {
 		return datasetGenerationKey, true
 	}
-	snapshot, err := s.store.GetSnapshot(ctx)
+	snapshot, err := s.store.GetSnapshot(ctx, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return "", false
@@ -227,6 +244,15 @@ func methodNotAllowed(w http.ResponseWriter) {
 
 func writeError(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, errorResponse{Error: err.Error()})
+}
+
+func requireUserID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return "", false
+	}
+	return userID, true
 }
 
 func decodeJSON(r *http.Request, target any) error {
