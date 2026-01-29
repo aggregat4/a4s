@@ -1,23 +1,27 @@
-import {
-  serializeRegistryState,
-  serializeListState,
-  deserializeRegistryState,
-  deserializeListState,
-} from "../storage/serde.js";
+import { between, comparePositions } from "../domain/crdt/position.js";
 import type { ListId, ListState, RegistryState } from "../types/domain.js";
 
 export const SNAPSHOT_SCHEMA = "net.aggregat4.tasklist.snapshot@v1";
 
-type SerializedRegistryState = ReturnType<typeof serializeRegistryState>;
-type SerializedListState = ReturnType<typeof serializeListState>;
+type SnapshotListItem = {
+  id: string;
+  text: string;
+  done: boolean;
+  note?: string;
+};
+
+type SnapshotList = {
+  listId: ListId;
+  title: string;
+  items: SnapshotListItem[];
+};
 
 export type ExportSnapshotEnvelope = {
   schema: string;
   exportedAt: string;
   appVersion?: string;
   data: {
-    registry: SerializedRegistryState;
-    lists: Array<{ listId: ListId; state: SerializedListState }>;
+    lists: SnapshotList[];
   };
 };
 
@@ -35,25 +39,95 @@ export type ParsedSnapshot = {
   appVersion?: string;
 };
 
+const sanitizeText = (value: unknown) => (typeof value === "string" ? value : "");
+const sanitizeBoolean = (value: unknown) => {
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return Boolean(value);
+};
+
+function sortByPosition<T extends { pos?: unknown }>(entries: T[]) {
+  return entries.slice().sort((a, b) => comparePositions(a?.pos, b?.pos));
+}
+
+function buildSnapshotLists(
+  registryState: RegistryState,
+  lists: Array<{ listId: ListId; state: ListState }>
+): SnapshotList[] {
+  const listMap = new Map<ListId, ListState>();
+  lists.forEach((entry) => {
+    if (!entry?.listId) return;
+    listMap.set(entry.listId, entry.state);
+  });
+
+  const registryEntries = Array.isArray(registryState?.entries)
+    ? registryState.entries
+    : [];
+  const orderedRegistry = sortByPosition(
+    registryEntries.filter((entry) => entry && entry.deletedAt == null)
+  );
+
+  return orderedRegistry
+    .map((entry) => {
+      const listState = listMap.get(entry.id);
+      if (!listState) return null;
+      const title =
+        sanitizeText(listState.title) || sanitizeText(entry.data?.title);
+      const entries = Array.isArray(listState.entries)
+        ? listState.entries.filter((item) => item && item.deletedAt == null)
+        : [];
+      const items = sortByPosition(entries).map((item) => {
+        const note = sanitizeText(item?.data?.note);
+        const payload: SnapshotListItem = {
+          id: item.id,
+          text: sanitizeText(item?.data?.text),
+          done: sanitizeBoolean(item?.data?.done),
+        };
+        if (note.length) {
+          payload.note = note;
+        }
+        return payload;
+      });
+      return {
+        listId: entry.id,
+        title,
+        items,
+      };
+    })
+    .filter((entry): entry is SnapshotList => Boolean(entry));
+}
+
+function buildOrderedEntries<TData extends Record<string, unknown>>(
+  items: Array<{ id: string; data: TData }>,
+  actor: string
+) {
+  let previousPosition: ReturnType<typeof between> | null = null;
+  return items.map((item, index) => {
+    const position = between(previousPosition, null, { actor });
+    previousPosition = position;
+    const time = index + 1;
+    return {
+      id: item.id,
+      pos: position,
+      data: item.data,
+      createdAt: time,
+      updatedAt: time,
+      deletedAt: null,
+    };
+  });
+}
+
 export function buildExportSnapshot(input: ExportSnapshotInput): ExportSnapshotEnvelope {
   const exportedAt =
     typeof input.exportedAt === "string" && input.exportedAt.length
       ? input.exportedAt
       : new Date().toISOString();
-  const registry = serializeRegistryState(input.registryState);
-  const lists = Array.isArray(input.lists)
-    ? input.lists
-        .filter((entry) => typeof entry?.listId === "string" && entry.listId.length)
-        .map((entry) => ({
-          listId: entry.listId,
-          state: serializeListState(entry.state),
-        }))
-    : [];
+  const lists = buildSnapshotLists(input.registryState, input.lists);
   const payload: ExportSnapshotEnvelope = {
     schema: SNAPSHOT_SCHEMA,
     exportedAt,
     data: {
-      registry,
       lists,
     },
   };
@@ -85,31 +159,84 @@ export function parseExportSnapshot(raw: unknown):
   if (!record.data || typeof record.data !== "object") {
     return { ok: false, error: "Snapshot data is missing." };
   }
-  const data = record.data as {
-    registry?: unknown;
-    lists?: unknown;
-  };
-  if (!data.registry || typeof data.registry !== "object") {
-    return { ok: false, error: "Snapshot registry state is missing." };
+  const data = record.data as { lists?: unknown };
+  const listsInput = Array.isArray(data.lists) ? data.lists : null;
+  if (!listsInput) {
+    return { ok: false, error: "Snapshot lists are missing." };
   }
-  const registryState = deserializeRegistryState(data.registry);
-  const lists = Array.isArray(data.lists)
-    ? data.lists
-        .map((entry) => {
-          const candidate = entry as { listId?: unknown; state?: unknown };
-          if (typeof candidate.listId !== "string" || !candidate.listId.length) {
-            return null;
-          }
-          if (!candidate.state || typeof candidate.state !== "object") {
-            return null;
-          }
-          return {
-            listId: candidate.listId,
-            state: deserializeListState(candidate.state),
-          } as { listId: ListId; state: ListState };
-        })
-        .filter((entry): entry is { listId: ListId; state: ListState } => Boolean(entry))
-    : [];
+  const actor = "snapshot-import";
+  const snapshotLists = listsInput
+    .map((entry) => {
+      const candidate = entry as {
+        listId?: unknown;
+        title?: unknown;
+        items?: unknown;
+      };
+      const listId =
+        typeof candidate.listId === "string" && candidate.listId.length
+          ? candidate.listId
+          : `list-${crypto.randomUUID()}`;
+      const title = sanitizeText(candidate.title);
+      const itemsInput = Array.isArray(candidate.items) ? candidate.items : [];
+      const items = itemsInput.map((item) => {
+        const record = item as {
+          id?: unknown;
+          text?: unknown;
+          done?: unknown;
+          note?: unknown;
+        };
+        const id =
+          typeof record.id === "string" && record.id.length
+            ? record.id
+            : `task-${crypto.randomUUID()}`;
+        return {
+          id,
+          text: sanitizeText(record.text),
+          done: sanitizeBoolean(record.done),
+          note: sanitizeText(record.note),
+        };
+      });
+      return {
+        listId,
+        title,
+        items,
+      };
+    })
+    .filter((entry) => entry.listId.length);
+
+  const registryEntries = buildOrderedEntries(
+    snapshotLists.map((list) => ({
+      id: list.listId,
+      data: { title: list.title },
+    })),
+    actor
+  );
+  const registryState: RegistryState = {
+    clock: registryEntries.length + 1,
+    entries: registryEntries,
+  };
+  const lists = snapshotLists.map((list) => {
+    const listEntries = buildOrderedEntries(
+      list.items.map((item) => ({
+        id: item.id,
+        data: {
+          text: sanitizeText(item.text),
+          done: sanitizeBoolean(item.done),
+          note: sanitizeText(item.note),
+        },
+      })),
+      actor
+    );
+    return {
+      listId: list.listId,
+      state: {
+        clock: listEntries.length + 1,
+        title: list.title,
+        titleUpdatedAt: 1,
+        entries: listEntries,
+      },
+    };
+  });
   const exportedAt =
     typeof record.exportedAt === "string" ? record.exportedAt : undefined;
   const appVersion =

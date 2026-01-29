@@ -17,64 +17,53 @@ The export snapshot is a JSON document representing the current state of all lis
   "exportedAt": "2026-01-27T00:00:00.000Z",
   "appVersion": "<optional build/version>",
   "data": {
-    "registry": { /* RegistryState */ },
     "lists": [
       {
         "listId": "<list-id>",
-        "state": { /* ListState */ }
+        "title": "List title",
+        "items": [
+          {
+            "id": "<task-id>",
+            "text": "Task",
+            "done": false,
+            "note": ""
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-## RegistryState
-`registry` is the output of `serializeRegistryState()` and follows:
+## Lists
+`data.lists` is the ordered list of lists as they appear in the UI.
 
 ```json
 {
-  "version": 1,
-  "clock": 0,
-  "entries": [
-    {
-      "id": "list-...",
-      "pos": [{ "digit": 1, "actor": "actor-..." }],
-      "data": { "title": "List title" },
-      "createdAt": 0,
-      "updatedAt": 0,
-      "deletedAt": null
-    }
+  "listId": "list-...",
+  "title": "List title",
+  "items": [
+    { "id": "task-...", "text": "Task", "done": false, "note": "" }
   ]
 }
 ```
 
-## ListState
-Each `state` is the output of `serializeListState()` and follows:
+## Items
+Each `items[]` entry represents the current task state in list order.
 
 ```json
 {
-  "version": 1,
-  "clock": 0,
-  "title": "List title",
-  "titleUpdatedAt": 0,
-  "entries": [
-    {
-      "id": "task-...",
-      "pos": [{ "digit": 1, "actor": "actor-..." }],
-      "data": { "text": "Task", "done": false, "note": "" },
-      "createdAt": 0,
-      "updatedAt": 0,
-      "deletedAt": null
-    }
-  ]
+  "id": "task-...",
+  "text": "Task",
+  "done": false,
+  "note": ""
 }
 ```
 
 ## Validation Rules (Client)
 - `schema` must equal `net.aggregat4.tasklist.snapshot@v1`.
-- `data.registry` must be a valid RegistryState shape.
-- `data.lists` must be an array of `{ listId, state }`.
-- Each `state` must be a valid ListState shape.
+- `data.lists` must be an array of `{ listId, title, items }`.
+- Each list item must include `id`, `text`, and `done`.
 - Unknown fields are ignored.
 
 ## Compatibility

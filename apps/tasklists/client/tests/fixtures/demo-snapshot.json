@@ -2,1230 +2,327 @@
   "schema": "net.aggregat4.tasklist.snapshot@v1",
   "exportedAt": "2026-01-28T15:43:31.360Z",
   "data": {
-    "registry": {
-      "version": 1,
-      "clock": 3,
-      "entries": [
-        {
-          "id": "list-prototype",
-          "pos": [
-            {
-              "digit": 512,
-              "actor": "seed-registry"
-            }
-          ],
-          "data": {
-            "title": "Prototype Tasks"
-          },
-          "createdAt": 1,
-          "updatedAt": 1,
-          "deletedAt": null
-        },
-        {
-          "id": "list-weekend",
-          "pos": [
-            {
-              "digit": 768,
-              "actor": "seed-registry"
-            }
-          ],
-          "data": {
-            "title": "Weekend Projects"
-          },
-          "createdAt": 2,
-          "updatedAt": 2,
-          "deletedAt": null
-        },
-        {
-          "id": "list-work",
-          "pos": [
-            {
-              "digit": 896,
-              "actor": "seed-registry"
-            }
-          ],
-          "data": {
-            "title": "Work Follow-ups"
-          },
-          "createdAt": 3,
-          "updatedAt": 3,
-          "deletedAt": null
-        }
-      ]
-    },
     "lists": [
       {
         "listId": "list-prototype",
-        "state": {
-          "version": 1,
-          "clock": 20,
-          "title": "Prototype Tasks",
-          "titleUpdatedAt": 1,
-          "entries": [
-            {
-              "id": "prototype-task-1",
-              "pos": [
-                {
-                  "digit": 512,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Refill the bird feeder before the sparrows file another formal request.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 1,
-              "updatedAt": 1,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-2",
-              "pos": [
-                {
-                  "digit": 768,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Check the fridge light still turns off, preferably without crawling inside again.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 2,
-              "updatedAt": 2,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-3",
-              "pos": [
-                {
-                  "digit": 896,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Return the umbrella to the hallway, where it insists it lives.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 3,
-              "updatedAt": 3,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-4",
-              "pos": [
-                {
-                  "digit": 960,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Water the fern before it submits another strongly worded letter to the radiator.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 4,
-              "updatedAt": 4,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-5",
-              "pos": [
-                {
-                  "digit": 992,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Update the shopping list to include milk, bread, and a moderately sensible hat.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 5,
-              "updatedAt": 5,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-6",
-              "pos": [
-                {
-                  "digit": 1008,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Verify that the kettle boils water and not, as it occasionally attempts, good intentions.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 6,
-              "updatedAt": 6,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-7",
-              "pos": [
-                {
-                  "digit": 1016,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Organize the cutlery drawer so the forks don't keep holding union meetings.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 7,
-              "updatedAt": 7,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-8",
-              "pos": [
-                {
-                  "digit": 1020,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Empty the dishwasher before it begins drafting poetry about neglect.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 8,
-              "updatedAt": 8,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-9",
-              "pos": [
-                {
-                  "digit": 1022,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Set the alarm clock, reminding it gently that no one enjoys its personality.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 9,
-              "updatedAt": 9,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-10",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Take the bins out, though they are increasingly insistent they'd rather stay in.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 10,
-              "updatedAt": 10,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-11",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 512,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Test the smoke detector by asking it politely to explain its worldview.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 11,
-              "updatedAt": 11,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-12",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 768,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Send an email to the electricity meter thanking it for its tireless blinking.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 12,
-              "updatedAt": 12,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-13",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 896,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Sharpen pencils so they feel prepared for anything, including international diplomacy.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 13,
-              "updatedAt": 13,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-14",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 960,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Update the calendar to reflect the current year, not the one the cat prefers.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 14,
-              "updatedAt": 14,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-15",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 992,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Polish the windows until they are clear about their long-term career goals.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 15,
-              "updatedAt": 15,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-16",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 1008,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Check the washing machine for socks that have declared independence.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 16,
-              "updatedAt": 16,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-17",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 1016,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Restock the biscuit tin before negotiations with visitors turn awkward.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 17,
-              "updatedAt": 17,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-18",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 1020,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Feed the goldfish, who has recently taken to sighing at odd intervals.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 18,
-              "updatedAt": 18,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-19",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 1022,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Write down the Wi-Fi password in case it decides to change its name again.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 19,
-              "updatedAt": 19,
-              "deletedAt": null
-            },
-            {
-              "id": "prototype-task-20",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                },
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-prototype"
-                }
-              ],
-              "data": {
-                "text": "Vacuum the carpet before it develops further geological features.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 20,
-              "updatedAt": 20,
-              "deletedAt": null
-            }
-          ]
-        }
+        "title": "Prototype Tasks",
+        "items": [
+          {
+            "id": "prototype-task-1",
+            "text": "Refill the bird feeder before the sparrows file another formal request.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-2",
+            "text": "Check the fridge light still turns off, preferably without crawling inside again.",
+            "done": false,
+            "note": "Remember the spare key is in the planter."
+          },
+          {
+            "id": "prototype-task-3",
+            "text": "Return the umbrella to the hallway, where it insists it lives.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-4",
+            "text": "Water the fern before it submits another strongly worded letter to the radiator.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-5",
+            "text": "Update the shopping list to include milk, bread, and a moderately sensible hat.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-6",
+            "text": "Verify that the kettle boils water and not, as it occasionally attempts, good intentions.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-7",
+            "text": "Organize the cutlery drawer so the forks don't keep holding union meetings.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-8",
+            "text": "Empty the dishwasher before it begins drafting poetry about neglect.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-9",
+            "text": "Set the alarm clock, reminding it gently that no one enjoys its personality.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-10",
+            "text": "Take the bins out, though they are increasingly insistent they'd rather stay in.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-11",
+            "text": "Test the smoke detector by asking it politely to explain its worldview.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-12",
+            "text": "Send an email to the electricity meter thanking it for its tireless blinking.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-13",
+            "text": "Sharpen pencils so they feel prepared for anything, including international diplomacy.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-14",
+            "text": "Update the calendar to reflect the current year, not the one the cat prefers.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-15",
+            "text": "Polish the windows until they are clear about their long-term career goals.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-16",
+            "text": "Check the washing machine for socks that have declared independence.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-17",
+            "text": "Restock the biscuit tin before negotiations with visitors turn awkward.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-18",
+            "text": "Feed the goldfish, who has recently taken to sighing at odd intervals.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-19",
+            "text": "Write down the Wi-Fi password in case it decides to change its name again.",
+            "done": false
+          },
+          {
+            "id": "prototype-task-20",
+            "text": "Vacuum the carpet before it develops further geological features.",
+            "done": false
+          }
+        ]
       },
       {
         "listId": "list-weekend",
-        "state": {
-          "version": 1,
-          "clock": 20,
-          "title": "Weekend Projects",
-          "titleUpdatedAt": 1,
-          "entries": [
-            {
-              "id": "weekend-task-1",
-              "pos": [
-                {
-                  "digit": 512,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Patch the garden fence before the neighbor's cat launches another inspection.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 1,
-              "updatedAt": 1,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-2",
-              "pos": [
-                {
-                  "digit": 768,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Clear the garage path so the bikes stop living under a tarp monarchy.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 2,
-              "updatedAt": 2,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-3",
-              "pos": [
-                {
-                  "digit": 896,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Label the mystery cables basket before it becomes household folklore.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 3,
-              "updatedAt": 3,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-4",
-              "pos": [
-                {
-                  "digit": 960,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Sand the coffee table so splinters stop campaigning for attention.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 4,
-              "updatedAt": 4,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-5",
-              "pos": [
-                {
-                  "digit": 992,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Plan the herb bed before the mint declares full sovereignty.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 5,
-              "updatedAt": 5,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-6",
-              "pos": [
-                {
-                  "digit": 1008,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Paint the hallway sample squares to convince the walls to commit.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 6,
-              "updatedAt": 6,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-7",
-              "pos": [
-                {
-                  "digit": 1016,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Wash the car until it remembers it's actually blue.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 7,
-              "updatedAt": 7,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-8",
-              "pos": [
-                {
-                  "digit": 1020,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Tighten the wobbly chairs before guests develop sea legs.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 8,
-              "updatedAt": 8,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-9",
-              "pos": [
-                {
-                  "digit": 1022,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Test the fire pit so marshmallows can renew their contract.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 9,
-              "updatedAt": 9,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-10",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Replace the porch light bulb before the moth council files grievances.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 10,
-              "updatedAt": 10,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-11",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 512,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Organize board games so the dice stop backpacking through the house.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 11,
-              "updatedAt": 11,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-12",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 768,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Clean the aquarium filter before the fish union organizes a strike.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 12,
-              "updatedAt": 12,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-13",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 896,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Inventory the toolbox to confirm the 14mm socket still exists.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 13,
-              "updatedAt": 13,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-14",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 960,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Fix the squeaky door that narrates every midnight snack.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 14,
-              "updatedAt": 14,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-15",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 992,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Trim the hedges before they audition as stage curtains.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 15,
-              "updatedAt": 15,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-16",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 1008,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Sort camping gear into piles of 'useful' and 'optimistic'.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 16,
-              "updatedAt": 16,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-17",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 1016,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Re-string the clothesline before the laundry takes flight.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 17,
-              "updatedAt": 17,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-18",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 1020,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Tune the piano so middle C stops sounding philosophical.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 18,
-              "updatedAt": 18,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-19",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 1022,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Swap batteries in the fairy lights before they become existential.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 19,
-              "updatedAt": 19,
-              "deletedAt": null
-            },
-            {
-              "id": "weekend-task-20",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                },
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-weekend"
-                }
-              ],
-              "data": {
-                "text": "Back up family photos before the cloud picks favorites.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 20,
-              "updatedAt": 20,
-              "deletedAt": null
-            }
-          ]
-        }
+        "title": "Weekend Projects",
+        "items": [
+          {
+            "id": "weekend-task-1",
+            "text": "Patch the garden fence before the neighbor's cat launches another inspection.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-2",
+            "text": "Clear the garage path so the bikes stop living under a tarp monarchy.",
+            "done": false,
+            "note": "Ask Sam about the updated cable routing."
+          },
+          {
+            "id": "weekend-task-3",
+            "text": "Label the mystery cables basket before it becomes household folklore.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-4",
+            "text": "Sand the coffee table so splinters stop campaigning for attention.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-5",
+            "text": "Plan the herb bed before the mint declares full sovereignty.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-6",
+            "text": "Paint the hallway sample squares to convince the walls to commit.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-7",
+            "text": "Wash the car until it remembers it's actually blue.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-8",
+            "text": "Tighten the wobbly chairs before guests develop sea legs.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-9",
+            "text": "Test the fire pit so marshmallows can renew their contract.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-10",
+            "text": "Replace the porch light bulb before the moth council files grievances.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-11",
+            "text": "Organize board games so the dice stop backpacking through the house.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-12",
+            "text": "Clean the aquarium filter before the fish union organizes a strike.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-13",
+            "text": "Inventory the toolbox to confirm the 14mm socket still exists.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-14",
+            "text": "Fix the squeaky door that narrates every midnight snack.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-15",
+            "text": "Trim the hedges before they audition as stage curtains.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-16",
+            "text": "Sort camping gear into piles of 'useful' and 'optimistic'.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-17",
+            "text": "Re-string the clothesline before the laundry takes flight.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-18",
+            "text": "Tune the piano so middle C stops sounding philosophical.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-19",
+            "text": "Swap batteries in the fairy lights before they become existential.",
+            "done": false
+          },
+          {
+            "id": "weekend-task-20",
+            "text": "Back up family photos before the cloud picks favorites.",
+            "done": false
+          }
+        ]
       },
       {
         "listId": "list-work",
-        "state": {
-          "version": 1,
-          "clock": 20,
-          "title": "Work Follow-ups",
-          "titleUpdatedAt": 1,
-          "entries": [
-            {
-              "id": "work-task-1",
-              "pos": [
-                {
-                  "digit": 512,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Email the design draft to Isla before the mockups develop sentience.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 1,
-              "updatedAt": 1,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-2",
-              "pos": [
-                {
-                  "digit": 768,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Confirm sprint goals with DevOps so the servers stay optimistic.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 2,
-              "updatedAt": 2,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-3",
-              "pos": [
-                {
-                  "digit": 896,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Schedule the retro while memories of the bugs are still polite.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 3,
-              "updatedAt": 3,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-4",
-              "pos": [
-                {
-                  "digit": 960,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Review the analytics deck before stakeholders wield highlighters.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 4,
-              "updatedAt": 4,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-5",
-              "pos": [
-                {
-                  "digit": 992,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Update the roadmap to reflect the features marketing already announced.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 5,
-              "updatedAt": 5,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-6",
-              "pos": [
-                {
-                  "digit": 1008,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Ping legal about the release notes before we ship interpretive poetry.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 6,
-              "updatedAt": 6,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-7",
-              "pos": [
-                {
-                  "digit": 1016,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Organize user interviews so transcripts arrive before next quarter.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 7,
-              "updatedAt": 7,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-8",
-              "pos": [
-                {
-                  "digit": 1020,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Check in with QA about flaky tests that believe in free will.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 8,
-              "updatedAt": 8,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-9",
-              "pos": [
-                {
-                  "digit": 1022,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Draft the onboarding doc so newcomers stop learning via treasure hunt.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 9,
-              "updatedAt": 9,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-10",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Refresh the team wiki links that redirect to archaeological findings.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 10,
-              "updatedAt": 10,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-11",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 512,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Finalize the budget sheet before finance asks for interpretive dance.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 11,
-              "updatedAt": 11,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-12",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 768,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Reply to the vendor with polite enthusiasm and three clarifying bullets.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 12,
-              "updatedAt": 12,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-13",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 896,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Plan a knowledge share on the feature nobody admits to understanding.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 13,
-              "updatedAt": 13,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-14",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 960,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Pair with analytics to translate dashboards into mortal speech.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 14,
-              "updatedAt": 14,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-15",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 992,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Collect status updates without summoning another mega-thread.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 15,
-              "updatedAt": 15,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-16",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 1008,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Approve the icon set before UI sneaks in mysterious hieroglyphs.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 16,
-              "updatedAt": 16,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-17",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 1016,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Prep the release checklist so launch day doesn't improvise.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 17,
-              "updatedAt": 17,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-18",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 1020,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Ask security about the alert that keeps waving politely.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 18,
-              "updatedAt": 18,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-19",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 1022,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Sync with support on the ticket queue before it becomes folklore.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 19,
-              "updatedAt": 19,
-              "deletedAt": null
-            },
-            {
-              "id": "work-task-20",
-              "pos": [
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                },
-                {
-                  "digit": 1023,
-                  "actor": "seed-list-work"
-                }
-              ],
-              "data": {
-                "text": "Send a kudos round-up so everyone remembers we're on the same team.",
-                "done": false,
-                "note": ""
-              },
-              "createdAt": 20,
-              "updatedAt": 20,
-              "deletedAt": null
-            }
-          ]
-        }
+        "title": "Work Follow-ups",
+        "items": [
+          {
+            "id": "work-task-1",
+            "text": "Email the design draft to Isla before the mockups develop sentience.",
+            "done": false
+          },
+          {
+            "id": "work-task-2",
+            "text": "Confirm sprint goals with DevOps so the servers stay optimistic.",
+            "done": false,
+            "note": "Double-check warranty terms before purchase."
+          },
+          {
+            "id": "work-task-3",
+            "text": "Schedule the retro while memories of the bugs are still polite.",
+            "done": false
+          },
+          {
+            "id": "work-task-4",
+            "text": "Review the analytics deck before stakeholders wield highlighters.",
+            "done": false
+          },
+          {
+            "id": "work-task-5",
+            "text": "Update the roadmap to reflect the features marketing already announced.",
+            "done": false
+          },
+          {
+            "id": "work-task-6",
+            "text": "Ping legal about the release notes before we ship interpretive poetry.",
+            "done": false
+          },
+          {
+            "id": "work-task-7",
+            "text": "Organize user interviews so transcripts arrive before next quarter.",
+            "done": false
+          },
+          {
+            "id": "work-task-8",
+            "text": "Check in with QA about flaky tests that believe in free will.",
+            "done": false
+          },
+          {
+            "id": "work-task-9",
+            "text": "Draft the onboarding doc so newcomers stop learning via treasure hunt.",
+            "done": false
+          },
+          {
+            "id": "work-task-10",
+            "text": "Refresh the team wiki links that redirect to archaeological findings.",
+            "done": false
+          },
+          {
+            "id": "work-task-11",
+            "text": "Finalize the budget sheet before finance asks for interpretive dance.",
+            "done": false
+          },
+          {
+            "id": "work-task-12",
+            "text": "Reply to the vendor with polite enthusiasm and three clarifying bullets.",
+            "done": false
+          },
+          {
+            "id": "work-task-13",
+            "text": "Plan a knowledge share on the feature nobody admits to understanding.",
+            "done": false
+          },
+          {
+            "id": "work-task-14",
+            "text": "Pair with analytics to translate dashboards into mortal speech.",
+            "done": false
+          },
+          {
+            "id": "work-task-15",
+            "text": "Collect status updates without summoning another mega-thread.",
+            "done": false
+          },
+          {
+            "id": "work-task-16",
+            "text": "Approve the icon set before UI sneaks in mysterious hieroglyphs.",
+            "done": false
+          },
+          {
+            "id": "work-task-17",
+            "text": "Prep the release checklist so launch day doesn't improvise.",
+            "done": false
+          },
+          {
+            "id": "work-task-18",
+            "text": "Ask security about the alert that keeps waving politely.",
+            "done": false
+          },
+          {
+            "id": "work-task-19",
+            "text": "Sync with support on the ticket queue before it becomes folklore.",
+            "done": false
+          },
+          {
+            "id": "work-task-20",
+            "text": "Send a kudos round-up so everyone remembers we're on the same team.",
+            "done": false
+          }
+        ]
       }
     ]
   }

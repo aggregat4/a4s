@@ -24,10 +24,10 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
 ## Snapshot Format
 - Documented in `docs/export-snapshot-spec.md`.
 - Versioned envelope with a `schema` string.
-- Payload uses the existing serialized snapshot shapes from `serde.ts`:
-  - `registry` is `serializeRegistryState()` output.
-  - `lists` is array of `{ listId, state }` where `state` is `serializeListState()` output.
-- Snapshots contain only the current state (no historical ops or edit history).
+- Payload is a pure state snapshot:
+  - `lists` is an ordered array of `{ listId, title, items }`.
+  - `items` is an ordered array of `{ id, text, done, note? }`.
+- Snapshots contain only the current state (no historical ops, positions, or Lamport clocks).
 
 ## Core Design (Opaque Snapshot Blob)
 
@@ -42,10 +42,11 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
   - Clear op log and reset serverSeq.
 
 ### Client
-- Export: build snapshot JSON via existing serializers and download.
+- Export: build snapshot JSON from current list order + task order and download.
 - Import:
   - Parse and validate snapshot schema.
-  - Replace local storage with snapshot state.
+  - Rebuild CRDT state by generating fresh positions/clock values from the ordered lists.
+  - Replace local storage with the reconstructed state.
   - Clear outbox and reset sync cursor.
   - Send snapshot blob to server (reset/import endpoint).
 - Bootstrap:
@@ -87,8 +88,8 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
 - Large snapshots: show progress state.
 
 ## Implementation Plan
-1. Client export: build snapshot via `serializeRegistryState` + `serializeListState`, download JSON.
-2. Client import: validate schema, clear storage, write snapshot state, clear outbox + reset sync cursor.
+1. Client export: build snapshot from ordered lists/items, download JSON.
+2. Client import: validate schema, rebuild CRDT positions from ordered lists/items, clear storage, write snapshot state, clear outbox + reset sync cursor.
 3. Server storage: add snapshot blob store (active snapshot + optional history).
 4. Server reset endpoint: accept new snapshot blob, create datasetGenerationKey, reset serverSeq + ops.
 5. Sync handshake: include datasetGenerationKey on push/pull/bootstrap; on mismatch, fetch snapshot blob and reset local state.

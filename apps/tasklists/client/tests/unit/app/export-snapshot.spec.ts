@@ -45,7 +45,6 @@ test("export snapshot builds schema envelope", () => {
   });
   assert.equal(envelope.schema, SNAPSHOT_SCHEMA);
   assert.equal(envelope.data.lists.length, 1);
-  assert.equal(envelope.data.registry.entries.length, 1);
 });
 
 test("snapshot parsing validates schema", () => {
