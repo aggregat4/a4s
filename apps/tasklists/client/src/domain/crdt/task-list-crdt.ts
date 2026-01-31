@@ -117,7 +117,7 @@ export class TaskListCRDT {
   titleUpdatedAt: number;
 
   constructor(
-    options: { actorId?: string; title?: string; titleUpdatedAt?: number } = {}
+    options: { actorId?: string; title?: string; titleUpdatedAt?: number; identityOptions?: { storageKey?: string; storage?: Storage } } = {}
   ) {
     this._orderedSet = new OrderedSetCRDT<{ text: string; done: boolean; note: string }>(
       options

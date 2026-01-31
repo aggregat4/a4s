@@ -26,9 +26,25 @@ const createMemoryStorage = (): ListStorage => ({
   persistRegistry: async () => {},
 });
 
+const createMockStorage = (): Storage => {
+  const store = new Map<string, string>();
+  return {
+    get length() { return store.size; },
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, value); },
+    removeItem: (key: string) => { store.delete(key); },
+    clear: () => { store.clear(); },
+    key: (index: number) => {
+      const keys = Array.from(store.keys());
+      return keys[index] ?? null;
+    },
+  };
+};
+
 test("undo/redo restores list creation", async () => {
   const repository = new ListRepository({
     storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
   });
 
   await repository.createList({ listId: "list-1", title: "List One" });
@@ -46,6 +62,7 @@ test("undo/redo restores list creation", async () => {
 test("undo/redo coalesces text edits into a single entry", async () => {
   const repository = new ListRepository({
     storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
   });
 
   await repository.createList({ listId: "list-1", title: "Tasks" });
@@ -76,6 +93,7 @@ test("undo/redo coalesces text edits into a single entry", async () => {
 test("text edits split into multiple undo segments on boundaries", async () => {
   const repository = new ListRepository({
     storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
   });
 
   await repository.createList({ listId: "list-1", title: "Tasks" });
@@ -105,6 +123,7 @@ test("text edits split into multiple undo segments on boundaries", async () => {
 test("undo/redo restores cross-list task moves", async () => {
   const repository = new ListRepository({
     storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
   });
 
   await repository.createList({ listId: "list-a", title: "List A" });
@@ -131,6 +150,7 @@ test("undo/redo restores cross-list task moves", async () => {
 test("undo/redo restores list registry operations", async () => {
   const repository = new ListRepository({
     storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
   });
 
   await repository.createList({ listId: "list-a", title: "First" });
@@ -166,6 +186,7 @@ test("undo/redo restores list registry operations", async () => {
 test("undo merges a task split into one history entry", async () => {
   const repository = new ListRepository({
     storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
   });
 
   await repository.createList({ listId: "list-1", title: "Tasks" });

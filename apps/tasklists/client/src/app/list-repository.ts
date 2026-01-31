@@ -28,7 +28,7 @@ import { parseExportSnapshotText } from "./export-snapshot.js";
 type ListRecord = { crdt: TaskListCRDT };
 type StorageOptions = Record<string, unknown>;
 type StorageFactory = (options?: StorageOptions) => Promise<ListStorage>;
-type ListFactory = (listId: ListId, state?: ListState | null) => TaskListCRDT;
+type ListFactory = (listId: ListId, state?: ListState | null, identityOptions?: { storageKey?: string; storage?: Storage }) => TaskListCRDT;
 type RegistryListener = (snapshot: ListRegistryEntry[]) => void;
 type ListListener = (state: TaskListState) => void;
 type GlobalListener =
@@ -40,10 +40,11 @@ type SyncOptions = {
   pollIntervalMs?: number;
 };
 
-function defaultListFactory(_listId: ListId, state: ListState | null = null) {
+function defaultListFactory(_listId: ListId, state: ListState | null = null, identityOptions?: { storageKey?: string; storage?: Storage }) {
   return new TaskListCRDT({
     title: state?.title ?? "",
     titleUpdatedAt: state?.titleUpdatedAt ?? 0,
+    identityOptions,
   });
 }
 
@@ -78,6 +79,7 @@ export class ListRepository {
   private _createListCrdt: ListFactory;
   private _storageFactory: StorageFactory;
   private _storageOptions: StorageOptions;
+  private _identityOptions: { storageKey?: string; storage?: Storage } | undefined;
   private _storage: ListStorage | null;
   private _listMap: Map<ListId, ListRecord>;
   private _registryListeners: Set<RegistryListener>;
@@ -105,7 +107,7 @@ export class ListRepository {
   constructor(
     options: {
       listsCrdt?: ListsCRDT;
-      listsCrdtOptions?: { actorId?: string };
+      listsCrdtOptions?: { actorId?: string; identityOptions?: { storageKey?: string; storage?: Storage } };
       createListCrdt?: ListFactory;
       storageFactory?: StorageFactory;
       storageOptions?: StorageOptions;
@@ -116,6 +118,7 @@ export class ListRepository {
       options.listsCrdt ?? new ListsCRDT(options.listsCrdtOptions);
     this._createListCrdt = options.createListCrdt ?? defaultListFactory;
     this._storageFactory = options.storageFactory ?? createListStorage;
+    this._identityOptions = options.listsCrdtOptions?.identityOptions;
     this._storageOptions = options.storageOptions ?? {};
     this._syncOptions = options.sync ?? null;
 
@@ -1353,7 +1356,7 @@ export class ListRepository {
   }
 
   _createListInstance(listId: ListId, state: ListState | null = null) {
-    return this._createListCrdt(listId, state);
+    return this._createListCrdt(listId, state, this._identityOptions);
   }
 
   _persistList(
