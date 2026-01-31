@@ -360,12 +360,18 @@ a4-tasklist {
     gap: var(--space-lg);
     margin-bottom: var(--space-md);
 
+    .tasklist-title-wrapper {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+
     .tasklist-title {
         margin: 0;
         font-size: var(--font-size-title);
         font-weight: 600;
         color: var(--color-text);
-        padding: 0 var(--space-xs);
+        padding: var(--space-xs) calc(var(--space-xs) + 20px) var(--space-xs) var(--space-xs);
         border: 1px solid transparent;
         border-radius: var(--radius-sm);
         cursor: text;
@@ -389,6 +395,31 @@ a4-tasklist {
             background-color: var(--color-surface);
             box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
         }
+
+        &:hover:not(.is-editing),
+        &:focus-visible:not(.is-editing) {
+            border-color: var(--color-border-muted);
+            background-color: var(--color-surface-muted);
+        }
+    }
+
+    .tasklist-title-edit-icon {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        opacity: 0.5;
+        pointer-events: none;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 14px 14px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%237a7a7a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.5 2.5l2 2M3 13l8-8 2 2-8 8H3v-2z'/%3E%3C/svg%3E");
+    }
+
+    .tasklist-title-wrapper:has(.tasklist-title.is-editing) .tasklist-title-edit-icon {
+        display: none;
     }
 
     .tasklist-controls {

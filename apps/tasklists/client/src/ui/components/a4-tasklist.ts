@@ -802,21 +802,23 @@ class A4TaskList extends HTMLElement {
               </div>
             `
           : null}
-        <h2
-          class=${`tasklist-title${this.isTitleEditing ? " is-editing" : ""}`}
-          tabindex="0"
-          title="Click to rename"
-          contenteditable=${this.isTitleEditing ? "true" : null}
-          spellcheck=${this.isTitleEditing ? "false" : null}
-          role=${this.isTitleEditing ? "textbox" : null}
-          aria-multiline=${this.isTitleEditing ? "false" : null}
-          aria-label=${this.isTitleEditing ? "List title" : null}
-          @click=${this.handleTitleClick}
-          @input=${this.handleTitleInput}
-          @keydown=${this.handleTitleKeyDown}
-          @blur=${this.handleTitleBlur}
-          .textContent=${live(titleText)}
-        ></h2>
+        <div class="tasklist-title-wrapper">
+          <h2
+            class=${`tasklist-title${this.isTitleEditing ? " is-editing" : ""}`}
+            tabindex="0"
+            contenteditable=${this.isTitleEditing ? "true" : null}
+            spellcheck=${this.isTitleEditing ? "false" : null}
+            role=${this.isTitleEditing ? "textbox" : null}
+            aria-multiline=${this.isTitleEditing ? "false" : null}
+            aria-label=${this.isTitleEditing ? "List title" : "Click to edit list title"}
+            @click=${this.handleTitleClick}
+            @input=${this.handleTitleInput}
+            @keydown=${this.handleTitleKeyDown}
+            @blur=${this.handleTitleBlur}
+            .textContent=${live(titleText)}
+          ></h2>
+          <span class="tasklist-title-edit-icon" aria-hidden="true"></span>
+        </div>
         <div class="tasklist-controls">
           <input
             type="search"
@@ -908,10 +910,10 @@ class A4TaskList extends HTMLElement {
 
   finishTitleEditing() {
     if (!this.titleEl) return;
-    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.isTitleEditing = false;
     this.titleOriginalValue = "";
     this.titleLiveUpdates = false;
+    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
   }
 
   commitTitleEditing({ restoreFocus = true } = {}) {
