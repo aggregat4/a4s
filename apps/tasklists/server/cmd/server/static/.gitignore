@@ -1,0 +1,5 @@
+# Ignore all files in this directory
+# This directory is populated during build with frontend files
+*
+!.gitignore
+!.gitkeep

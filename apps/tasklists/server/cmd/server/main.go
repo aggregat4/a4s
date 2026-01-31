@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
+	"embed"
+	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +14,9 @@ import (
 	"prototype-lists/server/internal/httpapi"
 	"prototype-lists/server/internal/storage"
 )
+
+//go:embed all:static
+var staticFS embed.FS
 
 func main() {
 	addr := ":8080"
@@ -66,17 +71,26 @@ func ensureParentDir(path string) error {
 }
 
 func registerStatic(mux *http.ServeMux) {
+	// Priority 1: External static directory (for development or custom builds)
 	staticDir := os.Getenv("SERVER_STATIC_DIR")
-	if staticDir == "" {
-		staticDir = filepath.Join("..", "client", "dist")
-	}
-	info, err := os.Stat(staticDir)
-	if err != nil || !info.IsDir() {
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Printf("static dir error: %v", err)
-		}
+	if staticDir != "" {
+		registerStaticDir(mux, staticDir)
 		return
 	}
+
+	// Priority 2: Try embedded static files (for packaged binary)
+	if embeddedSub, err := fs.Sub(staticFS, "static"); err == nil {
+		if _, err := embeddedSub.Open("index.html"); err == nil {
+			registerEmbeddedFS(mux, embeddedSub)
+			log.Printf("serving embedded static files")
+			return
+		}
+	}
+
+	log.Printf("warning: no static files found (set SERVER_STATIC_DIR or build with embedded files)")
+}
+
+func registerStaticDir(mux *http.ServeMux, staticDir string) {
 	fileServer := http.FileServer(http.Dir(staticDir))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(staticDir, filepath.Clean(r.URL.Path))
@@ -87,4 +101,40 @@ func registerStatic(mux *http.ServeMux) {
 		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 	}))
 	log.Printf("serving static files from %s", staticDir)
+}
+
+func registerEmbeddedFS(mux *http.ServeMux, staticSub fs.FS) {
+	fileServer := http.FileServer(http.FS(staticSub))
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Clean(r.URL.Path)
+		if path == "/" {
+			path = "/index.html"
+		}
+		if _, err := staticSub.Open(path); err == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		// Fallback to index.html for SPA routing
+		serveIndexFallback(w, r, staticSub)
+	}))
+}
+
+func serveIndexFallback(w http.ResponseWriter, r *http.Request, fs fs.FS) {
+	idx, err := fs.Open("index.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer func() { _ = idx.Close() }()
+
+	content, err := io.ReadAll(idx)
+	if err != nil {
+		http.Error(w, "Error reading index.html", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write(content); err != nil {
+		log.Printf("error writing index.html: %v", err)
+	}
 }
