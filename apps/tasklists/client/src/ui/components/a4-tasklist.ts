@@ -811,6 +811,7 @@ class A4TaskList extends HTMLElement {
             role=${this.isTitleEditing ? "textbox" : null}
             aria-multiline=${this.isTitleEditing ? "false" : null}
             aria-label=${this.isTitleEditing ? "List title" : "Click to edit list title"}
+            title=${this.isTitleEditing ? null : "Click to rename"}
             @click=${this.handleTitleClick}
             @input=${this.handleTitleInput}
             @keydown=${this.handleTitleKeyDown}
@@ -1546,7 +1547,7 @@ class A4TaskList extends HTMLElement {
         role="textbox"
         aria-label="Task"
         data-original-text=${text}
-        .innerHTML=${htmlContent}
+        .innerHTML=${htmlContent as string}
       ></span>
     `;
 
