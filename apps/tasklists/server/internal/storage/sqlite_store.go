@@ -137,7 +137,7 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("get write conn: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE;"); err != nil {
 		return 0, fmt.Errorf("begin immediate: %w", err)
@@ -158,7 +158,7 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, ops []Op) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("prepare insert: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for _, op := range ops {
 		if op.Scope == "" || op.Resource == "" || op.Actor == "" || op.Clock <= 0 {
@@ -193,7 +193,7 @@ func (s *SQLiteStore) GetOpsSince(ctx context.Context, since int64) ([]Op, int64
 	if err != nil {
 		return nil, 0, fmt.Errorf("query ops: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	ops := make([]Op, 0)
 	var maxSeq int64
@@ -373,7 +373,7 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, snapshot Snapshot) er
 	if err != nil {
 		return fmt.Errorf("get write conn: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE;"); err != nil {
 		return fmt.Errorf("begin immediate: %w", err)
 	}

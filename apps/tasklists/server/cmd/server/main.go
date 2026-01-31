@@ -30,7 +30,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("storage error: %v", err)
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			log.Printf("error closing store: %v", err)
+		}
+	}()
 
 	if err := store.Init(context.Background()); err != nil {
 		log.Fatalf("storage init error: %v", err)
