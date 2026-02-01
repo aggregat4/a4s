@@ -1756,7 +1756,7 @@ class A4TaskList extends HTMLElement {
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
     this.dispatchEvent(
-      new CustomEvent("taskMoveRequest", {
+      new CustomEvent("task-move-request", {
         detail: {
           itemId,
           item: snapshot,
@@ -2131,7 +2131,7 @@ class A4TaskList extends HTMLElement {
     if (!snapshot) return;
     event.preventDefault();
     this.dispatchEvent(
-      new CustomEvent("taskMoveRequest", {
+      new CustomEvent("task-move-request", {
         detail: {
           itemId,
           item: snapshot,
@@ -2219,7 +2219,7 @@ class A4TaskList extends HTMLElement {
     this.focusedItemId = itemId;
     li?.classList.add("is-focused");
     this.dispatchEvent(
-      new CustomEvent("taskFocus", {
+      new CustomEvent("task-focus", {
         detail: {
           itemId,
           sourceListId: this.listId,

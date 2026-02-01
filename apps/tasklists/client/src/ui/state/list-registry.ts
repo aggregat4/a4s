@@ -227,7 +227,7 @@ class ListRegistry {
       onShowDoneChange,
     } = this.eventHandlers;
     if (onTaskMoveRequest) {
-      element.addEventListener("taskMoveRequest", onTaskMoveRequest);
+      element.addEventListener("task-move-request", onTaskMoveRequest);
     }
     if (onItemCountChange) {
       element.addEventListener("itemcountchange", onItemCountChange);
@@ -236,7 +236,7 @@ class ListRegistry {
       element.addEventListener("searchresultschange", onSearchResultsChange);
     }
     if (onListFocus) {
-      element.addEventListener("taskFocus", onListFocus);
+      element.addEventListener("task-focus", onListFocus);
     }
     if (onListTitleChange) {
       element.addEventListener("titlechange", onListTitleChange);
@@ -262,7 +262,7 @@ class ListRegistry {
       onShowDoneChange,
     } = this.eventHandlers;
     if (onTaskMoveRequest) {
-      element.removeEventListener("taskMoveRequest", onTaskMoveRequest);
+      element.removeEventListener("task-move-request", onTaskMoveRequest);
     }
     if (onItemCountChange) {
       element.removeEventListener("itemcountchange", onItemCountChange);
@@ -271,7 +271,7 @@ class ListRegistry {
       element.removeEventListener("searchresultschange", onSearchResultsChange);
     }
     if (onListFocus) {
-      element.removeEventListener("taskFocus", onListFocus);
+      element.removeEventListener("task-focus", onListFocus);
     }
     if (onListTitleChange) {
       element.removeEventListener("titlechange", onListTitleChange);
