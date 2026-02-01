@@ -222,7 +222,7 @@ These duplicate what's in `app-store` and can be derived from elements.
 | Phase | Description | Status | Commit |
 |-------|-------------|--------|--------|
 | 1.1 | Extract `arraysEqual` to shared utilities | ✅ Done | c384192 |
-| 1.2 | Consolidate count formatting utilities | 🔄 In Progress | - |
+| 1.2 | Consolidate count formatting utilities | ✅ Done | b713ff8 |
 | 2.1 | Inline `SidebarCoordinator` | ⏳ Pending | - |
 | 2.2 | Merge `DragCoordinator` into `DraggableBehavior` | ⏳ Pending | - |
 | 3.1 | Remove duplicate state from `ListRegistry` | ⏳ Pending | - |
