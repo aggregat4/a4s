@@ -1,4 +1,5 @@
 import { html, render } from "lit";
+import { arraysEqual } from "../../shared/array-utils.js";
 import { DragCoordinator } from "./drag-coordinator.js";
 import { FlipAnimator } from "../../shared/drag-behavior.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
@@ -481,7 +482,7 @@ class SidebarElement extends HTMLElement {
     if (
       order.length &&
       movedId &&
-      !this.areOrdersEqual(order, beforeOrder)
+      !arraysEqual(order, beforeOrder)
     ) {
       this.handlers.onReorderList?.({
         movedId,
@@ -508,7 +509,7 @@ class SidebarElement extends HTMLElement {
     const desiredOrder = this.currentLists.map((list) => list.id);
     if (!desiredOrder.length) return;
     const currentOrder = this.getCurrentListOrder();
-    if (this.areOrdersEqual(currentOrder, desiredOrder)) return;
+    if (arraysEqual(currentOrder, desiredOrder)) return;
     const items = new Map(
       Array.from(listEl.querySelectorAll<HTMLElement>("li[data-item-id]")).map(
         (item) => [item.dataset.itemId ?? "", item]
@@ -550,14 +551,6 @@ class SidebarElement extends HTMLElement {
     return true;
   }
 
-  areOrdersEqual(a: ListId[] = [], b: ListId[] = []) {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i += 1) {
-      if (a[i] !== b[i]) return false;
-    }
-    return true;
-  }
 }
 
 customElements.define("a4-sidebar", SidebarElement);

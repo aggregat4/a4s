@@ -1,4 +1,5 @@
 import { html, render } from "lit";
+import { arraysEqual } from "../../shared/array-utils.js";
 import { ListRepository } from "../../app/list-repository.js";
 import { ensureDemoData, type SeedConfig } from "../../app/demo-seed.js";
 import { generateListId } from "../state/list-store.js";
@@ -318,7 +319,7 @@ class ListsAppShellElement extends HTMLElement {
     const order = selectors.getListOrder(state);
     const activeId = selectors.getActiveListId(state);
 
-    if (!this.arraysEqual(order, this.lastOrder)) {
+    if (!arraysEqual(order, this.lastOrder)) {
       this.registry.setListOrder(order);
       this.lastOrder = order;
     }
@@ -735,14 +736,6 @@ class ListsAppShellElement extends HTMLElement {
     }
   }
 
-  arraysEqual(a = [], b = []) {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i += 1) {
-      if (a[i] !== b[i]) return false;
-    }
-    return true;
-  }
 }
 
 customElements.define("a4-lists-app", ListsAppShellElement);
