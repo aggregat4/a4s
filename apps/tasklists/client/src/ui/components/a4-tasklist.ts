@@ -180,106 +180,7 @@ class EditController {
 
 // TaskListView keeps DOM reconciliation separate from state changes so we can reuse
 // focused nodes and avoid churn when the reducer reorders items.
-class TaskListView {
-  private getListElement: () => HTMLElement | null;
-
-  constructor({ getListElement }: { getListElement?: () => HTMLElement | null } = {}) {
-    this.getListElement =
-      typeof getListElement === "function" ? getListElement : () => null;
-  }
-
-  captureFocus() {
-    const listEl = this.getListElement();
-    if (!listEl) return null;
-    const activeElement = document.activeElement;
-    if (!activeElement || !listEl.contains(activeElement)) return null;
-    const activeLi = activeElement.closest("li");
-    if (!activeLi?.dataset?.itemId) return null;
-    const role: "toggle" | "text" | "note" | null =
-      activeElement.classList.contains("done-toggle")
-        ? "toggle"
-        : activeElement.classList.contains("text")
-        ? "text"
-        : activeElement.classList.contains("task-note-input")
-        ? "note"
-        : null;
-    return role ? { itemId: activeLi.dataset.itemId, role } : null;
-  }
-
-  syncItems(
-    items: TaskItem[],
-    {
-      createItem,
-      updateItem,
-    }: {
-      createItem: (item: TaskItem) => HTMLElement;
-      updateItem: (element: HTMLElement, item: TaskItem) => void;
-    }
-  ) {
-    const listEl = this.getListElement() as HTMLElement | null;
-    if (!listEl || !Array.isArray(items)) return;
-    const existingNodes = (Array.from(listEl.children) as HTMLElement[]).filter(
-      (li) => !li.classList.contains("placeholder")
-    );
-    const byId = new Map(existingNodes.map((li) => [li.dataset.itemId, li]));
-    const usedNodes = new Set();
-    let previous = null;
-
-    const nextNonPlaceholder = (node: ChildNode | null) => {
-      let current = node as HTMLElement | null;
-      while (current && current.classList?.contains("placeholder")) {
-        current = current.nextSibling as HTMLElement | null;
-      }
-      return current;
-    };
-
-    items.forEach((item) => {
-      let li = byId.get(item.id);
-      if (!li) {
-        li = createItem(item);
-      } else {
-        updateItem(li, item);
-      }
-      usedNodes.add(li);
-      const desired = previous
-        ? nextNonPlaceholder(previous.nextSibling)
-        : nextNonPlaceholder(listEl.firstChild);
-      if (li !== desired) {
-        listEl.insertBefore(li, desired || null);
-      }
-      previous = li;
-    });
-
-    existingNodes.forEach((li) => {
-      if (!usedNodes.has(li)) {
-        li.remove();
-      }
-    });
-  }
-
-  restoreFocus(
-    preservedFocus: { itemId: string; role: "toggle" | "text" | "note" } | null,
-    { skip }: { skip?: boolean } = {}
-  ) {
-    if (skip || !preservedFocus) return;
-    const listEl = this.getListElement();
-    if (!listEl) return;
-    const selectorId = escapeSelectorId(preservedFocus.itemId);
-    const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
-    if (!targetLi) return;
-    const focusTarget =
-      preservedFocus.role === "toggle"
-        ? targetLi.querySelector(".done-toggle")
-        : preservedFocus.role === "text"
-        ? targetLi.querySelector(".text")
-        : preservedFocus.role === "note"
-        ? targetLi.querySelector(".task-note-input")
-        : null;
-    (focusTarget as HTMLElement | null)?.focus();
-  }
-}
-
-// Custom element binds the store, view, and behaviors together so the prototype
+// Custom element binds the store and behaviors together so the prototype
 // remains drop-in embeddable without a framework runtime.
 class A4TaskList extends HTMLElement {
   private listEl: HTMLOListElement | null;
@@ -322,7 +223,7 @@ class A4TaskList extends HTMLElement {
   private repositorySyncPaused: number;
   private queuedRepositoryState: TaskListState | null;
   private editController: EditController;
-  private view: TaskListView;
+
   private pendingEditFlushRequested: boolean;
   private _repository: ListRepository | null;
   private repositoryUnsubscribe: (() => void) | null;
@@ -421,9 +322,7 @@ class A4TaskList extends HTMLElement {
       getEditingTarget: (id) => this.getEditingTarget(id),
       getItemSnapshot: (id) => this.getItemSnapshot(id),
     });
-    this.view = new TaskListView({
-      getListElement: () => this.listEl,
-    });
+
     this.pendingEditFlushRequested = false;
     this._repository = null;
     this.repositoryUnsubscribe = null;
@@ -1636,7 +1535,7 @@ class A4TaskList extends HTMLElement {
 
     this.renderHeader(this.getHeaderRenderState(state));
 
-    const preservedFocus = this.view.captureFocus();
+    const preservedFocus = this.captureFocus();
     const openActionsId = this.openActionsItemId;
     const tokens = tokenizeSearchQuery(this.searchQuery);
     const forceVisible = this.editController.getForceVisibleIds();
@@ -1765,7 +1664,7 @@ class A4TaskList extends HTMLElement {
       hasPendingEdit = this.editController.hasPending();
     }
 
-    this.view.restoreFocus(preservedFocus, {
+    this.restoreFocus(preservedFocus, {
       skip: hasPendingEdit || appliedPendingEdit,
     });
 
@@ -2689,6 +2588,52 @@ class A4TaskList extends HTMLElement {
       }
     });
     return count;
+  }
+
+  /**
+   * Capture the current focus state within the list for later restoration.
+   * Returns null if focus is not within the list.
+   */
+  captureFocus(): { itemId: string; role: "toggle" | "text" | "note" } | null {
+    const listEl = this.listEl;
+    if (!listEl) return null;
+    const activeElement = document.activeElement;
+    if (!activeElement || !listEl.contains(activeElement as Node)) return null;
+    const activeLi = (activeElement as Element).closest("li");
+    if (!activeLi?.dataset?.itemId) return null;
+    const role: "toggle" | "text" | "note" | null =
+      activeElement.classList.contains("done-toggle")
+        ? "toggle"
+        : activeElement.classList.contains("text")
+        ? "text"
+        : activeElement.classList.contains("task-note-input")
+        ? "note"
+        : null;
+    return role ? { itemId: activeLi.dataset.itemId, role } : null;
+  }
+
+  /**
+   * Restore focus to a previously captured focus state.
+   */
+  restoreFocus(
+    preservedFocus: { itemId: string; role: "toggle" | "text" | "note" } | null,
+    { skip }: { skip?: boolean } = {}
+  ) {
+    if (skip || !preservedFocus) return;
+    const listEl = this.listEl;
+    if (!listEl) return;
+    const selectorId = escapeSelectorId(preservedFocus.itemId);
+    const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
+    if (!targetLi) return;
+    const focusTarget =
+      preservedFocus.role === "toggle"
+        ? targetLi.querySelector(".done-toggle")
+        : preservedFocus.role === "text"
+        ? targetLi.querySelector(".text")
+        : preservedFocus.role === "note"
+        ? targetLi.querySelector(".task-note-input")
+        : null;
+    (focusTarget as HTMLElement | null)?.focus();
   }
 
   get listId() {
