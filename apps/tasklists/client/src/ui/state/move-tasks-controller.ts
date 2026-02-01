@@ -1,4 +1,8 @@
 import { APP_ACTIONS, selectors } from "./app-store.js";
+import {
+  formatMatchCount,
+  formatTotalCount,
+} from "../../shared/format-utils.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 
 type ListRecord = {
@@ -54,30 +58,21 @@ class MoveTasksController {
   private repository: Repository | null;
   private moveDialog: MoveDialog | null;
   private store: AppStore;
-  private formatMatchCount?: (value: number) => string;
-  private formatTotalCount?: (value: number) => string;
-
   constructor({
     registry,
     repository,
     moveDialog,
     store,
-    formatMatchCount,
-    formatTotalCount,
   }: {
     registry: RegistryController;
     repository?: Repository | null;
     moveDialog?: MoveDialog | null;
     store: AppStore;
-    formatMatchCount?: (value: number) => string;
-    formatTotalCount?: (value: number) => string;
   }) {
     this.registry = registry;
     this.repository = repository ?? null;
     this.moveDialog = moveDialog ?? null;
     this.store = store;
-    this.formatMatchCount = formatMatchCount;
-    this.formatTotalCount = formatTotalCount;
   }
 
   handleSidebarDrop(
@@ -127,12 +122,9 @@ class MoveTasksController {
         return {
           id: rec.id,
           name: listData?.name ?? rec.name ?? "Untitled List",
-          countLabel:
-            searchActive && this.formatMatchCount
-              ? this.formatMatchCount(matches)
-              : this.formatTotalCount
-              ? this.formatTotalCount(total)
-              : `${total}`,
+          countLabel: searchActive
+            ? formatMatchCount(matches)
+            : formatTotalCount(total),
         };
       });
     if (!targets.length) return;

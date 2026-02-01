@@ -1,5 +1,9 @@
 import { html, render } from "lit";
 import { arraysEqual } from "../../shared/array-utils.js";
+import {
+  formatMatchCount,
+  formatTotalCount,
+} from "../../shared/format-utils.js";
 import { ListRepository } from "../../app/list-repository.js";
 import { ensureDemoData, type SeedConfig } from "../../app/demo-seed.js";
 import { generateListId } from "../state/list-store.js";
@@ -235,10 +239,6 @@ class ListsAppShellElement extends HTMLElement {
       repository: this.repository,
       moveDialog: this.moveDialogElement,
       store: this.store,
-      formatMatchCount: (count) =>
-        this.sidebarCoordinator.formatMatchCount(count),
-      formatTotalCount: (count) =>
-        this.sidebarCoordinator.formatTotalCount(count),
     });
     this.repositorySync = new RepositorySync({
       repository: this.repository,
@@ -660,8 +660,8 @@ class ListsAppShellElement extends HTMLElement {
       return {
         ...entry,
         countLabel: searchMode
-          ? this.sidebarCoordinator.formatMatchCount(matchCount)
-          : this.sidebarCoordinator.formatTotalCount(entry.totalCount),
+          ? formatMatchCount(matchCount)
+          : formatTotalCount(entry.totalCount),
       };
     });
     this.sidebarElement?.setLists?.(data, {

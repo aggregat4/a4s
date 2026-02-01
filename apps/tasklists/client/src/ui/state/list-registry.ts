@@ -238,15 +238,7 @@ class ListRegistry {
     });
   }
 
-  getSidebarListData({
-    searchMode,
-    formatMatchCount,
-    formatTotalCount,
-  }: {
-    searchMode: boolean;
-    formatMatchCount: (count: number) => string;
-    formatTotalCount: (count: number) => string;
-  }) {
+  getSidebarListData() {
     return this.listOrder
       .map((id) => {
         const record = this.records.get(id);
@@ -256,9 +248,6 @@ class ListRegistry {
           name: record.name,
           totalCount: record.totalCount,
           matchCount: record.matchCount,
-          countLabel: searchMode
-            ? formatMatchCount(record.matchCount)
-            : formatTotalCount(record.totalCount),
         };
       })
       .filter(Boolean);

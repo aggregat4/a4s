@@ -5,6 +5,7 @@ type SidebarListEntry = {
   name: string;
   totalCount: number;
   matchCount: number;
+  countLabel: string;
 };
 
 type SidebarElement = {
@@ -35,33 +36,15 @@ class SidebarCoordinator {
     {
       activeListId,
       searchQuery,
-      searchMode,
-    }: { activeListId: ListId | null; searchQuery: string; searchMode: boolean } = {
+    }: { activeListId: ListId | null; searchQuery: string } = {
       activeListId: null,
       searchQuery: "",
-      searchMode: false,
     }
   ) {
-    const data = listData.map((entry) => ({
-      ...entry,
-      countLabel: searchMode
-        ? this.formatMatchCount(entry.matchCount)
-        : this.formatTotalCount(entry.totalCount),
-    }));
-    this.sidebar?.setLists?.(data, {
+    this.sidebar?.setLists?.(listData, {
       activeListId,
       searchQuery,
     });
-  }
-
-  formatMatchCount(count: number) {
-    if (!count) return "No matches";
-    return count === 1 ? "1 match" : `${count} matches`;
-  }
-
-  formatTotalCount(count: number) {
-    if (!count) return "Empty";
-    return count === 1 ? "1" : `${count}`;
   }
 }
 
