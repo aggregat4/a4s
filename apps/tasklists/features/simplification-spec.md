@@ -225,8 +225,9 @@ These duplicate what's in `app-store` and can be derived from elements.
 | 1.2 | Consolidate count formatting utilities | ✅ Done | db29592 |
 | 2.1 | Inline `SidebarCoordinator` | ✅ Done | 1c2ea6b |
 | 2.2 | Merge `DragCoordinator` into `DraggableBehavior` | ✅ Done | c2bbf63 |
-| 3.1 | Remove duplicate state from `ListRegistry` - Calculate counts from repository | 🔄 In Progress | - |
-| 3.2 | Simplify `RepositorySync` action dispatching | ⏳ Pending | - |
+| 3.1 | Remove duplicate state from `ListRegistry` | ✅ Done | 27bd2c4 |
+| 3.2 | Inline `TaskListView` into `a4-tasklist.ts` | ✅ Done | b0b49e8 |
+| 3.3 | Unify event naming to kebab-case | ✅ Done | 70b6c1d |
 | 4.1 | Extract title editing from `a4-tasklist.ts` | ⏳ Pending | - |
 | 4.2 | Extract search logic from `app-shell.ts` | ⏳ Pending | - |
 | 5.1 | Consolidate store implementations | ⏳ Pending | - |
