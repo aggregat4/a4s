@@ -7,8 +7,6 @@ type SidebarListEntry = {
   id: ListId;
   name: string;
   countLabel?: string;
-  totalCount: number;
-  matchCount: number;
 };
 
 type TaskDragPayload = {
@@ -540,9 +538,7 @@ class SidebarElement extends HTMLElement {
       if (!prev) return false;
       if (
         prev.name !== entry.name ||
-        prev.countLabel !== entry.countLabel ||
-        prev.totalCount !== entry.totalCount ||
-        prev.matchCount !== entry.matchCount
+        prev.countLabel !== entry.countLabel
       ) {
         return false;
       }

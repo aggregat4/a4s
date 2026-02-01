@@ -224,8 +224,8 @@ These duplicate what's in `app-store` and can be derived from elements.
 | 1.1 | Extract `arraysEqual` to shared utilities | ✅ Done | c384192 |
 | 1.2 | Consolidate count formatting utilities | ✅ Done | db29592 |
 | 2.1 | Inline `SidebarCoordinator` | ✅ Done | 1c2ea6b |
-| 2.2 | Merge `DragCoordinator` into `DraggableBehavior` | 🔄 In Progress | - |
-| 3.1 | Remove duplicate state from `ListRegistry` | ⏳ Pending | - |
+| 2.2 | Merge `DragCoordinator` into `DraggableBehavior` | ✅ Done | c2bbf63 |
+| 3.1 | Remove duplicate state from `ListRegistry` - Calculate counts from repository | 🔄 In Progress | - |
 | 3.2 | Simplify `RepositorySync` action dispatching | ⏳ Pending | - |
 | 4.1 | Extract title editing from `a4-tasklist.ts` | ⏳ Pending | - |
 | 4.2 | Extract search logic from `app-shell.ts` | ⏳ Pending | - |

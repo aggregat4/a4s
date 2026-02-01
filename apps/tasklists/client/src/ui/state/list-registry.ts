@@ -5,6 +5,7 @@ type ListElement = HTMLElement & {
   initialState?: TaskListState;
   getTotalItemCount: () => number;
   getSearchMatchCount: () => number;
+  getSearchMatchCountForQuery?: (query: string) => number;
   applyFilter?: (query: string) => void;
   showDone?: boolean;
   searchQuery?: string;
@@ -19,16 +20,12 @@ type ListElement = HTMLElement & {
 
 type ListRecord = {
   id: ListId;
-  title: string;
-  name: string;
   initialState: TaskListState;
   element: ListElement | null;
   wrapper: HTMLElement | null;
   boundElement: ListElement | null;
   stateVersion: number;
   appliedStateVersion: number;
-  totalCount: number;
-  matchCount: number;
   flashTimer: ReturnType<typeof setTimeout> | null;
 };
 
@@ -118,23 +115,10 @@ class ListRegistry {
           : "",
       items: Array.isArray(config.items) ? config.items : [],
     });
-    const displayName = state.title.length ? state.title : "Untitled List";
-    const totalCountFromState = Array.isArray(state.items)
-      ? state.items.filter((item) => !item?.done).length
-      : 0;
     const existing = this.records.get(id);
     if (existing) {
-      existing.name = displayName;
-      existing.title = state.title;
       existing.initialState = state;
       existing.stateVersion = (existing.stateVersion ?? 0) + 1;
-      if (existing.element) {
-        existing.totalCount = existing.element.getTotalItemCount();
-        existing.matchCount = existing.element.getSearchMatchCount();
-      } else {
-        existing.totalCount = totalCountFromState;
-        existing.matchCount = totalCountFromState;
-      }
       if (makeActive) {
         this.activeListId = id;
       }
@@ -143,16 +127,12 @@ class ListRegistry {
 
     const record: ListRecord = {
       id,
-      title: state.title,
-      name: displayName,
       initialState: state,
       element: null,
       wrapper: null,
       boundElement: null,
       stateVersion: 1,
       appliedStateVersion: 0,
-      totalCount: totalCountFromState,
-      matchCount: totalCountFromState,
       flashTimer: null,
     };
 
@@ -189,11 +169,7 @@ class ListRegistry {
     this.listOrder = order.filter((id) => this.records.has(id));
   }
 
-  refreshMetrics(record: ListRecord | null) {
-    if (!record || !record.element) return;
-    record.totalCount = record.element.getTotalItemCount();
-    record.matchCount = record.element.getSearchMatchCount();
-  }
+
 
   flashList(listId: ListId) {
     const record = this.records.get(listId);
@@ -236,21 +212,6 @@ class ListRegistry {
         record.appliedStateVersion = record.stateVersion;
       }
     });
-  }
-
-  getSidebarListData() {
-    return this.listOrder
-      .map((id) => {
-        const record = this.records.get(id);
-        if (!record) return null;
-        return {
-          id: record.id,
-          name: record.name,
-          totalCount: record.totalCount,
-          matchCount: record.matchCount,
-        };
-      })
-      .filter(Boolean);
   }
 
   registerListEvents(record: ListRecord) {

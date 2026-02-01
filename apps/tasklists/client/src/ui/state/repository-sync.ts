@@ -16,7 +16,7 @@ type Registry = {
     id?: ListId;
     title?: string;
     items?: TaskListState["items"];
-  }) => { id: ListId; name: string; totalCount: number; matchCount: number } | null;
+  }) => { id: ListId } | null;
   getRecordIds: () => ListId[];
   removeList: (id: ListId) => void;
   has: (id: ListId) => boolean;
@@ -78,38 +78,24 @@ class RepositorySync {
     const listMeta: Array<{
       id: ListId;
       name: string;
-      totalCount: number;
-      matchCount: number;
     }> = [];
     snapshot.forEach((entry) => {
       const listId = entry?.id;
       if (!listId) return;
       const state = this.repository.getListState(listId);
       const titleCandidate = state?.title ?? entry.title ?? "";
-      const record = this.registry.createList({
+      this.registry.createList({
         id: listId,
         title: titleCandidate,
         items: state?.items ?? [],
       });
-      if (record) {
-        const normalized = titleCandidate?.trim?.() ?? "";
-        record.name = normalized.length ? normalized : "Untitled List";
-        listMeta.push({
-          id: record.id,
-          name: record.name,
-          totalCount: record.totalCount,
-          matchCount: record.matchCount,
-        });
-        this.store.dispatch({
-          type: APP_ACTIONS.upsertList,
-          payload: {
-            id: record.id,
-            name: record.name,
-            totalCount: record.totalCount,
-            matchCount: record.matchCount,
-          },
-        });
-      }
+      const normalized = titleCandidate?.trim?.() ?? "";
+      const name = normalized.length ? normalized : "Untitled List";
+      listMeta.push({ id: listId, name });
+      this.store.dispatch({
+        type: APP_ACTIONS.upsertList,
+        payload: { id: listId, name },
+      });
       seen.add(listId);
     });
 

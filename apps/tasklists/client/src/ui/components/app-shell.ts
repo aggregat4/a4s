@@ -36,8 +36,6 @@ type SidebarElement = HTMLElement & {
     lists: Array<{
       id: ListId;
       name: string;
-      totalCount: number;
-      matchCount: number;
       countLabel?: string;
     }>,
     options: { activeListId: ListId | null; searchQuery: string }
@@ -243,12 +241,15 @@ class ListsAppShellElement extends HTMLElement {
     this.registry.setEventHandlers({
       onTaskMoveRequest: (event) =>
         this.moveTasksController.handleTaskMoveRequest(event),
-      onItemCountChange: (event) => this.handleItemCountChange(event),
-      onSearchResultsChange: (event) => this.handleSearchResultsChange(event),
+      onItemCountChange: () => this.refreshSidebar(),
+      onSearchResultsChange: () => this.refreshSidebar(),
       onListFocus: (event) => this.handleListFocus(event),
       onListTitleChange: (event) => this.handleListTitleChange(event),
       onSearchClear: () => this.handleSearchClear(),
-      onShowDoneChange: (event) => this.handleShowDoneChange(event),
+      onShowDoneChange: () => {
+        if (!this.store) return;
+        this.refreshSidebar(this.store.getState());
+      },
     });
     this.sidebarElement?.setHandlers?.({
       onSearchChange: this.handleSearchChange,
@@ -271,6 +272,7 @@ class ListsAppShellElement extends HTMLElement {
     this.sidebarElement?.setSearchValue?.(this.store.getState().searchQuery);
     this.handleStoreChange();
     this.appInitialized = true;
+
   }
 
   onGlobalKeyDown(event: KeyboardEvent) {
@@ -347,11 +349,8 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   handleShowDoneChange(event: Event) {
-    if (!this.store) return;
-    const listId = (event.currentTarget as { listId?: ListId } | null)?.listId ?? null;
-    if (!listId) return;
-    const query = selectors.getSearchQuery(this.store.getState());
-    this.updateSearchMetrics(query, { listId });
+    // No-op: sidebar refresh is handled by store subscription
+    void event;
   }
 
   handleListSelection(listId: ListId) {
@@ -397,10 +396,6 @@ class ListsAppShellElement extends HTMLElement {
         : "";
     if (!listId) return;
     const trimmed = detailTitle.trim();
-    const record = this.registry.getRecord(listId);
-    if (record) {
-      record.name = trimmed.length ? trimmed : "Untitled List";
-    }
     this.store.dispatch({
       type: APP_ACTIONS.updateListName,
       payload: { id: listId, name: trimmed },
@@ -417,13 +412,13 @@ class ListsAppShellElement extends HTMLElement {
       window.alert?.("At least one list must remain.");
       return;
     }
-    const record = this.registry.getRecord(activeListId);
-    if (!record) return;
+    const listData = selectors.getList(state, activeListId);
+    const listName = listData?.name ?? "Untitled List";
     const confirmed = window.confirm?.(
-      `Delete "${record.name}" and all of its tasks?`
+      `Delete "${listName}" and all of its tasks?`
     );
     if (!confirmed) return;
-    const removeId = record.id;
+    const removeId = activeListId;
     const currentIndex = listOrder.indexOf(removeId);
     let fallbackId = null;
     if (currentIndex !== -1) {
@@ -553,36 +548,14 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  handleItemCountChange(event: Event) {
+  handleItemCountChange(_event: Event) {
     if (!this.store) return;
-    const customEvent = event as CustomEvent<{ total?: number }>;
-    const listId = (event.currentTarget as { listId?: ListId } | null)?.listId ?? null;
-    const record = this.registry.getRecord(listId);
-    if (!record) return;
-    const total = Number(customEvent.detail?.total);
-    const totalCount = Number.isFinite(total)
-      ? total
-      : record.element?.getTotalItemCount?.() ?? 0;
-    this.store.dispatch({
-      type: APP_ACTIONS.updateListMetrics,
-      payload: { id: listId, totalCount },
-    });
+    this.refreshSidebar(this.store.getState());
   }
 
-  handleSearchResultsChange(event: Event) {
+  handleSearchResultsChange(_event: Event) {
     if (!this.store) return;
-    const customEvent = event as CustomEvent<{ matches?: number }>;
-    const listId = (event.currentTarget as { listId?: ListId } | null)?.listId ?? null;
-    const record = this.registry.getRecord(listId);
-    if (!record) return;
-    const matches = Number(customEvent.detail?.matches);
-    const matchCount = Number.isFinite(matches)
-      ? matches
-      : record.element?.getSearchMatchCount?.() ?? 0;
-    this.store.dispatch({
-      type: APP_ACTIONS.updateListMetrics,
-      payload: { id: listId, matchCount },
-    });
+    this.refreshSidebar(this.store.getState());
   }
 
   handleListFocus(_event: Event) {
@@ -596,32 +569,22 @@ class ListsAppShellElement extends HTMLElement {
       if (!record.element) return;
       record.element.applyFilter(query);
     });
-    this.updateSearchMetrics(query);
   }
 
-  updateSearchMetrics(
-    query: string,
-    { listId = null }: { listId?: ListId | null } = {}
-  ) {
-    if (!this.store || !this.repository || !this.registry) return;
-    const tokens = tokenizeSearchQuery(query);
-    const records = this.registry.getRecordsInOrder();
-    records.forEach((record) => {
-      if (listId && record.id !== listId) return;
-      const matchCount = this.getSearchMatchCountForList(record.id, tokens);
-      this.store.dispatch({
-        type: APP_ACTIONS.updateListMetrics,
-        payload: { id: record.id, matchCount },
-      });
-    });
-  }
+
 
   getSearchMatchCountForList(listId: ListId, tokens: string[]) {
+    // Query the list element directly for its current match count, since the
+    // element updates optimistically and may be ahead of the repository
+    const record = this.registry?.getRecord(listId);
+    if (record?.element) {
+      return record.element.getSearchMatchCountForQuery(tokens.join(" "));
+    }
+    // Fallback to repository if element not available
     if (!this.repository) return 0;
     const state = this.repository.getListState(listId);
     const items = Array.isArray(state?.items) ? state.items : [];
-    const record = this.registry?.getRecord(listId);
-    const showDone = record?.element?.showDone === true;
+    const showDone = false;
     let matchCount = 0;
     items.forEach((item) => {
       const text = typeof item?.text === "string" ? item.text : "";
@@ -642,6 +605,19 @@ class ListsAppShellElement extends HTMLElement {
     return matchCount;
   }
 
+  getListTotalCount(listId: ListId) {
+    // Query the list element directly for its current count, since the element
+    // updates optimistically and may be ahead of the repository
+    const record = this.registry?.getRecord(listId);
+    if (record?.element) {
+      return record.element.getTotalItemCount();
+    }
+    // Fallback to repository if element not available
+    if (!this.repository) return 0;
+    const state = this.repository.getListState(listId);
+    return (state?.items ?? []).filter((item) => !item?.done).length;
+  }
+
   refreshSidebar(state: ReturnType<Store["getState"]> | null = this.store?.getState?.() ?? null) {
     if (!state) return;
     const searchMode = selectors.isSearchMode(state);
@@ -649,14 +625,15 @@ class ListsAppShellElement extends HTMLElement {
       ? tokenizeSearchQuery(selectors.getSearchQuery(state))
       : [];
     const data = selectors.getSidebarListData(state).map((entry) => {
+      const totalCount = this.getListTotalCount(entry.id);
       const matchCount = searchMode
         ? this.getSearchMatchCountForList(entry.id, tokens)
-        : entry.matchCount;
+        : totalCount;
       return {
         ...entry,
         countLabel: searchMode
           ? formatMatchCount(matchCount)
-          : formatTotalCount(entry.totalCount),
+          : formatTotalCount(totalCount),
       };
     });
     this.sidebarElement?.setLists?.(data, {

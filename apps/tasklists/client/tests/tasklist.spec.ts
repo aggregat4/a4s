@@ -1770,3 +1770,16 @@ test("sidebar count updates after adding a task to a new list", async ({
     .poll(() => getSidebarCountForList(page, newListName))
     .toBe(before + 1);
 });
+
+test("sidebar shows item counts on initial load", async ({ page }) => {
+  await gotoWithSnapshot(page, "/?resetStorage=1");
+  
+  // Wait for sidebar to be populated
+  await expect
+    .poll(() => getSidebarListNames(page))
+    .toContain("Prototype Tasks");
+  
+  // Verify the count is shown and is greater than 0 (not "Empty")
+  const count = await getSidebarCountForList(page, "Prototype Tasks");
+  expect(count).toBeGreaterThan(0);
+});

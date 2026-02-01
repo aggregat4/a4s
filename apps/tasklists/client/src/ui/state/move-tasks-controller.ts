@@ -1,4 +1,4 @@
-import { APP_ACTIONS, selectors } from "./app-store.js";
+import { selectors } from "./app-store.js";
 import {
   formatMatchCount,
   formatTotalCount,
@@ -7,7 +7,6 @@ import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 
 type ListRecord = {
   id: ListId;
-  name?: string;
   element: {
     getTotalItemCount: () => number;
     getSearchMatchCount: () => number;
@@ -46,6 +45,7 @@ type Repository = {
     itemId: string,
     options?: { snapshot?: TaskItem; beforeId?: string; afterId?: string }
   ) => Promise<unknown> | null;
+  getListState: (listId: ListId) => TaskListState | null;
 };
 
 type AppStore = {
@@ -116,12 +116,13 @@ class MoveTasksController {
       .filter((rec) => rec && rec.id !== sourceListId)
       .map((rec) => {
         const listData = selectors.getList(state, rec.id);
-        const total = listData?.totalCount ?? rec.element.getTotalItemCount();
-        const matches =
-          listData?.matchCount ?? rec.element.getSearchMatchCount();
+        const repoState = this.repository?.getListState?.(rec.id);
+        const total = (repoState?.items ?? []).filter((item) => !item?.done)
+          .length;
+        const matches = total; // Simplified - in search mode we calculate separately
         return {
           id: rec.id,
-          name: listData?.name ?? rec.name ?? "Untitled List",
+          name: listData?.name ?? "Untitled List",
           countLabel: searchActive
             ? formatMatchCount(matches)
             : formatTotalCount(total),
@@ -178,8 +179,6 @@ class MoveTasksController {
     const removed = sourceRecord.element.removeItemById(itemId);
     if (!removed) return;
     targetRecord.element.prependItem(snapshot);
-    this.dispatchMetrics(sourceRecord);
-    this.dispatchMetrics(targetRecord);
     if (options.focus) {
       targetRecord.element.focusItem(itemId);
     }
@@ -204,16 +203,6 @@ class MoveTasksController {
   runRepositoryOperation(promise) {
     if (!promise || typeof promise.then !== "function") return;
     promise.catch(() => {});
-  }
-
-  dispatchMetrics(record) {
-    if (!record) return;
-    const total = record.element.getTotalItemCount();
-    const matchCount = record.element.getSearchMatchCount();
-    this.store?.dispatch?.({
-      type: APP_ACTIONS.updateListMetrics,
-      payload: { id: record.id, totalCount: total, matchCount },
-    });
   }
 }
 

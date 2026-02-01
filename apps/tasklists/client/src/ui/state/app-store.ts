@@ -7,7 +7,6 @@ const APP_ACTIONS = {
   setActiveList: "app/setActiveList",
   setPendingActiveList: "app/setPendingActiveList",
   setSearchQuery: "app/setSearchQuery",
-  updateListMetrics: "app/updateListMetrics",
   updateListName: "app/updateListName",
   upsertList: "app/upsertList",
 } as const;
@@ -15,8 +14,6 @@ const APP_ACTIONS = {
 type ListSummary = {
   id: ListId;
   name: string;
-  totalCount: number;
-  matchCount: number;
 };
 
 type AppState = {
@@ -44,16 +41,6 @@ const normalizeLists = (lists: Array<Partial<ListSummary>> = []) =>
         typeof entry.name === "string" && entry.name.length
           ? entry.name
           : "Untitled List",
-      totalCount:
-        typeof entry.totalCount === "number" &&
-        Number.isFinite(entry.totalCount)
-          ? entry.totalCount
-          : 0,
-      matchCount:
-        typeof entry.matchCount === "number" &&
-        Number.isFinite(entry.matchCount)
-          ? entry.matchCount
-          : 0,
     };
     return acc;
   }, {} as Record<ListId, ListSummary>);
@@ -86,10 +73,6 @@ type AppAction =
       payload?: { id?: ListId | null };
     }
   | { type: typeof APP_ACTIONS.setSearchQuery; payload?: { query?: string } }
-  | {
-      type: typeof APP_ACTIONS.updateListMetrics;
-      payload?: { id?: ListId; totalCount?: number; matchCount?: number };
-    }
   | {
       type: typeof APP_ACTIONS.updateListName;
       payload?: { id?: ListId; name?: string };
@@ -155,34 +138,6 @@ const appReducer = (
       if (query === state.searchQuery) return state;
       return { ...state, searchQuery: query };
     }
-    case APP_ACTIONS.updateListMetrics: {
-      const { id, totalCount, matchCount } = action.payload ?? {};
-      if (!state.lists[id]) return state;
-      const current = state.lists[id];
-      const nextMetrics = {
-        totalCount:
-          typeof totalCount === "number" && Number.isFinite(totalCount)
-            ? totalCount
-            : current.totalCount,
-        matchCount:
-          typeof matchCount === "number" && Number.isFinite(matchCount)
-            ? matchCount
-            : current.matchCount,
-      };
-      if (
-        nextMetrics.totalCount === current.totalCount &&
-        nextMetrics.matchCount === current.matchCount
-      ) {
-        return state;
-      }
-      return {
-        ...state,
-        lists: {
-          ...state.lists,
-          [id]: { ...current, ...nextMetrics },
-        },
-      };
-    }
     case APP_ACTIONS.updateListName: {
       const { id, name } = action.payload ?? {};
       if (!state.lists[id]) return state;
@@ -208,24 +163,10 @@ const appReducer = (
         typeof payload.name === "string" && payload.name.trim().length
           ? payload.name.trim()
           : current?.name ?? "Untitled List";
-      const nextTotal =
-        typeof payload.totalCount === "number" &&
-        Number.isFinite(payload.totalCount)
-          ? payload.totalCount
-          : current?.totalCount ?? 0;
-      const nextMatches =
-        typeof payload.matchCount === "number" &&
-        Number.isFinite(payload.matchCount)
-          ? payload.matchCount
-          : current?.matchCount ?? 0;
+      if (current && current.name === nextName) {
+        return state;
+      }
       if (current) {
-        if (
-          current.name === nextName &&
-          current.totalCount === nextTotal &&
-          current.matchCount === nextMatches
-        ) {
-          return state;
-        }
         return {
           ...state,
           lists: {
@@ -233,8 +174,6 @@ const appReducer = (
             [id]: {
               id,
               name: nextName,
-              totalCount: nextTotal,
-              matchCount: nextMatches,
             },
           },
         };
@@ -246,8 +185,6 @@ const appReducer = (
           [id]: {
             id,
             name: nextName,
-            totalCount: nextTotal,
-            matchCount: nextMatches,
           },
         },
       };
@@ -275,8 +212,6 @@ const selectors = {
       .map((entry) => ({
         id: entry.id,
         name: entry.name,
-        totalCount: entry.totalCount,
-        matchCount: entry.matchCount,
       })),
 };
 
