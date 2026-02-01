@@ -244,6 +244,7 @@ For each refactor:
 - [ ] E2E tests pass (`npm run test:e2e`)
 - [ ] No TypeScript errors (`npx tsc --noEmit`)
 - [ ] Knip reports no orphaned exports (`npm run lint:deps`)
+- [ ] No commit before manual review by user
 - [ ] Manual smoke test of affected features
 
 ---
