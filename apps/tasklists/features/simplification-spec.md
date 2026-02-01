@@ -223,7 +223,7 @@ These duplicate what's in `app-store` and can be derived from elements.
 |-------|-------------|--------|--------|
 | 1.1 | Extract `arraysEqual` to shared utilities | ✅ Done | c384192 |
 | 1.2 | Consolidate count formatting utilities | ✅ Done | db29592 |
-| 2.1 | Inline `SidebarCoordinator` | ⏳ Pending | - |
+| 2.1 | Inline `SidebarCoordinator` | 🔄 In Progress | - |
 | 2.2 | Merge `DragCoordinator` into `DraggableBehavior` | ⏳ Pending | - |
 | 3.1 | Remove duplicate state from `ListRegistry` | ⏳ Pending | - |
 | 3.2 | Simplify `RepositorySync` action dispatching | ⏳ Pending | - |

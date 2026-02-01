@@ -7,7 +7,7 @@ import {
 import { ListRepository } from "../../app/list-repository.js";
 import { ensureDemoData, type SeedConfig } from "../../app/demo-seed.js";
 import { generateListId } from "../state/list-store.js";
-import { SidebarCoordinator } from "../state/sidebar-coordinator.js";
+
 import { MoveTasksController } from "../state/move-tasks-controller.js";
 import { ListRegistry } from "../state/list-registry.js";
 import { RepositorySync } from "../state/repository-sync.js";
@@ -81,7 +81,6 @@ class ListsAppShellElement extends HTMLElement {
   private moveDialogElement: MoveDialogElement | null;
   private repository: ListRepository | null;
   private store: Store | null;
-  private sidebarCoordinator: SidebarCoordinator | null;
   private registry: ListRegistry | null;
   private moveTasksController: MoveTasksController | null;
   private repositorySync: RepositorySync | null;
@@ -108,7 +107,6 @@ class ListsAppShellElement extends HTMLElement {
     this.moveDialogElement = null;
     this.repository = null;
     this.store = null;
-    this.sidebarCoordinator = null;
     this.registry = null;
     this.moveTasksController = null;
     this.repositorySync = null;
@@ -228,9 +226,6 @@ class ListsAppShellElement extends HTMLElement {
     this.seedConfigs = seedConfigs;
     this.demoSeedEnabled = Boolean(enableDemoSeed);
     this.store = createAppStore();
-    this.sidebarCoordinator = new SidebarCoordinator({
-      sidebarElement: this.sidebarElement,
-    });
     this.registry = new ListRegistry({
       repository: this.repository,
     });
@@ -255,7 +250,7 @@ class ListsAppShellElement extends HTMLElement {
       onSearchClear: () => this.handleSearchClear(),
       onShowDoneChange: (event) => this.handleShowDoneChange(event),
     });
-    this.sidebarCoordinator.wireHandlers({
+    this.sidebarElement?.setHandlers?.({
       onSearchChange: this.handleSearchChange,
       onSelectList: this.handleListSelection,
       onAddList: this.handleAddList,
