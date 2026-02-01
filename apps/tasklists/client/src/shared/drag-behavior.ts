@@ -52,6 +52,9 @@ export default class DraggableBehavior {
     handleClass: string;
     threshold: number;
     onReorder: ((fromIndex: number, toIndex: number) => void) | null;
+    onDragStart: ((event: DragEvent) => void) | null;
+    onDragEnd: ((event: DragEvent) => void) | null;
+    onDrop: ((event: DragEvent) => void) | null;
     animator: FlipAnimator | null;
     debug: boolean;
     pointerFallback?: boolean;
@@ -81,11 +84,14 @@ export default class DraggableBehavior {
   private _pendingInitCoords: { x: number; y: number } | null;
 
   constructor(
-    container: HTMLElement,
+    container: HTMLElement | null,
     options: {
       handleClass?: string;
       threshold?: number;
       onReorder?: ((fromIndex: number, toIndex: number) => void) | null;
+      onDragStart?: ((event: DragEvent) => void) | null;
+      onDragEnd?: ((event: DragEvent) => void) | null;
+      onDrop?: ((event: DragEvent) => void) | null;
       animator?: FlipAnimator | null;
       debug?: boolean;
       pointerFallback?: boolean;
@@ -96,6 +102,9 @@ export default class DraggableBehavior {
       handleClass: "handle",
       threshold: 10,
       onReorder: null,
+      onDragStart: null,
+      onDragEnd: null,
+      onDrop: null,
       animator: null,
       debug: false,
       ...options,
@@ -181,6 +190,7 @@ export default class DraggableBehavior {
     this._pendingInitCoords = null;
 
     this.startDrag(li, event.clientX, event.clientY);
+    this.options.onDragStart?.(event);
 
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = "move";
@@ -218,6 +228,7 @@ export default class DraggableBehavior {
     this._dropHandled = false;
     this._currentPlaceholderIndex = null;
     this._lastClientY = null;
+    this.options.onDragEnd?.(_event);
   }
 
   handleDragOver(event: DragEvent) {
@@ -257,6 +268,7 @@ export default class DraggableBehavior {
         : event.clientY;
     this.drop(dropY);
     this.endDrag();
+    this.options.onDrop?.(event);
   }
 
   handleTouchStart(event: TouchEvent) {

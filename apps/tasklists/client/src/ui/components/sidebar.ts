@@ -1,7 +1,6 @@
 import { html, render } from "lit";
 import { arraysEqual } from "../../shared/array-utils.js";
-import { DragCoordinator } from "./drag-coordinator.js";
-import { FlipAnimator } from "../../shared/drag-behavior.js";
+import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
 
 type SidebarListEntry = {
@@ -39,7 +38,7 @@ class SidebarElement extends HTMLElement {
   private currentSearch: string;
   private dropTargetDepth: Map<HTMLElement, number>;
   private searchSeq: number;
-  private dragCoordinator: DragCoordinator | null;
+  private dragCoordinator: DraggableBehavior | null;
   private dragStartOrder: ListId[] | null;
   private isListDragging: boolean;
   private pendingRender: boolean;
@@ -435,7 +434,7 @@ class SidebarElement extends HTMLElement {
     ) as HTMLElement | null;
     if (!listEl) return;
     if (!this.dragCoordinator) {
-      this.dragCoordinator = new DragCoordinator({
+      this.dragCoordinator = new DraggableBehavior(listEl, {
         handleClass: "handle",
         animator: new FlipAnimator(),
         onReorder: (fromIndex, toIndex) =>
@@ -444,8 +443,8 @@ class SidebarElement extends HTMLElement {
         onDragEnd: this.handleListDragEnd,
         onDrop: this.handleListDragEnd,
       });
+      this.dragCoordinator.enable();
     }
-    this.dragCoordinator.attach(listEl);
   }
 
   handleListDragStart(event: DragEvent) {

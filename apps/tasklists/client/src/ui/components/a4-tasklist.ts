@@ -1,8 +1,7 @@
 import { html, render, noChange } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { DragCoordinator } from "./drag-coordinator.js";
-import { FlipAnimator } from "../../shared/drag-behavior.js";
+import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
 import InlineTextEditor from "../../shared/inline-text-editor.js";
 import {
   createStore,
@@ -284,7 +283,7 @@ class TaskListView {
 // remains drop-in embeddable without a framework runtime.
 class A4TaskList extends HTMLElement {
   private listEl: HTMLOListElement | null;
-  private dragCoordinator: DragCoordinator | null;
+  private dragCoordinator: DraggableBehavior | null;
   private inlineEditor: InlineEditor | null;
   private headerEl: HTMLElement | null;
   private titleEl: HTMLElement | null;
@@ -467,7 +466,7 @@ class A4TaskList extends HTMLElement {
     this.refreshRepositorySubscription();
 
     if (!this.dragCoordinator) {
-      this.dragCoordinator = new DragCoordinator({
+      this.dragCoordinator = new DraggableBehavior(this.listEl, {
         handleClass: "handle",
         animator: new FlipAnimator(),
         onReorder: (fromIndex, toIndex) => {
@@ -488,8 +487,8 @@ class A4TaskList extends HTMLElement {
         onDragEnd: this.handleDragFinalize,
         onDrop: this.handleDragFinalize,
       });
+      this.dragCoordinator.enable();
     }
-    this.dragCoordinator.attach(this.listEl);
 
     this.ensureInlineEditor();
 
