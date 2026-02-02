@@ -125,16 +125,43 @@ button {
     border-right: 1px solid var(--color-border);
 }
 
-.sidebar-header {
+.sidebar-topbar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: var(--space-sm);
 }
 
 .sidebar-title {
     margin: 0;
     font-size: 24px;
     font-weight: 600;
+}
+
+.sidebar-menu-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--outline-color);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+}
+
+.sidebar-menu-icon {
+    width: 18px;
+    height: 12px;
+    display: block;
+    background:
+        linear-gradient(
+            to bottom,
+            currentcolor 0 2px,
+            transparent 2px 5px,
+            currentcolor 5px 7px,
+            transparent 7px 10px,
+            currentcolor 10px 12px
+        );
 }
 
 .sidebar-section {
@@ -151,6 +178,10 @@ button {
     color: var(--color-muted);
 }
 
+.sidebar-field-inline {
+    flex: 1;
+}
+
 .sidebar-search-input {
     font: inherit;
     padding: var(--space-sm);
@@ -163,6 +194,14 @@ button {
         outline: var(--field-focus-outline);
         outline-offset: var(--field-focus-outline-offset);
     }
+}
+
+.sidebar-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+    flex: 1;
+    min-height: 0;
 }
 
 .sidebar-list {
@@ -857,11 +896,41 @@ a4-tasklist {
 @media (width <= 640px) {
     .lists-app {
         grid-template-columns: 1fr;
+        align-content: start;
     }
 
     .lists-sidebar {
         border-right: none;
         border-bottom: 1px solid var(--color-border);
+        align-self: start;
+    }
+
+    .sidebar-topbar {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-sm);
+    }
+
+    .sidebar-menu-toggle {
+        display: inline-flex;
+        flex-shrink: 0;
+    }
+
+    .sidebar-title {
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+
+    .sidebar-search-input {
+        min-width: 0;
+    }
+
+    .lists-sidebar[data-menu-open="false"] .sidebar-sections {
+        display: none;
+    }
+
+    .lists-sidebar[data-menu-open="true"] .sidebar-sections {
+        display: flex;
     }
 
     .tasklist-header {
