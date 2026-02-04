@@ -81,7 +81,6 @@ button {
         outline: 2px solid var(--outline-color);
         outline-offset: 2px;
     }
-
 }
 
 .danger {
@@ -123,12 +122,30 @@ button {
     padding: var(--space-lg);
     background-color: var(--color-sidebar);
     border-right: 1px solid var(--color-border);
+    min-width: 0;
+    grid-column: 1;
+}
+
+.sidebar-disclosure {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+    width: 100%;
+    margin: 0;
 }
 
 .sidebar-topbar {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     gap: var(--space-sm);
+    min-width: 0;
+}
+
+.sidebar-disclosure > summary {
+    list-style: none;
+    padding: 0;
+    border: none;
 }
 
 .sidebar-title {
@@ -138,30 +155,24 @@ button {
 }
 
 .sidebar-menu-toggle {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 30px;
-    padding: 0;
-    border: 1px solid var(--outline-color);
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
-    background-color: var(--color-surface);
+    background-color: transparent;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    user-select: none;
+    margin: 0;
+    width: 100%;
 }
 
-.sidebar-menu-icon {
-    width: 18px;
-    height: 12px;
-    display: block;
-    background:
-        linear-gradient(
-            to bottom,
-            currentcolor 0 2px,
-            transparent 2px 5px,
-            currentcolor 5px 7px,
-            transparent 7px 10px,
-            currentcolor 10px 12px
-        );
+.sidebar-menu-toggle::marker {
+    content: "";
+}
+
+.sidebar-disclosure[open] .sidebar-menu-toggle::marker {
+    content: "";
 }
 
 .sidebar-section {
@@ -180,6 +191,7 @@ button {
 
 .sidebar-field-inline {
     flex: 1;
+    min-width: 0;
 }
 
 .sidebar-search-input {
@@ -189,6 +201,7 @@ button {
     border-radius: var(--radius-sm);
     background-color: var(--color-surface);
     color: var(--color-text);
+    width: 100%;
 
     &:focus {
         outline: var(--field-focus-outline);
@@ -202,6 +215,10 @@ button {
     gap: var(--space-lg);
     flex: 1;
     min-height: 0;
+}
+
+.sidebar-disclosure > .sidebar-sections {
+    width: 100%;
 }
 
 .sidebar-list {
@@ -331,6 +348,8 @@ button {
     display: flex;
     flex-direction: column;
     gap: var(--space-xl);
+    min-width: 0;
+    grid-column: 2;
 }
 
 .lists-main-header {
@@ -410,7 +429,8 @@ a4-tasklist {
         font-size: var(--font-size-title);
         font-weight: 600;
         color: var(--color-text);
-        padding: var(--space-xs) calc(var(--space-xs) + 20px) var(--space-xs) var(--space-xs);
+        padding: var(--space-xs) calc(var(--space-xs) + 20px) var(--space-xs)
+            var(--space-xs);
         border: 1px solid transparent;
         border-radius: var(--radius-sm);
         cursor: text;
@@ -457,7 +477,8 @@ a4-tasklist {
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%237a7a7a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.5 2.5l2 2M3 13l8-8 2 2-8 8H3v-2z'/%3E%3C/svg%3E");
     }
 
-    .tasklist-title-wrapper:has(.tasklist-title.is-editing) .tasklist-title-edit-icon {
+    .tasklist-title-wrapper:has(.tasklist-title.is-editing)
+        .tasklist-title-edit-icon {
         display: none;
     }
 
@@ -749,7 +770,6 @@ a4-tasklist {
     margin-bottom: var(--space-sm);
 }
 
-
 .tasklist-empty {
     display: none;
     padding: var(--space-md) var(--space-sm);
@@ -903,6 +923,11 @@ a4-tasklist {
         border-right: none;
         border-bottom: 1px solid var(--color-border);
         align-self: start;
+        grid-column: 1;
+    }
+
+    .lists-main {
+        grid-column: 1;
     }
 
     .sidebar-topbar {
@@ -912,8 +937,29 @@ a4-tasklist {
     }
 
     .sidebar-menu-toggle {
-        display: inline-flex;
+        display: list-item;
+        list-style-position: inside;
         flex-shrink: 0;
+    }
+
+    .sidebar-menu-toggle::marker {
+        content: "▶ ";
+    }
+
+    .sidebar-disclosure[open] .sidebar-menu-toggle::marker {
+        content: "▼ ";
+    }
+
+    .sidebar-disclosure {
+        gap: 0;
+    }
+
+    .sidebar-disclosure[open] {
+        gap: var(--space-lg);
+    }
+
+    .sidebar-disclosure > summary {
+        display: list-item;
     }
 
     .sidebar-title {
@@ -925,12 +971,8 @@ a4-tasklist {
         min-width: 0;
     }
 
-    .lists-sidebar[data-menu-open="false"] .sidebar-sections {
+    .sidebar-disclosure:not([open]) > .sidebar-sections {
         display: none;
-    }
-
-    .lists-sidebar[data-menu-open="true"] .sidebar-sections {
-        display: flex;
     }
 
     .tasklist-header {

@@ -43,6 +43,7 @@ class SidebarElement extends HTMLElement {
   private pendingRenderMode: "reorder" | "render" | null;
   private showDemoSeed: boolean;
   private menuOpen: boolean;
+  private menuMediaQuery: MediaQueryList | null;
 
   private static readonly TASK_MIME = "application/x-a4-task";
 
@@ -61,7 +62,8 @@ class SidebarElement extends HTMLElement {
     this.pendingRender = false;
     this.pendingRenderMode = null;
     this.showDemoSeed = false;
-    this.menuOpen = false;
+    this.menuOpen = true;
+    this.menuMediaQuery = null;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
     this.handleListDragEnter = this.handleListDragEnter.bind(this);
@@ -74,6 +76,8 @@ class SidebarElement extends HTMLElement {
     this.handleListDragEnd = this.handleListDragEnd.bind(this);
     this.handleListReorder = this.handleListReorder.bind(this);
     this.handleMenuToggle = this.handleMenuToggle.bind(this);
+    this.handleMenuMediaChange = this.handleMenuMediaChange.bind(this);
+    this.handleSummaryClick = this.handleSummaryClick.bind(this);
   }
 
   connectedCallback() {
@@ -118,6 +122,14 @@ class SidebarElement extends HTMLElement {
   }
 
   init() {
+    if (typeof window !== "undefined") {
+      this.menuMediaQuery = window.matchMedia("(max-width: 640px)");
+      this.menuOpen = !this.menuMediaQuery.matches;
+      this.menuMediaQuery.addEventListener(
+        "change",
+        this.handleMenuMediaChange
+      );
+    }
     this.renderView();
     document.addEventListener("dragend", this.handleGlobalDragEnd);
   }
@@ -125,6 +137,11 @@ class SidebarElement extends HTMLElement {
   destroy() {
     clearTimeout(this.searchDebounceId);
     document.removeEventListener("dragend", this.handleGlobalDragEnd);
+    this.menuMediaQuery?.removeEventListener(
+      "change",
+      this.handleMenuMediaChange
+    );
+    this.menuMediaQuery = null;
     this.dragCoordinator?.destroy();
     this.dragCoordinator = null;
     this.dragStartOrder = null;
@@ -191,117 +208,117 @@ class SidebarElement extends HTMLElement {
   renderView() {
     const deleteDisabled =
       this.currentLists.length <= 1 || !this.activeListId;
-    this.dataset.menuOpen = this.menuOpen ? "true" : "false";
     render(
       html`
-        <div class="sidebar-topbar">
-          <button
-            type="button"
+        <details
+          class="sidebar-disclosure"
+          @toggle=${this.handleMenuToggle}
+          ?open=${this.menuOpen}
+        >
+          <summary
             class="sidebar-menu-toggle"
-            data-role="sidebar-toggle"
             aria-label="Toggle list menu"
-            aria-controls="sidebar-sections"
-            aria-expanded=${this.menuOpen ? "true" : "false"}
-            @click=${this.handleMenuToggle}
+            @click=${this.handleSummaryClick}
           >
-            <span class="sidebar-menu-icon" aria-hidden="true"></span>
-          </button>
-          <h1 class="sidebar-title">Lists</h1>
-          <label class="sidebar-field sidebar-field-inline">
-            <input
-              type="search"
-              class="sidebar-search-input"
-              placeholder="Search across all lists…"
-              aria-label="Global search"
-              data-role="global-search"
-              .value=${this.currentSearch}
-              @input=${this.handleSearchInput}
-              @keydown=${this.handleSearchKeyDown}
-            />
-          </label>
-        </div>
-        <div class="sidebar-sections" id="sidebar-sections">
-          <nav class="sidebar-section sidebar-lists" aria-label="Available lists">
-            <ul class="sidebar-list" data-role="sidebar-list">
-              ${this.currentLists.map((list) => {
-                const isActive = list.id === this.activeListId;
-                const buttonClass = isActive
-                  ? "sidebar-list-button is-active"
-                  : "sidebar-list-button";
-                return html`
-                  <li
-                    data-item-id=${list.id}
-                    class=${isActive ? "is-active" : ""}
-                  >
+            <div class="sidebar-topbar">
+              <h1 class="sidebar-title">Lists</h1>
+              <label class="sidebar-field sidebar-field-inline">
+                <input
+                  type="search"
+                  class="sidebar-search-input"
+                  placeholder="Search across all lists…"
+                  aria-label="Global search"
+                  data-role="global-search"
+                  .value=${this.currentSearch}
+                  @input=${this.handleSearchInput}
+                  @keydown=${this.handleSearchKeyDown}
+                />
+              </label>
+            </div>
+          </summary>
+          <div class="sidebar-sections" id="sidebar-sections">
+            <nav class="sidebar-section sidebar-lists" aria-label="Available lists">
+              <ul class="sidebar-list" data-role="sidebar-list">
+                ${this.currentLists.map((list) => {
+                  const isActive = list.id === this.activeListId;
+                  const buttonClass = isActive
+                    ? "sidebar-list-button is-active"
+                    : "sidebar-list-button";
+                  return html`
+                    <li
+                      data-item-id=${list.id}
+                      class=${isActive ? "is-active" : ""}
+                    >
+                      <button
+                        type="button"
+                        class=${buttonClass}
+                        data-list-id=${list.id}
+                        aria-current=${isActive ? "true" : undefined}
+                        @click=${this.handleSidebarButtonClick}
+                        @dragenter=${this.handleListDragEnter}
+                        @dragover=${this.handleListDragOver}
+                        @dragleave=${this.handleListDragLeave}
+                        @drop=${this.handleListDrop}
+                        >
+                        <span class="sidebar-list-label">${list.name}</span>
+                        <span class="sidebar-list-count"
+                          >${list.countLabel ?? ""}</span
+                        >
+                        <span
+                          class="sidebar-list-handle handle"
+                          draggable="true"
+                          aria-hidden="true"
+                        ></span>
+                      </button>
+                    </li>
+                  `;
+                })}
+              </ul>
+            </nav>
+            <div class="sidebar-section sidebar-actions">
+              <button type="button" data-role="add-list" @click=${() =>
+                this.handlers.onAddList?.()}>
+                Add list
+              </button>
+              ${this.showDemoSeed
+                ? html`
                     <button
                       type="button"
-                      class=${buttonClass}
-                      data-list-id=${list.id}
-                      aria-current=${isActive ? "true" : undefined}
-                      @click=${this.handleSidebarButtonClick}
-                      @dragenter=${this.handleListDragEnter}
-                      @dragover=${this.handleListDragOver}
-                      @dragleave=${this.handleListDragLeave}
-                      @drop=${this.handleListDrop}
-                      >
-                      <span class="sidebar-list-label">${list.name}</span>
-                      <span class="sidebar-list-count"
-                        >${list.countLabel ?? ""}</span
-                      >
-                      <span
-                        class="sidebar-list-handle handle"
-                        draggable="true"
-                        aria-hidden="true"
-                      ></span>
+                      data-role="seed-demo"
+                      @click=${() => this.handlers.onSeedDemo?.()}
+                    >
+                      Load demo data
                     </button>
-                  </li>
-                `;
-              })}
-            </ul>
-          </nav>
-          <div class="sidebar-section sidebar-actions">
-            <button type="button" data-role="add-list" @click=${() =>
-              this.handlers.onAddList?.()}>
-              Add list
-            </button>
-            ${this.showDemoSeed
-              ? html`
-                  <button
-                    type="button"
-                    data-role="seed-demo"
-                    @click=${() => this.handlers.onSeedDemo?.()}
-                  >
-                    Load demo data
-                  </button>
-                `
-              : null}
-            <button
-              type="button"
-              class="danger"
-              data-role="delete-list"
-              ?disabled=${deleteDisabled}
-              @click=${() => this.handlers.onDeleteList?.()}
-            >
-              Delete list
-            </button>
+                  `
+                : null}
+              <button
+                type="button"
+                class="danger"
+                data-role="delete-list"
+                ?disabled=${deleteDisabled}
+                @click=${() => this.handlers.onDeleteList?.()}
+              >
+                Delete list
+              </button>
+            </div>
+            <div class="sidebar-section sidebar-actions sidebar-actions-secondary">
+              <button
+                type="button"
+                data-role="export-snapshot"
+                @click=${() => this.handlers.onExportSnapshot?.()}
+              >
+                Export
+              </button>
+              <button
+                type="button"
+                data-role="import-snapshot"
+                @click=${() => this.handlers.onImportSnapshot?.()}
+              >
+                Import
+              </button>
+            </div>
           </div>
-          <div class="sidebar-section sidebar-actions sidebar-actions-secondary">
-            <button
-              type="button"
-              data-role="export-snapshot"
-              @click=${() => this.handlers.onExportSnapshot?.()}
-            >
-              Export
-            </button>
-            <button
-              type="button"
-              data-role="import-snapshot"
-              @click=${() => this.handlers.onImportSnapshot?.()}
-            >
-              Import
-            </button>
-          </div>
-        </div>
+        </details>
       `,
       this
     );
@@ -309,14 +326,36 @@ class SidebarElement extends HTMLElement {
     this.syncListDomOrder();
   }
 
-  handleMenuToggle() {
-    this.menuOpen = !this.menuOpen;
-    this.dataset.menuOpen = this.menuOpen ? "true" : "false";
-    const toggle = this.querySelector(
-      "[data-role='sidebar-toggle']"
-    ) as HTMLButtonElement | null;
-    if (toggle) {
-      toggle.setAttribute("aria-expanded", this.menuOpen ? "true" : "false");
+  handleMenuToggle(event: Event) {
+    const disclosure = event.currentTarget as HTMLDetailsElement | null;
+    if (!disclosure) return;
+    if (this.menuMediaQuery && !this.menuMediaQuery.matches) {
+      disclosure.open = true;
+      this.menuOpen = true;
+      return;
+    }
+    this.menuOpen = disclosure.open;
+  }
+
+  handleSummaryClick(event: Event) {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (
+      target.closest(".sidebar-field") ||
+      target.closest(".sidebar-search-input")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  handleMenuMediaChange(event: MediaQueryListEvent) {
+    this.menuOpen = !event.matches;
+    const disclosure = this.querySelector(
+      ".sidebar-disclosure"
+    ) as HTMLDetailsElement | null;
+    if (disclosure) {
+      disclosure.open = this.menuOpen;
     }
   }
 
