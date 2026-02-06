@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"prototype-lists/server/internal/auth"
-	"prototype-lists/server/internal/httpapi"
-	"prototype-lists/server/internal/storage"
+	"a4-tasklists/server/internal/auth"
+	"a4-tasklists/server/internal/httpapi"
+	"a4-tasklists/server/internal/storage"
 
 	baselibmiddleware "github.com/aggregat4/go-baselib-services/v4/middleware"
 )

@@ -6,9 +6,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-OUTPUT_NAME="${1:-prototype-lists}"
+OUTPUT_NAME="${1:-a4-tasklists}"
 
-echo "=== Building Prototype Lists Release ==="
+echo "=== Building A4 Tasklists Release ==="
 echo "Output: ${OUTPUT_NAME}"
 
 # Step 1: Build frontend

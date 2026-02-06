@@ -1,10 +1,10 @@
 # Deployment Guide
 
-This guide covers how to build and deploy the Prototype Lists application.
+This guide covers how to build and deploy the A4 Tasklists application.
 
 ## Overview
 
-Prototype Lists consists of:
+A4 Tasklists consists of:
 - **Frontend**: TypeScript/Lit SPA (Single Page Application)
 - **Backend**: Go HTTP server with SQLite database
 
@@ -15,9 +15,9 @@ The recommended deployment method is a **single self-contained binary** that emb
 1. Download the latest release from [GitHub Releases](../../releases)
 2. Extract and run:
    ```bash
-   chmod +x prototype-lists-linux-amd64
+   chmod +x a4-tasklists-linux-amd64
    # Local development-style auth:
-   SERVER_AUTH_MODE=dev ./prototype-lists-linux-amd64
+   SERVER_AUTH_MODE=dev ./a4-tasklists-linux-amd64
    ```
    For OIDC-backed deployments, run with OIDC config instead of `SERVER_AUTH_MODE=dev`.
 3. Open http://localhost:8080
@@ -35,7 +35,7 @@ The recommended deployment method is a **single self-contained binary** that emb
 ./scripts/build-release.sh
 ```
 
-This creates a `prototype-lists` binary in the project root. The script acts as canonical documentation for build requirements.
+This creates a `a4-tasklists` binary in the project root. The script acts as canonical documentation for build requirements.
 
 ## Configuration
 
@@ -58,14 +58,14 @@ All configuration is via environment variables:
 
 Examples:
 ```bash
-PORT=3000 SERVER_DB_PATH=/var/data/app.db ./prototype-lists
+PORT=3000 SERVER_DB_PATH=/var/data/app.db ./a4-tasklists
 
 # OIDC mode (default auth mode)
 OIDC_ISSUER_URL=https://issuer.example.com \
-OIDC_CLIENT_ID=prototype-lists \
+OIDC_CLIENT_ID=a4-tasklists \
 OIDC_REDIRECT_URL=https://lists.example.com/auth/callback \
 SERVER_SESSION_KEY='replace-with-32+chars-or-base64' \
-./prototype-lists
+./a4-tasklists
 ```
 
 ## Architecture
@@ -103,21 +103,21 @@ Releases are automated via GitHub Actions (`.github/workflows/release.yml`):
 ## Systemd Service (Linux)
 
 ```ini
-# /etc/systemd/system/prototype-lists.service
+# /etc/systemd/system/a4-tasklists.service
 [Unit]
-Description=Prototype Lists
+Description=A4 Tasklists
 After=network.target
 
 [Service]
 Type=simple
 User=prototype
 Group=prototype
-WorkingDirectory=/opt/prototype-lists
-ExecStart=/opt/prototype-lists/prototype-lists
+WorkingDirectory=/opt/a4-tasklists
+ExecStart=/opt/a4-tasklists/a4-tasklists
 Environment="PORT=8080"
-Environment="SERVER_DB_PATH=/opt/prototype-lists/data.db"
+Environment="SERVER_DB_PATH=/opt/a4-tasklists/data.db"
 Environment="OIDC_ISSUER_URL=https://issuer.example.com"
-Environment="OIDC_CLIENT_ID=prototype-lists"
+Environment="OIDC_CLIENT_ID=a4-tasklists"
 Environment="OIDC_REDIRECT_URL=https://lists.example.com/auth/callback"
 Environment="SERVER_SESSION_KEY=replace-with-32+chars-or-base64"
 Restart=always
@@ -126,4 +126,4 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-Enable: `sudo systemctl enable --now prototype-lists`
+Enable: `sudo systemctl enable --now a4-tasklists`

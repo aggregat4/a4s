@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"prototype-lists/server/internal/auth"
-	"prototype-lists/server/internal/storage"
+	"a4-tasklists/server/internal/auth"
+	"a4-tasklists/server/internal/storage"
 )
 
 type jsonResponse map[string]any

@@ -1,5 +1,5 @@
 {
-  "name": "prototype-lists",
+  "name": "a4-tasklists",
   "version": "1.0.0",
   "scripts": {
     "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && npx tsc -p tsconfig.tests.json && npm run lint:deps && npm run lint:css && node tools/build/copy-static.mjs",

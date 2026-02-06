@@ -57,13 +57,13 @@ jobs:
           CGO_ENABLED: 0
         working-directory: server
         run: |
-          go build -ldflags="-s -w -X main.version=${{ github.event.release.tag_name }}" -o ../prototype-lists-${{ matrix.suffix }} ./cmd/server
+          go build -ldflags="-s -w -X main.version=${{ github.event.release.tag_name }}" -o ../a4-tasklists-${{ matrix.suffix }} ./cmd/server
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prototype-lists-${{ matrix.suffix }}
-          path: prototype-lists-${{ matrix.suffix }}
+          name: a4-tasklists-${{ matrix.suffix }}
+          path: a4-tasklists-${{ matrix.suffix }}
           retention-days: 1
 
   release:

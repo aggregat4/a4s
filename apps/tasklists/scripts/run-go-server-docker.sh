@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PORT=8000
 IMAGE=golang:1.25-bookworm
-CONTAINER_NAME=prototype-lists-go-server
+CONTAINER_NAME=a4-tasklists-go-server
 
 CID=$(docker run -d --rm \
   --name "${CONTAINER_NAME}" \

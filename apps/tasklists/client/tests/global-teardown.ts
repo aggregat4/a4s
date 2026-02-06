@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 
-const containerName = "prototype-lists-go-server";
+const containerName = "a4-tasklists-go-server";
 
 export default async function globalTeardown() {
   try {

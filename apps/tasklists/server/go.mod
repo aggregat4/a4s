@@ -1,4 +1,4 @@
-module prototype-lists/server
+module a4-tasklists/server
 
 go 1.25
 
