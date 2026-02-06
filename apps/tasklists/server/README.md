@@ -2,6 +2,8 @@
 
 Go backend for sync and static hosting. Endpoints match `docs/protocol-spec.md`.
 
+Project-wide setup, testing, and deployment documentation lives in `README.md`.
+
 ## Run
 
 ```
