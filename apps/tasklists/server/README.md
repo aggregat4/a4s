@@ -10,7 +10,7 @@ Go backend for sync and static hosting. Endpoints match `docs/protocol-spec.md`.
 
 ## Configuration
 
-Required environment variables:
+Required in OIDC mode (default when `SERVER_AUTH_MODE` is not `dev`):
 
 - `OIDC_ISSUER_URL`
 - `OIDC_CLIENT_ID`
@@ -24,6 +24,7 @@ Optional:
 - `SERVER_SESSION_KEY` (base64 or >=32 chars; defaults to random per startup)
 - `SERVER_COOKIE_SECURE` (default `true`, set to `false` for http dev)
 - `SERVER_COOKIE_DOMAIN`
+- `SERVER_STATIC_DIR` (serve assets from an external directory)
 
 ## Build and Lint
 
@@ -43,7 +44,6 @@ Static files are served in priority order:
 
 1. `SERVER_STATIC_DIR` env var (if set)
 2. Embedded files in binary (production builds)
-3. `../client/dist` (development fallback)
 
 To embed frontend in the binary:
 ```bash
@@ -51,15 +51,3 @@ cd client && npm run build
 cp -r dist/* ../server/cmd/server/static/
 cd ../server && go build ./cmd/server
 ```
-
-## Endpoints
-
-- `GET /` - Static files (SPA)
-- `GET /auth/login`
-- `GET /auth/callback`
-- `POST /auth/logout`
-- `GET /sync/bootstrap` - Get initial sync data
-- `POST /sync/push` - Push operations
-- `GET /sync/pull?since=` - Pull operations since seq
-- `POST /sync/snapshot` - Import snapshot (with `X-Client-ID` header)
-- `GET /healthz` - Health check

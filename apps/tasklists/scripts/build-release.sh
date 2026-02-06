@@ -36,13 +36,6 @@ echo "[4/4] Verifying build..."
 if [ -f "${PROJECT_ROOT}/${OUTPUT_NAME}" ]; then
     echo "✓ Binary created: ${PROJECT_ROOT}/${OUTPUT_NAME}"
     ls -lh "${PROJECT_ROOT}/${OUTPUT_NAME}"
-    echo ""
-    echo "To run:"
-    echo "  ./${OUTPUT_NAME}"
-    echo ""
-    echo "Environment variables:"
-    echo "  PORT            - Server port (default: 8080)"
-    echo "  SERVER_DB_PATH  - Database file path (default: data.db)"
 else
     echo "✗ Build failed"
     exit 1
