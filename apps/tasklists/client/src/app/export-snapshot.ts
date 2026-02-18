@@ -165,44 +165,74 @@ export function parseExportSnapshot(raw: unknown):
     return { ok: false, error: "Snapshot lists are missing." };
   }
   const actor = "snapshot-import";
-  const snapshotLists = listsInput
-    .map((entry) => {
-      const candidate = entry as {
-        listId?: unknown;
-        title?: unknown;
-        items?: unknown;
-      };
-      const listId =
-        typeof candidate.listId === "string" && candidate.listId.length
-          ? candidate.listId
-          : `list-${crypto.randomUUID()}`;
-      const title = sanitizeText(candidate.title);
-      const itemsInput = Array.isArray(candidate.items) ? candidate.items : [];
-      const items = itemsInput.map((item) => {
-        const record = item as {
-          id?: unknown;
-          text?: unknown;
-          done?: unknown;
-          note?: unknown;
-        };
-        const id =
-          typeof record.id === "string" && record.id.length
-            ? record.id
-            : `task-${crypto.randomUUID()}`;
-        return {
-          id,
-          text: sanitizeText(record.text),
-          done: sanitizeBoolean(record.done),
-          note: sanitizeText(record.note),
-        };
-      });
+  const snapshotLists: Array<{
+    listId: string;
+    title: string;
+    items: Array<{ id: string; text: string; done: boolean; note: string }>;
+  }> = [];
+  for (let listIndex = 0; listIndex < listsInput.length; listIndex += 1) {
+    const entry = listsInput[listIndex] as {
+      listId?: unknown;
+      title?: unknown;
+      items?: unknown;
+    };
+    if (typeof entry?.listId !== "string" || entry.listId.length === 0) {
       return {
-        listId,
-        title,
-        items,
+        ok: false,
+        error: `Snapshot list at index ${listIndex} is missing a valid listId.`,
       };
-    })
-    .filter((entry) => entry.listId.length);
+    }
+    if (typeof entry?.title !== "string") {
+      return {
+        ok: false,
+        error: `Snapshot list at index ${listIndex} is missing a valid title.`,
+      };
+    }
+    if (!Array.isArray(entry.items)) {
+      return {
+        ok: false,
+        error: `Snapshot list at index ${listIndex} is missing a valid items array.`,
+      };
+    }
+    const items: Array<{ id: string; text: string; done: boolean; note: string }> = [];
+    for (let itemIndex = 0; itemIndex < entry.items.length; itemIndex += 1) {
+      const item = entry.items[itemIndex] as {
+        id?: unknown;
+        text?: unknown;
+        done?: unknown;
+        note?: unknown;
+      };
+      if (typeof item?.id !== "string" || item.id.length === 0) {
+        return {
+          ok: false,
+          error: `Snapshot item at list ${listIndex}, index ${itemIndex} is missing a valid id.`,
+        };
+      }
+      if (typeof item?.text !== "string") {
+        return {
+          ok: false,
+          error: `Snapshot item at list ${listIndex}, index ${itemIndex} is missing a valid text.`,
+        };
+      }
+      if (typeof item?.done !== "boolean") {
+        return {
+          ok: false,
+          error: `Snapshot item at list ${listIndex}, index ${itemIndex} is missing a valid done flag.`,
+        };
+      }
+      items.push({
+        id: item.id,
+        text: item.text,
+        done: item.done,
+        note: sanitizeText(item.note),
+      });
+    }
+    snapshotLists.push({
+      listId: entry.listId,
+      title: entry.title,
+      items,
+    });
+  }
 
   const registryEntries = buildOrderedEntries(
     snapshotLists.map((list) => ({

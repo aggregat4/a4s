@@ -70,3 +70,35 @@ test("snapshot parse rejects invalid json", () => {
   const parsed = parseExportSnapshotText("{");
   assert.equal(parsed.ok, false);
 });
+
+test("snapshot parse rejects items missing required fields", () => {
+  const parsed = parseExportSnapshot({
+    schema: SNAPSHOT_SCHEMA,
+    data: {
+      lists: [
+        {
+          listId: "list-1",
+          title: "List One",
+          items: [{ text: "Task without id", done: false }],
+        },
+      ],
+    },
+  });
+  assert.equal(parsed.ok, false);
+});
+
+test("snapshot parse rejects non-boolean done values", () => {
+  const parsed = parseExportSnapshot({
+    schema: SNAPSHOT_SCHEMA,
+    data: {
+      lists: [
+        {
+          listId: "list-1",
+          title: "List One",
+          items: [{ id: "task-1", text: "Task", done: "false" }],
+        },
+      ],
+    },
+  });
+  assert.equal(parsed.ok, false);
+});
