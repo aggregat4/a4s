@@ -8,7 +8,44 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Run server tests
+        working-directory: server
+        run: GOCACHE=/tmp/go-build go test ./...
+
+      - name: Run client unit tests
+        working-directory: client
+        run: npm run test:unit
+
+      - name: Run client E2E tests
+        working-directory: client
+        run: npm run test:e2e
+
   build:
+    needs: verify
     strategy:
       matrix:
         include:
