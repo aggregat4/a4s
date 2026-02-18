@@ -18,7 +18,11 @@ const createMemoryStorage = (): ListStorage => ({
     operations: [],
     updatedAt: null,
   }),
-  loadSyncState: async () => ({ clientId: "", lastServerSeq: 0 }),
+  loadSyncState: async () => ({
+    clientId: "",
+    lastServerSeq: 0,
+    datasetGenerationKey: "",
+  }),
   persistSyncState: async () => {},
   loadOutbox: async () => [],
   persistOutbox: async () => {},

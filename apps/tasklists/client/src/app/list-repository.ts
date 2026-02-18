@@ -398,11 +398,16 @@ export class ListRepository {
       existingSync.clientId && existingSync.clientId.length
         ? existingSync.clientId
         : ensureActorId();
+    const datasetGenerationKey =
+      typeof existingSync.datasetGenerationKey === "string"
+        ? existingSync.datasetGenerationKey
+        : "";
 
     await this._storage.clear();
     await this._storage.persistSyncState({
       clientId,
       lastServerSeq: 0,
+      datasetGenerationKey,
     });
     await this._storage.persistOutbox([]);
     await this._storage.persistRegistry({
