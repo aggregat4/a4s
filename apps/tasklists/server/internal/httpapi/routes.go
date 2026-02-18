@@ -99,8 +99,8 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	if err := s.store.TouchClient(r.Context(), userID, payload.ClientID); err != nil {
-		log.Printf("sync push touch error client=%s: %v", payload.ClientID, err)
+	if err := s.store.UpdateClientCursor(r.Context(), userID, payload.ClientID, serverSeq); err != nil {
+		log.Printf("sync push cursor error client=%s seq=%d: %v", payload.ClientID, serverSeq, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

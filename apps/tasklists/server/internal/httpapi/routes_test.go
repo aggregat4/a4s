@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,35 @@ type bootstrapResponse struct {
 	DatasetGenerationKey string `json:"datasetGenerationKey"`
 	Snapshot             string `json:"snapshot"`
 	ServerSeq            int64  `json:"serverSeq"`
+}
+
+type pushCursorStore struct {
+	lastCursorClientID string
+	lastCursorUserID   string
+	lastCursorSeq      int64
+}
+
+func (s *pushCursorStore) Init(context.Context) error { return nil }
+func (s *pushCursorStore) Close() error               { return nil }
+func (s *pushCursorStore) InsertOps(context.Context, string, []storage.Op) (int64, error) {
+	return 42, nil
+}
+func (s *pushCursorStore) GetOpsSince(context.Context, string, int64) ([]storage.Op, int64, error) {
+	return nil, 0, nil
+}
+func (s *pushCursorStore) GetActiveDatasetGenerationKey(context.Context, string) (string, error) {
+	return "dataset-1", nil
+}
+func (s *pushCursorStore) GetSnapshot(context.Context, string) (storage.Snapshot, error) {
+	return storage.Snapshot{DatasetGenerationKey: "dataset-1", Blob: "{}"}, nil
+}
+func (s *pushCursorStore) ReplaceSnapshot(context.Context, string, storage.Snapshot) error { return nil }
+func (s *pushCursorStore) TouchClient(context.Context, string, string) error               { return nil }
+func (s *pushCursorStore) UpdateClientCursor(_ context.Context, userID string, clientID string, serverSeq int64) error {
+	s.lastCursorUserID = userID
+	s.lastCursorClientID = clientID
+	s.lastCursorSeq = serverSeq
+	return nil
 }
 
 func newTestMux(t *testing.T) *http.ServeMux {
@@ -324,5 +354,40 @@ func TestTwoClientsSync(t *testing.T) {
 	}
 	if len(pullPayload2.Ops) != 0 {
 		t.Fatalf("ops length: got %d", len(pullPayload2.Ops))
+	}
+}
+
+func TestPushUpdatesClientCursor(t *testing.T) {
+	store := &pushCursorStore{}
+	server := NewServer(store)
+	mux := http.NewServeMux()
+	server.RegisterRoutes(mux)
+
+	body := map[string]any{
+		"clientId":             "client-1",
+		"datasetGenerationKey": "dataset-1",
+		"ops": []map[string]any{
+			{
+				"scope":      "list",
+				"resourceId": "list-1",
+				"actor":      "actor-1",
+				"clock":      1,
+				"payload":    map[string]any{"type": "insert", "itemId": "item-1"},
+			},
+		},
+	}
+	requestBody, _ := json.Marshal(body)
+	resp := doRequest(t, mux, http.MethodPost, "/sync/push", requestBody)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("push status: got %d", resp.Code)
+	}
+	if store.lastCursorUserID != "user-1" {
+		t.Fatalf("cursor user id mismatch: %s", store.lastCursorUserID)
+	}
+	if store.lastCursorClientID != "client-1" {
+		t.Fatalf("cursor client id mismatch: %s", store.lastCursorClientID)
+	}
+	if store.lastCursorSeq != 42 {
+		t.Fatalf("cursor seq mismatch: got %d", store.lastCursorSeq)
 	}
 }
