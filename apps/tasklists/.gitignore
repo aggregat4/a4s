@@ -5,3 +5,4 @@ playwright-output.log
 data.db*
 test.db*
 server/server
+.cache
