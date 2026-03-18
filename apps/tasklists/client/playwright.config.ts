@@ -16,7 +16,7 @@ const config: PlaywrightTestConfig = {
   webServer: {
     command: webServerCommand,
     url: baseURL,
-    timeout: 30_000,
+    timeout: 60_000,
     reuseExistingServer: false,
   },
 
