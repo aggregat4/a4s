@@ -22,11 +22,15 @@ import (
 //go:embed all:static
 var staticFS embed.FS
 
+var version = "dev"
+
 func main() {
 	addr := ":8080"
 	if port := os.Getenv("PORT"); port != "" {
 		addr = ":" + port
 	}
+
+	log.Printf("starting a4-tasklists version=%s", version)
 
 	dbPath := os.Getenv("SERVER_DB_PATH")
 	if dbPath == "" {

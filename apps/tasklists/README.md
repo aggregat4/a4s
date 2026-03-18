@@ -71,17 +71,17 @@ PLAYWRIGHT_USE_DOCKER=1 npm run test:e2e
 
 ## Deployment
 
-The recommended deployment target is a single self-contained Go binary with
-embedded frontend assets.
+The recommended deployment target is `svc-deploy` managing a single
+self-contained Go binary with embedded frontend assets.
 
-### Quick Start (Pre-built Binaries)
+### Quick Start (Pre-built Release Tarballs)
 
-1. Download a binary from [GitHub Releases](https://github.com/aggregat4/a4-tasklists/releases).
-2. Run it:
+1. Download a release tarball from [GitHub Releases](https://github.com/aggregat4/a4-tasklists/releases).
+2. Extract it and run the binary:
 
 ```bash
-chmod +x a4-tasklists-linux-amd64
-SERVER_AUTH_MODE=dev ./a4-tasklists-linux-amd64
+tar -xzf a4-tasklists-v1.0.0-linux-amd64.tar.gz
+SERVER_AUTH_MODE=dev ./bin/a4-tasklists
 ```
 
 For production, use OIDC config instead of `SERVER_AUTH_MODE=dev`.
@@ -95,6 +95,17 @@ Canonical build path:
 ```
 
 Default output binary name: `a4-tasklists`.
+
+To build a `svc-deploy` artifact locally:
+
+```bash
+./scripts/package-release.sh v1.0.0 linux amd64
+```
+
+This writes:
+
+- `dist/a4-tasklists-v1.0.0-linux-amd64.tar.gz`
+- `dist/a4-tasklists-v1.0.0-linux-amd64.tar.gz.sha256`
 
 ### Runtime Configuration
 
@@ -130,26 +141,64 @@ SERVER_SESSION_KEY='replace-with-32+chars-or-base64' \
 1. `SERVER_STATIC_DIR` (if set)
 2. Embedded assets in the binary
 
-### Linux systemd Example
+### svc-deploy
+
+Release assets are published in the format `svc-deploy` expects:
+
+- artifact: `a4-tasklists-<version>-linux-amd64.tar.gz`
+- checksum: `a4-tasklists-<version>-linux-amd64.tar.gz.sha256`
+- binary inside archive: `bin/a4-tasklists`
+
+Example `deploy-map.toml` entry:
+
+```toml
+[service.a4-tasklists]
+release_url_template = "https://github.com/aggregat4/a4-tasklists/releases/download/{{.Version}}/{{.Artifact}}"
+artifact_filename_template = "a4-tasklists-{{.Version}}-linux-amd64.tar.gz"
+binary_path = "bin/a4-tasklists"
+healthcheck_url = "http://127.0.0.1:8080/healthz"
+systemd_unit = "a4-tasklists.service"
+db_filename = "a4-tasklists.db"
+startup_timeout = 30
+rollback_timeout = 30
+keep_releases = 5
+```
+
+Example `/opt/config-repo/a4-services/services/a4-tasklists/runtime.env`:
+
+```bash
+PORT=8080
+SERVER_DB_PATH=data/a4-tasklists.db
+OIDC_ISSUER_URL=https://issuer.example.com
+OIDC_CLIENT_ID=a4-tasklists
+OIDC_REDIRECT_URL=https://lists.example.com/auth/callback
+SERVER_COOKIE_DOMAIN=lists.example.com
+```
+
+Secrets belong in `/etc/a4-services/a4-tasklists.env`, for example:
+
+```bash
+OIDC_CLIENT_SECRET=replace-me
+SERVER_SESSION_KEY=replace-with-32+chars-or-base64
+```
+
+### Linux systemd Example For svc-deploy
 
 ```ini
 [Unit]
 Description=A4 Tasklists
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=prototype
-Group=prototype
-WorkingDirectory=/opt/a4-tasklists
-ExecStart=/opt/a4-tasklists/a4-tasklists
-Environment="PORT=8080"
-Environment="SERVER_DB_PATH=/opt/a4-tasklists/data.db"
-Environment="OIDC_ISSUER_URL=https://issuer.example.com"
-Environment="OIDC_CLIENT_ID=a4-tasklists"
-Environment="OIDC_REDIRECT_URL=https://lists.example.com/auth/callback"
-Environment="SERVER_SESSION_KEY=replace-with-32+chars-or-base64"
-Restart=always
+WorkingDirectory=/opt/a4-services/a4-tasklists/current
+ExecStart=/opt/a4-services/a4-tasklists/current/bin/a4-tasklists
+EnvironmentFile=/etc/a4-services/a4-tasklists.env
+EnvironmentFile=-/opt/a4-services/a4-tasklists/shared/config/runtime.env
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=30
 
 [Install]
 WantedBy=multi-user.target
@@ -168,8 +217,8 @@ on GitHub `release.created`:
 
 1. Create and push a tag (example: `v1.0.0`)
 2. Create a GitHub Release for that tag
-3. Workflow builds linux `amd64` and `arm64` binaries
-4. Workflow uploads binaries and checksums to the release
+3. Workflow builds linux `amd64` and `arm64` `tar.gz` artifacts
+4. Workflow uploads each artifact plus its matching `.sha256` file to the release
 
 ## API And Data Specs
 
