@@ -40,6 +40,9 @@ jobs:
         working-directory: client
         run: npm run test:unit
 
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
       - name: Run client E2E tests
         working-directory: client
         run: npm run test:e2e
