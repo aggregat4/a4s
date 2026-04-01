@@ -1945,25 +1945,22 @@ class A4TaskList extends HTMLElement {
     { focus = false, restoreEdit = false } = {}
   ) {
     if (!itemId) return;
-    let shouldRestoreEdit = false;
+    let restoreCaret: CaretPreference | null = null;
     if (this.openNoteItemIds.has(itemId)) {
       this.openNoteItemIds.delete(itemId);
       this.pendingNoteFocusId = null;
       if (restoreEdit) {
-        this.pendingRestoreEdit = { id: itemId, caret: "end" };
-        this.editController.queue(itemId, "end");
-        this.schedulePendingEditFlush();
-        shouldRestoreEdit = true;
+        restoreCaret = "end";
       }
     } else {
       this.openNoteItemIds.add(itemId);
       this.pendingNoteFocusId = focus ? itemId : null;
     }
     this.renderFromState(this.store?.getState?.());
-    if (shouldRestoreEdit) {
-      requestAnimationFrame(() => {
-        this.startEditingItem(itemId, "end");
-      });
+    if (restoreCaret) {
+      setTimeout(() => {
+        this.startEditingItem(itemId, restoreCaret);
+      }, 0);
     }
   }
 
@@ -2063,6 +2060,9 @@ class A4TaskList extends HTMLElement {
     if (matchesShortcut(event, SHORTCUTS.toggleNote)) {
       const target = event.target as HTMLElement | null;
       if (!target) return;
+      if (target.classList.contains("task-note-input")) {
+        return;
+      }
       const li = target.closest?.("li");
       if (!li) return;
       const itemId = li.dataset?.itemId ?? null;

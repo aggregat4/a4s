@@ -175,6 +175,14 @@ export default class InlineTextEditor {
     // browser to drop the selection on the next frame even though contenteditable remains.
     requestAnimationFrame(() => {
       if (this.editingEl !== textEl) return;
+      const activeElement = textEl.ownerDocument?.activeElement;
+      if (
+        activeElement &&
+        activeElement !== textEl &&
+        activeElement !== textEl.ownerDocument?.body
+      ) {
+        return;
+      }
       if (ensureCaret()) return;
       if (caretPreference) {
         this.applyCaretPreference(textEl, caretPreference);
