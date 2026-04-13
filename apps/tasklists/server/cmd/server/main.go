@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -23,6 +25,12 @@ import (
 var staticFS embed.FS
 
 var version = "dev"
+
+var requiredStaticAssets = []string{
+	"index.html",
+	"styles.css",
+	"entrypoints/main.js",
+}
 
 func main() {
 	addr := ":8080"
@@ -110,7 +118,9 @@ func main() {
 
 	serverAPI := httpapi.NewServer(store)
 	serverAPI.RegisterRoutes(mux)
-	registerStatic(mux)
+	if err := registerStatic(mux); err != nil {
+		log.Fatalf("static asset error: %v", err)
+	}
 
 	skipAuthPaths := map[string]struct{}{
 		"/auth/login":    {},
@@ -155,24 +165,51 @@ func ensureParentDir(path string) error {
 	return os.MkdirAll(dir, 0o755)
 }
 
-func registerStatic(mux *http.ServeMux) {
+func registerStatic(mux *http.ServeMux) error {
 	// Priority 1: External static directory (for development or custom builds)
 	staticDir := os.Getenv("SERVER_STATIC_DIR")
 	if staticDir != "" {
+		if err := validateStaticAssets(os.DirFS(staticDir)); err != nil {
+			return err
+		}
 		registerStaticDir(mux, staticDir)
-		return
+		return nil
 	}
 
 	// Priority 2: Try embedded static files (for packaged binary)
 	if embeddedSub, err := fs.Sub(staticFS, "static"); err == nil {
-		if _, err := embeddedSub.Open("index.html"); err == nil {
+		if err := validateStaticAssets(embeddedSub); err == nil {
 			registerEmbeddedFS(mux, embeddedSub)
 			log.Printf("serving embedded static files")
-			return
+			return nil
+		} else {
+			return err
 		}
 	}
 
-	log.Printf("warning: no static files found (set SERVER_STATIC_DIR or build with embedded files)")
+	return errors.New("no static assets found; set SERVER_STATIC_DIR or build with embedded assets")
+}
+
+func validateStaticAssets(staticFS fs.FS) error {
+	for _, assetPath := range requiredStaticAssets {
+		if _, err := fs.Stat(staticFS, assetPath); err != nil {
+			return &missingStaticFileError{Path: assetPath, Err: err}
+		}
+	}
+	return nil
+}
+
+type missingStaticFileError struct {
+	Path string
+	Err  error
+}
+
+func (e *missingStaticFileError) Error() string {
+	return fmt.Sprintf("required static asset not found: %s", e.Path)
+}
+
+func (e *missingStaticFileError) Unwrap() error {
+	return e.Err
 }
 
 func registerStaticDir(mux *http.ServeMux, staticDir string) {
