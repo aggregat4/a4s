@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -215,12 +216,13 @@ func (e *missingStaticFileError) Unwrap() error {
 func registerStaticDir(mux *http.ServeMux, staticDir string) {
 	fileServer := http.FileServer(http.Dir(staticDir))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join(staticDir, filepath.Clean(r.URL.Path))
-		if _, err := os.Stat(path); err == nil {
+		lookupPath := staticLookupPath(r.URL.Path)
+		fullPath := filepath.Join(staticDir, filepath.FromSlash(lookupPath))
+		if _, err := os.Stat(fullPath); err == nil {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+		http.NotFound(w, r)
 	}))
 	log.Printf("serving static files from %s", staticDir)
 }
@@ -228,17 +230,22 @@ func registerStaticDir(mux *http.ServeMux, staticDir string) {
 func registerEmbeddedFS(mux *http.ServeMux, staticSub fs.FS) {
 	fileServer := http.FileServer(http.FS(staticSub))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Clean(r.URL.Path)
-		if path == "/" {
-			path = "/index.html"
-		}
-		if _, err := staticSub.Open(path); err == nil {
+		lookupPath := staticLookupPath(r.URL.Path)
+		if _, err := staticSub.Open(lookupPath); err == nil {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		// Fallback to index.html for SPA routing
-		serveIndexFallback(w, r, staticSub)
+		http.NotFound(w, r)
 	}))
+}
+
+func staticLookupPath(requestPath string) string {
+	cleanPath := path.Clean("/" + strings.TrimSpace(requestPath))
+	lookupPath := strings.TrimPrefix(cleanPath, "/")
+	if lookupPath == "" || lookupPath == "." {
+		return "index.html"
+	}
+	return lookupPath
 }
 
 func serveIndexFallback(w http.ResponseWriter, r *http.Request, fs fs.FS) {

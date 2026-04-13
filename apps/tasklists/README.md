@@ -70,6 +70,13 @@ PLAYWRIGHT_USE_DOCKER=1 npm run test:e2e
 `npm test` in `client/` also runs E2E and should be executed with
 `PLAYWRIGHT_USE_DOCKER=1`.
 
+To smoke-test the deployed embedded-static path as well:
+
+```bash
+cd client
+PLAYWRIGHT_USE_DOCKER=1 npm run test:e2e:embedded
+```
+
 ## Deployment
 
 Deployment, runtime configuration, release packaging, and Linux service

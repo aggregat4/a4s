@@ -8,9 +8,10 @@
     "lint:deps": "knip",
     "lint:css": "stylelint \"public/**/*.css\" || true",
     "test:unit": "npm run build && node --test dist/tests/unit/**/*.spec.js",
-    "test": "npm run test:unit && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:e2e && npm run test:e2e:embedded",
     "test:e2e": "PLAYWRIGHT_USE_DOCKER=1 npm run build && npx playwright test --project=chromium",
-    "test:e2e:firefox": "PLAYWRIGHT_USE_DOCKER=1 npm run build && npx playwright test --project=firefox"
+    "test:e2e:firefox": "PLAYWRIGHT_USE_DOCKER=1 npm run build && npx playwright test --project=firefox",
+    "test:e2e:embedded": "PLAYWRIGHT_USE_DOCKER=1 SERVER_STATIC_MODE=embedded bash -lc 'npm run build && npx playwright test tests/embedded-static.spec.ts --project=chromium'"
   },
   "license": "Apache-2.0",
   "type": "commonjs",
