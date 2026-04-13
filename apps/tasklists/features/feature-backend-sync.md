@@ -41,7 +41,7 @@ Out of scope (initially):
   - `actor`, `clock`.
   - `payload`: serialized op body (opaque to server).
   - `serverSeq` assigned by server.
-  - Full protocol details: `docs/protocol-spec.md`.
+  - Full protocol details: `specs/protocol-spec.md`.
 
 - Client tracks:
   - `lastServerSeq` cursor (persisted).
@@ -87,7 +87,7 @@ Out of scope (initially):
 
 ## Protocol Reference
 
-- See `docs/protocol-spec.md` for the full endpoint definitions and payloads.
+- See `specs/protocol-spec.md` for the full endpoint definitions and payloads.
 
 ## Server Storage Plan
 
@@ -120,7 +120,7 @@ Out of scope (initially):
 
 - `client` (current app).
 - `server` (Go backend).
-- `docs/protocol-spec.md` (sync envelope spec + payload examples; no shared code).
+- `specs/protocol-spec.md` (sync envelope spec + payload examples; no shared code).
 
 Tooling options:
 - npm workspaces for the client app (already using npm).
@@ -129,7 +129,7 @@ Tooling options:
 ## Implementation Plan
 
 1. Protocol and shared types
-   - Maintain the spec in `docs/protocol-spec.md`.
+   - Maintain the spec in `specs/protocol-spec.md`.
    - Document the `(actor, clock, scope, resourceId)` dedupe key invariant.
 
 2. Client outbox + cursor storage

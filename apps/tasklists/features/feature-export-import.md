@@ -22,7 +22,7 @@ Add sidebar Export/Import buttons. Export produces a versioned JSON snapshot. Im
 - Success feedback uses existing UI patterns (no toast).
 
 ## Snapshot Format
-- Documented in `docs/export-snapshot-spec.md`.
+- Documented in `specs/export-snapshot-spec.md`.
 - Versioned envelope with a `schema` string.
 - Payload is a pure state snapshot:
   - `lists` is an ordered array of `{ listId, title, items }`.

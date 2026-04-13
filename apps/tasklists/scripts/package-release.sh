@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Package a svc-deploy-compatible release tarball and checksum.
+# Package a release tarball and checksum.
 # Usage: ./scripts/package-release.sh <version> <goos> <goarch> [output_dir]
 
 if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
