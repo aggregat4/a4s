@@ -30,7 +30,12 @@ var version = "dev"
 var requiredStaticAssets = []string{
 	"index.html",
 	"styles.css",
+	"manifest.json",
+	"sw.js",
 	"entrypoints/main.js",
+	"icons/icon-192.png",
+	"icons/icon-512.png",
+	"icons/apple-touch-icon.png",
 }
 
 func main() {

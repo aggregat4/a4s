@@ -16,7 +16,7 @@ type SnapshotList = {
   items: SnapshotListItem[];
 };
 
-export type ExportSnapshotEnvelope = {
+type ExportSnapshotEnvelope = {
   schema: string;
   exportedAt: string;
   appVersion?: string;
@@ -25,14 +25,14 @@ export type ExportSnapshotEnvelope = {
   };
 };
 
-export type ExportSnapshotInput = {
+type ExportSnapshotInput = {
   registryState: RegistryState;
   lists: Array<{ listId: ListId; state: ListState }>;
   exportedAt?: string;
   appVersion?: string;
 };
 
-export type ParsedSnapshot = {
+type ParsedSnapshot = {
   registryState: RegistryState;
   lists: Array<{ listId: ListId; state: ListState }>;
   exportedAt?: string;

@@ -44,6 +44,8 @@ class SidebarElement extends HTMLElement {
   private showDemoSeed: boolean;
   private menuOpen: boolean;
   private menuMediaQuery: MediaQueryList | null;
+  private isOnline: boolean;
+  private handleOnlineChange: (() => void) | null;
 
   private static readonly TASK_MIME = "application/x-a4-task";
 
@@ -64,6 +66,8 @@ class SidebarElement extends HTMLElement {
     this.showDemoSeed = false;
     this.menuOpen = true;
     this.menuMediaQuery = null;
+    this.isOnline = true;
+    this.handleOnlineChange = null;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
     this.handleListDragEnter = this.handleListDragEnter.bind(this);
@@ -129,6 +133,16 @@ class SidebarElement extends HTMLElement {
         "change",
         this.handleMenuMediaChange
       );
+      this.isOnline = navigator.onLine !== false;
+      this.handleOnlineChange = () => {
+        const next = navigator.onLine !== false;
+        if (next !== this.isOnline) {
+          this.isOnline = next;
+          this.renderView();
+        }
+      };
+      window.addEventListener("online", this.handleOnlineChange);
+      window.addEventListener("offline", this.handleOnlineChange);
     }
     this.renderView();
     document.addEventListener("dragend", this.handleGlobalDragEnd);
@@ -148,6 +162,11 @@ class SidebarElement extends HTMLElement {
     this.isListDragging = false;
     this.pendingRender = false;
     this.pendingRenderMode = null;
+    if (this.handleOnlineChange && typeof window !== "undefined") {
+      window.removeEventListener("online", this.handleOnlineChange);
+      window.removeEventListener("offline", this.handleOnlineChange);
+      this.handleOnlineChange = null;
+    }
   }
 
   setSearchValue(value: string) {
@@ -222,6 +241,7 @@ class SidebarElement extends HTMLElement {
           >
             <div class="sidebar-topbar">
               <h1 class="sidebar-title">Lists</h1>
+              <span class="sidebar-offline-indicator ${this.isOnline ? "" : "is-visible"}">Offline</span>
               <label class="sidebar-field sidebar-field-inline">
                 <input
                   type="search"

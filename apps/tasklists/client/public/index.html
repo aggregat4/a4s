@@ -3,8 +3,14 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#ffffff" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Tasklists" />
         <title>A4 Tasklists</title>
         <link rel="stylesheet" href="./styles.css" />
+        <link rel="manifest" href="./manifest.json" />
+        <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     </head>
     <body>
         <a4-lists-app data-role="lists-app"></a4-lists-app>
@@ -13,6 +19,13 @@
             import { SEED_LIST_CONFIGS } from "./entrypoints/demo-seeds.js";
 
             bootstrapListsApp({ seedConfigs: SEED_LIST_CONFIGS });
+        </script>
+        <script type="module">
+            if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.register("./sw.js", { type: "module" }).catch(function (err) {
+                    console.error("Service Worker registration failed:", err);
+                });
+            }
         </script>
     </body>
 </html>

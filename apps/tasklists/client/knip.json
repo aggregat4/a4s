@@ -1,14 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip/schema.json",
-  "entry": ["src/entrypoints/main.ts", "src/entrypoints/demo-seeds.ts"],
+  "entry": ["src/entrypoints/main.ts", "src/entrypoints/demo-seeds.ts", "src/sw/sw.ts"],
   "project": [
     "src/**/*.ts",
     "tests/**/*.ts",
     "src/types/**/*.ts"
   ],
   "ignore": [
-    "src/types/global.d.ts",
-    "src/types/vendor.d.ts"
+    "src/types/global.d.ts"
   ],
   "ignoreDependencies": ["http-server"]
 }

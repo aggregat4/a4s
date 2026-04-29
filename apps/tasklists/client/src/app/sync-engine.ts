@@ -15,6 +15,7 @@ type SyncEngineOptions = {
   onSnapshot?: (payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void;
   onConnectionError?: (error: unknown) => void;
   clientId?: string;
+  pauseWhenOffline?: boolean;
 };
 
 type SyncPushResponse = {
@@ -50,6 +51,9 @@ export class SyncEngine {
   private isActive: boolean;
   private syncQueue: Promise<void>;
   private defaultClientId: string | null;
+  private pauseWhenOffline: boolean;
+  private handleOnline: (() => void) | null;
+  private handleOffline: (() => void) | null;
 
   constructor(options: SyncEngineOptions) {
     this.storage = options.storage;
@@ -74,6 +78,9 @@ export class SyncEngine {
     this.defaultClientId = options.clientId ?? null;
     this.isPolling = false;
     this.isActive = false;
+    this.pauseWhenOffline = options.pauseWhenOffline !== false;
+    this.handleOnline = null;
+    this.handleOffline = null;
   }
 
   async initialize() {
@@ -127,6 +134,11 @@ export class SyncEngine {
   start() {
     if (this.timer != null) return;
     this.isActive = true;
+    if (this.pauseWhenOffline && !this.isOnline()) {
+      this.bindOnlineListeners();
+      return;
+    }
+    this.bindOnlineListeners();
     void this.poll();
   }
 
@@ -136,6 +148,48 @@ export class SyncEngine {
       this.timer = null;
     }
     this.isActive = false;
+    this.unbindOnlineListeners();
+  }
+
+  private isOnline(): boolean {
+    if (typeof navigator === "undefined") return true;
+    return navigator.onLine !== false;
+  }
+
+  private bindOnlineListeners() {
+    if (!this.pauseWhenOffline) return;
+    if (typeof window === "undefined") return;
+    if (this.handleOnline) return;
+
+    this.handleOnline = () => {
+      if (!this.isActive) return;
+      if (this.timer != null) {
+        clearTimeout(this.timer);
+        this.timer = null;
+      }
+      void this.syncOnce();
+      void this.poll();
+    };
+
+    this.handleOffline = () => {
+      if (this.timer != null) {
+        clearTimeout(this.timer);
+        this.timer = null;
+      }
+    };
+
+    window.addEventListener("online", this.handleOnline);
+    window.addEventListener("offline", this.handleOffline);
+  }
+
+  private unbindOnlineListeners() {
+    if (!this.handleOnline) return;
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", this.handleOnline);
+      window.removeEventListener("offline", this.handleOffline);
+    }
+    this.handleOnline = null;
+    this.handleOffline = null;
   }
 
   private async poll() {

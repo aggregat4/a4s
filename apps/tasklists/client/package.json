@@ -2,7 +2,7 @@
   "name": "a4-tasklists",
   "version": "1.0.0",
   "scripts": {
-    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && npx tsc -p tsconfig.tests.json && npm run lint:deps && npm run lint:css && node tools/build/copy-static.mjs",
+    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && npx tsc -p tsconfig.tests.json && npm run lint:deps && npm run lint:css && node tools/build/copy-static.mjs && node tools/build/generate-asset-manifest.mjs",
     "watch": "node tools/build/watch.mjs",
     "start": "npm run build && npx http-server dist -p 8000 -c-1",
     "lint:deps": "knip",
@@ -19,14 +19,14 @@
     "lit": "3.3.2"
   },
   "devDependencies": {
-    "@playwright/test": "1.57.0",
-    "@types/node": "25.0.9",
-    "esbuild": "0.27.2",
+    "@playwright/test": "1.59.1",
+    "@types/node": "25.6.0",
+    "esbuild": "0.28.0",
     "http-server": "14.1.1",
-    "knip": "5.82.1",
+    "knip": "6.8.0",
     "postcss-scss": "4.0.9",
-    "stylelint": "16.24.0",
-    "stylelint-config-standard": "37.0.0",
-    "typescript": "5.9.3"
+    "stylelint": "17.9.1",
+    "stylelint-config-standard": "40.0.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -7,6 +7,7 @@ const distRoot = resolve(root, "dist");
 const entryPoints = {
   "entrypoints/main": resolve(root, "src", "entrypoints", "main.ts"),
   "entrypoints/demo-seeds": resolve(root, "src", "entrypoints", "demo-seeds.ts"),
+  "sw": resolve(root, "src", "sw", "sw.ts"),
 };
 
 const options = {
