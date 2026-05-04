@@ -8,10 +8,6 @@
     "skipLibCheck": true,
     "noEmitOnError": true,
     "sourceMap": true,
-    "strict": false,
-    "useUnknownInCatchVariables": true,
-    "noImplicitAny": true,
-    "strictFunctionTypes": true,
-    "strictNullChecks": true
+    "strict": true
   }
 }
