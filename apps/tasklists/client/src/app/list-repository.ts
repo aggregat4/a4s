@@ -665,7 +665,7 @@ export class ListRepository {
       ops.push(rename.op);
     }
     if (Array.isArray(options.items)) {
-      let previousId = null;
+      let previousId: string | null = null;
       options.items.forEach((item: TaskItem) => {
         const itemId = ensureId(item?.id, `${listId}-item`);
         const insert = listCrdt.generateInsert({
@@ -1457,7 +1457,7 @@ export class ListRepository {
         if (!this._storage) {
           return;
         }
-        const existing = await this._storage.loadOutbox().catch(() => []);
+        const existing = await this._storage.loadOutbox().catch((): SyncOp[] => []);
         const outbox = Array.isArray(existing) ? existing : [];
         await this._storage
           .persistOutbox([...outbox, ...pendingOps])
@@ -1469,8 +1469,8 @@ export class ListRepository {
   private enqueueHistoryAction<T>(action: () => Promise<T>) {
     const next = this._historyQueue.then(action, action);
     this._historyQueue = next.then(
-      () => undefined,
-      () => undefined
+      (): void => undefined,
+      (): void => undefined
     );
     return next;
   }
@@ -1495,8 +1495,8 @@ export class ListRepository {
     this._textUpdateQueue.set(
       key,
       next.then(
-        () => undefined,
-        () => undefined
+        (): void => undefined,
+        (): void => undefined
       )
     );
     return next;

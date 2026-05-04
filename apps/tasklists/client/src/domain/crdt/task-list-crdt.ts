@@ -18,11 +18,11 @@ const TASK_LIST_OPERATIONS = {
   renameList: "renameList",
 } as const;
 
-function sanitizeText(value) {
+function sanitizeText(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
-function sanitizeBoolean(value, fallback = false) {
+function sanitizeBoolean(value: unknown, fallback = false) {
   if (typeof value === "boolean") return value;
   if (value === "true") return true;
   if (value === "false") return false;
@@ -228,7 +228,7 @@ export class TaskListCRDT {
     );
   }
 
-  applyRename(operation) {
+  applyRename(operation: TaskListOperation) {
     const payload = operation.payload ?? {};
     const title = sanitizeText(payload.title);
     const clock = Number.isFinite(operation.clock)
@@ -344,7 +344,7 @@ export class TaskListCRDT {
     };
   }
 
-  generateToggle(itemId, explicitState = null) {
+  generateToggle(itemId: string, explicitState: boolean | null = null) {
     if (typeof itemId !== "string" || !this._orderedSet.items.has(itemId)) {
       throw new Error(`Cannot toggle missing item "${itemId}"`);
     }

@@ -312,7 +312,7 @@ export default class DraggableBehavior {
     }
   }
 
-  startDrag(li, startClientX = null, startClientY = null) {
+  startDrag(li: HTMLElement, startClientX: number | null = null, startClientY: number | null = null) {
     this.dragging = li;
     this.dragStartIndex = this.getIndex(li);
     this.originalPosition = this.dragStartIndex;
@@ -352,13 +352,13 @@ export default class DraggableBehavior {
     this._lastClientY = null;
   }
 
-  dragOver(clientY) {
+  dragOver(clientY: number) {
     if (!this.dragging) return;
     const after = this.getDropTarget(clientY);
     this.moveDraggedElement(after);
   }
 
-  debouncedDragOver(clientY) {
+  debouncedDragOver(clientY: number) {
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = requestAnimationFrame(() => {
       this.dragOver(clientY);
@@ -366,7 +366,7 @@ export default class DraggableBehavior {
     });
   }
 
-  drop(clientY) {
+  drop(clientY: number) {
     if (!this.dragging) return;
     const after = this.getDropTarget(clientY);
     this.moveDraggedElement(after);
@@ -384,7 +384,7 @@ export default class DraggableBehavior {
     this._dropHandled = true;
   }
 
-  beginFloating(eClientX, eClientY) {
+  beginFloating(eClientX: number, eClientY: number) {
     const li = this.dragging;
     if (!li) return;
     const rect = li.getBoundingClientRect();
@@ -393,7 +393,7 @@ export default class DraggableBehavior {
     void (eClientX != null ? eClientX - rect.left : 16);
   }
 
-  getDropTarget(mouseY) {
+  getDropTarget(mouseY: number) {
     if (!this.cachedItems) {
       this.cachedItems = Array.from(
         this.container.querySelectorAll("li:not(.dragging):not(.placeholder)")
@@ -419,7 +419,7 @@ export default class DraggableBehavior {
     return left < this.cachedItems.length ? this.cachedItems[left] : null;
   }
 
-  getIndex(element) {
+  getIndex(element: HTMLElement) {
     return Array.from(this.container.children).indexOf(element);
   }
 
@@ -427,7 +427,7 @@ export default class DraggableBehavior {
     this.cachedItems = null;
   }
 
-  moveDraggedElement(after) {
+  moveDraggedElement(after: HTMLElement | null) {
     if (!this.dragging) return;
 
     const prevSnapshot = this.animator?.snapshot(this.container, this.dragging);

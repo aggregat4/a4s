@@ -1,4 +1,21 @@
-const escapeHTML = (str) =>
+interface HighlightRange {
+  start: number;
+  end: number;
+  priority: number;
+  key: string;
+  open: string;
+  close: string;
+}
+
+interface PatternConfig {
+  regexSource: string;
+  regexFlags: string;
+  className: string;
+  key: string;
+  priority: number;
+}
+
+const escapeHTML = (str: string) =>
   str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -6,7 +23,7 @@ const escapeHTML = (str) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const mergeRanges = (ranges) => {
+const mergeRanges = (ranges: HighlightRange[]) => {
   if (!ranges.length) return [];
   const sorted = ranges.slice().sort((a, b) => {
     if (a.start !== b.start) return a.start - b.start;
@@ -27,9 +44,13 @@ const mergeRanges = (ranges) => {
   return merged;
 };
 
-const buildDecoratedMarkup = (original, tokens, patternConfig) => {
+const buildDecoratedMarkup = (
+  original: string,
+  tokens: string[],
+  patternConfig: PatternConfig[]
+) => {
   const haystack = original.toLowerCase();
-  const ranges = [];
+  const ranges: HighlightRange[] = [];
   const patterns = Array.isArray(patternConfig) ? patternConfig : [];
   let matchesAllTokens = true;
 
@@ -114,7 +135,7 @@ const buildDecoratedMarkup = (original, tokens, patternConfig) => {
   return { markup: result, matchesAllTokens };
 };
 
-export const tokenizeSearchQuery = (query) => {
+export const tokenizeSearchQuery = (query: string) => {
   if (typeof query !== "string") return [];
   return query
     .trim()
@@ -130,6 +151,13 @@ export const evaluateSearchEntry = ({
   patternConfig,
   showDone,
   isDone,
+}: {
+  originalText: string;
+  noteText: string;
+  tokens: string[];
+  patternConfig: PatternConfig[];
+  showDone: boolean;
+  isDone: boolean;
 }) => {
   const hiddenByCompletion = !showDone && isDone;
   if (hiddenByCompletion) {
@@ -154,6 +182,12 @@ export const matchesSearchEntry = ({
   tokens,
   showDone,
   isDone,
+}: {
+  originalText: string;
+  noteText: string;
+  tokens: string[];
+  showDone: boolean;
+  isDone: boolean;
 }) => {
   if (!showDone && isDone) {
     return false;

@@ -16,7 +16,7 @@ const LISTS_CRDT_OPERATIONS = {
   renameList: "renameList",
 } as const;
 
-function sanitizeText(value) {
+function sanitizeText(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
@@ -187,7 +187,7 @@ export class ListsCRDT {
     return changed;
   }
 
-  getRecord(id) {
+  getRecord(id: string) {
     const entry = this._orderedSet.getItem(id);
     if (!entry) return null;
     return {

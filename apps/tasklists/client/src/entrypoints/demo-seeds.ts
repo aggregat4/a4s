@@ -67,8 +67,8 @@ export const WORK_FOLLOWUP_TEXTS = [
   "Send a kudos round-up so everyone remembers we're on the same team.",
 ];
 
-export const createSeedItems = (slug, texts) =>
-  texts.map((text, index) => ({
+export const createSeedItems = (slug: string, texts: string[]) =>
+  texts.map((text: string, index: number) => ({
     id: `${slug}-task-${index + 1}`,
     text,
     done: false,

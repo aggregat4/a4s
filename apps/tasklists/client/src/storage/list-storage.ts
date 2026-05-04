@@ -202,19 +202,19 @@ class IndexedDbListStorage implements ListStorage {
     ]);
     await completion;
 
-    const operationsByList = new Map();
+    const operationsByList = new Map<string, TaskListOperation[]>();
     (operationRecords || []).forEach((record) => {
       const listId = record.listId;
       if (!operationsByList.has(listId)) {
         operationsByList.set(listId, []);
       }
       const op = deserializeOperation(record.operation);
-      if (op) {
+      if (isTaskListOperation(op)) {
         operationsByList.get(listId).push(op);
       }
     });
 
-    const response = [];
+    const response: PersistedListRecord[] = [];
     (stateRecords || []).forEach((record) => {
       const listId = record.listId;
       const decodedState = deserializeListState(record.state);
@@ -330,7 +330,7 @@ class IndexedDbListStorage implements ListStorage {
     await completion;
   }
 
-  async pruneOperations(listId, beforeClock) {
+  async pruneOperations(listId: ListId, beforeClock: number) {
     if (!Number.isFinite(beforeClock)) return;
     const db = await this.ready();
     const transaction = db.transaction(STORE_LIST_OPERATIONS, "readwrite");
@@ -473,7 +473,7 @@ class IndexedDbListStorage implements ListStorage {
     await completion;
   }
 
-  async pruneRegistryOperations(beforeClock) {
+  async pruneRegistryOperations(beforeClock: number) {
     if (!Number.isFinite(beforeClock)) return;
     const db = await this.ready();
     const transaction = db.transaction(STORE_REGISTRY_OPERATIONS, "readwrite");

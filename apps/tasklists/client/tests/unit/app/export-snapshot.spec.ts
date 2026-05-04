@@ -6,8 +6,9 @@ import {
   parseExportSnapshotText,
   SNAPSHOT_SCHEMA,
 } from "../../../src/app/export-snapshot.js";
+import type { ListState, RegistryState } from "../../../src/types/domain.js";
 
-const makeRegistryState = () => ({
+const makeRegistryState = (): RegistryState => ({
   clock: 1,
   entries: [
     {
@@ -21,7 +22,7 @@ const makeRegistryState = () => ({
   ],
 });
 
-const makeListState = () => ({
+const makeListState = (): ListState => ({
   clock: 2,
   title: "List One",
   titleUpdatedAt: 2,

@@ -9,6 +9,7 @@
     "noEmitOnError": true,
     "sourceMap": true,
     "strict": false,
-    "useUnknownInCatchVariables": true
+    "useUnknownInCatchVariables": true,
+    "noImplicitAny": true
   }
 }

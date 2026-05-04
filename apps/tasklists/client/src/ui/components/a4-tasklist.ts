@@ -546,7 +546,7 @@ class A4TaskList extends HTMLElement {
   }
 
   buildInitialState(): TaskListState {
-    const fallback = {
+    const fallback: TaskListState = {
       title: this.getAttribute("name") ?? "",
       items: [],
     };
@@ -918,7 +918,7 @@ class A4TaskList extends HTMLElement {
     this.startTitleEditing();
   }
 
-  handleTitleKeyDown(event) {
+  handleTitleKeyDown(event: KeyboardEvent) {
     if (!this.titleEl) return;
     if (this.isTitleEditing) {
       if (event.key === "Enter") {
@@ -965,7 +965,7 @@ class A4TaskList extends HTMLElement {
     // Accepts both literal regexes and plain objects so embedding pages can
     // configure highlights without worrying about flag safety or class naming.
     if (!Array.isArray(defs)) return [];
-    const normalized = [];
+    const normalized: PatternConfigEntry[] = [];
     defs.forEach((def) => {
       if (!def) return;
       let { regex, className, priority } = def;
@@ -1331,7 +1331,7 @@ class A4TaskList extends HTMLElement {
   schedulePendingEditFlush() {
     if (this.pendingEditFlushRequested) return;
     this.pendingEditFlushRequested = true;
-    const scheduleFlush = (cb) => {
+    const scheduleFlush = (cb: () => void) => {
       if (typeof requestAnimationFrame === "function") {
         requestAnimationFrame(() => cb());
       } else if (typeof queueMicrotask === "function") {
@@ -2334,7 +2334,7 @@ class A4TaskList extends HTMLElement {
       if (!this.store || !this.listEl) return;
       if (!Array.isArray(beforeOrder) || !beforeOrder.length) return;
 
-      let order = [];
+      let order: string[] = [];
       if (
         move &&
         Number.isInteger(move.fromIndex) &&
@@ -2387,7 +2387,7 @@ class A4TaskList extends HTMLElement {
         payload: { order },
       });
 
-      const findMovedId = (before, after) => {
+      const findMovedId = (before: string[], after: string[]) => {
         if (!Array.isArray(before) || !Array.isArray(after)) return null;
         if (before.length !== after.length) return null;
         if (before.every((id, index) => id === after[index])) return null;

@@ -101,9 +101,23 @@ function buildSnapshotLists(
 function buildOrderedEntries<TData extends Record<string, unknown>>(
   items: Array<{ id: string; data: TData }>,
   actor: string
-) {
+): Array<{
+  id: string;
+  pos: ReturnType<typeof between>;
+  data: TData;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: null;
+}> {
   let previousPosition: ReturnType<typeof between> | null = null;
-  return items.map((item, index) => {
+  return items.map((item, index): {
+    id: string;
+    pos: ReturnType<typeof between>;
+    data: TData;
+    createdAt: number;
+    updatedAt: number;
+    deletedAt: null;
+  } => {
     const position = between(previousPosition, null, { actor });
     previousPosition = position;
     const time = index + 1;

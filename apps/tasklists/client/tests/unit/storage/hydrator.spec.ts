@@ -4,7 +4,7 @@ import { hydrateFromStorage } from "../../../src/storage/hydrator.js";
 import { ListsCRDT } from "../../../src/domain/crdt/lists-crdt.js";
 import { TaskListCRDT } from "../../../src/domain/crdt/task-list-crdt.js";
 
-const clone = (value) =>
+const clone = (value: any) =>
     value == null ? value : JSON.parse(JSON.stringify(value));
 
 class MemoryListStorage {
@@ -31,7 +31,7 @@ class MemoryListStorage {
         return Array.from(this.lists.entries()).map(([listId, record]) => ({
             listId,
             state: clone(record.state),
-            operations: record.operations.map((op) => clone(op)),
+            operations: record.operations.map((op: any) => clone(op)),
             updatedAt: record.updatedAt,
         }));
     }
@@ -39,7 +39,7 @@ class MemoryListStorage {
     async loadRegistry() {
         return {
             state: clone(this.registry.state),
-            operations: this.registry.operations.map((op) => clone(op)),
+            operations: this.registry.operations.map((op: any) => clone(op)),
             updatedAt: this.registry.updatedAt,
         };
     }
@@ -60,7 +60,7 @@ class MemoryListStorage {
         this.outbox = Array.isArray(ops) ? ops.map((op) => clone(op)) : [];
     }
 
-    async persistOperations(listId, operations = [], options: any = {}) {
+    async persistOperations(listId: string, operations: any[] = [], options: any = {}) {
         if (typeof listId !== "string" || !listId.length) {
             throw new Error("persistOperations requires a listId");
         }
@@ -86,7 +86,7 @@ class MemoryListStorage {
         this.registry.updatedAt = Date.now();
     }
 
-    async loadList(listId) {
+    async loadList(listId: string) {
         const record = this.lists.get(listId);
         if (!record) {
             return { listId, state: null, operations: [], updatedAt: null };
@@ -94,7 +94,7 @@ class MemoryListStorage {
         return {
             listId,
             state: clone(record.state),
-            operations: record.operations.map((op) => clone(op)),
+            operations: record.operations.map((op: any) => clone(op)),
             updatedAt: record.updatedAt,
         };
     }
@@ -133,7 +133,7 @@ test("hydrateFromStorage rebuilds CRDT instances from persisted registry and lis
         const ops = [];
         const rename = listCrdt.generateRename(config.title);
         ops.push(rename.op);
-        let afterId = null;
+        let afterId: string | null = null;
         config.items.forEach((item) => {
             const insert = listCrdt.generateInsert({
                 itemId: item.id,

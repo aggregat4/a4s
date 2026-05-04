@@ -200,7 +200,7 @@ class MoveTasksController {
     }
   }
 
-  runRepositoryOperation(promise) {
+  runRepositoryOperation(promise: Promise<unknown> | null) {
     if (!promise || typeof promise.then !== "function") return;
     promise.catch(() => {});
   }

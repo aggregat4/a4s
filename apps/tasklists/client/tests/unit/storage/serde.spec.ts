@@ -10,10 +10,11 @@ import {
     serializeOrderedSetSnapshot,
     deserializeOrderedSetSnapshot,
 } from "../../../src/storage/serde.js";
+import type { ListState, RegistryState } from "../../../src/types/domain.js";
 import type { TaskListOperation } from "../../../src/types/crdt.js";
 
 test("list state serialization round-trips entries and metadata", () => {
-    const original = {
+    const original: ListState = {
         clock: 5,
         title: "Inbox",
         titleUpdatedAt: 4,
@@ -42,7 +43,7 @@ test("list state serialization round-trips entries and metadata", () => {
 });
 
 test("registry state serialization retains ordering data", () => {
-    const original = {
+    const original: RegistryState = {
         clock: 3,
         entries: [
             {

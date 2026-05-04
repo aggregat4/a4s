@@ -6,6 +6,7 @@ import {
   buildExportSnapshot,
   stringifyExportSnapshot,
 } from "../src/app/export-snapshot.js";
+import type { ListState, RegistryState } from "../src/types/domain.js";
 import { test, expect } from "./fixtures";
 import { dragHandleToTarget } from "./helpers/drag";
 
@@ -908,7 +909,7 @@ test.describe("tasklist flows", () => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
     const listId = "imported-list";
     const taskId = "imported-task";
-    const registryState = {
+    const registryState: RegistryState = {
       clock: 1,
       entries: [
         {
@@ -921,7 +922,7 @@ test.describe("tasklist flows", () => {
         },
       ],
     };
-    const listState = {
+    const listState: ListState = {
       clock: 1,
       title: "Imported List",
       titleUpdatedAt: 1,
@@ -971,7 +972,7 @@ test.describe("tasklist flows", () => {
         )
     );
     const listId = "imported-list";
-    const registryState = {
+    const registryState: RegistryState = {
       clock: 1,
       entries: [
         {
@@ -1423,7 +1424,7 @@ test.describe("tasklist flows", () => {
       const el = document.querySelector("a4-tasklist") as any;
       return el?.store
         ?.getState?.()
-        ?.items?.map((item) => item?.text?.trim?.());
+        ?.items?.map((item: any) => item?.text?.trim?.());
     });
     expect(orderedTexts?.[0]).toBe(firstText);
     expect(orderedTexts).toContain(secondText);
@@ -1452,7 +1453,7 @@ test.describe("tasklist flows", () => {
     const expectedIds =
       (await page.evaluate(() => {
         const el = document.querySelector("a4-tasklist") as any;
-        return el?.store?.getState?.()?.items?.map((item) => item?.id ?? "");
+        return el?.store?.getState?.()?.items?.map((item: any) => item?.id ?? "");
       })) ??
       (await items.evaluateAll((els) =>
         els.map((el) => el.dataset?.itemId ?? "")

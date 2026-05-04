@@ -259,8 +259,10 @@ class ListsAppShellElement extends HTMLElement {
       onExportSnapshot: this.handleExportSnapshot,
       onImportSnapshot: this.handleImportSnapshot,
       onSeedDemo: this.handleSeedDemo,
-      onItemDropped: (payload, targetListId) =>
-        this.moveTasksController.handleSidebarDrop(payload, targetListId),
+      onItemDropped: (
+        payload: { sourceListId?: ListId; itemId?: string; item?: TaskItem },
+        targetListId: ListId
+      ) => this.moveTasksController.handleSidebarDrop(payload, targetListId),
       onReorderList: this.handleSidebarReorder,
     });
     this.unsubscribeStore = this.store.subscribe(this.handleStoreChange);
