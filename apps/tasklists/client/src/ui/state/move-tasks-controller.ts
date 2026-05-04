@@ -1,4 +1,5 @@
 import { selectors } from "./app-store.js";
+import type { AppAction } from "./app-store.js";
 import {
   formatMatchCount,
   formatTotalCount,
@@ -50,7 +51,7 @@ type Repository = {
 
 type AppStore = {
   getState: () => ReturnType<typeof selectors.getState>;
-  dispatch: (action: { type: string; payload?: unknown }) => void;
+  dispatch: (action: AppAction) => void;
 };
 
 class MoveTasksController {

@@ -52,8 +52,8 @@ function createMockWindow() {
 test("SyncEngine does not poll when offline and pauseWhenOffline is true", async () => {
   const { storage } = createStorage();
   const fetchCalls: string[] = [];
-  const fetchFn = async (url: string) => {
-    fetchCalls.push(url);
+  const fetchFn = async (url: string | URL | Request) => {
+    fetchCalls.push(typeof url === "string" ? url : url.toString());
     return new Response(JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }), { status: 200 });
   };
 
@@ -87,8 +87,8 @@ test("SyncEngine does not poll when offline and pauseWhenOffline is true", async
 test("SyncEngine polls normally when online", async () => {
   const { storage } = createStorage();
   const fetchCalls: string[] = [];
-  const fetchFn = async (url: string) => {
-    fetchCalls.push(url);
+  const fetchFn = async (url: string | URL | Request) => {
+    fetchCalls.push(typeof url === "string" ? url : url.toString());
     return new Response(JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }), { status: 200 });
   };
 
@@ -122,8 +122,8 @@ test("SyncEngine polls normally when online", async () => {
 test("SyncEngine syncs immediately when coming back online", async () => {
   const { storage } = createStorage();
   const fetchCalls: string[] = [];
-  const fetchFn = async (url: string) => {
-    fetchCalls.push(url);
+  const fetchFn = async (url: string | URL | Request) => {
+    fetchCalls.push(typeof url === "string" ? url : url.toString());
     return new Response(JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }), { status: 200 });
   };
 

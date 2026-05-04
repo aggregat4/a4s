@@ -10,6 +10,7 @@
     "sourceMap": true,
     "strict": false,
     "useUnknownInCatchVariables": true,
-    "noImplicitAny": true
+    "noImplicitAny": true,
+    "strictFunctionTypes": true
   }
 }

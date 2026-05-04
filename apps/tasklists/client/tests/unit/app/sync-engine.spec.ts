@@ -33,12 +33,13 @@ const createStorage = () => {
 test("SyncEngine flushes outbox and updates server seq", async () => {
   const { storage, getState, getOutbox } = createStorage();
   const fetchCalls: Array<{ url: string; body?: string }> = [];
-  const fetchFn = async (url: string, init?: RequestInit) => {
-    fetchCalls.push({ url, body: init?.body as string | undefined });
-    if (url.includes("/sync/push")) {
+  const fetchFn = async (url: string | URL | Request, init?: RequestInit) => {
+    const urlString = typeof url === "string" ? url : url.toString();
+    fetchCalls.push({ url: urlString, body: init?.body as string | undefined });
+    if (urlString.includes("/sync/push")) {
       return new Response(JSON.stringify({ serverSeq: 5, datasetGenerationKey: "dataset-1" }), { status: 200 });
     }
-    if (url.includes("/sync/pull")) {
+    if (urlString.includes("/sync/pull")) {
       return new Response(JSON.stringify({ serverSeq: 5, datasetGenerationKey: "dataset-1", ops: [] }), { status: 200 });
     }
     return new Response("", { status: 404 });
@@ -64,8 +65,9 @@ test("SyncEngine flushes outbox and updates server seq", async () => {
 test("SyncEngine applies remote ops", async () => {
   const { storage } = createStorage();
   const received: SyncOp[] = [];
-  const fetchFn = async (url: string) => {
-    if (url.includes("/sync/pull")) {
+  const fetchFn = async (url: string | URL | Request) => {
+    const urlString = typeof url === "string" ? url : url.toString();
+    if (urlString.includes("/sync/pull")) {
       return new Response(
         JSON.stringify({
           serverSeq: 3,

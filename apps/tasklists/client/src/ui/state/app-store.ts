@@ -216,3 +216,4 @@ const selectors = {
 };
 
 export { APP_ACTIONS, createAppStore, selectors };
+export type { AppAction };

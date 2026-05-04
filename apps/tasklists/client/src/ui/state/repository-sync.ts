@@ -1,4 +1,5 @@
 import { APP_ACTIONS } from "./app-store.js";
+import type { AppAction } from "./app-store.js";
 import type { ListId, ListRegistryEntry, TaskListState } from "../../types/domain.js";
 
 type Repository = {
@@ -30,7 +31,7 @@ type AppStateSlice = {
 
 type Store = {
   getState: () => AppStateSlice;
-  dispatch: (action: { type: string; payload?: unknown }) => void;
+  dispatch: (action: AppAction) => void;
 };
 
 class RepositorySync {
