@@ -59,8 +59,8 @@ test("registry state serialization retains ordering data", () => {
 
     const encoded = serializeRegistryState(original);
     const decoded = deserializeRegistryState(encoded);
-    assert.equal(decoded.entries[0].data.title, "A");
-    assert.equal(decoded.entries[0].pos.length, 1);
+    assert.equal(decoded!.entries[0].data.title, "A");
+    assert.equal(decoded!.entries[0].pos!.length, 1);
 });
 
 test("operation serialization drops undefined fields and restores payload", () => {
@@ -74,8 +74,8 @@ test("operation serialization drops undefined fields and restores payload", () =
     const encoded = serializeOperation(original);
     assert.equal(Object.prototype.hasOwnProperty.call(encoded, "listId"), false);
     const decoded = deserializeOperation(encoded);
-    assert.equal(decoded.actor, "actor-1");
-    assert.equal(decoded.payload.pos[0].digit, 5);
+    assert.equal(decoded!.actor, "actor-1");
+    assert.equal(decoded!.payload!.pos![0].digit, 5);
 });
 
 test("ordered set snapshot helpers filter invalid entries", () => {

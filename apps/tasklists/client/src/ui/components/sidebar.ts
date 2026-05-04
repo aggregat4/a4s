@@ -149,7 +149,7 @@ class SidebarElement extends HTMLElement {
   }
 
   destroy() {
-    clearTimeout(this.searchDebounceId);
+    clearTimeout(this.searchDebounceId ?? undefined);
     document.removeEventListener("dragend", this.handleGlobalDragEnd);
     this.menuMediaQuery?.removeEventListener(
       "change",
@@ -171,7 +171,7 @@ class SidebarElement extends HTMLElement {
 
   setSearchValue(value: string) {
     const next = value ?? "";
-    clearTimeout(this.searchDebounceId);
+    clearTimeout(this.searchDebounceId ?? undefined);
     this.searchDebounceId = null;
     this.searchSeq += 1;
     this.currentSearch = next;
@@ -390,7 +390,7 @@ class SidebarElement extends HTMLElement {
     const target = event?.target as HTMLInputElement | null;
     const value = target?.value ?? "";
     this.currentSearch = value;
-    clearTimeout(this.searchDebounceId);
+    clearTimeout(this.searchDebounceId ?? undefined);
     const token = ++this.searchSeq;
     this.searchDebounceId = setTimeout(() => {
       if (token !== this.searchSeq) return;
@@ -468,7 +468,9 @@ class SidebarElement extends HTMLElement {
     if (!hasPayload) return;
     if (payload && payload.sourceListId === button.dataset.listId) return;
     event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
   }
 
   handleListDragLeave(event: DragEvent) {

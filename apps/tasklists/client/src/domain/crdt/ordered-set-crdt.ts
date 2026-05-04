@@ -25,7 +25,7 @@ export const ORDERED_SET_OPERATIONS = {
 function makeOperationKey(operation: { actor?: string; clock?: number }) {
   const actor = typeof operation?.actor === "string" ? operation.actor : "";
   const clock = Number.isFinite(operation?.clock)
-    ? Math.floor(operation.clock)
+    ? Math.floor(operation?.clock as number)
     : 0;
   return `${actor}:${clock}`;
 }
@@ -148,13 +148,13 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       pos: pos as Position,
       data: data as TData,
       createdAt: Number.isFinite(entry.createdAt)
-        ? Math.floor(entry.createdAt)
+        ? Math.floor(entry.createdAt as number)
         : 0,
       updatedAt: Number.isFinite(entry.updatedAt)
-        ? Math.floor(entry.updatedAt)
+        ? Math.floor(entry.updatedAt as number)
         : 0,
       deletedAt: Number.isFinite(entry.deletedAt)
-        ? Math.floor(entry.deletedAt)
+        ? Math.floor(entry.deletedAt as number)
         : null,
     };
   }
@@ -312,7 +312,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       mutated = true;
     }
 
-    if (clock > existing.updatedAt) {
+    if (clock > (existing.updatedAt ?? 0)) {
       const merged = this.mergeInsertData(existing.data, payloadData);
       if (!this.areDataEqual(existing.data, merged)) {
         existing.data = merged;
@@ -336,7 +336,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       : 0;
     if (record.deletedAt != null && clock <= record.deletedAt) return false;
     record.deletedAt = clock;
-    if (clock > record.updatedAt) {
+    if (clock > (record.updatedAt ?? 0)) {
       record.updatedAt = clock;
     }
     return true;
@@ -352,7 +352,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (clock <= record.updatedAt) return false;
+    if (clock <= (record.updatedAt ?? 0)) return false;
     if (comparePositions(position, record.pos) === 0) {
       return false;
     }
@@ -369,7 +369,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (clock <= record.updatedAt) return false;
+    if (clock <= (record.updatedAt ?? 0)) return false;
     const updatePayload = this.sanitizeUpdatePayload(operation.payload?.data, {
       existingData: record.data,
     });

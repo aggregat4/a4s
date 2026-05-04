@@ -210,7 +210,7 @@ class IndexedDbListStorage implements ListStorage {
       }
       const op = deserializeOperation(record.operation);
       if (isTaskListOperation(op)) {
-        operationsByList.get(listId).push(op);
+        operationsByList.get(listId)!.push(op);
       }
     });
 

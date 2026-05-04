@@ -121,7 +121,7 @@ class RepositorySync {
       payload: {
         lists: listMeta,
         order,
-        activeListId: this.registry.has(activeCandidate)
+        activeListId: activeCandidate && this.registry.has(activeCandidate)
           ? activeCandidate
           : currentState.activeListId,
         pendingActiveListId:

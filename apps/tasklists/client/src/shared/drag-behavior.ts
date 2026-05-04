@@ -155,6 +155,7 @@ export default class DraggableBehavior {
   }
 
   setupEventListeners() {
+    if (!this.container) return;
     this.container.addEventListener("dragstart", this._onDragStart);
     this.container.addEventListener("dragend", this._onDragEnd);
     this.container.addEventListener("dragover", this._onDragOver);
@@ -172,6 +173,7 @@ export default class DraggableBehavior {
   }
 
   removeEventListeners() {
+    if (!this.container) return;
     this.container.removeEventListener("dragstart", this._onDragStart);
     this.container.removeEventListener("dragend", this._onDragEnd);
     this.container.removeEventListener("dragover", this._onDragOver);
@@ -266,7 +268,9 @@ export default class DraggableBehavior {
         : Number.isFinite(this._lastClientY)
         ? this._lastClientY
         : event.clientY;
-    this.drop(dropY);
+    if (typeof dropY === "number" && Number.isFinite(dropY)) {
+      this.drop(dropY);
+    }
     this.endDrag();
     this.options.onDrop?.(event);
   }
@@ -376,7 +380,7 @@ export default class DraggableBehavior {
     this.originalPosition = null;
     draggedRef.classList.add("drop-animation");
     setTimeout(() => draggedRef.classList.remove("drop-animation"), 300);
-    if (this.options.onReorder) {
+    if (this.options.onReorder && this.container) {
       const items = Array.from(this.container.children);
       const toIndex = items.indexOf(draggedRef);
       this.options.onReorder(startIndex, toIndex);
@@ -394,6 +398,7 @@ export default class DraggableBehavior {
   }
 
   getDropTarget(mouseY: number) {
+    if (!this.container) return null;
     if (!this.cachedItems) {
       this.cachedItems = Array.from(
         this.container.querySelectorAll("li:not(.dragging):not(.placeholder)")
@@ -420,6 +425,7 @@ export default class DraggableBehavior {
   }
 
   getIndex(element: HTMLElement) {
+    if (!this.container) return -1;
     return Array.from(this.container.children).indexOf(element);
   }
 
@@ -428,7 +434,7 @@ export default class DraggableBehavior {
   }
 
   moveDraggedElement(after: HTMLElement | null) {
-    if (!this.dragging) return;
+    if (!this.dragging || !this.container) return;
 
     const prevSnapshot = this.animator?.snapshot(this.container, this.dragging);
 
@@ -440,7 +446,7 @@ export default class DraggableBehavior {
 
     this.invalidateItemsCache();
     this._currentPlaceholderIndex = this.getIndex(this.dragging);
-    this.animator?.play(this.container, this.dragging, prevSnapshot);
+    this.animator?.play(this.container, this.dragging, prevSnapshot ?? null);
   }
 
   cancel() {

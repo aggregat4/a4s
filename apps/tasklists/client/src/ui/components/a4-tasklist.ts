@@ -41,8 +41,12 @@ const makeOffsetCaret = (value: number, bias?: CaretBias): CaretPreference => ({
   bias,
 });
 
-type ListAction = Parameters<typeof listReducer>[1];
-type ListStore = ReturnType<typeof createStore<TaskListState, ListAction>>;
+type ListAction = NonNullable<Parameters<typeof listReducer>[1]>;
+type ListStore = {
+  getState: () => TaskListState;
+  dispatch: (action: ListAction) => ListAction;
+  subscribe: (listener: () => void) => (() => void);
+};
 type InlineEditor = InstanceType<typeof InlineTextEditor>;
 
 type ReorderMove = { fromIndex: number; toIndex: number };
@@ -67,8 +71,8 @@ const escapeHTML = (value: string | null | undefined) => {
 class EditController {
   private getListElement: () => HTMLElement | null;
   private getInlineEditor: () => InlineTextEditor | null;
-  private getEditingTarget: (itemId: string) => HTMLElement | null;
-  private getItemSnapshot: (itemId: string) => TaskItem | null;
+  private getEditingTarget: ((itemId: string) => HTMLElement | null) | null;
+  private getItemSnapshot: ((itemId: string) => TaskItem | null) | null;
   private pendingItemId: string | null;
   private pendingCaret: CaretPreference | null;
 
@@ -133,18 +137,20 @@ class EditController {
 
   applyPendingEdit() {
     if (!this.hasPending()) return false;
+    const itemId = this.pendingItemId;
+    if (!itemId) return false;
     const inlineEditor = this.getInlineEditor();
     if (!inlineEditor) return false;
 
-    let textEl = this.getEditingTarget?.(this.pendingItemId) ?? null;
+    let textEl = this.getEditingTarget?.(itemId) ?? null;
     if (!textEl) {
       const listEl = this.getListElement();
       if (!listEl) return false;
-      const selectorId = escapeSelectorId(this.pendingItemId);
+      const selectorId = escapeSelectorId(itemId);
       const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
       textEl = targetLi?.querySelector(".text") ?? null;
       if (textEl && this.getItemSnapshot) {
-        const snapshot = this.getItemSnapshot(this.pendingItemId);
+        const snapshot = this.getItemSnapshot(itemId);
         if (snapshot && typeof snapshot.text === "string") {
           textEl.textContent = snapshot.text;
           textEl.dataset.originalText = snapshot.text;
@@ -364,14 +370,15 @@ class A4TaskList extends HTMLElement {
     this.initializeStore();
     this.refreshRepositorySubscription();
 
+    const listEl = this.listEl;
     if (!this.dragCoordinator) {
-      this.dragCoordinator = new DraggableBehavior(this.listEl, {
+      this.dragCoordinator = new DraggableBehavior(listEl, {
         handleClass: "handle",
         animator: new FlipAnimator(),
         onReorder: (fromIndex, toIndex) => {
           const detail = { fromIndex, toIndex };
           this.lastDragReorderMove = detail;
-          this.listEl.dispatchEvent(new CustomEvent("reorder", { detail }));
+          listEl.dispatchEvent(new CustomEvent("reorder", { detail }));
           this.dispatchEvent(
             new CustomEvent("reorder", {
               detail,
@@ -424,7 +431,11 @@ class A4TaskList extends HTMLElement {
   initializeStore() {
     const baseState = this.buildInitialState();
     if (!this.store) {
-      this.store = createStore(listReducer, baseState);
+      const reducer = listReducer as unknown as (
+        state: TaskListState | undefined,
+        action: ListAction
+      ) => TaskListState;
+      this.store = createStore(reducer, baseState) as ListStore;
     } else if (baseState) {
       this.store.dispatch({
         type: LIST_ACTIONS.replaceAll,
@@ -574,7 +585,7 @@ class A4TaskList extends HTMLElement {
       "touchcancel",
       this.handleTouchGestureCancel
     );
-    clearTimeout(this.searchTimer);
+    if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = null;
     this.repositoryUnsubscribe?.();
     this.repositoryUnsubscribe = null;
@@ -641,7 +652,7 @@ class A4TaskList extends HTMLElement {
     this.renderHeader(this.getHeaderRenderState());
   }
 
-  getHeaderRenderState(state: TaskListState | null = null) {
+  getHeaderRenderState(state?: TaskListState | null) {
     const titleFromState =
       typeof state?.title === "string" ? state.title : undefined;
     const attrTitle = this.getAttribute("name");
@@ -988,7 +999,10 @@ class A4TaskList extends HTMLElement {
         typeof className === "string" && className.trim().length
           ? className.trim()
           : "task-token";
-      const prio = Number.isFinite(priority) ? priority : 2;
+      const prio =
+        typeof priority === "number" && Number.isFinite(priority)
+          ? priority
+          : 2;
       normalized.push({
         regexSource: regex.source,
         regexFlags: regex.flags,
@@ -1052,7 +1066,7 @@ class A4TaskList extends HTMLElement {
   }
 
   clearSearch() {
-    clearTimeout(this.searchTimer);
+    if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = null;
     this.searchQuery = "";
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
@@ -1139,11 +1153,13 @@ class A4TaskList extends HTMLElement {
     this.startEditingItem(newId, "start");
     this.schedulePendingEditFlush();
     if (this._repository && this.listId) {
+      const repository = this._repository;
+      const listId = this.listId;
       const originalText = `${beforeText ?? ""}${afterText ?? ""}`;
       this.pauseRepositorySync();
       const promise = (async () => {
         try {
-          await this._repository.splitTask(this.listId, id, {
+          await repository.splitTask(listId, id, {
             beforeText: typeof beforeText === "string" ? beforeText : "",
             afterText: typeof afterText === "string" ? afterText : "",
             previousText: originalText,
@@ -1350,7 +1366,7 @@ class A4TaskList extends HTMLElement {
   }
 
   scheduleSearchRender(delayMs = 120) {
-    clearTimeout(this.searchTimer);
+    if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       this.searchTimer = null;
       this.renderCurrentState();
@@ -1530,7 +1546,7 @@ class A4TaskList extends HTMLElement {
   }
 
   // Acts as the single render pass so focus management and search updates happen in a predictable order after each state change.
-  renderFromState(state: TaskListState) {
+  renderFromState(state?: TaskListState) {
     if (!this.listEl || !state) return;
 
     this.renderHeader(this.getHeaderRenderState(state));
@@ -1735,14 +1751,17 @@ class A4TaskList extends HTMLElement {
     const id = li?.dataset?.itemId;
     if (!id || !this.store) return;
     const nextDone = Boolean((target as HTMLInputElement).checked);
+    const store = this.store;
+    const repository = this._repository;
+    const listId = this.listId;
     // Defer state updates so click events settle before the list rerenders and hides completed items.
     setTimeout(() => {
-      this.store.dispatch({
+      store?.dispatch({
         type: LIST_ACTIONS.setItemDone,
         payload: { id, done: nextDone },
       });
-      if (this._repository && this.listId) {
-        const promise = this._repository.toggleTask(this.listId, id, nextDone);
+      if (repository && listId) {
+        const promise = repository.toggleTask(listId, id, nextDone);
         this.runRepositoryOperation(promise);
       }
     }, 0);
@@ -2009,7 +2028,8 @@ class A4TaskList extends HTMLElement {
         this.openActionsItemId = null;
         this.renderFromState(this.store?.getState?.());
       }
-      const li = element?.closest?.("li") ?? null;
+      if (!element) return;
+      const li = element.closest("li");
       if (!li) return;
       if (element.closest(".handle")) return;
       if (element.closest(".task-item-actions")) return;
@@ -2245,9 +2265,8 @@ class A4TaskList extends HTMLElement {
 
   handleListDragStart(event: DragEvent) {
     this.lastDragReorderMove = null;
-    this.dragStartOrder = this.store
-      ?.getState?.()
-      ?.items?.map((item) => item.id);
+    this.dragStartOrder =
+      this.store?.getState?.()?.items?.map((item) => item.id) ?? null;
     const li = (event.target as HTMLElement | null)?.closest?.("li") ?? null;
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
@@ -2354,7 +2373,7 @@ class A4TaskList extends HTMLElement {
         order = (Array.from(this.listEl.children) as HTMLElement[])
           .filter((li) => !li.classList.contains("placeholder"))
           .map((li) => li.dataset.itemId)
-          .filter(Boolean);
+          .filter((id): id is string => Boolean(id));
       }
       if (!order.length) return;
 

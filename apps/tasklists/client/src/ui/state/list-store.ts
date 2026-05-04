@@ -153,7 +153,7 @@ export const listReducer = (
       if (!order || !order.length) return state;
       if (order.length !== state.items.length) return state;
       const itemMap = new Map(state.items.map((item) => [item.id, item]));
-      const nextItems = order.map((id) => itemMap.get(id)).filter(Boolean);
+      const nextItems = order.map((id) => itemMap.get(id)).filter((item): item is TaskItem => Boolean(item));
       if (nextItems.length !== state.items.length) return state;
       const unchanged = nextItems.every(
         (item, index) => item === state.items[index]
@@ -166,7 +166,7 @@ export const listReducer = (
       if (!item || typeof item.id !== "string" || !item.id.length) return state;
       if (state.items.some((existing) => existing.id === item.id)) return state;
       const insertionIndex = Number.isInteger(index)
-        ? Math.max(0, Math.min(index, state.items.length))
+        ? Math.max(0, Math.min(index as number, state.items.length))
         : state.items.length;
       const nextItem = {
         id: item.id,

@@ -18,7 +18,7 @@ type ListElement = HTMLElement & {
   dispose?: () => void;
 };
 
-type ListRecord = {
+export type ListRecord = {
   id: ListId;
   initialState: TaskListState;
   element: ListElement | null;
@@ -73,7 +73,9 @@ class ListRegistry {
   }
 
   getRecordsInOrder() {
-    return this.listOrder.map((id) => this.records.get(id)).filter(Boolean);
+    return this.listOrder
+      .map((id) => this.records.get(id))
+      .filter((r): r is ListRecord => Boolean(r));
   }
 
   has(listId: ListId) {
@@ -177,9 +179,10 @@ class ListRegistry {
     if (record.flashTimer) {
       clearTimeout(record.flashTimer);
     }
-    record.wrapper.classList.add("list-section-flash");
+    const wrapper = record.wrapper;
+    wrapper.classList.add("list-section-flash");
     record.flashTimer = setTimeout(() => {
-      record.wrapper.classList.remove("list-section-flash");
+      wrapper.classList.remove("list-section-flash");
       record.flashTimer = null;
     }, 600);
   }

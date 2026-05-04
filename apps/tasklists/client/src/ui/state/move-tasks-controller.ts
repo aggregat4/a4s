@@ -4,21 +4,8 @@ import {
   formatMatchCount,
   formatTotalCount,
 } from "../../shared/format-utils.js";
+import type { ListRecord } from "./list-registry.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
-
-type ListRecord = {
-  id: ListId;
-  element: {
-    getTotalItemCount: () => number;
-    getSearchMatchCount: () => number;
-    focusItem: (id: string) => void;
-    getItemSnapshot: (id: string) => TaskItem | null;
-    removeItemById: (id: string) => boolean;
-    prependItem: (item: TaskItem) => void;
-    cancelActiveDrag?: () => void;
-    store?: { getState?: () => TaskListState };
-  };
-};
 
 type MoveDialog = {
   open?: (options: {
@@ -82,7 +69,7 @@ class MoveTasksController {
   ) {
     const sourceListId = payload?.sourceListId;
     const itemId = payload?.itemId;
-    const item = payload?.item ?? null;
+    const item = payload?.item ?? undefined;
     if (!sourceListId || !targetListId || !itemId) return;
     if (sourceListId === targetListId) return;
     this.moveTask(sourceListId, targetListId, itemId, {
@@ -107,14 +94,14 @@ class MoveTasksController {
     if (!sourceListId || !itemId) return;
     const record = this.registry.getRecord(sourceListId);
     if (!record) return;
-    const snapshot = detail.item ?? record.element.getItemSnapshot(itemId);
+    const snapshot = detail.item ?? record.element!.getItemSnapshot(itemId);
     if (!snapshot) return;
     const state = this.store.getState();
     const searchActive = selectors.isSearchMode(state);
     const targets = selectors
       .getListOrder(state)
       .map((id) => this.registry.getRecord(id))
-      .filter((rec) => rec && rec.id !== sourceListId)
+      .filter((rec): rec is ListRecord => rec != null && rec.id !== sourceListId)
       .map((rec) => {
         const listData = selectors.getList(state, rec.id);
         const repoState = this.repository?.getListState?.(rec.id);
@@ -131,7 +118,7 @@ class MoveTasksController {
       });
     if (!targets.length) return;
     const restoreFocus = () => {
-      record.element.focusItem(itemId);
+      record.element!.focusItem(itemId);
     };
     this.moveDialog?.open?.({
       sourceListId,
@@ -170,18 +157,18 @@ class MoveTasksController {
     const targetRecord = this.registry.getRecord(targetListId);
     if (!sourceRecord || !targetRecord) return;
     const snapshot =
-      options.snapshot ?? sourceRecord.element.getItemSnapshot(itemId);
+      options.snapshot ?? sourceRecord.element!.getItemSnapshot(itemId);
     if (!snapshot) return;
-    sourceRecord.element.cancelActiveDrag?.();
-    const targetStateBefore = targetRecord.element.store?.getState?.();
+    sourceRecord.element!.cancelActiveDrag?.();
+    const targetStateBefore = targetRecord.element!.store?.getState?.();
     const fallbackBeforeId = Array.isArray(targetStateBefore?.items)
       ? targetStateBefore.items[0]?.id ?? undefined
       : undefined;
-    const removed = sourceRecord.element.removeItemById(itemId);
+    const removed = sourceRecord.element!.removeItemById(itemId);
     if (!removed) return;
-    targetRecord.element.prependItem(snapshot);
+    targetRecord.element!.prependItem(snapshot);
     if (options.focus) {
-      targetRecord.element.focusItem(itemId);
+      targetRecord.element!.focusItem(itemId);
     }
     this.registry.flashList(targetListId);
 

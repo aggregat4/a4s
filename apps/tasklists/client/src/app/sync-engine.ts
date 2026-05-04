@@ -183,7 +183,7 @@ export class SyncEngine {
   }
 
   private unbindOnlineListeners() {
-    if (!this.handleOnline) return;
+    if (!this.handleOnline || !this.handleOffline) return;
     if (typeof window !== "undefined") {
       window.removeEventListener("online", this.handleOnline);
       window.removeEventListener("offline", this.handleOffline);

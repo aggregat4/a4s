@@ -124,7 +124,7 @@ export class TaskListCRDT {
     );
     this.title = sanitizeText(options.title);
     this.titleUpdatedAt = Number.isFinite(options.titleUpdatedAt)
-      ? Math.floor(options.titleUpdatedAt)
+      ? Math.floor(options.titleUpdatedAt as number)
       : 0;
   }
 
@@ -163,7 +163,7 @@ export class TaskListCRDT {
     this._orderedSet.importRecords(entries);
     this.title = sanitizeText(state.title);
     this.titleUpdatedAt = Number.isFinite(state.titleUpdatedAt)
-      ? Math.floor(state.titleUpdatedAt)
+      ? Math.floor(state.titleUpdatedAt as number)
       : 0;
     if (Number.isFinite(state.clock)) {
       this._orderedSet.clock.merge(state.clock);
@@ -193,7 +193,7 @@ export class TaskListCRDT {
       this.title = sanitizeText(metadata.title);
     }
     if (Number.isFinite(metadata.titleUpdatedAt)) {
-      this.titleUpdatedAt = Math.floor(metadata.titleUpdatedAt);
+      this.titleUpdatedAt = Math.floor(metadata.titleUpdatedAt as number);
     }
     if (Number.isFinite(metadata.clock)) {
       this._orderedSet.clock.merge(metadata.clock);
@@ -349,6 +349,9 @@ export class TaskListCRDT {
       throw new Error(`Cannot toggle missing item "${itemId}"`);
     }
     const record = this._orderedSet.items.get(itemId);
+    if (!record) {
+      throw new Error(`Cannot toggle missing item "${itemId}"`);
+    }
     const nextDone =
       explicitState == null
         ? !record.data.done

@@ -85,6 +85,7 @@ export default class InlineTextEditor {
   }
 
   destroy() {
+    if (!this.list) return;
     this.list.removeEventListener("click", this.handleClick);
     this.list.removeEventListener("pointerdown", this.handlePointerDown, true);
     if (this.editingEl) {

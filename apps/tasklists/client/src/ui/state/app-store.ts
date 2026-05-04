@@ -140,7 +140,7 @@ const appReducer = (
     }
     case APP_ACTIONS.updateListName: {
       const { id, name } = action.payload ?? {};
-      if (!state.lists[id]) return state;
+      if (!id || !state.lists[id]) return state;
       const nextName =
         typeof name === "string" && name.trim().length
           ? name.trim()
@@ -195,7 +195,7 @@ const appReducer = (
 };
 
 const createAppStore = (preloadedState?: AppState) =>
-  createStore(appReducer, preloadedState);
+  createStore(appReducer as (state: AppState | undefined, action: AppAction) => AppState, preloadedState);
 
 const selectors = {
   getState: (state: AppState) => state,

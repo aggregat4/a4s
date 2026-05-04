@@ -229,9 +229,8 @@ class KeyboardMoveDialog extends HTMLElement {
       const focusables = this.getFocusableElements();
       if (!focusables.length) return;
       event.preventDefault();
-      const currentIndex = focusables.indexOf(
-        document.activeElement as HTMLElement | null
-      );
+      const activeEl = document.activeElement as HTMLElement | null;
+      const currentIndex = activeEl ? focusables.indexOf(activeEl) : -1;
       let nextIndex = currentIndex + forward;
       if (nextIndex < 0) nextIndex = focusables.length - 1;
       if (nextIndex >= focusables.length) nextIndex = 0;
@@ -243,9 +242,8 @@ class KeyboardMoveDialog extends HTMLElement {
       if (!focusables.length) return;
       event.preventDefault();
       const direction = event.shiftKey ? -1 : 1;
-      const currentIndex = focusables.indexOf(
-        document.activeElement as HTMLElement | null
-      );
+      const activeEl = document.activeElement as HTMLElement | null;
+      const currentIndex = activeEl ? focusables.indexOf(activeEl) : -1;
       let nextIndex = currentIndex + direction;
       if (nextIndex < 0) nextIndex = focusables.length - 1;
       if (nextIndex >= focusables.length) nextIndex = 0;

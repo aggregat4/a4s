@@ -311,7 +311,7 @@ export class ListRepository {
     this.disableSync();
     this._syncOptions = { baseUrl: normalized };
     this._syncErrorHandler = options.onConnectionError ?? null;
-    if (!this._storage) return;
+    if (!this._storage) return null;
     this._sync = new SyncEngine({
       storage: this._storage,
       baseUrl: normalized,
@@ -389,7 +389,7 @@ export class ListRepository {
   }): Promise<{ published: boolean; error?: string } | null> {
     await this.initialize();
     await this.flushPendingEdits();
-    if (!this._storage) return;
+    if (!this._storage) return null;
 
     this._sync?.stop();
 
@@ -495,7 +495,7 @@ export class ListRepository {
     if (!this._listListeners.has(key)) {
       this._listListeners.set(key, new Set());
     }
-    const listeners = this._listListeners.get(key);
+    const listeners = this._listListeners.get(key)!;
     listeners.add(handler);
     if (emitCurrent && this._initialized && this._listMap.has(listId)) {
       handler(this.getListState(listId));
@@ -847,7 +847,7 @@ export class ListRepository {
     // Mark the insert as pending so updateTask can wait for the CRDT entry.
     const itemId = ensureId(options.itemId, `${listId}-item`);
     const pendingKey = `${listId}:${itemId}`;
-    let resolvePending: (() => void) | null = null;
+    let resolvePending = () => {};
     const pendingPromise = new Promise<void>((resolve) => {
       resolvePending = resolve;
     });
@@ -897,7 +897,7 @@ export class ListRepository {
       });
       return { id: itemId, state: record.crdt.toListState() };
     } finally {
-      resolvePending?.();
+      resolvePending();
       this._pendingInserts.delete(pendingKey);
     }
   }
@@ -917,7 +917,7 @@ export class ListRepository {
   ) {
     const newItemId = ensureId(options.newItemId, `${listId}-item`);
     const pendingKey = `${listId}:${newItemId}`;
-    let resolvePending: (() => void) | null = null;
+    let resolvePending = () => {};
     const pendingPromise = new Promise<void>((resolve) => {
       resolvePending = resolve;
     });
@@ -988,7 +988,7 @@ export class ListRepository {
       });
       return { id: newItemId, state: record.crdt.toListState() };
     } finally {
-      resolvePending?.();
+      resolvePending();
       this._pendingInserts.delete(pendingKey);
     }
   }

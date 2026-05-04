@@ -60,7 +60,7 @@ test("remove operations set tombstones and snapshots omit deleted items by defau
 
   const withDeleted = crdt.getSnapshot({ includeDeleted: true });
   assert.equal(withDeleted.length, 1);
-  assert.equal(withDeleted[0].deletedAt > 0, true);
+  assert.equal(withDeleted[0].deletedAt! > 0, true);
 });
 
 test("exported state captures entries and clock", () => {

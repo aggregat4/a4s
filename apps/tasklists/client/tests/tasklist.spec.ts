@@ -1612,7 +1612,7 @@ test.describe("tasklist flows", () => {
     const initialOrder = await items.evaluateAll((elements) =>
       elements.map((el) => ({
         id: el.dataset.itemId,
-        text: el.querySelector(".text").textContent.trim(),
+        text: el.querySelector(".text")!.textContent.trim(),
       }))
     );
     expect(initialOrder.length).toBeGreaterThan(4);

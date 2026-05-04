@@ -233,6 +233,7 @@ class ListsAppShellElement extends HTMLElement {
       moveDialog: this.moveDialogElement,
       store: this.store,
     });
+    const moveTasksController = this.moveTasksController;
     this.repositorySync = new RepositorySync({
       repository: this.repository,
       registry: this.registry,
@@ -240,7 +241,7 @@ class ListsAppShellElement extends HTMLElement {
     });
     this.registry.setEventHandlers({
       onTaskMoveRequest: (event) =>
-        this.moveTasksController.handleTaskMoveRequest(event),
+        moveTasksController.handleTaskMoveRequest(event),
       onItemCountChange: () => this.refreshSidebar(),
       onSearchResultsChange: () => this.refreshSidebar(),
       onListFocus: (event) => this.handleListFocus(event),
@@ -262,7 +263,7 @@ class ListsAppShellElement extends HTMLElement {
       onItemDropped: (
         payload: { sourceListId?: ListId; itemId?: string; item?: TaskItem },
         targetListId: ListId
-      ) => this.moveTasksController.handleSidebarDrop(payload, targetListId),
+      ) => moveTasksController.handleSidebarDrop(payload, targetListId),
       onReorderList: this.handleSidebarReorder,
     });
     this.unsubscribeStore = this.store.subscribe(this.handleStoreChange);
@@ -311,7 +312,7 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   handleStoreChange() {
-    if (!this.store) return;
+    if (!this.store || !this.registry) return;
     const state = this.store.getState();
     const searchQuery = selectors.getSearchQuery(state);
     const searchMode = selectors.isSearchMode(state);
@@ -364,7 +365,7 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   handleAddList() {
-    if (!this.store) return;
+    if (!this.store || !this.repository) return;
     const response = window.prompt?.("Name for the new list", "New List");
     if (response == null) return;
     const trimmed = response.trim();
@@ -374,10 +375,11 @@ class ListsAppShellElement extends HTMLElement {
       type: APP_ACTIONS.setPendingActiveList,
       payload: { id },
     });
+    const store = this.store;
     Promise.resolve(
       this.repository.createList({ listId: id, title: trimmed })
     ).catch(() => {
-      this.store.dispatch({
+      store.dispatch({
         type: APP_ACTIONS.setPendingActiveList,
         payload: { id: null },
       });
@@ -405,7 +407,7 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   handleDeleteList() {
-    if (!this.store) return;
+    if (!this.store || !this.repository) return;
     const state = this.store.getState();
     const activeListId = selectors.getActiveListId(state);
     const listOrder = selectors.getListOrder(state);
@@ -442,8 +444,9 @@ class ListsAppShellElement extends HTMLElement {
         payload: { id: fallbackId },
       });
     }
+    const store = this.store;
     Promise.resolve(this.repository.removeList(removeId)).catch(() => {
-      this.store.dispatch({
+      store.dispatch({
         type: APP_ACTIONS.setPendingActiveList,
         payload: { id: null },
       });
@@ -540,10 +543,11 @@ class ListsAppShellElement extends HTMLElement {
       payload: { order },
     });
 
+    const store = this.store;
     Promise.resolve(
       this.repository.reorderList(movedId, { afterId, beforeId })
     ).catch(() => {
-      this.store.dispatch({
+      store.dispatch({
         type: APP_ACTIONS.setOrder,
         payload: { order: previousOrder },
       });
@@ -568,7 +572,8 @@ class ListsAppShellElement extends HTMLElement {
     if (!this.registry) return;
     const records = this.registry.getRecordsInOrder();
     records.forEach((record) => {
-      if (!record.element) return;
+      if (!record.element || typeof record.element.applyFilter !== "function")
+        return;
       record.element.applyFilter(query);
     });
   }
@@ -579,7 +584,10 @@ class ListsAppShellElement extends HTMLElement {
     // Query the list element directly for its current match count, since the
     // element updates optimistically and may be ahead of the repository
     const record = this.registry?.getRecord(listId);
-    if (record?.element) {
+    if (
+      record?.element &&
+      typeof record.element.getSearchMatchCountForQuery === "function"
+    ) {
       return record.element.getSearchMatchCountForQuery(tokens.join(" "));
     }
     // Fallback to repository if element not available
@@ -656,6 +664,10 @@ class ListsAppShellElement extends HTMLElement {
       return;
     }
     const activeId = selectors.getActiveListId(state);
+    if (!activeId) {
+      this.mainElement?.setTitle?.("Task Collections");
+      return;
+    }
     const active = selectors.getList(state, activeId);
     this.mainElement?.setTitle?.(active ? active.name : "Task Collections");
   }
@@ -696,7 +708,7 @@ class ListsAppShellElement extends HTMLElement {
       repository: this.repository,
     });
     this.registry.attachRenderedLists?.(
-      this.mainElement.getListsContainer?.()
+      this.mainElement.getListsContainer?.() ?? null
     );
     const query =
       typeof searchQuery === "string" ? searchQuery.trim() : "";
