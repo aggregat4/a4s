@@ -27,6 +27,6 @@
     "postcss-scss": "4.0.9",
     "stylelint": "17.9.1",
     "stylelint-config-standard": "40.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   }
 }
