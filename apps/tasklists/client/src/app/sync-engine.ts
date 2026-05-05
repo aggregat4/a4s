@@ -256,13 +256,14 @@ export class SyncEngine {
 
   private async flushOutbox() {
     if (this.outbox.length === 0) return;
+    const sentOps = this.outbox.slice();
     const response = await this.safeFetch(`${this.baseUrl}/sync/push`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: this.state.clientId,
         datasetGenerationKey: this.state.datasetGenerationKey ?? "",
-        ops: this.outbox,
+        ops: sentOps,
       }),
     });
     if (!response) {
@@ -280,7 +281,7 @@ export class SyncEngine {
       this.state.datasetGenerationKey = payload.datasetGenerationKey;
     }
     parseServerSeq(payload.serverSeq);
-    this.outbox = [];
+    this.outbox = this.outbox.slice(sentOps.length);
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);
   }
