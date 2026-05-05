@@ -45,20 +45,35 @@ async function selectList(page: Page, title: string) {
   );
 }
 
+test.beforeEach(async ({ request }) => {
+  const response = await request.post("/sync/reset", {
+    data: {
+      clientId: `e2e-${crypto.randomUUID()}`,
+      datasetGenerationKey: crypto.randomUUID(),
+      snapshot: buildEmptySnapshotPayload(),
+    },
+  });
+  expect(response.ok()).toBe(true);
+});
+
 test("sync propagates tasks between clients", async ({ browser }) => {
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
   try {
-    await pageA.goto("/?sync=1&resetStorage=1");
-    await pageA.waitForResponse((response) =>
-      response.url().includes("/sync/bootstrap")
-    );
-    await pageB.goto("/?sync=1&resetStorage=1");
-    await pageB.waitForResponse((response) =>
-      response.url().includes("/sync/bootstrap")
-    );
+    await Promise.all([
+      pageA.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageA.goto("/"),
+    ]);
+    await Promise.all([
+      pageB.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageB.goto("/"),
+    ]);
     await createList(pageA, "Sync List");
     await selectList(pageB, "Sync List");
 
@@ -92,10 +107,12 @@ test("late client bootstraps from existing data", async ({ browser }) => {
   const contextA = await browser.newContext();
   const pageA = await contextA.newPage();
   try {
-    await pageA.goto("/?sync=1&resetStorage=1");
-    await pageA.waitForResponse((response) =>
-      response.url().includes("/sync/bootstrap")
-    );
+    await Promise.all([
+      pageA.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageA.goto("/?sync=1&resetStorage=1"),
+    ]);
     await createList(pageA, "Bootstrap List");
 
     const uniqueText = `Bootstrap task ${Date.now()}`;
@@ -117,10 +134,12 @@ test("late client bootstraps from existing data", async ({ browser }) => {
     const contextB = await browser.newContext();
     const pageB = await contextB.newPage();
     try {
-      await pageB.goto("/?sync=1&resetStorage=1");
-      await pageB.waitForResponse((response) =>
-        response.url().includes("/sync/bootstrap")
-      );
+      await Promise.all([
+        pageB.waitForResponse((response) =>
+          response.url().includes("/sync/bootstrap")
+        ),
+        pageB.goto("/?sync=1&resetStorage=1"),
+      ]);
       await selectList(pageB, "Bootstrap List");
       const remoteTask = pageB.locator(listItemsSelector).locator(".text", {
         hasText: uniqueText,

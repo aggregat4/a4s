@@ -48,7 +48,14 @@ function waitForDocumentReady() {
 
 function shouldEnableSync() {
   const params = new URLSearchParams(window.location.search);
-  return window.location.port === "8080" || params.get("sync") === "1";
+  const syncParam = params.get("sync");
+  if (syncParam === "0" || syncParam === "false") {
+    return false;
+  }
+  if (syncParam === "1" || syncParam === "true") {
+    return true;
+  }
+  return !params.has("resetStorage");
 }
 
 const SYNC_HEALTH_TIMEOUT_MS = 2000;
@@ -174,5 +181,6 @@ export async function bootstrapListsApp(
 
 export {
   resetPersistentStorageIfNeeded,
+  shouldEnableSync,
   waitForDocumentReady,
 };
