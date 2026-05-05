@@ -15,13 +15,7 @@ import (
 func TestValidateStaticAssetsAcceptsRequiredFiles(t *testing.T) {
 	t.Parallel()
 
-	staticFS := fstest.MapFS{
-		"index.html":          &fstest.MapFile{Data: []byte("ok")},
-		"styles.css":          &fstest.MapFile{Data: []byte("ok")},
-		"entrypoints/main.js": &fstest.MapFile{Data: []byte("ok")},
-	}
-
-	if err := validateStaticAssets(staticFS); err != nil {
+	if err := validateStaticAssets(testStaticFS()); err != nil {
 		t.Fatalf("validateStaticAssets returned error: %v", err)
 	}
 }
@@ -29,10 +23,8 @@ func TestValidateStaticAssetsAcceptsRequiredFiles(t *testing.T) {
 func TestValidateStaticAssetsRejectsMissingRequiredFile(t *testing.T) {
 	t.Parallel()
 
-	staticFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("ok")},
-		"styles.css": &fstest.MapFile{Data: []byte("ok")},
-	}
+	staticFS := testStaticFS()
+	delete(staticFS, "entrypoints/main.js")
 
 	err := validateStaticAssets(staticFS)
 	if err == nil {
@@ -49,6 +41,14 @@ func TestValidateStaticAssetsRejectsMissingRequiredFile(t *testing.T) {
 	if missingErr.Err == nil || !errors.Is(missingErr.Err, fs.ErrNotExist) {
 		t.Fatalf("expected fs.ErrNotExist, got %v", missingErr.Err)
 	}
+}
+
+func testStaticFS() fstest.MapFS {
+	staticFS := fstest.MapFS{}
+	for _, assetPath := range requiredStaticAssets {
+		staticFS[assetPath] = &fstest.MapFile{Data: []byte("ok")}
+	}
+	return staticFS
 }
 
 func TestRegisterEmbeddedFSServesExistingAsset(t *testing.T) {
