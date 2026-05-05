@@ -22,7 +22,7 @@
         </script>
         <script type="module">
             if ("serviceWorker" in navigator) {
-                navigator.serviceWorker.register("./sw.js", { type: "module" }).catch(function (err) {
+                navigator.serviceWorker.register("./sw.js").catch(function (err) {
                     console.error("Service Worker registration failed:", err);
                 });
             }
