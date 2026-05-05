@@ -45,6 +45,55 @@ async function selectList(page: Page, title: string) {
   );
 }
 
+async function addTask(page: Page, text: string) {
+  await page.getByRole("button", { name: "Add task" }).click();
+  const editor = page
+    .locator(listItemsSelector)
+    .locator(".text[contenteditable='true']")
+    .first();
+  await expect(editor).toBeVisible({ timeout: 10_000 });
+  await editor.fill(text);
+  await page.keyboard.press("Escape");
+  await expect(taskItem(page, text)).toBeVisible({ timeout: 10_000 });
+}
+
+async function setShowDone(page: Page, value: boolean) {
+  const toggle = page.locator(".tasklist-show-done-toggle");
+  await expect(toggle).toBeVisible();
+  if (value) {
+    await toggle.check();
+  } else {
+    await toggle.uncheck();
+  }
+  await expect(toggle).toBeChecked({ checked: value });
+}
+
+function taskItem(page: Page, text: string) {
+  return page.locator(listItemsSelector).filter({ hasText: text }).first();
+}
+
+async function completeTask(page: Page, text: string) {
+  const item = taskItem(page, text);
+  await expect(item).toBeVisible({ timeout: 10_000 });
+  await item.locator("input.done-toggle").check();
+  await expect(item).toHaveAttribute("data-done", "true");
+}
+
+async function deleteTask(page: Page, text: string) {
+  const item = taskItem(page, text);
+  await expect(item).toBeVisible({ timeout: 10_000 });
+  await item.locator(".task-item-toggle").click();
+  const deleteButton = item.locator(".task-item-actions button", {
+    hasText: "Delete",
+  });
+  await expect(deleteButton).toBeVisible();
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  await deleteButton.click();
+  await expect(taskItem(page, text)).toHaveCount(0);
+}
+
 test.beforeEach(async ({ request }) => {
   const response = await request.post("/sync/reset", {
     data: {
@@ -54,6 +103,71 @@ test.beforeEach(async ({ request }) => {
     },
   });
   expect(response.ok()).toBe(true);
+});
+
+test("interleaved clients converge after completing and deleting tasks", async ({
+  browser,
+}) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    await Promise.all([
+      pageA.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageA.goto("/"),
+    ]);
+    await Promise.all([
+      pageB.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageB.goto("/"),
+    ]);
+
+    const listTitle = `Interleaved ${Date.now()}`;
+    const alpha = `Alpha ${crypto.randomUUID()}`;
+    const beta = `Beta ${crypto.randomUUID()}`;
+    const gamma = `Gamma ${crypto.randomUUID()}`;
+
+    await createList(pageA, listTitle);
+    await selectList(pageB, listTitle);
+    await setShowDone(pageA, true);
+    await setShowDone(pageB, true);
+
+    await addTask(pageA, alpha);
+    await expect(taskItem(pageB, alpha)).toBeVisible({ timeout: 10_000 });
+
+    await addTask(pageB, beta);
+    await expect(taskItem(pageA, beta)).toBeVisible({ timeout: 10_000 });
+
+    await completeTask(pageA, alpha);
+    await expect(taskItem(pageB, alpha)).toHaveAttribute("data-done", "true", {
+      timeout: 10_000,
+    });
+
+    await completeTask(pageB, beta);
+    await expect(taskItem(pageA, beta)).toHaveAttribute("data-done", "true", {
+      timeout: 10_000,
+    });
+
+    await deleteTask(pageA, alpha);
+    await expect(taskItem(pageB, alpha)).toHaveCount(0, { timeout: 10_000 });
+    await expect(taskItem(pageB, beta)).toHaveAttribute("data-done", "true");
+
+    await deleteTask(pageB, beta);
+    await expect(taskItem(pageA, beta)).toHaveCount(0, { timeout: 10_000 });
+    await expect(taskItem(pageA, alpha)).toHaveCount(0);
+
+    await addTask(pageA, gamma);
+    await expect(taskItem(pageB, gamma)).toBeVisible({ timeout: 10_000 });
+    await expect(taskItem(pageB, alpha)).toHaveCount(0);
+    await expect(taskItem(pageB, beta)).toHaveCount(0);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
 });
 
 test("sync propagates tasks between clients", async ({ browser }) => {
@@ -78,12 +192,7 @@ test("sync propagates tasks between clients", async ({ browser }) => {
     await selectList(pageB, "Sync List");
 
     const uniqueText = `Sync task ${Date.now()}`;
-    await pageA.getByRole("button", { name: "Add task" }).click();
-    const editor = pageA.locator(listItemsSelector).first().locator(".text");
-    await expect(editor).toHaveAttribute("contenteditable", "true");
-    await editor.fill(uniqueText);
-    await pageA.keyboard.press("Escape");
-    await expect(editor).not.toHaveAttribute("contenteditable", "true");
+    await addTask(pageA, uniqueText);
 
     await pageA.waitForResponse(
       (response) =>
@@ -116,12 +225,7 @@ test("late client bootstraps from existing data", async ({ browser }) => {
     await createList(pageA, "Bootstrap List");
 
     const uniqueText = `Bootstrap task ${Date.now()}`;
-    await pageA.getByRole("button", { name: "Add task" }).click();
-    const editor = pageA.locator(listItemsSelector).first().locator(".text");
-    await expect(editor).toHaveAttribute("contenteditable", "true");
-    await editor.fill(uniqueText);
-    await pageA.keyboard.press("Escape");
-    await expect(editor).not.toHaveAttribute("contenteditable", "true");
+    await addTask(pageA, uniqueText);
 
     await pageA.waitForResponse(
       (response) =>
