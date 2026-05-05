@@ -62,6 +62,73 @@ test("SyncEngine flushes outbox and updates server seq", async () => {
   assert.ok(fetchCalls.some((call) => call.url.includes("/sync/push")));
 });
 
+test("SyncEngine bootstraps dataset generation before pushing a persisted outbox", async () => {
+  const { storage, getState, getOutbox } = createStorage();
+  await storage.persistOutbox([
+    {
+      scope: "registry",
+      resourceId: "registry",
+      actor: "actor-1",
+      clock: 1,
+      payload: {
+        type: "createList",
+        actor: "actor-1",
+        clock: 1,
+        itemId: "list-1",
+        payload: { title: "Inbox", pos: [] },
+      } as any,
+    },
+  ]);
+  const pushBodies: string[] = [];
+  const fetchFn = async (url: string | URL | Request, init?: RequestInit) => {
+    const urlString = typeof url === "string" ? url : url.toString();
+    if (urlString.includes("/sync/bootstrap")) {
+      return new Response(
+        JSON.stringify({
+          serverSeq: 0,
+          datasetGenerationKey: "dataset-1",
+          snapshot: "",
+          ops: [],
+        }),
+        { status: 200 }
+      );
+    }
+    if (urlString.includes("/sync/push")) {
+      pushBodies.push(init?.body as string);
+      return new Response(
+        JSON.stringify({ serverSeq: 1, datasetGenerationKey: "dataset-1" }),
+        { status: 200 }
+      );
+    }
+    if (urlString.includes("/sync/pull")) {
+      return new Response(
+        JSON.stringify({
+          serverSeq: 1,
+          datasetGenerationKey: "dataset-1",
+          ops: [],
+        }),
+        { status: 200 }
+      );
+    }
+    return new Response("", { status: 404 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+  });
+
+  await engine.initialize();
+  await engine.bootstrapIfNeeded(async () => {});
+  await engine.syncOnce();
+
+  assert.equal(getOutbox().length, 0);
+  assert.equal(getState().datasetGenerationKey, "dataset-1");
+  assert.equal(pushBodies.length, 1);
+  assert.equal(JSON.parse(pushBodies[0]).datasetGenerationKey, "dataset-1");
+});
+
 test("SyncEngine applies remote ops", async () => {
   const { storage } = createStorage();
   const received: SyncOp[] = [];

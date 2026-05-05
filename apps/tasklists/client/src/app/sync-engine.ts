@@ -103,7 +103,6 @@ export class SyncEngine {
   }
 
   async bootstrapIfNeeded(applyOps: (ops: SyncOp[]) => Promise<void>) {
-    if (this.outbox.length > 0) return;
     if (this.state.lastServerSeq > 0 && this.state.datasetGenerationKey) return;
     if (!applyOps) return;
     const response = await this.safeFetch(`${this.baseUrl}/sync/bootstrap`, {
@@ -116,9 +115,30 @@ export class SyncEngine {
       return;
     }
     const payload = (await response.json()) as SyncBootstrapResponse;
-    const resetApplied = await this.handleSnapshotResponse(payload);
-    if (resetApplied) {
-      return;
+    const hadDatasetGenerationKey = Boolean(this.state.datasetGenerationKey);
+    if (!hadDatasetGenerationKey) {
+      const datasetGenerationKey = parseDatasetGenerationKey(
+        payload.datasetGenerationKey
+      );
+      if (datasetGenerationKey) {
+        this.state.datasetGenerationKey = datasetGenerationKey;
+        const nextSeq = parseServerSeq(payload.serverSeq);
+        if (nextSeq >= this.state.lastServerSeq) {
+          this.state.lastServerSeq = nextSeq;
+        }
+        await this.storage.persistSyncState(this.state);
+        const snapshot =
+          typeof payload.snapshot === "string" ? payload.snapshot : "";
+        if (snapshot && this.onSnapshot) {
+          await this.onSnapshot({ datasetGenerationKey, snapshot });
+        }
+      }
+    }
+    if (hadDatasetGenerationKey) {
+      const resetApplied = await this.handleSnapshotResponse(payload);
+      if (resetApplied) {
+        return;
+      }
     }
     const ops = Array.isArray(payload.ops) ? payload.ops : [];
     if (ops.length > 0) {
