@@ -1459,7 +1459,7 @@ test.describe("tasklist flows", () => {
         els.map((el) => el.dataset?.itemId ?? "")
       ));
 
-    await page.goto("/");
+    await page.goto("/?sync=0");
     await expect(page.locator("[data-role='active-list-title']")).toHaveText(
       "Prototype Tasks"
     );
@@ -1588,7 +1588,7 @@ test.describe("tasklist flows", () => {
       prototypeItems.locator(".text").filter({ hasText: sourceText })
     ).toHaveCount(0);
 
-    await page.goto("/");
+    await page.goto("/?sync=0");
     await expect(activeTitle).toHaveText("Prototype Tasks");
     await weekendButton.click();
     await expect(activeTitle).toHaveText("Weekend Projects");
@@ -1663,7 +1663,7 @@ test.describe("tasklist flows", () => {
     })();
 
     // Reload the page
-    await page.goto("/");
+    await page.goto("/?sync=0");
     await expect(page.locator("[data-role='active-list-title']")).toHaveText(
       "Prototype Tasks"
     );
