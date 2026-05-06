@@ -304,6 +304,7 @@ export default class DraggableBehavior {
       if (!li) return;
       this.deferFloatingInit = false;
       this.startDrag(li, event.touches[0].clientX, event.touches[0].clientY);
+      this.options.onDragStart?.(event as unknown as DragEvent);
     } else {
       this.debouncedDragOver(event.touches[0].clientY);
     }
@@ -313,6 +314,7 @@ export default class DraggableBehavior {
     if (this.isTouchDragging && this.dragging) {
       this.drop(event.changedTouches[0].clientY);
       this.endDrag();
+      this.options.onDrop?.(event as unknown as DragEvent);
     }
   }
 

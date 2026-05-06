@@ -76,6 +76,62 @@ async function dragReorderTask(
   await dragHandleToTarget(source.locator(".handle"), target);
 }
 
+async function touchDragReorderTask(source: Locator, target: Locator) {
+  const handle = source.locator(".handle");
+  await handle.scrollIntoViewIfNeeded();
+  await target.scrollIntoViewIfNeeded();
+  const [handleBox, targetBox] = await Promise.all([
+    handle.boundingBox(),
+    target.boundingBox(),
+  ]);
+  if (!handleBox || !targetBox) {
+    throw new Error("Unable to resolve touch drag bounds");
+  }
+  const start = {
+    x: handleBox.x + Math.min(8, handleBox.width / 2),
+    y: handleBox.y + Math.min(12, handleBox.height / 2),
+  };
+  const end = {
+    x: targetBox.x + Math.min(8, targetBox.width / 2),
+    y: targetBox.y + Math.min(targetBox.height - 2, 12),
+  };
+
+  await handle.evaluate(
+    (node, points) => {
+      const createTouch = (point: { x: number; y: number }) =>
+        new Touch({
+          identifier: 1,
+          target: node,
+          clientX: point.x,
+          clientY: point.y,
+        });
+      const dispatch = (
+        type: "touchstart" | "touchmove" | "touchend",
+        point: { x: number; y: number }
+      ) => {
+        const touch = createTouch(point);
+        node.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: type !== "touchend",
+            touches: type === "touchend" ? [] : [touch],
+            targetTouches: type === "touchend" ? [] : [touch],
+            changedTouches: [touch],
+          })
+        );
+      };
+      dispatch("touchstart", points.start);
+      dispatch("touchmove", {
+        x: points.start.x,
+        y: points.start.y + Math.sign(points.end.y - points.start.y) * 24,
+      });
+      dispatch("touchmove", points.end);
+      dispatch("touchend", points.end);
+    },
+    { start, end }
+  );
+}
+
 async function dragTaskToSidebarTarget(
   _page: Page,
   sourceItem: Locator,
@@ -1440,6 +1496,45 @@ test.describe("tasklist flows", () => {
     expect(initialIds.length).toBeGreaterThan(4);
 
     await dragReorderTask(page, items.nth(1), items.nth(4));
+
+    await expect
+      .poll(
+        async () =>
+          (await items.evaluateAll((els) =>
+            els.map((el) => el.dataset?.itemId ?? "")
+          )) ?? [],
+        { timeout: 5000 }
+      )
+      .not.toEqual(initialIds);
+    const expectedIds =
+      (await page.evaluate(() => {
+        const el = document.querySelector("a4-tasklist") as any;
+        return el?.store?.getState?.()?.items?.map((item: any) => item?.id ?? "");
+      })) ??
+      (await items.evaluateAll((els) =>
+        els.map((el) => el.dataset?.itemId ?? "")
+      ));
+
+    await page.goto("/?sync=0");
+    await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+      "Prototype Tasks"
+    );
+    const idsAfterReload = await page
+      .locator(listItemsSelector)
+      .evaluateAll((els) => els.map((el) => el.dataset?.itemId ?? ""));
+    expect(idsAfterReload).toEqual(expectedIds);
+  });
+
+  test("touch dragging reorder persists after reload", async ({ page }) => {
+    const items = page.locator(listItemsSelector);
+    await expect(items.first()).toBeVisible();
+
+    const initialIds = await items.evaluateAll((els) =>
+      els.map((el) => el.dataset?.itemId ?? "")
+    );
+    expect(initialIds.length).toBeGreaterThan(4);
+
+    await touchDragReorderTask(items.nth(1), items.nth(4));
 
     await expect
       .poll(
