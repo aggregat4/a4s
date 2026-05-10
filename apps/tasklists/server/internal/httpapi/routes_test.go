@@ -453,3 +453,23 @@ func TestPushNotifiesBroadcaster(t *testing.T) {
 		t.Fatalf("expected ops event after push, got:\n%s", sseBody)
 	}
 }
+
+func TestEventsRejectsStaleDatasetGenerationKey(t *testing.T) {
+	mux := newTestMux(t)
+	bootstrap := fetchBootstrap(t, mux)
+
+	resp := doRequest(t, mux, http.MethodGet, "/sync/events?datasetGenerationKey=stale-key", nil)
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for stale dataset generation key, got %d", resp.Code)
+	}
+	var payload struct {
+		DatasetGenerationKey string `json:"datasetGenerationKey"`
+		Snapshot             string `json:"snapshot"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload.DatasetGenerationKey != bootstrap.DatasetGenerationKey {
+		t.Fatalf("expected current dataset generation key, got %s", payload.DatasetGenerationKey)
+	}
+}

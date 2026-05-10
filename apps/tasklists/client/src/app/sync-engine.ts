@@ -53,6 +53,8 @@ export class SyncEngine {
   private handleOnline: (() => void) | null;
   private handleOffline: (() => void) | null;
   private handleVisibilityChange: (() => void) | null;
+  private flushTimer: ReturnType<typeof setTimeout> | null;
+  private readonly flushDebounceMs = 300;
 
   constructor(options: SyncEngineOptions) {
     this.storage = options.storage;
@@ -77,6 +79,7 @@ export class SyncEngine {
     this.handleOnline = null;
     this.handleOffline = null;
     this.handleVisibilityChange = null;
+    this.flushTimer = null;
   }
 
   async initialize() {
@@ -159,6 +162,10 @@ export class SyncEngine {
   }
 
   stop() {
+    if (this.flushTimer != null) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
     this.disconnectEvents();
     this.isActive = false;
     this.unbindOnlineListeners();
@@ -223,7 +230,7 @@ export class SyncEngine {
   private connectEvents() {
     if (this.eventSource) return;
 
-    const url = `${this.baseUrl}/sync/events`;
+    const url = `${this.baseUrl}/sync/events?datasetGenerationKey=${encodeURIComponent(this.state.datasetGenerationKey)}`;
     let es: EventSource;
     if (this.eventSourceFactory) {
       es = this.eventSourceFactory(url);
@@ -262,8 +269,19 @@ export class SyncEngine {
     this.outbox.push(...nextOps);
     void this.storage.persistOutbox(this.outbox);
     if (this.isActive && (!this.pauseWhenOffline || this.isOnline())) {
-      void this.syncOnce();
+      if (this.flushTimer != null) {
+        clearTimeout(this.flushTimer);
+      }
+      this.flushTimer = setTimeout(() => {
+        this.flushTimer = null;
+        void this.flushOnce();
+      }, this.flushDebounceMs);
     }
+  }
+
+  async flushOnce() {
+    this.syncQueue = this.syncQueue.then(() => this.flushOutbox(), () => this.flushOutbox());
+    return this.syncQueue;
   }
 
   async syncOnce() {
@@ -302,7 +320,10 @@ export class SyncEngine {
     if (payload.datasetGenerationKey) {
       this.state.datasetGenerationKey = payload.datasetGenerationKey;
     }
-    parseServerSeq(payload.serverSeq);
+    const nextSeq = parseServerSeq(payload.serverSeq);
+    if (nextSeq >= this.state.lastServerSeq) {
+      this.state.lastServerSeq = nextSeq;
+    }
     this.outbox = this.outbox.slice(sentOps.length);
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);

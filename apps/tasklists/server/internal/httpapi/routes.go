@@ -220,6 +220,13 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	datasetGenerationKey := r.URL.Query().Get("datasetGenerationKey")
+	if datasetGenerationKey != "" {
+		if _, ok := s.ensureDatasetMatch(r.Context(), userID, datasetGenerationKey, w); !ok {
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")

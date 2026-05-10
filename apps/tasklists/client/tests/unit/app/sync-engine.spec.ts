@@ -294,3 +294,101 @@ test("SyncEngine syncs when EventSource receives ops event", async () => {
 
   engine.stop();
 });
+
+test("SyncEngine debounces rapid enqueueOps into a single flush", async () => {
+  const { storage } = createStorage();
+  let pushCalls = 0;
+  const fetchFn = async (url: string | URL | Request) => {
+    const urlString = typeof url === "string" ? url : url.toString();
+    if (urlString.includes("/sync/push")) {
+      pushCalls++;
+      return new Response(JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }), { status: 200 });
+    }
+    return new Response("", { status: 404 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+  });
+  await engine.initialize();
+  engine.start();
+
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+  ]);
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 2, itemId: "item-2" } as any,
+  ]);
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 3, itemId: "item-3" } as any,
+  ]);
+
+  assert.equal(pushCalls, 0, "should not flush immediately");
+
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(pushCalls, 1, "should batch rapid enqueues into a single push");
+
+  engine.stop();
+});
+
+test("SyncEngine flushOnce updates lastServerSeq without pulling", async () => {
+  const { storage, getState } = createStorage();
+  const fetchCalls: string[] = [];
+  const fetchFn = async (url: string | URL | Request) => {
+    const urlString = typeof url === "string" ? url : url.toString();
+    fetchCalls.push(urlString);
+    if (urlString.includes("/sync/push")) {
+      return new Response(JSON.stringify({ serverSeq: 42, datasetGenerationKey: "d1" }), { status: 200 });
+    }
+    return new Response("", { status: 404 });
+  };
+  await storage.persistSyncState({ clientId: "client-1", lastServerSeq: 0, datasetGenerationKey: "d1" });
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+  });
+  await engine.initialize();
+
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+  ]);
+  await engine.flushOnce();
+
+  assert.equal(getState().lastServerSeq, 42, "flushOnce should update lastServerSeq from push response");
+  assert.ok(fetchCalls.some((u) => u.includes("/sync/push")), "should have pushed");
+  assert.ok(!fetchCalls.some((u) => u.includes("/sync/pull")), "should not have pulled");
+
+  engine.stop();
+});
+
+test("SyncEngine stop cancels pending debounced flush", async () => {
+  const { storage } = createStorage();
+  let pushCalls = 0;
+  const fetchFn = async (url: string | URL | Request) => {
+    const urlString = typeof url === "string" ? url : url.toString();
+    if (urlString.includes("/sync/push")) {
+      pushCalls++;
+    }
+    return new Response(JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }), { status: 200 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+  });
+  await engine.initialize();
+  engine.start();
+
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+  ]);
+  engine.stop();
+
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(pushCalls, 0, "stop should cancel pending debounced flush");
+});

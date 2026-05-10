@@ -192,15 +192,15 @@ test("sync propagates tasks between clients", async ({ browser }) => {
     await selectList(pageB, "Sync List");
 
     const uniqueText = `Sync task ${Date.now()}`;
-    await addTask(pageA, uniqueText);
-
-    await pageA.waitForResponse(
+    const pushPromise = pageA.waitForResponse(
       (response) =>
         response.url().includes("/sync/push") &&
         response.status() === 200 &&
         (response.request().postData() ?? "").includes(uniqueText),
       { timeout: 10_000 }
     );
+    await addTask(pageA, uniqueText);
+    await pushPromise;
 
     const remoteTask = pageB.locator(listItemsSelector).locator(".text", {
       hasText: uniqueText,
@@ -225,15 +225,15 @@ test("late client bootstraps from existing data", async ({ browser }) => {
     await createList(pageA, "Bootstrap List");
 
     const uniqueText = `Bootstrap task ${Date.now()}`;
-    await addTask(pageA, uniqueText);
-
-    await pageA.waitForResponse(
+    const pushPromise = pageA.waitForResponse(
       (response) =>
         response.url().includes("/sync/push") &&
         response.status() === 200 &&
         (response.request().postData() ?? "").includes(uniqueText),
       { timeout: 10_000 }
     );
+    await addTask(pageA, uniqueText);
+    await pushPromise;
 
     const contextB = await browser.newContext();
     const pageB = await contextB.newPage();
