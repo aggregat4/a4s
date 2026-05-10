@@ -11,6 +11,65 @@ function isApiRequest(url: URL): boolean {
   return API_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
 }
 
+function isIndexHtml(url: URL): boolean {
+  return url.pathname === "/" || url.pathname === "/index.html";
+}
+
+function isHashedAsset(url: URL): boolean {
+  return url.pathname.startsWith("/chunks/");
+}
+
+async function networkFirst(request: Request): Promise<Response> {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) {
+      return cached;
+    }
+    return new Response("Network error", { status: 408 });
+  }
+}
+
+async function cacheFirst(request: Request): Promise<Response> {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) {
+    return cached;
+  }
+  const networkResponse = await fetch(request);
+  if (networkResponse.ok) {
+    cache.put(request, networkResponse.clone());
+  }
+  return networkResponse;
+}
+
+async function staleWhileRevalidate(request: Request): Promise<Response> {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  const fetchPromise = fetch(request)
+    .then((networkResponse) => {
+      if (networkResponse.ok) {
+        cache.put(request, networkResponse.clone());
+      }
+      return networkResponse;
+    })
+    .catch(() => {
+      if (cached) {
+        return cached;
+      }
+      return new Response("Network error", { status: 408 });
+    });
+
+  return cached ?? fetchPromise;
+}
+
 async function fetchAssetManifest(): Promise<string[]> {
   const response = await fetch(ASSET_MANIFEST_URL, {
     cache: "no-store",
@@ -27,6 +86,35 @@ async function fetchAssetManifest(): Promise<string[]> {
   return assets.filter((a) => typeof a === "string");
 }
 
+async function cleanUpCache() {
+  const cache = await caches.open(CACHE_NAME);
+  const manifestResponse = await cache.match(ASSET_MANIFEST_URL);
+  if (!manifestResponse) {
+    return;
+  }
+
+  const assets = (await manifestResponse.json()) as string[];
+  const validUrls = new Set(
+    [ASSET_MANIFEST_URL, ...assets].map(
+      (path) => new URL(path, self.location.origin).href
+    )
+  );
+
+  // Preserve the HTML shell so offline still works
+  const indexUrl = new URL("/index.html", self.location.origin).href;
+  const rootUrl = new URL("/", self.location.origin).href;
+
+  const requests = await cache.keys();
+  for (const request of requests) {
+    if (request.url === indexUrl || request.url === rootUrl) {
+      continue;
+    }
+    if (!validUrls.has(request.url)) {
+      await cache.delete(request);
+    }
+  }
+}
+
 self.addEventListener("install", (event: ExtendableEvent) => {
   event.waitUntil(
     (async () => {
@@ -40,7 +128,12 @@ self.addEventListener("install", (event: ExtendableEvent) => {
 });
 
 self.addEventListener("activate", (event: ExtendableEvent) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      await self.clients.claim();
+      await cleanUpCache();
+    })()
+  );
 });
 
 self.addEventListener("fetch", (event: FetchEvent) => {
@@ -60,22 +153,15 @@ self.addEventListener("fetch", (event: FetchEvent) => {
     return;
   }
 
-  event.respondWith(
-    (async () => {
-      const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(request);
-      if (cached) {
-        return cached;
-      }
-      try {
-        const response = await fetch(request);
-        if (response.ok) {
-          cache.put(request, response.clone());
-        }
-        return response;
-      } catch (err) {
-        return new Response("Network error", { status: 408 });
-      }
-    })()
-  );
+  if (isIndexHtml(url)) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  if (isHashedAsset(url)) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  event.respondWith(staleWhileRevalidate(request));
 });
