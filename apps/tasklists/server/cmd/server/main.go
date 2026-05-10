@@ -122,7 +122,8 @@ func main() {
 		})
 	}
 
-	serverAPI := httpapi.NewServer(store)
+	broadcaster := httpapi.NewBroadcaster()
+	serverAPI := httpapi.NewServer(store, broadcaster)
 	serverAPI.RegisterRoutes(mux)
 	if err := registerStatic(mux); err != nil {
 		log.Fatalf("static asset error: %v", err)

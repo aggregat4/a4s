@@ -37,7 +37,6 @@ type GlobalListener =
 
 type SyncOptions = {
   baseUrl?: string;
-  pollIntervalMs?: number;
 };
 
 function defaultListFactory(_listId: ListId, state: ListState | null = null, identityOptions?: { storageKey?: string; storage?: Storage }) {
@@ -315,7 +314,6 @@ export class ListRepository {
     this._sync = new SyncEngine({
       storage: this._storage,
       baseUrl: normalized,
-      pollIntervalMs: this._syncOptions.pollIntervalMs,
       onRemoteOps: async (ops) => this.applyRemoteOps(ops),
       onSnapshot: async ({ snapshot }) => {
         await this.applySnapshotBlob(snapshot);

@@ -247,3 +247,50 @@ test("SyncEngine applies remote ops", async () => {
   assert.equal(received.length, 1);
   assert.equal(received[0].scope, "registry");
 });
+
+test("SyncEngine syncs when EventSource receives ops event", async () => {
+  const { storage } = createStorage();
+  const fetchCalls: string[] = [];
+  const fetchFn = async (url: string | URL | Request) => {
+    fetchCalls.push(typeof url === "string" ? url : url.toString());
+    return new Response(JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1", ops: [] }), { status: 200 });
+  };
+
+  const opsHandlerRef: { fn: (() => void) | null } = { fn: null };
+  const eventSourceFactory = (url: string) => {
+    const es = new EventTarget() as EventSource;
+    (es as any).url = url;
+    (es as any).readyState = 0;
+    (es as any).close = () => {
+      (es as any).readyState = 2;
+    };
+    queueMicrotask(() => {
+      (es as any).readyState = 1;
+      es.dispatchEvent(new Event("open"));
+    });
+    opsHandlerRef.fn = () => {
+      es.dispatchEvent(new MessageEvent("ops", { data: "{}" }));
+    };
+    return es;
+  };
+
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+    eventSourceFactory,
+  });
+  await engine.initialize();
+  engine.start();
+
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(fetchCalls.length > 0, "should sync on EventSource open");
+
+  const callsBefore = fetchCalls.length;
+  opsHandlerRef.fn?.();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(fetchCalls.length > callsBefore, "should sync on ops event");
+
+  engine.stop();
+});

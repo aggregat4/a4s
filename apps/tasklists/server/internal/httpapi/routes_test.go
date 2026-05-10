@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"a4-tasklists/server/internal/auth"
 	"a4-tasklists/server/internal/storage"
@@ -52,7 +54,7 @@ func (s *pushCursorStore) UpdateClientCursor(_ context.Context, userID string, c
 func newTestMux(t *testing.T) *http.ServeMux {
 	t.Helper()
 	store := newTestStore(t)
-	server := NewServer(store)
+	server := NewServer(store, NewBroadcaster())
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
 	return mux
@@ -359,7 +361,7 @@ func TestTwoClientsSync(t *testing.T) {
 
 func TestPushUpdatesClientCursor(t *testing.T) {
 	store := &pushCursorStore{}
-	server := NewServer(store)
+	server := NewServer(store, NewBroadcaster())
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
 
@@ -389,5 +391,65 @@ func TestPushUpdatesClientCursor(t *testing.T) {
 	}
 	if store.lastCursorSeq != 42 {
 		t.Fatalf("cursor seq mismatch: got %d", store.lastCursorSeq)
+	}
+}
+
+func TestEventsStream(t *testing.T) {
+	mux := newTestMux(t)
+
+	ctx, cancel := context.WithCancel(auth.ContextWithUserID(context.Background(), "user-1"))
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/sync/events", nil).WithContext(ctx)
+	recorder := httptest.NewRecorder()
+
+	go mux.ServeHTTP(recorder, req)
+
+	// Wait for handler to register and send initial comment
+	time.Sleep(50 * time.Millisecond)
+
+	body := recorder.Body.String()
+	if !strings.Contains(body, ":ok") {
+		t.Fatalf("expected initial comment, got:\n%s", body)
+	}
+}
+
+func TestPushNotifiesBroadcaster(t *testing.T) {
+	mux := newTestMux(t)
+	bootstrap := fetchBootstrap(t, mux)
+
+	// Start SSE connection
+	ctx, cancel := context.WithCancel(auth.ContextWithUserID(context.Background(), "user-1"))
+	defer cancel()
+	sseReq := httptest.NewRequest(http.MethodGet, "/sync/events", nil).WithContext(ctx)
+	sseRecorder := httptest.NewRecorder()
+	go mux.ServeHTTP(sseRecorder, sseReq)
+	time.Sleep(50 * time.Millisecond)
+
+	// Push ops
+	body := map[string]any{
+		"clientId":             "client-a",
+		"datasetGenerationKey": bootstrap.DatasetGenerationKey,
+		"ops": []map[string]any{
+			{
+				"scope":      "registry",
+				"resourceId": "registry",
+				"actor":      "actor-a",
+				"clock":      1,
+				"payload":    map[string]any{"type": "createList", "listId": "list-1", "title": "Inbox"},
+			},
+		},
+	}
+	requestBody, _ := json.Marshal(body)
+	pushResp := doRequest(t, mux, http.MethodPost, "/sync/push", requestBody)
+	if pushResp.Code != http.StatusOK {
+		t.Fatalf("push status: got %d", pushResp.Code)
+	}
+
+	// Give broadcaster time to write
+	time.Sleep(50 * time.Millisecond)
+
+	sseBody := sseRecorder.Body.String()
+	if !strings.Contains(sseBody, "event: ops") {
+		t.Fatalf("expected ops event after push, got:\n%s", sseBody)
 	}
 }

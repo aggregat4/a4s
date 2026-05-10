@@ -8,9 +8,9 @@ type FetchFn = typeof fetch;
 type SyncEngineOptions = {
   storage: ListStorage;
   baseUrl: string;
-  pollIntervalMs?: number;
   requestTimeoutMs?: number;
   fetchFn?: FetchFn;
+  eventSourceFactory?: (url: string) => EventSource;
   onRemoteOps?: (ops: SyncOp[]) => Promise<void> | void;
   onSnapshot?: (payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void;
   onConnectionError?: (error: unknown) => void;
@@ -32,55 +32,51 @@ type SyncPullResponse = {
 
 type SyncBootstrapResponse = SyncPullResponse;
 
-const DEFAULT_POLL_INTERVAL_MS = 2000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 
 export class SyncEngine {
   private storage: ListStorage;
   private baseUrl: string;
-  private pollIntervalMs: number;
   private requestTimeoutMs: number;
   private fetchFn: FetchFn;
+  private eventSourceFactory: ((url: string) => EventSource) | null;
   private onRemoteOps: ((ops: SyncOp[]) => Promise<void> | void) | null;
   private onSnapshot: ((payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void) | null;
   private onConnectionError: ((error: unknown) => void) | null;
   private state: SyncState;
   private outbox: SyncOp[];
-  private timer: ReturnType<typeof setTimeout> | null;
-  private isPolling: boolean;
+  private eventSource: EventSource | null;
   private isActive: boolean;
   private syncQueue: Promise<void>;
   private defaultClientId: string | null;
   private pauseWhenOffline: boolean;
   private handleOnline: (() => void) | null;
   private handleOffline: (() => void) | null;
+  private handleVisibilityChange: (() => void) | null;
 
   constructor(options: SyncEngineOptions) {
     this.storage = options.storage;
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
-    this.pollIntervalMs =
-      typeof options.pollIntervalMs === "number" && options.pollIntervalMs > 0
-        ? Math.floor(options.pollIntervalMs)
-        : DEFAULT_POLL_INTERVAL_MS;
     this.requestTimeoutMs =
       typeof options.requestTimeoutMs === "number" && options.requestTimeoutMs > 0
         ? Math.floor(options.requestTimeoutMs)
         : DEFAULT_REQUEST_TIMEOUT_MS;
     this.fetchFn =
       options.fetchFn ?? globalThis.fetch?.bind(globalThis);
+    this.eventSourceFactory = options.eventSourceFactory ?? null;
     this.onRemoteOps = options.onRemoteOps ?? null;
     this.onSnapshot = options.onSnapshot ?? null;
     this.onConnectionError = options.onConnectionError ?? null;
     this.state = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
     this.outbox = [];
-    this.timer = null;
+    this.eventSource = null;
     this.syncQueue = Promise.resolve();
     this.defaultClientId = options.clientId ?? null;
-    this.isPolling = false;
     this.isActive = false;
     this.pauseWhenOffline = options.pauseWhenOffline !== false;
     this.handleOnline = null;
     this.handleOffline = null;
+    this.handleVisibilityChange = null;
   }
 
   async initialize() {
@@ -152,23 +148,21 @@ export class SyncEngine {
   }
 
   start() {
-    if (this.timer != null) return;
+    if (this.isActive) return;
     this.isActive = true;
+    this.bindOnlineListeners();
+    this.bindVisibilityListener();
     if (this.pauseWhenOffline && !this.isOnline()) {
-      this.bindOnlineListeners();
       return;
     }
-    this.bindOnlineListeners();
-    void this.poll();
+    this.connectEvents();
   }
 
   stop() {
-    if (this.timer != null) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+    this.disconnectEvents();
     this.isActive = false;
     this.unbindOnlineListeners();
+    this.unbindVisibilityListener();
   }
 
   private isOnline(): boolean {
@@ -183,19 +177,13 @@ export class SyncEngine {
 
     this.handleOnline = () => {
       if (!this.isActive) return;
-      if (this.timer != null) {
-        clearTimeout(this.timer);
-        this.timer = null;
-      }
+      this.disconnectEvents();
       void this.syncOnce();
-      void this.poll();
+      this.connectEvents();
     };
 
     this.handleOffline = () => {
-      if (this.timer != null) {
-        clearTimeout(this.timer);
-        this.timer = null;
-      }
+      this.disconnectEvents();
     };
 
     window.addEventListener("online", this.handleOnline);
@@ -212,22 +200,53 @@ export class SyncEngine {
     this.handleOffline = null;
   }
 
-  private async poll() {
-    if (this.isPolling) return;
-    this.isPolling = true;
-    try {
-      await this.syncOnce();
-    } finally {
-      this.isPolling = false;
-      if (!this.isActive) {
-        return;
+  private bindVisibilityListener() {
+    if (typeof document === "undefined") return;
+    if (this.handleVisibilityChange) return;
+
+    this.handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && this.isActive) {
+        void this.syncOnce();
       }
-      if (this.timer != null) {
-        clearTimeout(this.timer);
-      }
-      this.timer = setTimeout(() => {
-        void this.poll();
-      }, this.pollIntervalMs);
+    };
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+  }
+
+  private unbindVisibilityListener() {
+    if (!this.handleVisibilityChange) return;
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    }
+    this.handleVisibilityChange = null;
+  }
+
+  private connectEvents() {
+    if (this.eventSource) return;
+
+    const url = `${this.baseUrl}/sync/events`;
+    let es: EventSource;
+    if (this.eventSourceFactory) {
+      es = this.eventSourceFactory(url);
+    } else if (typeof EventSource !== "undefined") {
+      es = new EventSource(url);
+    } else {
+      return;
+    }
+
+    this.eventSource = es;
+    this.eventSource.addEventListener("ops", () => {
+      void this.syncOnce();
+    });
+    this.eventSource.addEventListener("open", () => {
+      // Sync on connect and reconnect to catch up on missed ops.
+      void this.syncOnce();
+    });
+  }
+
+  private disconnectEvents() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
     }
   }
 
@@ -242,6 +261,9 @@ export class SyncEngine {
     }));
     this.outbox.push(...nextOps);
     void this.storage.persistOutbox(this.outbox);
+    if (this.isActive && (!this.pauseWhenOffline || this.isOnline())) {
+      void this.syncOnce();
+    }
   }
 
   async syncOnce() {
@@ -418,5 +440,5 @@ function parseServerSeq(value: unknown) {
 }
 
 function parseDatasetGenerationKey(value: unknown) {
- return typeof value === "string" && value.length ? value : "";
+  return typeof value === "string" && value.length ? value : "";
 }

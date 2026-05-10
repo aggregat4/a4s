@@ -49,7 +49,24 @@ function createMockWindow() {
   };
 }
 
-test("SyncEngine does not poll when offline and pauseWhenOffline is true", async () => {
+class MockEventSource extends EventTarget {
+  url: string;
+  readyState: number;
+  constructor(url: string) {
+    super();
+    this.url = url;
+    this.readyState = 0;
+    queueMicrotask(() => {
+      this.readyState = 1;
+      this.dispatchEvent(new Event("open"));
+    });
+  }
+  close() {
+    this.readyState = 2;
+  }
+}
+
+test("SyncEngine does not sync when offline and pauseWhenOffline is true", async () => {
   const { storage } = createStorage();
   const fetchCalls: string[] = [];
   const fetchFn = async (url: string | URL | Request) => {
@@ -69,7 +86,6 @@ test("SyncEngine does not poll when offline and pauseWhenOffline is true", async
       baseUrl: "http://localhost:8080",
       fetchFn,
       clientId: "client-1",
-      pollIntervalMs: 50,
     });
     await engine.initialize();
     engine.start();
@@ -84,7 +100,7 @@ test("SyncEngine does not poll when offline and pauseWhenOffline is true", async
   }
 });
 
-test("SyncEngine polls normally when online", async () => {
+test("SyncEngine syncs via EventSource when online", async () => {
   const { storage } = createStorage();
   const fetchCalls: string[] = [];
   const fetchFn = async (url: string | URL | Request) => {
@@ -95,7 +111,9 @@ test("SyncEngine polls normally when online", async () => {
   const mockWindow = createMockWindow() as unknown as Window;
   const originalWindow = (globalThis as any).window;
   const originalNavigator = (globalThis as any).navigator;
+  const originalEventSource = (globalThis as any).EventSource;
   (globalThis as any).window = mockWindow;
+  (globalThis as any).EventSource = MockEventSource;
   Object.defineProperty(globalThis, "navigator", { value: { onLine: true }, configurable: true, writable: true });
 
   try {
@@ -104,17 +122,17 @@ test("SyncEngine polls normally when online", async () => {
       baseUrl: "http://localhost:8080",
       fetchFn,
       clientId: "client-1",
-      pollIntervalMs: 50,
     });
     await engine.initialize();
     engine.start();
 
     await new Promise((r) => setTimeout(r, 120));
-    assert.ok(fetchCalls.length > 0, "should fetch while online");
+    assert.ok(fetchCalls.length > 0, "should fetch while online via EventSource");
 
     engine.stop();
   } finally {
     (globalThis as any).window = originalWindow;
+    (globalThis as any).EventSource = originalEventSource;
     Object.defineProperty(globalThis, "navigator", { value: originalNavigator, configurable: true, writable: true });
   }
 });
@@ -139,7 +157,6 @@ test("SyncEngine syncs immediately when coming back online", async () => {
       baseUrl: "http://localhost:8080",
       fetchFn,
       clientId: "client-1",
-      pollIntervalMs: 50,
     });
     await engine.initialize();
     engine.start();

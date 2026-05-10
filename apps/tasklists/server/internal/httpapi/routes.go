@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -20,11 +21,12 @@ type errorResponse struct {
 }
 
 type Server struct {
-	store storage.Store
+	store       storage.Store
+	broadcaster *Broadcaster
 }
 
-func NewServer(store storage.Store) *Server {
-	return &Server{store: store}
+func NewServer(store storage.Store, broadcaster *Broadcaster) *Server {
+	return &Server{store: store, broadcaster: broadcaster}
 }
 
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
@@ -32,6 +34,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/sync/push", s.handlePush)
 	mux.HandleFunc("/sync/pull", s.handlePull)
 	mux.HandleFunc("/sync/reset", s.handleReset)
+	mux.HandleFunc("/sync/events", s.handleEvents)
 	mux.HandleFunc("/healthz", handleHealthz)
 }
 
@@ -99,6 +102,7 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	s.broadcaster.Notify(userID)
 	if err := s.store.UpdateClientCursor(r.Context(), userID, payload.ClientID, serverSeq); err != nil {
 		log.Printf("sync push cursor error client=%s seq=%d: %v", payload.ClientID, serverSeq, err)
 		writeError(w, http.StatusInternalServerError, err)
@@ -204,6 +208,51 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		"serverSeq":            int64(0),
 		"datasetGenerationKey": payload.DatasetGenerationKey,
 	})
+}
+
+func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, errors.New("streaming unsupported"))
+		return
+	}
+
+	fmt.Fprintf(w, ":ok\n\n")
+	flusher.Flush()
+
+	ch := s.broadcaster.Add(userID)
+	defer s.broadcaster.Remove(userID, ch)
+
+	ctx := r.Context()
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case <-ch:
+			fmt.Fprintf(w, "event: ops\ndata: {}\n\n")
+			flusher.Flush()
+		case <-heartbeat.C:
+			fmt.Fprintf(w, ":heartbeat\n\n")
+			flusher.Flush()
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func handleHealthz(w http.ResponseWriter, r *http.Request) {
