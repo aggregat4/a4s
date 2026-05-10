@@ -56,6 +56,7 @@ self.addEventListener("fetch", (event: FetchEvent) => {
   }
 
   if (isApiRequest(url)) {
+    event.respondWith(fetch(request));
     return;
   }
 
