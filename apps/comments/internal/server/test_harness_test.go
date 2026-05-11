@@ -7,10 +7,12 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"aggregat4/go-commentservice/internal/domain"
 	"aggregat4/go-commentservice/internal/repository"
+	"aggregat4/go-commentservice/internal/testing/oidcmock"
 	"github.com/aggregat4/go-baselib/crypto"
 )
 
@@ -81,6 +83,7 @@ type ServerHarness struct {
 type harnessConfig struct {
 	seedBaseline bool
 	enableCsrf   bool
+	oidcIdp      *oidcmock.Server
 }
 
 type HarnessOption func(*harnessConfig)
@@ -96,6 +99,13 @@ func WithoutBaselineData() HarnessOption {
 func WithCsrfEnabled() HarnessOption {
 	return func(cfg *harnessConfig) {
 		cfg.enableCsrf = true
+	}
+}
+
+// WithOidc wires the harness to a mock OIDC provider instead of no-op stubs.
+func WithOidc(idp *oidcmock.Server) HarnessOption {
+	return func(cfg *harnessConfig) {
+		cfg.oidcIdp = idp
 	}
 }
 
@@ -144,7 +154,16 @@ func NewServerHarness(t testing.TB, opts ...HarnessOption) *ServerHarness {
 		},
 	}
 
-	server := InitServerWithOidcMiddleware(controller, noopOidcMiddleware, noopOidcCallback, cfg.enableCsrf)
+	var server *http.Server
+	if cfg.oidcIdp != nil {
+		controller.Config.OidcIdpServer = cfg.oidcIdp.Issuer()
+		controller.Config.OidcClientId = "commentservice-client"
+		controller.Config.OidcClientSecret = "commentservice-secret"
+		controller.Config.OidcRedirectUri = "http://localhost:8080/oidccallback"
+		server = InitServer(controller)
+	} else {
+		server = InitServerWithOidcMiddleware(controller, noopOidcMiddleware, noopOidcCallback, cfg.enableCsrf)
+	}
 
 	harness := &ServerHarness{
 		t:          t,
@@ -173,6 +192,33 @@ func (h *ServerHarness) Close() error {
 		_ = h.Store.Close()
 	}
 	return nil
+}
+
+// ExecRequest invokes a request directly against the harness handler and returns the recorded response.
+func (h *ServerHarness) ExecRequest(method, urlStr string, body string, cookies []*http.Cookie) *http.Response {
+	var req *http.Request
+	if body != "" {
+		req = httptest.NewRequest(method, urlStr, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	} else {
+		req = httptest.NewRequest(method, urlStr, nil)
+	}
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	rec := httptest.NewRecorder()
+	h.Handler.ServeHTTP(rec, req)
+	return rec.Result()
+}
+
+// IdpClient returns an http.Client configured to talk to the mock OIDC provider.
+// It is only valid when the harness was created with WithOidc.
+func (h *ServerHarness) IdpClient() *http.Client {
+	return &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 // NewClient returns an http.Client that uses the harness handler directly.
