@@ -5,10 +5,6 @@
 The current header with the user ID and logout button is ugly and unfitting. Needs to be more minimal and better integrated and take as little real estate as possible.
 Should be merged with the "add new comment" and "administer comments" functions to be one whole thing.
 
-## Add comment entry point on public comment list
-
-The post comments page (`/services/{serviceKey}/posts/{postKey}/comments/`) renders approved comments but gives unauthenticated visitors no way to reach the comment form or log in. Need an "Add comment" link or button that starts the OIDC popup flow (or links to the full-page login as fallback).
-
 ## Show pending comments to their authors
 
 `GetCommentsForPost` only returns approved comments. A logged-in user viewing a post should see their own pending comments with some visual marker (e.g., "awaiting moderation") so they know their submission arrived.

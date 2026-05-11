@@ -88,6 +88,47 @@ An administrator needs the ability to screen and remove problematic content.
 Finally, it must be possible to set age requirements on comment posting to avoid
 running into consent issues when it comes to gathering personal data on minors.
 
+## Running the Demo Locally
+
+A self-contained demo is available at `/demo` once the server is running.
+
+### Prerequisites
+
+You need a valid `commentservice.json` configuration file with at least these fields:
+
+```json
+{
+  "port": 8080,
+  "database_filename": "commentservice",
+  "base_url": "http://localhost:8080",
+  "oidc_idp_server": "https://your-idp.example.com",
+  "oidc_client_id": "your-client-id",
+  "oidc_client_secret": "your-client-secret",
+  "oidc_redirect_uri": "http://localhost:8080/oidccallback",
+  "encryption_key": "your-32-byte-hex-key",
+  "session_cookie_secret_key": "your-session-secret",
+  "session_cookie_secure_flag": false
+}
+```
+
+Generate an encryption key with:
+
+```bash
+go run cmd/createencryptionkey/main.go
+```
+
+### Start the server and seed demo data
+
+```bash
+# 1. Create a demo service in the database
+./scripts/runcreateexampleservice.sh
+
+# 2. Start the server
+./scripts/runexampleserver.sh
+```
+
+Then open `http://localhost:8080/demo` in your browser. The demo page shows a sample article with an embedded comments iframe so you can test the full flow end-to-end.
+
 ## Security
 
 ### Encryption

@@ -6,7 +6,7 @@ The service uses standard Go modules. `cmd/runserver` contains the HTTP server e
 
 ## Build, Test, and Development Commands
 
-Use `scripts/build.sh` to compile production binaries with the `fts5` tag into `bin/`. Run `scripts/runexampleserver.sh` to start the server locally with the example SendGrid settings; pair it with `scripts/runcreateexampleservice.sh` to seed a demo service and encryption key. `go run cmd/runserver/main.go` works for quick iterations. Always execute `scripts/test.sh` before pushing, and `scripts/lint.sh` to run `golangci-lint`.
+Use `scripts/build.sh` to compile production binaries with the `fts5` tag into `bin/`. Run `scripts/runexampleserver.sh` to start the server locally; pair it with `scripts/runcreateexampleservice.sh` to seed a demo service and encryption key. `go run cmd/runserver/main.go` works for quick iterations. Always execute `scripts/test.sh` before pushing, and `scripts/lint.sh` to run `golangci-lint`.
 
 ## Coding Style & Naming Conventions
 
@@ -17,6 +17,8 @@ Format Go code with `gofmt` (tab indentation) or let `goimports` run via your ed
 Unit and integration tests reside in `internal/server/*_test.go` and follow the standard `_test.go` suffix. Target deterministic tests; prefer table-driven layouts for handlers and domain functions. Run `scripts/test.sh` (wraps `go test ./...`) locally; enable the commented `-race` and coverage commands when touching concurrency or persistence code. New features should include tests that cover both success and failure paths.
 
 ## Commit & Pull Request Guidelines
+
+**Do not automatically commit changes.** Present changes for review first; let the user decide when to commit.
 
 Commits mirror the existing log: a single-line, capitalized imperative summary under ~70 characters, followed by focused changes. Squash fixups before review. Pull requests should link related issues, outline functional impact, and note any manual steps (schema migrations, new env vars). Attach screenshots or curl transcripts when UI or API behavior changes.
 

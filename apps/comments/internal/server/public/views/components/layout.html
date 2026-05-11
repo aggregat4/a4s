@@ -37,31 +37,13 @@
                 height: height
             }, '*');
         }
-        
-        function openAuthPopup() {
-            const popup = window.open('/login', 'auth-popup', 'width=500,height=600,scrollbars=yes,resizable=yes');
-            
-            // Listen for messages from the popup
-            window.addEventListener('message', function(e) {
-                if (e.data && e.data.type === 'auth-success') {
-                    popup.close();
-                    // Refresh the current page to show authenticated state
-                    window.location.reload();
-                }
-            });
-            
-            // Check if popup was blocked
-            if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-                alert('Please allow popups for this site to authenticate.');
-            }
-        }
-        
+
         // Update on load and when content changes
         window.addEventListener('load', updateParentHeight);
         const observer = new MutationObserver(updateParentHeight);
-        observer.observe(document.body, { 
-            childList: true, 
-            subtree: true 
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
         });
       </script>
 </body>
