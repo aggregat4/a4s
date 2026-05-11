@@ -118,16 +118,6 @@ func (controller *Controller) createUserSessionCookie(w http.ResponseWriter, r *
 	return sess.Save(r, w)
 }
 
-func (controller *Controller) createAdminSessionCookie(w http.ResponseWriter, r *http.Request, adminUserId string, roles []string) error {
-	sess, err := controller.getSession(r)
-	if err != nil {
-		return err
-	}
-	sess.Values["adminuserid"] = adminUserId
-	sess.Values["adminroles"] = roles
-	return sess.Save(r, w)
-}
-
 func (controller *Controller) clearSession(w http.ResponseWriter, r *http.Request) error {
 	sess, err := controller.getSession(r)
 	if err != nil {
@@ -250,6 +240,19 @@ func createSessionFromIDToken(w http.ResponseWriter, r *http.Request, controller
 		return err
 	}
 
+	// Always create/fetch a user record so admins can also post comments.
+	user, err := controller.Store.FindOrCreateUserByExternalId(claims.Subject)
+	if err != nil {
+		return err
+	}
+
+	sess, err := controller.getSession(r)
+	if err != nil {
+		return err
+	}
+
+	sess.Values["userid"] = user.Id
+
 	hasAdminRole := false
 	for _, role := range claims.Roles {
 		if role == "superadmin" || (len(role) > 6 && role[:6] == "admin-") {
@@ -259,12 +262,9 @@ func createSessionFromIDToken(w http.ResponseWriter, r *http.Request, controller
 	}
 
 	if hasAdminRole {
-		return controller.createAdminSessionCookie(w, r, claims.Subject, claims.Roles)
+		sess.Values["adminuserid"] = claims.Subject
+		sess.Values["adminroles"] = claims.Roles
 	}
 
-	user, err := controller.Store.FindOrCreateUserByExternalId(claims.Subject)
-	if err != nil {
-		return err
-	}
-	return controller.createUserSessionCookie(w, r, user.Id)
+	return sess.Save(r, w)
 }

@@ -71,6 +71,12 @@ func (m *Server) Issuer() string {
 	return m.URL
 }
 
+func (m *Server) SetRedirectURI(uri string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.redirectURI = uri
+}
+
 func (m *Server) discovery(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"issuer":                m.Issuer(),
