@@ -7,4 +7,4 @@ bin/
 coverage.*
 .idea/
 .gocache/
-.claude/
+/demoserver

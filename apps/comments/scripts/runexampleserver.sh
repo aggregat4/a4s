@@ -1,2 +1,2 @@
 #!/bin/sh
-go run cmd/runserver/main.go
+go run cmd/demoserver/main.go

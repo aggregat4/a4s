@@ -92,42 +92,30 @@ running into consent issues when it comes to gathering personal data on minors.
 
 A self-contained demo is available at `/demo` once the server is running.
 
-### Prerequisites
+The demo bundles a **mock OIDC provider** so you can test the full authentication flow without configuring an external identity provider.
 
-You need a valid `commentservice.json` configuration file with at least these fields:
-
-```json
-{
-  "port": 8080,
-  "database_filename": "commentservice",
-  "base_url": "http://localhost:8080",
-  "oidc_idp_server": "https://your-idp.example.com",
-  "oidc_client_id": "your-client-id",
-  "oidc_client_secret": "your-client-secret",
-  "oidc_redirect_uri": "http://localhost:8080/oidccallback",
-  "encryption_key": "your-32-byte-hex-key",
-  "session_cookie_secret_key": "your-session-secret",
-  "session_cookie_secure_flag": false
-}
-```
-
-Generate an encryption key with:
+### Start the demo server
 
 ```bash
-go run cmd/createencryptionkey/main.go
-```
-
-### Start the server and seed demo data
-
-```bash
-# 1. Create a demo service in the database
-./scripts/runcreateexampleservice.sh
-
-# 2. Start the server
 ./scripts/runexampleserver.sh
 ```
 
-Then open `http://localhost:8080/demo` in your browser. The demo page shows a sample article with an embedded comments iframe so you can test the full flow end-to-end.
+Then open `http://localhost:8080/demo` in your browser. The demo page shows a sample article with an embedded comments iframe. Clicking **Login** will auto-authenticate you against the embedded mock OIDC provider, giving you both commenter and admin rights.
+
+### Demo URLs
+
+| Page | URL |
+|---|---|
+| Demo article | `http://localhost:8080/demo` |
+| Comments (iframe) | `http://localhost:8080/services/demoservice/posts/demopost/comments/` |
+| Admin dashboard | `http://localhost:8080/admin` |
+| Superadmin services | `http://localhost:8080/superadmin/services` |
+
+The demo server creates a temporary SQLite database (`commentservice-demo.sqlite`) and seeds a demo service automatically. Press `Ctrl+C` to stop.
+
+### Production setup
+
+For production deployment you need a real OIDC provider and a proper `commentservice.json` configuration file. See `cmd/runserver/main.go` for the production server entry point.
 
 ## Security
 

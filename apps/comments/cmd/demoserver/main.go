@@ -1,0 +1,135 @@
+package main
+
+import (
+	"aggregat4/go-commentservice/internal/domain"
+	"aggregat4/go-commentservice/internal/repository"
+	"aggregat4/go-commentservice/internal/server"
+	"aggregat4/go-commentservice/internal/testing/oidcmock"
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"io"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/willibrandon/mtlog"
+	"github.com/willibrandon/mtlog/core"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+var logger = mtlog.New(
+	mtlog.WithConsole(),
+	mtlog.WithMinimumLevel(core.InformationLevel),
+)
+
+func main() {
+	// Generate a deterministic demo encryption key so the db survives restarts.
+	// In a real deployment this would come from a secret manager.
+	encryptionKey := mustGenerateKey()
+
+	// Start a mock OIDC provider so the demo works without an external IdP.
+	idp, err := oidcmock.Run(
+		"commentservice-client",
+		"commentservice-secret",
+		"http://localhost:8080/oidccallback",
+		map[string]any{
+			"roles": []string{"admin-demoservice", "superadmin"},
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer idp.Close()
+
+	logger.Info("Mock OIDC provider running at {issuer}", idp.Issuer())
+
+	secretKey, err := hex.DecodeString(encryptionKey)
+	if err != nil {
+		panic(err)
+	}
+	aesCipher, err := crypto.CreateAes256GcmAead(secretKey)
+	if err != nil {
+		panic(err)
+	}
+
+	store := repository.Store{Cipher: aesCipher}
+	defer store.Close()
+
+	dbPath := "commentservice-demo"
+	if err := store.InitAndVerifyDb(repository.CreateFileDbUrl(dbPath)); err != nil {
+		logger.Fatal("Error initializing database {err}", err)
+		os.Exit(1)
+	}
+
+	// Seed the demo service if it doesn't already exist.
+	if _, err := store.GetServiceForKey("demoservice"); err != nil {
+		if _, err := store.CreateService("demoservice", "http://localhost:8080"); err != nil {
+			logger.Fatal("Error creating demo service {err}", err)
+			os.Exit(1)
+		}
+		logger.Info("Created demo service: demoservice")
+	}
+
+	config := domain.Config{ //nolint:gosec // Demo credentials
+		Port:                      8080,
+		DatabaseFilename:          dbPath,
+		BaseURL:                   "http://localhost:8080",
+		ServerReadTimeoutSeconds:  5,
+		ServerWriteTimeoutSeconds: 10,
+		OidcIdpServer:             idp.Issuer(),
+		OidcClientId:              "commentservice-client",
+		OidcClientSecret:          "commentservice-secret",
+		OidcRedirectUri:           "http://localhost:8080/oidccallback",
+		EncryptionKey:             encryptionKey,
+		SessionCookieSecretKey:    "demosessionssecretkey32byteslong",
+		SessionCookieSecureFlag:   false,
+		SessionCookieCookieMaxAge: 2592000,
+		SessionCookieCookieSameSite: "lax",
+	}
+
+	controller := server.Controller{
+		Store:  &store,
+		Config: config,
+	}
+
+	httpServer := server.RunServer(&controller)
+
+	logger.Info("")
+	logger.Info("=== Comment Service Demo ===")
+	logger.Info("Demo page:       http://localhost:8080/demo")
+	logger.Info("Admin dashboard: http://localhost:8080/admin")
+	logger.Info("Comments iframe: http://localhost:8080/services/demoservice/posts/demopost/comments/")
+	logger.Info("")
+	logger.Info("The mock OIDC provider auto-authenticates anyone who clicks 'Login'.")
+	logger.Info("Press Ctrl+C to stop.")
+	logger.Info("")
+
+	shutdownSignals := make(chan os.Signal, 1)
+	signal.Notify(shutdownSignals, syscall.SIGINT, syscall.SIGTERM)
+
+	sig := <-shutdownSignals
+	logger.Info("Shutdown signal received {signal}", sig)
+	signal.Stop(shutdownSignals)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		logger.Error("Graceful shutdown failed {err}", err)
+		_ = httpServer.Close()
+	} else {
+		logger.Info("HTTP server shut down gracefully")
+	}
+}
+
+func mustGenerateKey() string {
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(key)
+}
