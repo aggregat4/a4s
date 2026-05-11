@@ -27,6 +27,15 @@ Should be merged with the "add new comment" and "administer comments" functions 
 
 * Redirect from collection pages without a trailing slash to the one with the slash
 
+## E2E Test Coverage
+
+* test comment submission end-to-end (fill form, submit, verify pending/approved state)
+* test admin approve/delete comment flows via chromedp
+* test iframe embedding on a cross-origin parent page
+* test logout and session cleanup in the browser
+* test CSRF token validation through real browser interactions
+* test concurrent popup logins from multiple iframe instances
+
 ## Postponed
 
 * Offer an alternative JSON way to manage comments — keeping iframe as the primary integration path for now.
