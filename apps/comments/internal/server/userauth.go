@@ -133,14 +133,14 @@ func (controller *Controller) clearSession(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return err
 	}
-	sess.Values = map[interface{}]interface{}{}
+	sess.Values = map[any]any{}
 	sess.Options.MaxAge = -1
 	if err := sess.Save(r, w); err != nil {
 		return err
 	}
 
 	if flash, err := controller.getFlashSession(r); err == nil {
-		flash.Values = map[interface{}]interface{}{}
+		flash.Values = map[any]any{}
 		flash.Options.MaxAge = -1
 		if err := flash.Save(r, w); err != nil {
 			logger.Error("Failed to clear flash session: {err}", err)

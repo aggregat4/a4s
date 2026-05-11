@@ -259,8 +259,8 @@ func (controller *Controller) GetComments(w http.ResponseWriter, r *http.Request
 		PostKey:    postKey,
 		Comments:   comments,
 	}
-	page.BasePage.Error = errorFlashes
-	page.BasePage.Success = successFlashes
+	page.Error = errorFlashes
+	page.Success = successFlashes
 
 	controller.renderTemplate(w, r, http.StatusOK, "postcomments", page)
 }
@@ -507,7 +507,7 @@ func (controller *Controller) PostComment(w http.ResponseWriter, r *http.Request
 			controller.sendInternalError(w, r, err)
 			return
 		}
-		http.Redirect(w, r, "/services/"+serviceKey+"/posts/"+postKey+"/comments/", http.StatusFound)
+		http.Redirect(w, r, "/services/"+serviceKey+"/posts/"+postKey+"/comments/", http.StatusFound) //nolint:gosec // Hardcoded path prefix
 		return
 	}
 
@@ -521,7 +521,7 @@ func (controller *Controller) PostComment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	http.Redirect(w, r, "/services/"+serviceKey+"/posts/"+postKey+"/comments/", http.StatusFound)
+	http.Redirect(w, r, "/services/"+serviceKey+"/posts/"+postKey+"/comments/", http.StatusFound) //nolint:gosec // Hardcoded path prefix
 }
 
 func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Request) {
@@ -576,7 +576,7 @@ func (controller *Controller) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, redirectTo, http.StatusFound)
+	http.Redirect(w, r, redirectTo, http.StatusFound) //nolint:gosec // Validated against open redirects above
 }
 
 func (controller *Controller) GetAdminHome(w http.ResponseWriter, r *http.Request) {
@@ -625,8 +625,8 @@ func (controller *Controller) GetAdminDashboard(w http.ResponseWriter, r *http.R
 		Comments:  comments,
 		Statuses:  statuses,
 	}
-	page.BasePage.Error = errorFlashes
-	page.BasePage.Success = successFlashes
+	page.Error = errorFlashes
+	page.Success = successFlashes
 
 	controller.renderTemplate(w, r, http.StatusOK, "admin-dashboard", page)
 }
@@ -670,8 +670,8 @@ func (controller *Controller) GetServiceAdminDashboard(w http.ResponseWriter, r 
 		Comments:  comments,
 		Statuses:  statuses,
 	}
-	page.BasePage.Error = errorFlashes
-	page.BasePage.Success = successFlashes
+	page.Error = errorFlashes
+	page.Success = successFlashes
 
 	controller.renderTemplate(w, r, http.StatusOK, "admin-dashboard", page)
 }
@@ -699,7 +699,7 @@ func (controller *Controller) ServiceAdminApproveComment(w http.ResponseWriter, 
 		return
 	}
 
-	http.Redirect(w, r, "/admin/"+serviceKey+"/comments", http.StatusFound)
+	http.Redirect(w, r, "/admin/"+serviceKey+"/comments", http.StatusFound) //nolint:gosec // Hardcoded path prefix
 }
 
 func (controller *Controller) ServiceAdminDeleteComment(w http.ResponseWriter, r *http.Request) {
@@ -725,7 +725,7 @@ func (controller *Controller) ServiceAdminDeleteComment(w http.ResponseWriter, r
 		return
 	}
 
-	http.Redirect(w, r, "/admin/"+serviceKey+"/comments", http.StatusFound)
+	http.Redirect(w, r, "/admin/"+serviceKey+"/comments", http.StatusFound) //nolint:gosec // Hardcoded path prefix
 }
 
 func (controller *Controller) GetSuperAdminServices(w http.ResponseWriter, r *http.Request) {
@@ -756,8 +756,8 @@ func (controller *Controller) GetSuperAdminServices(w http.ResponseWriter, r *ht
 		AdminUser: adminUser,
 		Services:  services,
 	}
-	page.BasePage.Error = errorFlashes
-	page.BasePage.Success = successFlashes
+	page.Error = errorFlashes
+	page.Success = successFlashes
 
 	controller.renderTemplate(w, r, http.StatusOK, "superadmin-services", page)
 }
@@ -800,8 +800,8 @@ func (controller *Controller) GetSuperAdminDashboard(w http.ResponseWriter, r *h
 		Comments:  comments,
 		Statuses:  statuses,
 	}
-	page.BasePage.Error = errorFlashes
-	page.BasePage.Success = successFlashes
+	page.Error = errorFlashes
+	page.Success = successFlashes
 
 	controller.renderTemplate(w, r, http.StatusOK, "admin-dashboard", page)
 }

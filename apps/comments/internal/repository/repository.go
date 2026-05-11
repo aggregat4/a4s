@@ -146,7 +146,7 @@ func (store *Store) GetCommentsByStatus(statuses []domain.CommentStatus) ([]doma
 	query := "SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments"
 	if len(statuses) > 0 {
 		query += " WHERE status IN ("
-		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",")
+		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",") //nolint:gosec // Safe placeholder concatenation
 		query += ")"
 	}
 	query += " ORDER BY created_at DESC"
@@ -168,7 +168,7 @@ func (store *Store) GetCommentsByServiceAndStatus(serviceKey string, statuses []
 
 	if len(statuses) > 0 {
 		query += " AND status IN ("
-		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",")
+		query += strings.TrimSuffix(strings.Repeat("?,", len(statuses)), ",") //nolint:gosec // Safe placeholder concatenation
 		query += ")"
 		for _, status := range statuses {
 			args = append(args, int(status))
