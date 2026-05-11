@@ -142,6 +142,7 @@ func InitServerWithOidcMiddleware(
 	router.Get("/status", controller.Status)
 
 	router.Get("/services/{serviceKey}/posts/{postKey}/comments/", controller.GetComments)
+	router.Get("/services/{serviceKey}/posts/{postKey}/commentform", controller.GetCommentForm)
 	router.Get("/users/{userId}/services/{serviceKey}/posts/{postKey}/commentform", controller.GetCommentForm)
 	router.Post("/users/{userId}/services/{serviceKey}/posts/{postKey}/comments/", controller.PostComment)
 	router.Get("/users/{userId}/comments/", controller.GetCommentsForUser)

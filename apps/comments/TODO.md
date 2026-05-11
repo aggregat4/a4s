@@ -5,16 +5,15 @@
 The current header with the user ID and logout button is ugly and unfitting. Needs to be more minimal and better integrated and take as little real estate as possible.
 Should be merged with the "add new comment" and "administer comments" functions to be one whole thing.
 
-## Offer an alternative JSON way to manage comments
+## Add comment entry point on public comment list
 
-- Have a JSON endpoint same as the userComments endpoint that just returns everything as JSON so a site can render comments themselves
-- Sites could model the entire comment writing flow as a popup?
+The post comments page (`/services/{serviceKey}/posts/{postKey}/comments/`) renders approved comments but gives unauthenticated visitors no way to reach the comment form or log in. Need an "Add comment" link or button that starts the OIDC popup flow (or links to the full-page login as fallback).
+
+## Show pending comments to their authors
+
+`GetCommentsForPost` only returns approved comments. A logged-in user viewing a post should see their own pending comments with some visual marker (e.g., "awaiting moderation") so they know their submission arrived.
 
 ## Miscellaneous
-
-* Show a logged in user's own comments when they are not yet approved but with some marker: this confirms that the comment arrived
-
-* everything is now authenticated aside from the infrastructure endpoints and the comment list for a post itself. Figure out what the login flow looks like for unauthenticated users and what sort of "add comment" link I add to the comment page and where I add the admin links ...
 
 * align the user comment styling with the admin dashboard styling
 
@@ -31,3 +30,7 @@ Should be merged with the "add new comment" and "administer comments" functions 
 * Set caching headers on responses where it makes sense
 
 * Redirect from collection pages without a trailing slash to the one with the slash
+
+## Postponed
+
+* Offer an alternative JSON way to manage comments — keeping iframe as the primary integration path for now.
