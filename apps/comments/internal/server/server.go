@@ -555,6 +555,23 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 		PostMessageOrigin: controller.postMessageOrigin(r),
 	}
 
+	// Re-save the session cookie on the login page for authenticated users.
+	// This ensures the cookie is committed on a non-redirect response,
+	// which helps browsers (notably Firefox) that may delay persisting
+	// cookies set during a redirect chain inside a popup.
+	if userAuthenticated || adminAuthenticated {
+		if sess, err := controller.getSession(r); err == nil {
+			if saveErr := sess.Save(r, w); saveErr != nil {
+				logger.Error("Failed to refresh session cookie on login page: {err}", saveErr)
+			}
+		}
+		redirectTo := r.URL.Query().Get("redirectTo")
+		if redirectTo != "" && strings.HasPrefix(redirectTo, "/") && !strings.HasPrefix(redirectTo, "//") {
+			http.Redirect(w, r, redirectTo, http.StatusFound) //nolint:gosec // Validated against open redirects above
+			return
+		}
+	}
+
 	controller.renderTemplate(w, r, http.StatusOK, "userlogin", page)
 }
 

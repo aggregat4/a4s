@@ -90,7 +90,13 @@
     }
 
     if (data.type === 'auth-success') {
+      // Mark that we are reloading after a successful popup auth.
+      // If the cookie was not persisted (e.g. Firefox partitioning),
+      // the layout script will detect this and fall back to a
+      // full-page OIDC flow to establish the session in the main tab.
+      sessionStorage.setItem('commentServiceAuthSuccess', '1');
       window.location.reload();
+      return;
     } else if (data.type === 'auth-error') {
       const message = data.message || 'We could not complete authentication. Please try again or use the full-page login link.';
       setStatus(message);

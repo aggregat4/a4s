@@ -25,9 +25,16 @@
                     } catch (_) {
                         // ignore postMessage failures
                     }
-                    setTimeout(function() {
-                        window.close();
-                    }, 500);
+                    // Force the browser to commit the cookie by making a same-origin
+                    // request before closing. Some browsers (notably Firefox) may
+                    // discard cookies set during a redirect chain if the popup
+                    // closes before the cookie is fully persisted.
+                    fetch('/')
+                        .finally(function() {
+                            setTimeout(function() {
+                                window.close();
+                            }, 1500);
+                        });
                 }
             })();
         </script>

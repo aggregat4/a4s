@@ -21,7 +21,7 @@
                 data-login-url="{{.Data.LoginPopupURL}}"
                 data-login-origin="{{.Data.PostMessageOrigin}}"
                 data-login-fullpage="{{.Data.LoginFullPageURL}}"
-                onclick="return openAuthPopup(this);"
+                onclick="if (window.self !== window.top) { window.location.href = '/login?redirectTo={{.Data.CurrentPath | urlquery}}'; return false; } return openAuthPopup(this);"
             >Login to Comment</button>
             <p class="popup-hint" data-popup-hint>
                 The login opens in a separate window. If you do not see it, please allow popups for this site.
