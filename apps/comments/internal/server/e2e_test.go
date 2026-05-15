@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -358,4 +359,125 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 		t.Fatalf("expected logout button in iframe after reload, got: %s", iframeHTML)
 	}
 	t.Log("Step 4 passed: session persists after parent reload")
+}
+
+// TestE2E_CrossOriginEmbedReportsAuthStateAfterTopLevelLogin verifies the
+// embedder-facing contract across an actual origin boundary. The host page never
+// reaches into the iframe DOM; it observes the documented postMessage events and
+// initiates the documented top-level handoff itself.
+func TestE2E_CrossOriginEmbedReportsAuthStateAfterTopLevelLogin(t *testing.T) {
+	commentPort := findFreePort(t)
+	redirectURI := fmt.Sprintf("http://localhost:%d/oidccallback", commentPort)
+
+	idp, err := oidcmock.Run(
+		"commentservice-client",
+		"commentservice-secret",
+		redirectURI,
+		map[string]any{"roles": []string{"admin-crossorigin", "superadmin"}},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("failed to start mock OIDC: %v", err)
+	}
+	defer idp.Close()
+
+	commentBaseURL := fmt.Sprintf("http://localhost:%d", commentPort)
+	var embedderURL string
+	embedder := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = fmt.Fprintf(w, `<!doctype html>
+<html>
+<body data-authenticated="">
+  <iframe class="comment-frame" src="%s/services/crossorigin/posts/post-1/comments/"></iframe>
+  <button id="login" type="button">Log in</button>
+  <script>
+    const commentServiceOrigin = %q;
+    const loginPath = '/login/services/crossorigin/embed';
+    window.addEventListener('message', (event) => {
+      if (event.origin !== commentServiceOrigin) return;
+      if (event.data?.type === 'comment-auth-state') {
+        document.body.dataset.authenticated = String(event.data.authenticated);
+      }
+    });
+    document.getElementById('login').addEventListener('click', () => {
+      const loginUrl = new URL(loginPath, commentServiceOrigin);
+      loginUrl.searchParams.set('returnTo', window.location.href);
+      window.location.href = loginUrl.toString();
+    });
+  </script>
+</body>
+</html>`, commentBaseURL, commentBaseURL)
+	}))
+	embedderListener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("failed to start embedder listener: %v", err)
+	}
+	embedder.Listener = embedderListener
+	embedder.Start()
+	defer embedder.Close()
+	embedderURL = strings.Replace(embedder.URL, "127.0.0.1", "localhost", 1)
+
+	cipher, err := crypto.CreateAes256GcmAead([]byte(testEncryptionKey))
+	if err != nil {
+		t.Fatalf("failed to create cipher: %v", err)
+	}
+
+	store := &repository.Store{Cipher: cipher}
+	if err := store.InitAndVerifyDb(repository.CreateInMemoryDbUrl()); err != nil {
+		t.Fatalf("failed to init db: %v", err)
+	}
+	defer store.Close()
+	if _, err := store.CreateService("crossorigin", embedderURL); err != nil {
+		t.Fatalf("failed to seed service: %v", err)
+	}
+
+	controller := &Controller{
+		Store: store,
+		Config: domain.Config{
+			Port:                        commentPort,
+			DatabaseFilename:            "",
+			BaseURL:                     commentBaseURL,
+			ServerReadTimeoutSeconds:    5,
+			ServerWriteTimeoutSeconds:   10,
+			OidcIdpServer:               idp.Issuer(),
+			OidcClientId:                "commentservice-client",
+			OidcClientSecret:            "commentservice-secret",
+			OidcRedirectUri:             redirectURI,
+			EncryptionKey:               testEncryptionKey,
+			SessionCookieSecretKey:      testSessionCookieSecret,
+			SessionCookieSecureFlag:     false,
+			SessionCookieCookieMaxAge:   2592000,
+			SessionCookieCookieSameSite: "lax",
+		},
+	}
+	_ = startRealServer(t, controller, commentPort)
+
+	ctx, cancel := newChromeContext(t)
+	defer cancel()
+
+	var authState string
+	err = chromedp.Run(ctx,
+		chromedp.Navigate(embedderURL),
+		chromedp.WaitVisible("iframe", chromedp.ByQuery),
+		chromedp.PollFunction(`() => document.body.dataset.authenticated`, &authState,
+			chromedp.WithPollingInterval(100*time.Millisecond),
+			chromedp.WithPollingTimeout(5*time.Second)),
+	)
+	if err != nil {
+		t.Fatalf("initial embed load failed: %v", err)
+	}
+	if authState != "false" {
+		t.Fatalf("expected initial unauthenticated iframe state, got %q", authState)
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.Click("#login", chromedp.ByQuery),
+		chromedp.WaitVisible("iframe", chromedp.ByQuery),
+		chromedp.PollFunction(`() => document.body.dataset.authenticated === 'true'`, nil,
+			chromedp.WithPollingInterval(100*time.Millisecond),
+			chromedp.WithPollingTimeout(10*time.Second)),
+	)
+	if err != nil {
+		t.Fatalf("top-level embed login flow failed: %v", err)
+	}
 }

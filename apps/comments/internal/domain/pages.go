@@ -10,6 +10,7 @@ type BasePage struct {
 	CurrentPath    string
 	EmbedderOrigin string
 	EmbedLoginPath string
+	IsEmbeddedPage bool
 }
 
 type ErrorPage struct {

@@ -40,11 +40,19 @@
             window.parent.postMessage({
                 type: 'comment-height',
                 height: height
-            }, '*');
+            }, {{if .Data.EmbedderOrigin}}'{{.Data.EmbedderOrigin}}'{{else}}'*'{{end}});
         }
 
         // Update on load and when content changes
         window.addEventListener('load', updateParentHeight);
+        {{if .Data.IsEmbeddedPage}}
+        window.addEventListener('load', function() {
+            window.parent.postMessage({
+                type: 'comment-auth-state',
+                authenticated: {{if or .Data.Auth.User .Data.Auth.AdminUser}}true{{else}}false{{end}}
+            }, '{{.Data.EmbedderOrigin}}');
+        });
+        {{end}}
         const observer = new MutationObserver(updateParentHeight);
         observer.observe(document.body, {
             childList: true,

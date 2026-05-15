@@ -49,6 +49,7 @@ func (controller *Controller) basePageForService(r *http.Request, service *domai
 	base := controller.basePage(r)
 	base.EmbedderOrigin = service.Origin
 	base.EmbedLoginPath = "/login/services/" + service.ServiceKey + "/embed"
+	base.IsEmbeddedPage = true
 	return base
 }
 

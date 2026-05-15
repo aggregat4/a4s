@@ -60,6 +60,11 @@ Example:
       return;
     }
 
+    if (event.data?.type === 'comment-auth-state') {
+      // Optional: update surrounding page UI from event.data.authenticated.
+      return;
+    }
+
     if (event.data?.type === 'comment-login-request') {
       const loginUrl = new URL(event.data.loginPath, commentServiceOrigin);
       loginUrl.searchParams.set('returnTo', window.location.href);
@@ -116,3 +121,17 @@ Sent when an unauthenticated user asks to log in from embedded comments.
 
 The host page is responsible for converting `loginPath` into a full URL and
 adding `returnTo=window.location.href` before navigating the top-level window.
+
+### `comment-auth-state`
+
+Sent when an embedded comment page finishes loading.
+
+```json
+{
+  "type": "comment-auth-state",
+  "authenticated": true
+}
+```
+
+Embedders may ignore this message. It is useful when the host page wants to
+adjust surrounding UI based on whether the comments iframe is authenticated.
