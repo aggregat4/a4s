@@ -135,25 +135,6 @@ h2 {
         padding: 0.75rem 1.5rem;
     }
 
-    & .popup-hint {
-        margin-top: 1rem;
-        color: var(--info-color);
-    }
-
-    & .popup-status {
-        margin-top: 0.75rem;
-        color: var(--info-color);
-    }
-
-    & .popup-blocked {
-        margin-top: 1rem;
-        color: var(--error-color);
-
-        & a {
-            color: inherit;
-            font-weight: 600;
-        }
-    }
 }
 
 .auth-success {
@@ -173,17 +154,6 @@ h2 {
         margin: 0 0 1rem 0;
         font-size: 1.1em;
         color: var(--success-color);
-    }
-}
-
-.user-login {
-    & .popup-note {
-        background-color: var(--info-bg-color);
-        border: 1px solid var(--info-border-color);
-        border-radius: 6px;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-        color: var(--info-color);
     }
 }
 

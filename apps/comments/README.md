@@ -23,7 +23,10 @@ To embed comments on your website, you'll need to:
 
 1. Register your website with the comment service to get a service ID
 2. Add an iframe element to your page where you want the comments to appear
-3. Implement the iframe resizing listener for a seamless experience
+3. Add the required message listener for resizing and top-level authentication handoff
+
+For the complete embedder contract, including authentication behavior and the
+required message handling, see [`docs/embedding.md`](docs/embedding.md).
 
 ### Basic Implementation
 
@@ -31,7 +34,7 @@ Add an iframe to your page using the following format:
 
 ```html
 <iframe
-  src="https://your-comment-service.com/servicces/{serviceId}/posts/{postKey}/comments"
+  src="https://your-comment-service.com/services/{serviceId}/posts/{postKey}/comments/"
   width="100%"
   style="border: none;"
   id="comments-iframe"
@@ -59,10 +62,18 @@ window.addEventListener('message', function(e) {
             iframe.style.height = e.data.height + 'px';
         }
     }
+    if (e.data && e.data.type === 'comment-login-request') {
+        const loginUrl = new URL(e.data.loginPath, e.origin);
+        loginUrl.searchParams.set('returnTo', window.location.href);
+        window.location.href = loginUrl.toString();
+    }
 });
 ```
 
-The comment service will automatically send height update messages whenever the content size changes, ensuring a seamless integration without iframe scrollbars.
+The comment service will automatically send height update messages whenever the
+content size changes. When a user chooses to log in from the embedded comments
+UI, the iframe asks the host page to begin a top-level login flow so browser
+privacy protections do not strand authentication inside an embedded context.
 
 ## Privacy Laws, GDPR and this Project
 
@@ -139,17 +150,21 @@ Users (commenters) also authenticate via OIDC but require no special rights.
 
 ### Authenticated Commenter Login Flow
 
-The add/edit comment form is only available to authenticated users. When an unauthenticated visitor opens the form:
+The add/edit comment form is only available to authenticated users. When an
+unauthenticated visitor opens the form inside an embed:
 
-- The page renders a login prompt with a `Login to Comment` button and guidance about popup blockers. The prompt contains both the popup login URL (`/login?popup=1`) and a full-page fallback (`/login`).
-- Clicking the button attempts to open the `/login?popup=1` route in a centered popup window. While the popup is open, an inline status message reminds the visitor to finish authentication.
-- The popup serves the same OIDC-backed login page, but in popup mode it posts a message back to the opener (`postMessage({ type: 'auth-success' }, origin)`) once the OIDC callback creates the session. After the message is delivered the popup closes itself.
-- The opener listens for that success message and reloads the add/edit form so the freshly authenticated state is visible without manual refresh.
+- The iframe renders a `Login to Comment` control.
+- Clicking it sends a `comment-login-request` message to the embedding page.
+- The embedding page starts a top-level login handoff by navigating the full
+  browser window to the service-scoped `/login/services/{serviceKey}/embed`
+  route with its own current page URL as `returnTo`.
+- The comment service performs OIDC in the top-level browsing context and then
+  redirects back to the registered embedding origin.
+- When the host page reloads, the iframe reloads with the authenticated session
+  available.
 
-Failure and fallback handling:
+The full embedder contract is documented in [`docs/embedding.md`](docs/embedding.md).
 
-- If the popup cannot be opened (blocked by the browser), the UI exposes an inline alert with a direct link to the full-page login flow so the visitor can continue.
-- If the OIDC flow encounters an error, the popup can stay open and the inline status message encourages the visitor to retry or fall back to the full-page login.
-- All postMessage exchanges are origin-scoped using the configured service origin, so unexpected origins are ignored.
-
-Once authenticated, the form re-renders with the comment inputs. Subsequent comment submissions and edits then proceed through the standard approval workflow.
+Once authenticated, the form re-renders with the comment inputs. Subsequent
+comment submissions and edits then proceed through the standard approval
+workflow.

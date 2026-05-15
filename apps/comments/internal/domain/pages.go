@@ -2,12 +2,14 @@ package domain
 
 // BasePage contains fields common to all pages
 type BasePage struct {
-	Stylesheets []string
-	Scripts     []string
-	Error       []string
-	Success     []string
-	Auth        AuthContext
-	CurrentPath string
+	Stylesheets    []string
+	Scripts        []string
+	Error          []string
+	Success        []string
+	Auth           AuthContext
+	CurrentPath    string
+	EmbedderOrigin string
+	EmbedLoginPath string
 }
 
 type ErrorPage struct {
@@ -37,15 +39,12 @@ type AdminDashboardPage struct {
 
 type AddOrEditCommentPage struct {
 	BasePage
-	ServiceKey        string
-	PostKey           string
-	UserFound         bool
-	User              User
-	CommentFound      bool
-	Comment           Comment
-	LoginPopupURL     string
-	LoginFullPageURL  string
-	PostMessageOrigin string
+	ServiceKey   string
+	PostKey      string
+	UserFound    bool
+	User         User
+	CommentFound bool
+	Comment      Comment
 }
 
 type UserLoginPage struct {
@@ -60,7 +59,5 @@ type DemoPage struct {
 
 type LoginPageData struct {
 	BasePage
-	IsAuthenticated   bool
-	IsPopup           bool
-	PostMessageOrigin string
+	IsAuthenticated bool
 }

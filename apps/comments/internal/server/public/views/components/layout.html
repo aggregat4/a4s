@@ -25,9 +25,9 @@
         </form>
         {{- else -}}
         <a href="/login?redirectTo={{.Data.CurrentPath}}"
-           data-login-url="/login?popup=1"
-           data-login-fullpage="/login"
-           onclick="if (window.self !== window.top) { return true; } return openAuthPopup(this);">
+           {{if .Data.EmbedLoginPath}}data-embed-login-path="{{.Data.EmbedLoginPath}}"
+           data-embedder-origin="{{.Data.EmbedderOrigin}}"
+           onclick="return requestCommentLogin(this);"{{end}}>
            Log in to the Comment Service
         </a>
         {{- end -}}
@@ -35,26 +35,6 @@
     {{template "content" .}}
 
     <script>
-        // Fallback for browsers that do not persist cookies set in a popup
-        // (e.g. Firefox with strict storage partitioning). After a popup
-        // auth-success we reload the page. If the session cookie did not
-        // survive, the top-level page automatically navigates to /login which
-        // triggers the OIDC flow in the main tab and then redirects back here.
-        // We only do this from the top-level window, not from an iframe.
-        (function() {
-            if (window.self !== window.top) {
-                return;
-            }
-            if (sessionStorage.getItem('commentServiceAuthSuccess') === '1') {
-                sessionStorage.removeItem('commentServiceAuthSuccess');
-                var isAuthenticated = !!document.querySelector('form[action="/logout"]');
-                if (!isAuthenticated) {
-                    var redirectTo = window.location.pathname + window.location.search;
-                    window.location.href = '/login?redirectTo=' + encodeURIComponent(redirectTo);
-                }
-            }
-        })();
-
         function updateParentHeight() {
             const height = document.body.scrollHeight;
             window.parent.postMessage({

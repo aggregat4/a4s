@@ -150,6 +150,7 @@ func InitServerWithOidcMiddleware(
 	router.Post("/users/{userId}/comments/{commentId}/delete", controller.DeleteUserComment)
 
 	router.Get("/login", controller.GetUserLoginForm)
+	router.Get("/login/services/{serviceKey}/embed", controller.EmbedLogin)
 	router.Post("/logout", controller.Logout)
 	router.Get("/admin", controller.GetAdminHome)
 
@@ -254,7 +255,7 @@ func (controller *Controller) GetComments(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 
 	page := domain.PostCommentsPage{
-		BasePage:   controller.basePage(r),
+		BasePage:   controller.basePageForService(r, service),
 		User:       user,
 		ServiceKey: serviceKey,
 		PostKey:    postKey,
@@ -367,21 +368,14 @@ func (controller *Controller) GetCommentForm(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Security-Policy", "frame-ancestors "+service.Origin)
 
-	loginPopupURL := "/login?popup=1"
-	loginFullPageURL := "/login"
-	origin := controller.postMessageOrigin(r)
-
 	page := domain.AddOrEditCommentPage{
-		BasePage:          controller.basePage(r),
-		ServiceKey:        serviceKey,
-		PostKey:           postKey,
-		UserFound:         userErr == nil,
-		User:              user,
-		CommentFound:      commentFound,
-		Comment:           comment,
-		LoginPopupURL:     loginPopupURL,
-		LoginFullPageURL:  loginFullPageURL,
-		PostMessageOrigin: origin,
+		BasePage:     controller.basePageForService(r, service),
+		ServiceKey:   serviceKey,
+		PostKey:      postKey,
+		UserFound:    userErr == nil,
+		User:         user,
+		CommentFound: commentFound,
+		Comment:      comment,
 	}
 
 	controller.renderTemplate(w, r, http.StatusOK, "addeditcomment", page)
@@ -403,21 +397,14 @@ func (controller *Controller) GetUserCommentForm(w http.ResponseWriter, r *http.
 		return
 	}
 
-	loginPopupURL := "/login?popup=1"
-	loginFullPageURL := "/login"
-	origin := controller.postMessageOrigin(r)
-
 	page := domain.AddOrEditCommentPage{
-		BasePage:          controller.basePage(r),
-		ServiceKey:        service.ServiceKey,
-		PostKey:           comment.PostKey,
-		UserFound:         true,
-		User:              user,
-		CommentFound:      true,
-		Comment:           comment,
-		LoginPopupURL:     loginPopupURL,
-		LoginFullPageURL:  loginFullPageURL,
-		PostMessageOrigin: origin,
+		BasePage:     controller.basePageForService(r, &service),
+		ServiceKey:   service.ServiceKey,
+		PostKey:      comment.PostKey,
+		UserFound:    true,
+		User:         user,
+		CommentFound: true,
+		Comment:      comment,
 	}
 
 	controller.renderTemplate(w, r, http.StatusOK, "addeditcomment", page)
@@ -542,29 +529,12 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	isPopup := false
-	switch strings.ToLower(r.URL.Query().Get("popup")) {
-	case "1", "true", "yes", "popup":
-		isPopup = true
-	}
-
 	page := domain.LoginPageData{
-		BasePage:          controller.basePage(r),
-		IsAuthenticated:   userAuthenticated || adminAuthenticated,
-		IsPopup:           isPopup,
-		PostMessageOrigin: controller.postMessageOrigin(r),
+		BasePage:        controller.basePage(r),
+		IsAuthenticated: userAuthenticated || adminAuthenticated,
 	}
 
-	// Re-save the session cookie on the login page for authenticated users.
-	// This ensures the cookie is committed on a non-redirect response,
-	// which helps browsers (notably Firefox) that may delay persisting
-	// cookies set during a redirect chain inside a popup.
 	if userAuthenticated || adminAuthenticated {
-		if sess, err := controller.getSession(r); err == nil {
-			if saveErr := sess.Save(r, w); saveErr != nil {
-				logger.Error("Failed to refresh session cookie on login page: {err}", saveErr)
-			}
-		}
 		redirectTo := r.URL.Query().Get("redirectTo")
 		if redirectTo != "" && strings.HasPrefix(redirectTo, "/") && !strings.HasPrefix(redirectTo, "//") {
 			http.Redirect(w, r, redirectTo, http.StatusFound) //nolint:gosec // Validated against open redirects above
@@ -573,6 +543,53 @@ func (controller *Controller) GetUserLoginForm(w http.ResponseWriter, r *http.Re
 	}
 
 	controller.renderTemplate(w, r, http.StatusOK, "userlogin", page)
+}
+
+func (controller *Controller) EmbedLogin(w http.ResponseWriter, r *http.Request) {
+	serviceKey := chi.URLParam(r, "serviceKey")
+	service, err := controller.Store.GetServiceForKey(serviceKey)
+	if err != nil {
+		if errors.Is(err, lang.ErrNotFound) {
+			controller.renderNotFound(w, r)
+		} else {
+			controller.sendInternalError(w, r, err)
+		}
+		return
+	}
+
+	returnTo := r.URL.Query().Get("returnTo")
+	returnURL, err := url.Parse(returnTo)
+	if err != nil || returnURL.Scheme == "" || returnURL.Host == "" {
+		controller.renderBadRequest(w, r)
+		return
+	}
+	if returnURL.Scheme+"://"+returnURL.Host != service.Origin {
+		controller.renderBadRequest(w, r)
+		return
+	}
+
+	userAuthenticated := false
+	if _, err := controller.getUserFromSession(r); err == nil {
+		userAuthenticated = true
+	} else if !errors.Is(err, lang.ErrNotFound) {
+		controller.sendInternalError(w, r, err)
+		return
+	}
+
+	adminAuthenticated := false
+	if _, err := controller.getAdminUserIdFromSession(r); err == nil {
+		adminAuthenticated = true
+	} else if !errors.Is(err, lang.ErrNotFound) {
+		controller.sendInternalError(w, r, err)
+		return
+	}
+
+	if !userAuthenticated && !adminAuthenticated {
+		controller.renderUnauthorized(w, r)
+		return
+	}
+
+	http.Redirect(w, r, returnURL.String(), http.StatusFound)
 }
 
 func (controller *Controller) Logout(w http.ResponseWriter, r *http.Request) {

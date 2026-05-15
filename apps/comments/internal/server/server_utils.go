@@ -45,6 +45,13 @@ func (controller *Controller) basePage(r *http.Request) domain.BasePage {
 	return base
 }
 
+func (controller *Controller) basePageForService(r *http.Request, service *domain.Service) domain.BasePage {
+	base := controller.basePage(r)
+	base.EmbedderOrigin = service.Origin
+	base.EmbedLoginPath = "/login/services/" + service.ServiceKey + "/embed"
+	return base
+}
+
 func (controller *Controller) sendInternalError(w http.ResponseWriter, r *http.Request, err error) {
 	logger.Error("Internal server error: {err}", err)
 	controller.renderTemplate(w, r, http.StatusInternalServerError, "error-internalserver", domain.ErrorPage{

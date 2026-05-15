@@ -8,49 +8,14 @@
         <div class="auth-success" data-auth-success>
             <h1>Authenticated</h1>
             <p>You are already logged in.</p>
-            {{if .Data.IsPopup}}
-            <p>This window will close automatically.</p>
-            {{else}}
             <p>You can return to the page you were viewing.</p>
-            {{end}}
         </div>
-        {{if .Data.IsPopup}}
-        <script>
-            (function() {
-                if (window.opener && !window.opener.closed) {
-                    const payload = { type: 'auth-success' };
-                    const targetOrigin = '{{.Data.PostMessageOrigin | js}}' || window.location.origin;
-                    try {
-                        window.opener.postMessage(payload, targetOrigin);
-                    } catch (_) {
-                        // ignore postMessage failures
-                    }
-                    // Force the browser to commit the cookie by making a same-origin
-                    // request before closing. Some browsers (notably Firefox) may
-                    // discard cookies set during a redirect chain if the popup
-                    // closes before the cookie is fully persisted.
-                    fetch('/')
-                        .finally(function() {
-                            setTimeout(function() {
-                                window.close();
-                            }, 1500);
-                        });
-                }
-            })();
-        </script>
-        {{end}}
     {{else}}
         <h1>User Login</h1>
-        {{if .Data.IsPopup}}
-        <p class="popup-note">After signing in this window will close and the original page will refresh.</p>
-        {{end}}
         <form action="/login" method="GET">
             <p>
                 Please log in to access the comment system. You will be redirected to the OIDC provider to authenticate.
             </p>
-            {{if .Data.IsPopup}}
-            <input type="hidden" name="popup" value="1">
-            {{end}}
             <button type="submit" class="primary-button">Login with OIDC</button>
         </form>
     {{end}}

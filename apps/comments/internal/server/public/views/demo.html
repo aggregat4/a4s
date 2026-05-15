@@ -38,8 +38,16 @@
             
             // Handle messages from the comment iframe
             window.addEventListener('message', function(e) {
+                if (e.origin !== '{{.Data.BaseURL}}') {
+                    return;
+                }
                 if (e.data && e.data.type === 'comment-height') {
                     iframe.style.height = e.data.height + 'px';
+                }
+                if (e.data && e.data.type === 'comment-login-request') {
+                    const loginUrl = new URL(e.data.loginPath, e.origin);
+                    loginUrl.searchParams.set('returnTo', window.location.href);
+                    window.location.href = loginUrl.toString();
                 }
             });
         </script>

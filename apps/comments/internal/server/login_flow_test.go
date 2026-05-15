@@ -3,13 +3,12 @@ package server
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestAddCommentFormExposesLoginMetadata(t *testing.T) {
+func TestAddCommentFormExposesEmbedLoginMetadata(t *testing.T) {
 	h := NewServerHarness(t)
 	client := h.NewClient(true)
 
@@ -24,40 +23,35 @@ func TestAddCommentFormExposesLoginMetadata(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	body := readBody(res)
-	require.Contains(t, body, `data-login-url="/login?popup=1"`)
-	require.Contains(t, body, `data-login-origin="http://localhost:8080"`)
-	require.Contains(t, body, `data-login-fullpage="/login"`)
-	require.Contains(t, body, `data-popup-blocked hidden`)
-	require.Contains(t, body, `data-popup-status`)
+	require.Contains(t, body, `data-embed-login-path="/login/services/TESTSERVICE/embed"`)
+	require.Contains(t, body, `data-embedder-origin="https://example.com"`)
 }
 
-func TestLoginPopupAuthenticatedTriggersPostMessage(t *testing.T) {
+func TestEmbedLoginRedirectsAuthenticatedUserToRegisteredOrigin(t *testing.T) {
 	h := NewServerHarness(t)
 	client := h.NewClient(true)
 
 	authCookie := h.MustUserSessionCookie(h.Data.PrimaryUser.Id)
 	h.SetCookie(client, authCookie)
 
-	res, err := client.Get(h.URL("/login?popup=1"))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 
-	body := readBody(res)
-	normalized := strings.ReplaceAll(body, `\/`, "/")
-	require.Contains(t, normalized, "const targetOrigin = 'http://localhost:8080'")
-	require.Contains(t, normalized, "postMessage(payload, targetOrigin);")
-	require.Contains(t, normalized, "window.close();")
+	res, err := client.Get(h.URL("/login/services/TESTSERVICE/embed?returnTo=https%3A%2F%2Fexample.com%2Fposts%2F1"))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusFound, res.StatusCode)
+	require.Equal(t, "https://example.com/posts/1", res.Header.Get("Location"))
 }
 
-func TestLoginPopupFormPreservesPopupParameter(t *testing.T) {
+func TestEmbedLoginRejectsUnregisteredReturnOrigin(t *testing.T) {
 	h := NewServerHarness(t)
 	client := h.NewClient(true)
 
-	res, err := client.Get(h.URL("/login?popup=1"))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
+	authCookie := h.MustUserSessionCookie(h.Data.PrimaryUser.Id)
+	h.SetCookie(client, authCookie)
 
-	body := readBody(res)
-	require.Contains(t, body, `<input type="hidden" name="popup" value="1">`)
-	require.Contains(t, body, "popup-note")
+	res, err := client.Get(h.URL("/login/services/TESTSERVICE/embed?returnTo=https%3A%2F%2Fevil.example%2Fposts%2F1"))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
 }

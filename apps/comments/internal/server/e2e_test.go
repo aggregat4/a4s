@@ -15,7 +15,6 @@ import (
 	"aggregat4/go-commentservice/internal/testing/oidcmock"
 
 	"github.com/aggregat4/go-baselib/crypto"
-	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
 
@@ -207,11 +206,12 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	t.Log("Step 4 passed: session persists after reload")
 }
 
-// TestE2E_IframeLayoutLoginOpensPopup tests that clicking the "Log in to the Comment Service"
-// link inside an embedded iframe opens a popup (rather than navigating the iframe),
-// completes OIDC, and leaves a persistent session after the parent page reloads.
-func TestE2E_IframeLayoutLoginOpensPopup(t *testing.T) {
-	port := 8080
+// TestE2E_IframeLayoutLoginUsesTopLevelHandoff tests that clicking the "Log in to
+// the Comment Service" link inside an embedded iframe asks the parent page to
+// start a top-level auth flow, then returns to the embedder with a persistent
+// authenticated session.
+func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
+	port := findFreePort(t)
 	redirectURI := fmt.Sprintf("http://localhost:%d/oidccallback", port)
 
 	idp, err := oidcmock.Run(
@@ -292,22 +292,20 @@ func TestE2E_IframeLayoutLoginOpensPopup(t *testing.T) {
 	}
 	t.Log("Step 1 passed: iframe shows login link")
 
-	// Step 2: Click the login link inside the iframe. Since the iframe now
-	// uses direct navigation (not a popup), the iframe will navigate through
-	// the OIDC flow internally and end up back on the comments page.
+	// Step 2: Click the login link inside the iframe. The iframe asks the parent
+	// page to navigate the top-level window through the login handoff.
 	err = chromedp.Run(ctx,
-		chromedp.Evaluate(`document.querySelector('iframe').contentDocument.querySelector('a[href^="/login?redirectTo="]').click()`, nil),
+		chromedp.Evaluate(`document.querySelector('iframe').contentDocument.querySelector('a[data-embed-login-path]').click()`, nil),
 	)
 	if err != nil {
 		t.Fatalf("step 2 click failed: %v", err)
 	}
 	t.Log("Step 2: clicked iframe login link")
 
-	// Step 3: Wait for the iframe to complete the OIDC redirect chain
-	// (comments → /login → IdP → /oidccallback → /login → comments)
-	// and show the authenticated state. Keep polling while the iframe
-	// still shows the login link or is cross-origin (navigating).
+	// Step 3: Wait for the top-level page to return to /demo, then verify that
+	// the embedded iframe shows the authenticated state.
 	err = chromedp.Run(ctx,
+		chromedp.WaitVisible("iframe", chromedp.ByQuery),
 		chromedp.PollFunction(`() => {
 			try {
 				const iframe = document.querySelector('iframe');
@@ -335,7 +333,7 @@ func TestE2E_IframeLayoutLoginOpensPopup(t *testing.T) {
 	if !strings.Contains(iframeHTML, "Log out") {
 		t.Fatalf("expected logout button after iframe login, got: %s", iframeHTML)
 	}
-	t.Log("Step 3 passed: iframe shows authenticated state after direct navigation login")
+	t.Log("Step 3 passed: iframe shows authenticated state after top-level login handoff")
 
 	// Step 4: Reload the parent page. The iframe should still be authenticated.
 	err = chromedp.Run(ctx,
@@ -360,171 +358,4 @@ func TestE2E_IframeLayoutLoginOpensPopup(t *testing.T) {
 		t.Fatalf("expected logout button in iframe after reload, got: %s", iframeHTML)
 	}
 	t.Log("Step 4 passed: session persists after parent reload")
-}
-
-// TestE2E_OidcPopupLoginPersistsSession tests the full popup flow: clicking the
-// login button opens a popup, the OIDC flow completes in the popup, the popup
-// posts auth-success to the parent, and the parent reloads to show the comment
-// form with a persistent session.
-func TestE2E_OidcPopupLoginPersistsSession(t *testing.T) {
-	port := findFreePort(t)
-	redirectURI := fmt.Sprintf("http://localhost:%d/oidccallback", port)
-
-	idp, err := oidcmock.Run(
-		"commentservice-client",
-		"commentservice-secret",
-		redirectURI,
-		map[string]any{
-			"roles": []string{"admin-TESTSERVICE", "superadmin"},
-		},
-		"",
-	)
-	if err != nil {
-		t.Fatalf("failed to start mock OIDC: %v", err)
-	}
-	defer idp.Close()
-
-	cipher, err := crypto.CreateAes256GcmAead([]byte(testEncryptionKey))
-	if err != nil {
-		t.Fatalf("failed to create cipher: %v", err)
-	}
-
-	store := &repository.Store{Cipher: cipher}
-	if err := store.InitAndVerifyDb(repository.CreateInMemoryDbUrl()); err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer store.Close()
-
-	if _, err := store.CreateService(testServiceKey, testServiceOrigin); err != nil {
-		t.Fatalf("failed to seed service: %v", err)
-	}
-
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
-	controller := &Controller{
-		Store: store,
-		Config: domain.Config{
-			Port:                        port,
-			DatabaseFilename:            "",
-			BaseURL:                     baseURL,
-			ServerReadTimeoutSeconds:    5,
-			ServerWriteTimeoutSeconds:   10,
-			OidcIdpServer:               idp.Issuer(),
-			OidcClientId:                "commentservice-client",
-			OidcClientSecret:            "commentservice-secret",
-			OidcRedirectUri:             redirectURI,
-			EncryptionKey:               testEncryptionKey,
-			SessionCookieSecretKey:      testSessionCookieSecret,
-			SessionCookieSecureFlag:     false,
-			SessionCookieCookieMaxAge:   2592000,
-			SessionCookieCookieSameSite: "lax",
-		},
-	}
-
-	_ = startRealServer(t, controller, port)
-
-	ctx, cancel := newChromeContext(t)
-	defer cancel()
-
-	commentFormURL := baseURL + "/services/" + testServiceKey + "/posts/" + testPostKeyApproved + "/commentform"
-
-	var body string
-
-	// Step 1: Navigate to comment form and click login button.
-	err = chromedp.Run(ctx,
-		chromedp.Navigate(commentFormURL),
-		chromedp.WaitVisible(`[data-login-button]`, chromedp.ByQuery),
-	)
-	if err != nil {
-		t.Fatalf("step 1 failed: %v", err)
-	}
-
-	// Listen for a new target (popup) before clicking.
-	_, cancelPopup := context.WithCancel(ctx)
-	defer cancelPopup()
-
-	popupTargetCh := make(chan string, 1)
-	chromedp.ListenTarget(ctx, func(ev any) {
-		switch ev := ev.(type) {
-		case *target.EventTargetCreated:
-			if ev.TargetInfo.OpenerID != "" {
-				select {
-				case popupTargetCh <- string(ev.TargetInfo.TargetID):
-				default:
-				}
-			}
-		}
-	})
-
-	err = chromedp.Run(ctx,
-		chromedp.Click(`[data-login-button]`, chromedp.ByQuery),
-	)
-	if err != nil {
-		t.Fatalf("failed to click login button: %v", err)
-	}
-
-	// Wait for popup target to be created.
-	var popupTargetID string
-	select {
-	case popupTargetID = <-popupTargetCh:
-		t.Logf("Popup target created: %s", popupTargetID)
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for popup target")
-	}
-
-	// Attach to the popup and wait for it to complete auth and close.
-	popupCtx, cancelPopup := chromedp.NewContext(ctx, chromedp.WithTargetID(target.ID(popupTargetID)))
-	defer cancelPopup()
-
-	// The popup navigates through OIDC and lands on /login?popup=1 showing "Authenticated".
-	err = chromedp.Run(popupCtx,
-		chromedp.WaitVisible(`[data-auth-success]`, chromedp.ByQuery),
-	)
-	if err != nil {
-		t.Fatalf("popup did not reach auth success: %v", err)
-	}
-	t.Log("Step 2 passed: popup authenticated")
-
-	// Wait for popup to close itself (it closes after 500ms).
-	err = chromedp.Run(popupCtx,
-		chromedp.WaitVisible(`html`, chromedp.ByQuery),
-	)
-	// We expect an error because the popup closes.
-	if err == nil {
-		// If no error, wait a bit more for the popup to close.
-		<-time.After(2 * time.Second)
-	}
-
-	// Step 3: Parent page should have reloaded and now show the comment form.
-	// Switch back to the original target context.
-	err = chromedp.Run(ctx,
-		chromedp.WaitVisible(`form[action*="/comments/"]`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
-	)
-	if err != nil {
-		t.Fatalf("step 3 failed: %v", err)
-	}
-	if strings.Contains(body, "Login to Comment") {
-		t.Fatalf("expected comment form after popup login, but still seeing login button. Body: %s", body)
-	}
-	if !strings.Contains(body, "Submit") {
-		t.Fatalf("expected comment form with Submit button, got: %s", body)
-	}
-	t.Log("Step 3 passed: comment form visible after popup login")
-
-	// Step 4: Reload to verify session persistence.
-	err = chromedp.Run(ctx,
-		chromedp.Reload(),
-		chromedp.WaitVisible(`form[action*="/comments/"]`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
-	)
-	if err != nil {
-		t.Fatalf("step 4 failed: %v", err)
-	}
-	if strings.Contains(body, "Login to Comment") {
-		t.Fatalf("session did not persist after reload. Body: %s", body)
-	}
-	if !strings.Contains(body, "Submit") {
-		t.Fatalf("expected comment form after reload, got: %s", body)
-	}
-	t.Log("Step 4 passed: session persists after reload")
 }

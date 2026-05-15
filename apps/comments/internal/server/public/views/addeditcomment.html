@@ -18,19 +18,10 @@
                 type="button"
                 class="primary-button"
                 data-login-button
-                data-login-url="{{.Data.LoginPopupURL}}"
-                data-login-origin="{{.Data.PostMessageOrigin}}"
-                data-login-fullpage="{{.Data.LoginFullPageURL}}"
-                onclick="if (window.self !== window.top) { window.location.href = '/login?redirectTo={{.Data.CurrentPath | urlquery}}'; return false; } return openAuthPopup(this);"
+                data-embed-login-path="{{.Data.EmbedLoginPath}}"
+                data-embedder-origin="{{.Data.EmbedderOrigin}}"
+                onclick="return requestCommentLogin(this);"
             >Login to Comment</button>
-            <p class="popup-hint" data-popup-hint>
-                The login opens in a separate window. If you do not see it, please allow popups for this site.
-            </p>
-            <p class="popup-status" data-popup-status role="status" aria-live="polite" hidden></p>
-            <p class="popup-blocked" data-popup-blocked hidden role="alert">
-                We could not open the login window. You can continue by using the
-                <a href="{{.Data.LoginFullPageURL}}" data-popup-fallback>full-page login</a> instead.
-            </p>
         </div>
     {{else}}
         <div class="important">
