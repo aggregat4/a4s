@@ -13,7 +13,7 @@ import (
 func TestMockOidcAuthorizationCodeFlow(t *testing.T) {
 	m, err := Run("test-client", "test-secret", "http://localhost:8080/oidccallback", map[string]any{
 		"roles": []string{"admin-demo", "superadmin"},
-	})
+	}, "")
 	require.NoError(t, err)
 	defer m.Close()
 

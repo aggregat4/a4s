@@ -833,6 +833,7 @@ func (controller *Controller) GetDemo(w http.ResponseWriter, r *http.Request) {
 	page := domain.DemoPage{
 		BasePage: controller.basePage(r),
 		User:     user,
+		BaseURL:  controller.Config.BaseURL,
 	}
 	controller.renderTemplate(w, r, http.StatusOK, "demo", page)
 }

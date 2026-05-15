@@ -54,7 +54,8 @@ type UserLoginPage struct {
 
 type DemoPage struct {
 	BasePage
-	User User
+	User    User
+	BaseURL string
 }
 
 type LoginPageData struct {

@@ -31,14 +31,21 @@ func main() {
 	// In a real deployment this would come from a secret manager.
 	encryptionKey := mustGenerateKey()
 
+	demoHost := os.Getenv("DEMO_HOST")
+	if demoHost == "" {
+		demoHost = "localhost"
+	}
+	baseURL := "http://" + demoHost + ":8080"
+
 	// Start a mock OIDC provider so the demo works without an external IdP.
 	idp, err := oidcmock.Run(
 		"commentservice-client",
 		"commentservice-secret",
-		"http://localhost:8080/oidccallback",
+		baseURL+"/oidccallback",
 		map[string]any{
 			"roles": []string{"admin-demoservice", "superadmin"},
 		},
+		demoHost,
 	)
 	if err != nil {
 		panic(err)
@@ -67,7 +74,7 @@ func main() {
 
 	// Seed the demo service if it doesn't already exist.
 	if _, err := store.GetServiceForKey("demoservice"); err != nil {
-		if _, err := store.CreateService("demoservice", "http://localhost:8080"); err != nil {
+		if _, err := store.CreateService("demoservice", baseURL); err != nil {
 			logger.Fatal("Error creating demo service {err}", err)
 			os.Exit(1)
 		}
@@ -77,13 +84,13 @@ func main() {
 	config := domain.Config{ //nolint:gosec // Demo credentials
 		Port:                      8080,
 		DatabaseFilename:          dbPath,
-		BaseURL:                   "http://localhost:8080",
+		BaseURL:                   baseURL,
 		ServerReadTimeoutSeconds:  5,
 		ServerWriteTimeoutSeconds: 10,
 		OidcIdpServer:             idp.Issuer(),
 		OidcClientId:              "commentservice-client",
 		OidcClientSecret:          "commentservice-secret",
-		OidcRedirectUri:           "http://localhost:8080/oidccallback",
+		OidcRedirectUri:           baseURL + "/oidccallback",
 		EncryptionKey:             encryptionKey,
 		SessionCookieSecretKey:    "demosessionssecretkey32byteslong",
 		SessionCookieSecureFlag:   false,
@@ -100,9 +107,9 @@ func main() {
 
 	logger.Info("")
 	logger.Info("=== Comment Service Demo ===")
-	logger.Info("Demo page:       http://localhost:8080/demo")
-	logger.Info("Admin dashboard: http://localhost:8080/admin")
-	logger.Info("Comments iframe: http://localhost:8080/services/demoservice/posts/demopost/comments/")
+	logger.Info("Demo page:       {baseURL}/demo", baseURL)
+	logger.Info("Admin dashboard: {baseURL}/admin", baseURL)
+	logger.Info("Comments iframe: {baseURL}/services/demoservice/posts/demopost/comments/", baseURL)
 	logger.Info("")
 	logger.Info("The mock OIDC provider auto-authenticates anyone who clicks 'Login'.")
 	logger.Info("Press Ctrl+C to stop.")

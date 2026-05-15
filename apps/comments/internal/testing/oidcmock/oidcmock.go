@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +30,7 @@ type Server struct {
 	redirectURI  string
 	codes        map[string]codeEntry
 	claims       map[string]any
+	host         string
 }
 
 type codeEntry struct {
@@ -37,7 +40,9 @@ type codeEntry struct {
 
 // Run starts a mock OIDC server on a random port.
 // The caller should call Shutdown() when done.
-func Run(clientID, clientSecret, redirectURI string, claims map[string]any) (*Server, error) {
+// If host is non-empty the server listens on all interfaces so it is reachable
+// from other machines on the network, and Issuer() returns a URL using that host.
+func Run(clientID, clientSecret, redirectURI string, claims map[string]any, host string) (*Server, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, fmt.Errorf("generate rsa key: %w", err)
@@ -50,6 +55,7 @@ func Run(clientID, clientSecret, redirectURI string, claims map[string]any) (*Se
 		redirectURI:  redirectURI,
 		codes:        make(map[string]codeEntry),
 		claims:       claims,
+		host:         host,
 		jwkSet: jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{Key: &priv.PublicKey, Use: "sig", Algorithm: string(jose.RS256), KeyID: "mock-key-1"},
@@ -63,12 +69,33 @@ func Run(clientID, clientSecret, redirectURI string, claims map[string]any) (*Se
 	mux.HandleFunc("/token", m.token)
 	mux.HandleFunc("/jwks", m.jwks)
 
-	m.Server = httptest.NewServer(mux)
+	if host != "" {
+		l, err := net.Listen("tcp", "0.0.0.0:0")
+		if err != nil {
+			return nil, fmt.Errorf("listen on all interfaces: %w", err)
+		}
+		m.Server = httptest.NewUnstartedServer(mux)
+		m.Server.Listener = l
+		m.Server.Start()
+		_, port, err := net.SplitHostPort(m.Server.Listener.Addr().String())
+		if err != nil {
+			return nil, fmt.Errorf("get listener port: %w", err)
+		}
+		m.Server.URL = "http://" + net.JoinHostPort(host, port)
+	} else {
+		m.Server = httptest.NewServer(mux)
+	}
 	return m, nil
 }
 
 func (m *Server) Issuer() string {
-	return m.URL
+	if m.host != "" {
+		return m.URL
+	}
+	// Use localhost instead of 127.0.0.1 so the mock IdP is same-site
+	// with the application (which typically runs on localhost). This avoids
+	// browsers treating the redirect back from the IdP as cross-site.
+	return strings.Replace(m.URL, "127.0.0.1", "localhost", 1)
 }
 
 func (m *Server) SetRedirectURI(uri string) {

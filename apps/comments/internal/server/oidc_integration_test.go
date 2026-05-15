@@ -15,6 +15,7 @@ func TestOidcCallbackCreatesUserSession(t *testing.T) {
 		"commentservice-secret",
 		"http://localhost:8080/oidccallback",
 		map[string]any{"roles": []string{"admin-TESTSERVICE"}},
+		"",
 	)
 	require.NoError(t, err)
 	defer idp.Close()

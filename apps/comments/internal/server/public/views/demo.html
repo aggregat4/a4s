@@ -14,7 +14,7 @@
         {{end}}
     </p>
     <p>Finally there is an admin dashboard that allows an admin to manage all comments:
-        <a href="http://localhost:8080/admin">Admin Dashboard</a>
+        <a href="{{.Data.BaseURL}}/admin">Admin Dashboard</a>
     </p>
 </header>
 <main>
@@ -28,7 +28,7 @@
         <h3>Comments</h3>
         <iframe 
             class="comment-frame"
-            src="http://localhost:8080/services/demoservice/posts/demopost/comments/"
+            src="{{.Data.BaseURL}}/services/demoservice/posts/demopost/comments/"
             title="Comments"
             scrolling="no"
             style="width: 100%; border: none; overflow: hidden;">
