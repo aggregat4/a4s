@@ -122,7 +122,7 @@ Then open `http://localhost:8080/demo` in your browser. The demo page shows a sa
 | Admin dashboard | `http://localhost:8080/admin` |
 | Superadmin services | `http://localhost:8080/superadmin/services` |
 
-The demo server creates a temporary SQLite database (`commentservice-demo.sqlite`) and seeds a demo service automatically. Press `Ctrl+C` to stop.
+The demo server creates an in-memory SQLite database and seeds a demo service automatically. Its data is discarded when the process stops, so each restart begins from a clean demo state. Press `Ctrl+C` to stop.
 
 ### Production setup
 

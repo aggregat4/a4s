@@ -27,7 +27,7 @@ var logger = mtlog.New(
 )
 
 func main() {
-	// Generate a deterministic demo encryption key so the db survives restarts.
+	// Generate a fresh demo encryption key for this process only.
 	// In a real deployment this would come from a secret manager.
 	encryptionKey := mustGenerateKey()
 
@@ -66,8 +66,7 @@ func main() {
 	store := repository.Store{Cipher: aesCipher}
 	defer store.Close()
 
-	dbPath := "commentservice-demo"
-	if err := store.InitAndVerifyDb(repository.CreateFileDbUrl(dbPath)); err != nil {
+	if err := store.InitAndVerifyDb(repository.CreateInMemoryDbUrl()); err != nil {
 		logger.Fatal("Error initializing database {err}", err)
 		os.Exit(1)
 	}
@@ -82,19 +81,19 @@ func main() {
 	}
 
 	config := domain.Config{ //nolint:gosec // Demo credentials
-		Port:                      8080,
-		DatabaseFilename:          dbPath,
-		BaseURL:                   baseURL,
-		ServerReadTimeoutSeconds:  5,
-		ServerWriteTimeoutSeconds: 10,
-		OidcIdpServer:             idp.Issuer(),
-		OidcClientId:              "commentservice-client",
-		OidcClientSecret:          "commentservice-secret",
-		OidcRedirectUri:           baseURL + "/oidccallback",
-		EncryptionKey:             encryptionKey,
-		SessionCookieSecretKey:    "demosessionssecretkey32byteslong",
-		SessionCookieSecureFlag:   false,
-		SessionCookieCookieMaxAge: 2592000,
+		Port:                        8080,
+		DatabaseFilename:            "in-memory-demo",
+		BaseURL:                     baseURL,
+		ServerReadTimeoutSeconds:    5,
+		ServerWriteTimeoutSeconds:   10,
+		OidcIdpServer:               idp.Issuer(),
+		OidcClientId:                "commentservice-client",
+		OidcClientSecret:            "commentservice-secret",
+		OidcRedirectUri:             baseURL + "/oidccallback",
+		EncryptionKey:               encryptionKey,
+		SessionCookieSecretKey:      "demosessionssecretkey32byteslong",
+		SessionCookieSecureFlag:     false,
+		SessionCookieCookieMaxAge:   2592000,
 		SessionCookieCookieSameSite: "lax",
 	}
 
