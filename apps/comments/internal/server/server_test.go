@@ -1,6 +1,10 @@
 package server
 
 import (
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -57,6 +61,125 @@ func TestSingleCommentPostPage(t *testing.T) {
 	// Only approved comments should be visible on the public page
 	assert.Contains(t, body, approved)
 	assert.NotContains(t, body, pending)
+}
+
+func TestPostPageShowsPendingCommentToItsAuthor(t *testing.T) {
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	h.SetCookie(client, h.MustUserSessionCookie(h.Data.PrimaryUser.Id))
+
+	res, err := client.Get(h.URL("/services/" + h.Data.Service.ServiceKey + "/posts/" + testPostKeyApproved + "/comments/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := readBody(res)
+	assert.Contains(t, body, h.Data.Comments["approved"].Comment)
+	assert.Contains(t, body, h.Data.Comments["pending"].Comment)
+	assert.Contains(t, body, "Awaiting moderation")
+}
+
+func TestPostPageHidesPendingCommentFromOtherUsers(t *testing.T) {
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	h.SetCookie(client, h.MustUserSessionCookie(h.Data.AdditionalUser.Id))
+
+	res, err := client.Get(h.URL("/services/" + h.Data.Service.ServiceKey + "/posts/" + testPostKeyApproved + "/comments/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := readBody(res)
+	assert.Contains(t, body, h.Data.Comments["approved"].Comment)
+	assert.NotContains(t, body, h.Data.Comments["pending"].Comment)
+	assert.NotContains(t, body, "Awaiting moderation")
+}
+
+func TestApprovedCommentEditFormIsForbiddenToAuthor(t *testing.T) {
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	h.SetCookie(client, h.MustUserSessionCookie(h.Data.PrimaryUser.Id))
+
+	approved := h.Data.Comments["approved"]
+	res, err := client.Get(h.URL("/users/" + strconv.Itoa(h.Data.PrimaryUser.Id) + "/comments/" + strconv.Itoa(approved.Id) + "/edit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, http.StatusForbidden, res.StatusCode)
+}
+
+func TestPendingCommentCanBeEditedByAuthor(t *testing.T) {
+	h := NewServerHarness(t)
+	client := h.NewClient(true)
+	h.SetCookie(client, h.MustUserSessionCookie(h.Data.PrimaryUser.Id))
+
+	pending := h.Data.Comments["pending"]
+	res, err := client.Get(h.URL("/users/" + strconv.Itoa(h.Data.PrimaryUser.Id) + "/comments/" + strconv.Itoa(pending.Id) + "/edit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Contains(t, readBody(res), "<h2>Edit Comment</h2>")
+}
+
+func TestApprovedCommentCanBeDeletedByAuthor(t *testing.T) {
+	h := NewServerHarness(t)
+	client := h.NewClient(false)
+	h.SetCookie(client, h.MustUserSessionCookie(h.Data.PrimaryUser.Id))
+
+	approved := h.Data.Comments["approved"]
+	req, err := http.NewRequest(
+		http.MethodPost,
+		h.URL("/users/"+strconv.Itoa(h.Data.PrimaryUser.Id)+"/comments/"+strconv.Itoa(approved.Id)+"/delete"),
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, http.StatusFound, res.StatusCode)
+	_, err = h.Store.GetComment(approved.Id)
+	assert.Error(t, err)
+}
+
+func TestApprovedCommentUpdateIsForbiddenToAuthor(t *testing.T) {
+	h := NewServerHarness(t)
+	client := h.NewClient(false)
+	h.SetCookie(client, h.MustUserSessionCookie(h.Data.PrimaryUser.Id))
+
+	approved := h.Data.Comments["approved"]
+	form := url.Values{}
+	form.Set("commentId", strconv.Itoa(approved.Id))
+	form.Set("comment", "Changed after approval")
+
+	req, err := http.NewRequest(
+		http.MethodPost,
+		h.URL("/users/"+strconv.Itoa(h.Data.PrimaryUser.Id)+"/services/"+h.Data.Service.ServiceKey+"/posts/"+approved.PostKey+"/comments/"),
+		strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, http.StatusForbidden, res.StatusCode)
+	reloaded, err := h.Store.GetComment(approved.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, approved.Comment, reloaded.Comment)
 }
 
 func TestPrivacyPolicyPage(t *testing.T) {

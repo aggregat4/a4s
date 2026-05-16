@@ -124,8 +124,15 @@ func mapComment(rows *sql.Rows, cipher cipher.AEAD) (domain.Comment, error) {
 	return comment, nil
 }
 
-func (store *Store) GetCommentsForPost(serviceId int, postKey string) ([]domain.Comment, error) {
-	rows, err := store.db.Query("SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ? AND status = ?", serviceId, postKey, domain.CommentStatusApproved)
+func (store *Store) GetCommentsForPost(serviceId int, postKey string, viewerUserId int) ([]domain.Comment, error) {
+	rows, err := store.db.Query(
+		"SELECT id, status, user_id, service_id, service_key, post_key, comment_encrypted, name_encrypted, website_encrypted, parent_url_encrypted, edited, created_at FROM comments WHERE service_id = ? AND post_key = ? AND (status = ? OR (status = ? AND user_id = ?))",
+		serviceId,
+		postKey,
+		domain.CommentStatusApproved,
+		domain.CommentStatusPendingApproval,
+		viewerUserId,
+	)
 	if err != nil {
 		return nil, err
 	}

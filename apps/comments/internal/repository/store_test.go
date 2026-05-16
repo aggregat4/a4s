@@ -248,7 +248,7 @@ func TestStoreDeleteCommentMissingReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestStoreGetCommentsForPostOnlyReturnsApproved(t *testing.T) {
+func TestStoreGetCommentsForPostReturnsApprovedAndViewerPending(t *testing.T) {
 	store := newTestStore(t)
 
 	serviceID, err := store.CreateService("blog1", "https://blog1.example.com")
@@ -257,6 +257,11 @@ func TestStoreGetCommentsForPostOnlyReturnsApproved(t *testing.T) {
 	}
 
 	userID, err := store.CreateUser()
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	otherUserID, err := store.CreateUser()
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
@@ -276,7 +281,7 @@ func TestStoreGetCommentsForPostOnlyReturnsApproved(t *testing.T) {
 		t.Fatalf("CreateComment failed: %v", err)
 	}
 
-	_, err = store.CreateComment(
+	pendingID, err := store.CreateComment(
 		domain.CommentStatusPendingApproval,
 		serviceID,
 		"blog1",
@@ -291,15 +296,45 @@ func TestStoreGetCommentsForPostOnlyReturnsApproved(t *testing.T) {
 		t.Fatalf("CreateComment pending failed: %v", err)
 	}
 
-	comments, err := store.GetCommentsForPost(serviceID, "post-1")
+	_, err = store.CreateComment(
+		domain.CommentStatusPendingApproval,
+		serviceID,
+		"blog1",
+		otherUserID,
+		"post-1",
+		"Still hidden",
+		"Other author",
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("CreateComment other pending failed: %v", err)
+	}
+
+	anonymousComments, err := store.GetCommentsForPost(serviceID, "post-1", 0)
+	if err != nil {
+		t.Fatalf("GetCommentsForPost anonymous failed: %v", err)
+	}
+
+	if len(anonymousComments) != 1 {
+		t.Fatalf("expected 1 approved comment for anonymous visitor, got %d", len(anonymousComments))
+	}
+	if anonymousComments[0].Id != approvedID {
+		t.Fatalf("unexpected anonymous comment returned: %+v", anonymousComments[0])
+	}
+
+	comments, err := store.GetCommentsForPost(serviceID, "post-1", userID)
 	if err != nil {
 		t.Fatalf("GetCommentsForPost failed: %v", err)
 	}
 
-	if len(comments) != 1 {
-		t.Fatalf("expected 1 approved comment, got %d", len(comments))
+	if len(comments) != 2 {
+		t.Fatalf("expected approved comment and viewer pending comment, got %d", len(comments))
 	}
 	if comments[0].Id != approvedID {
 		t.Fatalf("unexpected comment returned: %+v", comments[0])
+	}
+	if comments[1].Id != pendingID {
+		t.Fatalf("expected viewer pending comment, got %+v", comments[1])
 	}
 }

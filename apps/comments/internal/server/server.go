@@ -242,7 +242,7 @@ func (controller *Controller) GetComments(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	comments, err := controller.Store.GetCommentsForPost(service.Id, postKey)
+	comments, err := controller.Store.GetCommentsForPost(service.Id, postKey, user.Id)
 	if err != nil {
 		controller.sendInternalError(w, r, err)
 		return
@@ -394,6 +394,10 @@ func (controller *Controller) GetUserCommentForm(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
+	if comment.Status == domain.CommentStatusApproved {
+		controller.renderForbidden(w, r)
+		return
+	}
 
 	service, err := controller.Store.FindServiceById(comment.ServiceId)
 	if err != nil {
@@ -491,8 +495,12 @@ func (controller *Controller) PostComment(w http.ResponseWriter, r *http.Request
 			}
 			return
 		}
-		if comment.UserId != user.Id || comment.Status == domain.CommentStatusApproved {
+		if comment.UserId != user.Id {
 			controller.renderUnauthorized(w, r)
+			return
+		}
+		if comment.Status == domain.CommentStatusApproved {
+			controller.renderForbidden(w, r)
 			return
 		}
 		if err := controller.Store.UpdateComment(comment.Id, comment.Status, commentContent, name, website, parentURL); err != nil {

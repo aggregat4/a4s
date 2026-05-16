@@ -9,12 +9,6 @@ the page-specific actions. Make it more minimal and integrate it with actions
 such as "Add new comment" and "Administer comments" so the top of the page reads
 as one coherent control area.
 
-### Show pending comments to their authors on post pages
-
-`GetCommentsForPost` only returns approved comments. A logged-in user viewing a
-post should also see their own pending comments with a clear visual marker such
-as "awaiting moderation" so they know their submission arrived.
-
 ### Improve comment presentation
 
 * Align public comment styling with the admin dashboard styling.

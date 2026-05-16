@@ -135,3 +135,10 @@ Sent when an embedded comment page finishes loading.
 
 Embedders may ignore this message. It is useful when the host page wants to
 adjust surrounding UI based on whether the comments iframe is authenticated.
+
+## Comment visibility
+
+Approved comments are visible to every visitor. When the iframe is loaded with
+an authenticated commenter session, it may also show that viewer's own pending
+comments with an awaiting-moderation marker. Pending comments from other users
+remain hidden until an administrator approves them.

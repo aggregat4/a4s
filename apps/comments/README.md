@@ -12,10 +12,16 @@ The service allows users to submit comments and uses OpenID Connect for authenti
 Comments need to be authenticated to be considered for approval as this service
 is built to be operated in a GDPR-compliant fashion.
 
-Users can see, edit and delete their comments.
+Users can see and delete their comments. Pending comments can also be edited
+until an administrator approves them.
 
 Admins for a particular website can screen, approve or delete comments. Only
 authenticated comments are considered.
+
+Comments are public only after approval. Until then, authenticated commenters
+can still see their own pending comments on the relevant post page, marked as
+awaiting moderation, so they can tell that submission succeeded and make any
+needed changes before publication.
 
 ## Embedding the Comments Page
 
@@ -172,4 +178,6 @@ The full embedder contract is documented in [`docs/embedding.md`](docs/embedding
 
 Once authenticated, the form re-renders with the comment inputs. Subsequent
 comment submissions and edits then proceed through the standard approval
-workflow.
+workflow. Pending comments are not public, but the submitting user can see
+their own pending comments on the post page with an awaiting-moderation marker
+and may edit them until approval.
