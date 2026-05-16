@@ -12,7 +12,6 @@ as one coherent control area.
 ### Improve comment presentation
 
 * Align public comment styling with the admin dashboard styling.
-* Preserve minimal formatting in comments, at least paragraph breaks.
 * Investigate the console error that appears after confirming a comment and
   returning to the original post.
 

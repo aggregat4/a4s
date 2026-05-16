@@ -63,3 +63,24 @@ func TestUserValidity(t *testing.T) {
 		t.Fatalf("expected user with id to be valid")
 	}
 }
+
+func TestCommentParagraphs(t *testing.T) {
+	comment := Comment{
+		Comment: "First line\ncontinues here.\n\nSecond paragraph.\r\n\r\n\r\nThird paragraph\nwith another line.",
+	}
+
+	want := []string{
+		"First line continues here.",
+		"Second paragraph.",
+		"Third paragraph with another line.",
+	}
+	got := comment.Paragraphs()
+	if len(got) != len(want) {
+		t.Fatalf("Paragraphs() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Paragraphs()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}

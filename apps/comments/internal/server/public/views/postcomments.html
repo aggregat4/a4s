@@ -44,7 +44,11 @@
         <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
       {{end}}
     </dt>
-    <dd{{if $isOwnComment}} class="own-comment"{{end}}>{{.Comment}}</dd>
+    <dd{{if $isOwnComment}} class="own-comment"{{end}}>
+      {{range .Paragraphs}}
+        <p>{{.}}</p>
+      {{end}}
+    </dd>
   {{end}}
 </dl>
 </main>

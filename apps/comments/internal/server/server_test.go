@@ -1,6 +1,7 @@
 package server
 
 import (
+	"aggregat4/go-commentservice/internal/domain"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -61,6 +62,36 @@ func TestSingleCommentPostPage(t *testing.T) {
 	// Only approved comments should be visible on the public page
 	assert.Contains(t, body, approved)
 	assert.NotContains(t, body, pending)
+}
+
+func TestPostPageRendersCommentParagraphsAndEscapesUserContent(t *testing.T) {
+	h := NewServerHarness(t)
+	commentText := "First line\ncontinues here.\n\n<script>alert('xss')</script>"
+	_, err := h.Store.CreateComment(
+		domain.CommentStatusApproved,
+		h.Data.Service.Id,
+		h.Data.Service.ServiceKey,
+		h.Data.PrimaryUser.Id,
+		testPostKeySecond,
+		commentText,
+		"Author",
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := h.NewClient(true)
+	res, err := client.Get(h.URL("/services/" + h.Data.Service.ServiceKey + "/posts/" + testPostKeySecond + "/comments/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := readBody(res)
+	assert.Contains(t, body, "<p>First line continues here.</p>")
+	assert.Contains(t, body, "<p>&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;</p>")
+	assert.NotContains(t, body, "<script>alert('xss')</script>")
 }
 
 func TestPostPageShowsPendingCommentToItsAuthor(t *testing.T) {

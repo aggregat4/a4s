@@ -77,7 +77,11 @@
               </div>
             </div>
         </dt>
-        <dd>{{.Comment}}</dd>
+        <dd>
+          {{range .Paragraphs}}
+            <p>{{.}}</p>
+          {{end}}
+        </dd>
     {{end}}
 </dl>
 </main>

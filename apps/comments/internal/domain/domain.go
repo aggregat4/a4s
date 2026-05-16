@@ -120,3 +120,33 @@ type Comment struct {
 	CreatedAt  time.Time
 	ParentUrl  string
 }
+
+// Paragraphs returns a comment as plain-text paragraphs suitable for safe
+// rendering by html/template. Blank lines start a new paragraph, while single
+// line breaks within a paragraph are normalized to spaces.
+func (c Comment) Paragraphs() []string {
+	normalized := strings.ReplaceAll(c.Comment, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+
+	var paragraphs []string
+	var lines []string
+	flush := func() {
+		if len(lines) == 0 {
+			return
+		}
+		paragraphs = append(paragraphs, strings.Join(lines, " "))
+		lines = nil
+	}
+
+	for _, line := range strings.Split(normalized, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			flush()
+			continue
+		}
+		lines = append(lines, trimmed)
+	}
+	flush()
+
+	return paragraphs
+}

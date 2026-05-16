@@ -196,6 +196,14 @@ dl.comments {
 
     & dd {
         margin: 0 0 24px 0;
+
+        & p:first-child {
+            margin-top: 0;
+        }
+
+        & p:last-child {
+            margin-bottom: 0;
+        }
     }
 }
 

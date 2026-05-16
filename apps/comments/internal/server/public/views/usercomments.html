@@ -35,7 +35,11 @@
                     <action-confirmation actionName="Delete" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
                 </div>
             </dt>
-            <dd>{{.Comment}}</dd>
+            <dd>
+                {{range .Paragraphs}}
+                    <p>{{.}}</p>
+                {{end}}
+            </dd>
         {{end}}
     </dl>
 </main>
