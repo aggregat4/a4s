@@ -29,6 +29,10 @@
     --status-approved-color: #155724;
     --status-approved-bg: #d4edda;
     --status-approved-border: #c3e6cb;
+
+    --own-comment-color: #4a3600;
+    --own-comment-bg: #fff8e1;
+    --own-comment-border: #f0d48a;
     
 }
 
@@ -77,6 +81,25 @@ main, header {
     & nav {
         display: flex;
         gap: 1rem;
+    }
+
+    & dl.comments {
+        & dt.own-comment {
+            margin-bottom: 0;
+            padding: 0.5rem 0.75rem 0.25rem;
+            border: 1px solid var(--own-comment-border);
+            border-bottom: 0;
+            border-radius: 6px 6px 0 0;
+            background-color: var(--own-comment-bg);
+        }
+
+        & dd.own-comment {
+            padding: 0.25rem 0.75rem 0.75rem;
+            border: 1px solid var(--own-comment-border);
+            border-top: 0;
+            border-radius: 0 0 6px 6px;
+            background-color: var(--own-comment-bg);
+        }
     }
 }
 
@@ -227,6 +250,12 @@ dl.comments {
         background-color: var(--status-approved-bg);
         color: var(--status-approved-color);
         border: 1px solid var(--status-approved-border);
+    }
+
+    &.own-comment {
+        background-color: var(--own-comment-bg);
+        color: var(--own-comment-color);
+        border: 1px solid var(--own-comment-border);
     }
 
 }

@@ -77,6 +77,8 @@ func TestPostPageShowsPendingCommentToItsAuthor(t *testing.T) {
 	assert.Contains(t, body, h.Data.Comments["approved"].Comment)
 	assert.Contains(t, body, h.Data.Comments["pending"].Comment)
 	assert.Contains(t, body, "Awaiting moderation")
+	assert.Equal(t, 4, strings.Count(body, `class="own-comment"`))
+	assert.Equal(t, 2, strings.Count(body, "Your comment"))
 }
 
 func TestPostPageHidesPendingCommentFromOtherUsers(t *testing.T) {
@@ -93,6 +95,8 @@ func TestPostPageHidesPendingCommentFromOtherUsers(t *testing.T) {
 	assert.Contains(t, body, h.Data.Comments["approved"].Comment)
 	assert.NotContains(t, body, h.Data.Comments["pending"].Comment)
 	assert.NotContains(t, body, "Awaiting moderation")
+	assert.NotContains(t, body, `class="own-comment"`)
+	assert.NotContains(t, body, "Your comment")
 }
 
 func TestApprovedCommentEditFormIsForbiddenToAuthor(t *testing.T) {

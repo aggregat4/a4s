@@ -16,7 +16,8 @@
 <main>
 <dl class="comments">
   {{range .Data.Comments}}
-    <dt>
+    {{$isOwnComment := and $.Data.User.IsValid (eq $.Data.User.Id .UserId)}}
+    <dt{{if $isOwnComment}} class="own-comment"{{end}}>
       <span class="author">
         {{if .Website}}
           <a href="{{.Website}}" target="_blank">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
@@ -28,18 +29,22 @@
       <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
         {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
       </time>
+      {{if $isOwnComment}}
+        ·
+        <span class="badge own-comment">Your comment</span>
+      {{end}}
       {{if eq .Status 1}}
         ·
         <span class="badge pending-approval" title="This comment is awaiting administrator approval.">
           Awaiting moderation
         </span>
       {{end}}
-      {{if and $.Data.User.IsValid (eq $.Data.User.Id .UserId) (ne .Status 2)}}
+      {{if and $isOwnComment (ne .Status 2)}}
         ·
         <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
       {{end}}
     </dt>
-    <dd>{{.Comment}}</dd>
+    <dd{{if $isOwnComment}} class="own-comment"{{end}}>{{.Comment}}</dd>
   {{end}}
 </dl>
 </main>

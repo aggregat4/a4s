@@ -12,8 +12,6 @@ as one coherent control area.
 ### Improve comment presentation
 
 * Align public comment styling with the admin dashboard styling.
-* Visually distinguish a logged-in user's own comments on a post page,
-  especially when they can still edit them.
 * Preserve minimal formatting in comments, at least paragraph breaks.
 * Investigate the console error that appears after confirming a comment and
   returning to the original post.
