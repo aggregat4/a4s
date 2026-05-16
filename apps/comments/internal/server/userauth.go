@@ -81,6 +81,17 @@ func (controller *Controller) getAdminUserIdFromSession(r *http.Request) (string
 	return "", lang.ErrNotFound
 }
 
+func (controller *Controller) getExternalUserIdFromSession(r *http.Request) (string, error) {
+	sess, err := controller.getSession(r)
+	if err != nil {
+		return "", err
+	}
+	if value, ok := sess.Values["externaluserid"].(string); ok {
+		return value, nil
+	}
+	return "", lang.ErrNotFound
+}
+
 func (controller *Controller) getAdminRolesFromSession(r *http.Request) ([]string, error) {
 	sess, err := controller.getSession(r)
 	if err != nil {
@@ -148,10 +159,24 @@ func (controller *Controller) getUserFromSession(r *http.Request) (domain.User, 
 		return domain.User{}, err
 	}
 	user, err := controller.Store.FindUserById(userId)
-	if err != nil {
+	if err == nil {
+		return user, nil
+	}
+	if !errors.Is(err, lang.ErrNotFound) {
 		return domain.User{}, err
 	}
-	return user, nil
+
+	externalUserId, externalErr := controller.getExternalUserIdFromSession(r)
+	if errors.Is(externalErr, lang.ErrNotFound) {
+		// Legacy admin sessions stored the OIDC subject as adminuserid before
+		// externaluserid was added to all authenticated sessions.
+		externalUserId, externalErr = controller.getAdminUserIdFromSession(r)
+	}
+	if externalErr != nil {
+		return domain.User{}, err
+	}
+
+	return controller.Store.FindOrCreateUserByExternalId(externalUserId)
 }
 
 func (controller *Controller) serviceAdminAuthMiddleware(next http.Handler) http.Handler {
@@ -252,6 +277,7 @@ func createSessionFromIDToken(w http.ResponseWriter, r *http.Request, controller
 	}
 
 	sess.Values["userid"] = user.Id
+	sess.Values["externaluserid"] = claims.Subject
 
 	hasAdminRole := false
 	for _, role := range claims.Roles {

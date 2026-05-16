@@ -110,3 +110,48 @@ func TestLogoutClearsSession(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, lang.ErrNotFound)
 }
+
+func TestUserSessionRehydratesMissingUserFromExternalID(t *testing.T) {
+	h := NewServerHarness(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	sess, err := h.Controller.getSession(req)
+	require.NoError(t, err)
+	sess.Values["userid"] = 999999
+	sess.Values["externaluserid"] = "returning-user"
+	require.NoError(t, sess.Save(req, rec))
+
+	followReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	for _, cookie := range rec.Result().Cookies() {
+		followReq.AddCookie(cookie)
+	}
+
+	user, err := h.Controller.getUserFromSession(followReq)
+	require.NoError(t, err)
+	assert.Equal(t, "returning-user", user.ExternalUserId)
+	assert.NotZero(t, user.Id)
+}
+
+func TestLegacyAdminSessionRehydratesMissingUserFromAdminID(t *testing.T) {
+	h := NewServerHarness(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	sess, err := h.Controller.getSession(req)
+	require.NoError(t, err)
+	sess.Values["userid"] = 999999
+	sess.Values["adminuserid"] = "legacy-admin-user"
+	sess.Values["adminroles"] = []string{"admin-" + h.Data.Service.ServiceKey}
+	require.NoError(t, sess.Save(req, rec))
+
+	followReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	for _, cookie := range rec.Result().Cookies() {
+		followReq.AddCookie(cookie)
+	}
+
+	user, err := h.Controller.getUserFromSession(followReq)
+	require.NoError(t, err)
+	assert.Equal(t, "legacy-admin-user", user.ExternalUserId)
+	assert.NotZero(t, user.Id)
+}
