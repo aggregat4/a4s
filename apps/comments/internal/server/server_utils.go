@@ -33,9 +33,11 @@ func (controller *Controller) buildAuthContext(r *http.Request) domain.AuthConte
 
 func (controller *Controller) basePage(r *http.Request) domain.BasePage {
 	base := domain.BasePage{
-		Stylesheets: templateStylesheets,
-		Scripts:     templateScripts,
-		Auth:        controller.buildAuthContext(r),
+		Stylesheets:       templateStylesheets,
+		Scripts:           templateScripts,
+		Auth:              controller.buildAuthContext(r),
+		PrivacyPolicyURL:  controller.privacyPolicyURL(),
+		MinimumCommentAge: controller.minimumCommentAge(),
 	}
 
 	if r != nil && r.URL != nil {
@@ -43,6 +45,20 @@ func (controller *Controller) basePage(r *http.Request) domain.BasePage {
 	}
 
 	return base
+}
+
+func (controller *Controller) privacyPolicyURL() string {
+	if controller.Config.PrivacyPolicyURL == "" {
+		return "/privacy-policy"
+	}
+	return controller.Config.PrivacyPolicyURL
+}
+
+func (controller *Controller) minimumCommentAge() int {
+	if controller.Config.MinimumCommentAge <= 0 {
+		return 18
+	}
+	return controller.Config.MinimumCommentAge
 }
 
 func (controller *Controller) basePageForService(r *http.Request, service *domain.Service) domain.BasePage {

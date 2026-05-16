@@ -14,7 +14,7 @@ func TestParseCommentStatus(t *testing.T) {
 	}{
 		{name: "pending", input: "pending-approval", want: CommentStatusPendingApproval},
 		{name: "approved", input: "approved", want: CommentStatusApproved},
-		{name: "rejected", input: "rejected", want: CommentStatusRejected},
+		{name: "rejected", input: "rejected", wantErr: true},
 		{name: "invalid", input: "archived", wantErr: true},
 	}
 

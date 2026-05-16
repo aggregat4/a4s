@@ -113,6 +113,7 @@ func InitServerWithOidcMiddleware(
 		"usercomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/usercomments.html", "public/views/components/*.html")),
 		"postcomments":         template.Must(template.New("").ParseFS(viewTemplates, "public/views/postcomments.html", "public/views/components/*.html")),
 		"userlogin":            template.Must(template.New("").ParseFS(viewTemplates, "public/views/userlogin.html", "public/views/components/*.html")),
+		"privacy-policy":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/privacy-policy.html", "public/views/components/*.html")),
 		"admin-dashboard":      template.Must(template.New("").ParseFS(viewTemplates, "public/views/admin-dashboard.html", "public/views/components/*.html")),
 		"error-internalserver": template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-internalserver.html", "public/views/components/*.html")),
 		"error-notfound":       template.Must(template.New("").ParseFS(viewTemplates, "public/views/error-notfound.html", "public/views/components/*.html")),
@@ -152,6 +153,7 @@ func InitServerWithOidcMiddleware(
 	router.Get("/login", controller.GetUserLoginForm)
 	router.Get("/login/services/{serviceKey}/embed", controller.EmbedLogin)
 	router.Post("/logout", controller.Logout)
+	router.Get("/privacy-policy", controller.GetPrivacyPolicy)
 	router.Get("/admin", controller.GetAdminHome)
 
 	router.Route("/admin/{servicekey}", func(r chi.Router) {
@@ -272,6 +274,12 @@ func (controller *Controller) Status(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
+}
+
+func (controller *Controller) GetPrivacyPolicy(w http.ResponseWriter, r *http.Request) {
+	controller.renderTemplate(w, r, http.StatusOK, "privacy-policy", domain.PrivacyPolicyPage{
+		BasePage: controller.basePage(r),
+	})
 }
 
 func handleAuthenticationError(controller *Controller, w http.ResponseWriter, r *http.Request, err error) {

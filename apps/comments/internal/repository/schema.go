@@ -21,7 +21,7 @@ var mymigrations = []migrations.Migration{
 		);
 
 		-- Status can be:
-		-- 1: pending approval, 2: approved, 3: rejected
+		-- 1: pending approval, 2: approved
 		CREATE TABLE IF NOT EXISTS comments (
 			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 			status INTEGER NOT NULL DEFAULT 1,
@@ -46,6 +46,14 @@ var mymigrations = []migrations.Migration{
 		-- Add external_user_id to users table to store OIDC subject identifier
 		ALTER TABLE users ADD COLUMN external_user_id TEXT;
 		CREATE UNIQUE INDEX idx_users_external_user_id ON users(external_user_id) WHERE external_user_id IS NOT NULL;
+		`,
+	},
+	{
+		SequenceId: 3,
+		Sql: `
+		-- Rejected comments are no longer retained. Moderation now consists of
+		-- approving a pending comment or deleting it.
+		DELETE FROM comments WHERE status = 3;
 		`,
 	},
 }

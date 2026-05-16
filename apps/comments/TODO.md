@@ -1,41 +1,51 @@
 # TODO
 
-## User Status Bar
+## Product and UX
 
-The current header with the user ID and logout button is ugly and unfitting. Needs to be more minimal and better integrated and take as little real estate as possible.
-Should be merged with the "add new comment" and "administer comments" functions to be one whole thing.
+### Integrate the user actions into one compact header
 
-## Show pending comments to their authors
+The current authentication header is visually heavy and feels disconnected from
+the page-specific actions. Make it more minimal and integrate it with actions
+such as "Add new comment" and "Administer comments" so the top of the page reads
+as one coherent control area.
 
-`GetCommentsForPost` only returns approved comments. A logged-in user viewing a post should see their own pending comments with some visual marker (e.g., "awaiting moderation") so they know their submission arrived.
+### Show pending comments to their authors on post pages
 
-## Miscellaneous
+`GetCommentsForPost` only returns approved comments. A logged-in user viewing a
+post should also see their own pending comments with a clear visual marker such
+as "awaiting moderation" so they know their submission arrived.
 
-* align the user comment styling with the admin dashboard styling
+### Improve comment presentation
 
-* retain some minimal formatting from comments. At least paragraphs.
+* Align public comment styling with the admin dashboard styling.
+* Visually distinguish a logged-in user's own comments on a post page,
+  especially when they can still edit them.
+* Preserve minimal formatting in comments, at least paragraph breaks.
+* Investigate the console error that appears after confirming a comment and
+  returning to the original post.
 
-* when logged in as a user and seeing your comments on a post and being able to modify them, we should highlight the comment somehow
+### Make embed presentation configurable
 
-* after confirming the comment and then rendering the original post, there is an error in the console
+Allow service owners to provide custom CSS for the embedded comments page.
 
-* need a way for service owners to specify custom css for the comments page
+## HTTP and performance
 
-* consider real caching of the postcomments page: we need to make sure that the comments are always up to date, but we also need to make sure that the page is not too slow to load
+* Consider real caching for the post comments page. Comments should stay fresh,
+  but the page should not become unnecessarily slow to load.
+* Set caching headers on responses where it makes sense beyond hashed static
+  assets.
+* Redirect collection routes without a trailing slash to the canonical path with
+  the slash.
 
-* Set caching headers on responses where it makes sense
+## E2E test coverage
 
-* Redirect from collection pages without a trailing slash to the one with the slash
-
-## E2E Test Coverage
-
-* test comment submission end-to-end (fill form, submit, verify pending/approved state)
-* test admin approve/delete comment flows via chromedp
-* test iframe embedding on a cross-origin parent page
-* test logout and session cleanup in the browser
-* test CSRF token validation through real browser interactions
-* test concurrent popup logins from multiple iframe instances
+* Test comment submission end-to-end: fill the form, submit, and verify the
+  pending/approved lifecycle.
+* Test admin approve/delete comment flows via Chromedp.
+* Test logout and session cleanup in a real browser session.
+* Test CSRF token validation through real browser interactions.
 
 ## Postponed
 
-* Offer an alternative JSON way to manage comments — keeping iframe as the primary integration path for now.
+* Offer an alternative JSON way to manage comments, while keeping the iframe as
+  the primary integration path for now.

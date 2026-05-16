@@ -27,8 +27,8 @@
         <div class="important">
             <p>Important:</p>
             <ul class="hanging-indent">
-                <li>You must be 18 years or older to comment. User submitted data is handled as per our <a href="privacypolicy.html">privacy policy</a>.</li>
-                <li>All comments are checked by a human before posting and may be rejected.</li>
+                <li>You must be {{.Data.MinimumCommentAge}} years or older to comment. User-submitted data is handled as described in our <a href="{{.Data.PrivacyPolicyURL}}">privacy policy</a>.</li>
+                <li>All comments are checked by a human before posting.</li>
             </ul>
         </div>
         <form method="POST" action="/users/{{.Data.User.Id}}/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/comments/">

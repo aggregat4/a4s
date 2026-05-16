@@ -30,9 +30,6 @@
     --status-approved-bg: #d4edda;
     --status-approved-border: #c3e6cb;
     
-    --status-rejected-color: #721c24;
-    --status-rejected-bg: #f8d7da;
-    --status-rejected-border: #f5c6cb;
 }
 
 body {
@@ -232,11 +229,6 @@ dl.comments {
         border: 1px solid var(--status-approved-border);
     }
 
-    &.rejected {
-        background-color: var(--status-rejected-bg);
-        color: var(--status-rejected-color);
-        border: 1px solid var(--status-rejected-border);
-    }
 }
 
 .important {

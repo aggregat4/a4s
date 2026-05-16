@@ -12,9 +12,9 @@ The service allows users to submit comments and uses OpenID Connect for authenti
 Comments need to be authenticated to be considered for approval as this service
 is built to be operated in a GDPR-compliant fashion.
 
-Users can see, export, edit and delete their comments.
+Users can see, edit and delete their comments.
 
-Admins for a particular website can screen, approve or deny comments. Only
+Admins for a particular website can screen, approve or delete comments. Only
 authenticated comments are considered.
 
 ## Embedding the Comments Page
@@ -88,8 +88,8 @@ Privacy law is relevant for comments, because they are inherently personal data
 as we capture the email address, optionally a name and website of the user and
 the comment content itself and then publicly display that on various websites.
 
-The user needs to have a set of tools to see, export, change and delete their
-own personal data.
+The user needs to have a set of tools to see, change and delete their own
+personal data.
 
 The user needs to be informed about the way that their data is used and shared
 with third parties through a privacy policy.
@@ -125,6 +125,11 @@ Then open `http://localhost:8080/demo` in your browser. The demo page shows a sa
 The demo server creates an in-memory SQLite database and seeds a demo service automatically. Its data is discarded when the process stops, so each restart begins from a clean demo state. Press `Ctrl+C` to stop.
 
 ### Production setup
+
+The service includes a small built-in privacy policy page at `/privacy-policy`.
+Operators can point the comment form at another policy page with
+`privacy_policy_url`, and can customize the displayed minimum age with
+`minimum_comment_age`.
 
 For production deployment you need a real OIDC provider and a proper `commentservice.json` configuration file. See `cmd/runserver/main.go` for the production server entry point.
 

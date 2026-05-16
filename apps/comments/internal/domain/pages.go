@@ -2,15 +2,17 @@ package domain
 
 // BasePage contains fields common to all pages
 type BasePage struct {
-	Stylesheets    []string
-	Scripts        []string
-	Error          []string
-	Success        []string
-	Auth           AuthContext
-	CurrentPath    string
-	EmbedderOrigin string
-	EmbedLoginPath string
-	IsEmbeddedPage bool
+	Stylesheets       []string
+	Scripts           []string
+	Error             []string
+	Success           []string
+	Auth              AuthContext
+	CurrentPath       string
+	EmbedderOrigin    string
+	EmbedLoginPath    string
+	IsEmbeddedPage    bool
+	PrivacyPolicyURL  string
+	MinimumCommentAge int
 }
 
 type ErrorPage struct {
@@ -49,6 +51,10 @@ type AddOrEditCommentPage struct {
 }
 
 type UserLoginPage struct {
+	BasePage
+}
+
+type PrivacyPolicyPage struct {
 	BasePage
 }
 

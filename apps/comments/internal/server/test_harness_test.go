@@ -25,7 +25,6 @@ const (
 	testPostKeySecond       = "TEST_POSTKEY2"
 	testCommentPending      = "This is an authenticated comment waiting for approval"
 	testCommentApproved     = "This is an approved comment"
-	testCommentRejected     = "This is a rejected comment"
 	testAuthorName          = "John Doe"
 	testAuthorWebsite       = "http://example.com"
 )
@@ -332,7 +331,6 @@ func (h *ServerHarness) seedBaselineData() BaselineData {
 	}{
 		{"pending", domain.CommentStatusPendingApproval, testCommentPending},
 		{"approved", domain.CommentStatusApproved, testCommentApproved},
-		{"rejected", domain.CommentStatusRejected, testCommentRejected},
 	}
 
 	for _, fixture := range commentFixtures {

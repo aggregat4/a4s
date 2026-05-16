@@ -95,6 +95,8 @@ func main() {
 		SessionCookieSecureFlag:     false,
 		SessionCookieCookieMaxAge:   2592000,
 		SessionCookieCookieSameSite: "lax",
+		PrivacyPolicyURL:            "/privacy-policy",
+		MinimumCommentAge:           18,
 	}
 
 	controller := server.Controller{

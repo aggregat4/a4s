@@ -23,6 +23,8 @@ type Config struct {
 	SessionCookieSecureFlag     bool   `fig:"session_cookie_secure_flag" validate:"required"` // sadly fig can not set default values for booleans, see https://github.com/kkyr/fig/issues/13
 	SessionCookieCookieMaxAge   int    `fig:"session_cookie_max_age" default:"2592000"`       // Max age in seconds, 0 = session cookie, default 2592000 is 30 days
 	SessionCookieCookieSameSite string `fig:"session_cookie_same_site" default:"none"`        // SameSite policy
+	PrivacyPolicyURL            string `fig:"privacy_policy_url" default:"/privacy-policy"`
+	MinimumCommentAge           int    `fig:"minimum_comment_age" default:"18"`
 }
 
 func SameSiteFromString(sameSite string) http.SameSite {
@@ -91,7 +93,6 @@ const (
 	_ CommentStatus = iota
 	CommentStatusPendingApproval
 	CommentStatusApproved
-	CommentStatusRejected
 )
 
 func ParseCommentStatus(status string) (CommentStatus, error) {
@@ -100,8 +101,6 @@ func ParseCommentStatus(status string) (CommentStatus, error) {
 		return CommentStatusPendingApproval, nil
 	case "approved":
 		return CommentStatusApproved, nil
-	case "rejected":
-		return CommentStatusRejected, nil
 	default:
 		return -1, fmt.Errorf("invalid comment status: %s", status)
 	}

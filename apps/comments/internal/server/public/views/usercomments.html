@@ -28,11 +28,6 @@
                         Approved
                     </span>
                 {{end}}
-                {{if eq .Status 3}}
-                    <span class="badge rejected" title="This comment has been rejected by the administrator and will not be displayed.">
-                        Rejected
-                    </span>
-                {{end}}
                 <div class="actionbar">
                     {{if ne .Status 2}}
                     <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
