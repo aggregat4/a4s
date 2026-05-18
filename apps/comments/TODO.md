@@ -15,10 +15,6 @@ as one coherent control area.
 * Investigate the console error that appears after confirming a comment and
   returning to the original post.
 
-### Make embed presentation configurable
-
-Allow service owners to provide custom CSS for the embedded comments page.
-
 ## HTTP and performance
 
 * Consider real caching for the post comments page. Comments should stay fresh,
@@ -40,3 +36,7 @@ Allow service owners to provide custom CSS for the embedded comments page.
 
 * Offer an alternative JSON way to manage comments, while keeping the iframe as
   the primary integration path for now.
+
+## Someday / maybe
+
+* Allow service owners to provide custom CSS for the embedded comments page.
