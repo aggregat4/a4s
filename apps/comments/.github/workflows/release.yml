@@ -4,6 +4,9 @@ on:
 
 name: Create and Upload Release Artifact
 
+permissions:
+  contents: write
+
 jobs:
   generate:
     name: Create release-artifacts
