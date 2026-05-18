@@ -85,25 +85,58 @@ func newChromeContext(t testing.TB) (context.Context, context.CancelFunc) {
 	return ctx, cancel
 }
 
-// TestE2E_OidcLoginPersistsSession tests that a user can log in through the OIDC
-// flow and the session survives page reloads.
-func TestE2E_OidcLoginPersistsSession(t *testing.T) {
-	port := findFreePort(t)
-	redirectURI := fmt.Sprintf("http://localhost:%d/oidccallback", port)
+type e2eServer struct {
+	Port    int
+	BaseURL string
+	Store   *repository.Store
+	IDP     *oidcmock.Server
+}
 
+func newE2EServer(t testing.TB, serviceKey, serviceOrigin string, roles []string) *e2eServer {
+	t.Helper()
+
+	port := findFreePort(t)
+	return newE2EServerOnPort(t, port, serviceKey, serviceOrigin, roles)
+}
+
+func newE2EServerOnPort(t testing.TB, port int, serviceKey, serviceOrigin string, roles []string) *e2eServer {
+	t.Helper()
+
+	redirectURI := fmt.Sprintf("http://localhost:%d/oidccallback", port)
 	idp, err := oidcmock.Run(
 		"commentservice-client",
 		"commentservice-secret",
 		redirectURI,
-		map[string]any{
-			"roles": []string{"admin-TESTSERVICE", "superadmin"},
-		},
+		map[string]any{"roles": roles},
 		"",
 	)
 	if err != nil {
 		t.Fatalf("failed to start mock OIDC: %v", err)
 	}
-	defer idp.Close()
+	t.Cleanup(idp.Close)
+
+	store := newE2EStore(t)
+	if _, err := store.CreateService(serviceKey, serviceOrigin); err != nil {
+		t.Fatalf("failed to seed service: %v", err)
+	}
+
+	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	controller := &Controller{
+		Store:  store,
+		Config: defaultE2EConfig(port, baseURL, redirectURI, idp.Issuer()),
+	}
+	_ = startRealServer(t, controller, port)
+
+	return &e2eServer{
+		Port:    port,
+		BaseURL: baseURL,
+		Store:   store,
+		IDP:     idp,
+	}
+}
+
+func newE2EStore(t testing.TB) *repository.Store {
+	t.Helper()
 
 	cipher, err := crypto.CreateAes256GcmAead([]byte(testEncryptionKey))
 	if err != nil {
@@ -114,41 +147,45 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	if err := store.InitAndVerifyDb(repository.CreateInMemoryDbUrl()); err != nil {
 		t.Fatalf("failed to init db: %v", err)
 	}
-	defer store.Close()
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Fatalf("failed to close store: %v", err)
+		}
+	})
+	return store
+}
 
-	if _, err := store.CreateService(testServiceKey, testServiceOrigin); err != nil {
-		t.Fatalf("failed to seed service: %v", err)
+func defaultE2EConfig(port int, baseURL, redirectURI, oidcIssuer string) domain.Config {
+	return domain.Config{
+		Port:                        port,
+		DatabaseFilename:            "",
+		BaseURL:                     baseURL,
+		ServerReadTimeoutSeconds:    5,
+		ServerWriteTimeoutSeconds:   10,
+		OidcIdpServer:               oidcIssuer,
+		OidcClientId:                "commentservice-client",
+		OidcClientSecret:            "commentservice-secret",
+		OidcRedirectUri:             redirectURI,
+		EncryptionKey:               testEncryptionKey,
+		SessionCookieSecretKey:      testSessionCookieSecret,
+		SessionCookieSecureFlag:     false,
+		SessionCookieCookieMaxAge:   2592000,
+		SessionCookieCookieSameSite: "lax",
 	}
+}
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
-	controller := &Controller{
-		Store: store,
-		Config: domain.Config{
-			Port:                        port,
-			DatabaseFilename:            "",
-			BaseURL:                     baseURL,
-			ServerReadTimeoutSeconds:    5,
-			ServerWriteTimeoutSeconds:   10,
-			OidcIdpServer:               idp.Issuer(),
-			OidcClientId:                "commentservice-client",
-			OidcClientSecret:            "commentservice-secret",
-			OidcRedirectUri:             redirectURI,
-			EncryptionKey:               testEncryptionKey,
-			SessionCookieSecretKey:      testSessionCookieSecret,
-			SessionCookieSecureFlag:     false,
-			SessionCookieCookieMaxAge:   2592000,
-			SessionCookieCookieSameSite: "lax",
-		},
-	}
-
-	_ = startRealServer(t, controller, port)
+// TestE2E_OidcLoginPersistsSession tests that a user can log in through the OIDC
+// flow and the session survives page reloads.
+func TestE2E_OidcLoginPersistsSession(t *testing.T) {
+	server := newE2EServer(t, testServiceKey, testServiceOrigin, []string{"admin-TESTSERVICE", "superadmin"})
 
 	ctx, cancel := newChromeContext(t)
 	defer cancel()
 
-	commentFormURL := baseURL + "/services/" + testServiceKey + "/posts/" + testPostKeyApproved + "/commentform"
+	commentFormURL := server.BaseURL + "/services/" + testServiceKey + "/posts/" + testPostKeyApproved + "/commentform"
 
 	var body string
+	var err error
 
 	// Step 1: Navigate to the comment form. Should show login button.
 	err = chromedp.Run(ctx,
@@ -169,7 +206,7 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	// redirects back to the callback, which creates a session and redirects
 	// back to /login.
 	err = chromedp.Run(ctx,
-		chromedp.Navigate(baseURL+"/login"),
+		chromedp.Navigate(server.BaseURL+"/login"),
 		chromedp.WaitVisible(`[data-auth-success]`, chromedp.ByQuery),
 		chromedp.OuterHTML("body", &body),
 	)
@@ -216,65 +253,175 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	t.Log("Step 4 passed: session persists after reload")
 }
 
+// TestE2E_CommentSubmissionAndModerationFlow verifies the primary browser
+// workflow: a user submits comments, an admin approves one, and an admin deletes
+// another through the dashboard UI.
+func TestE2E_CommentSubmissionAndModerationFlow(t *testing.T) {
+	server := newE2EServer(t, testServiceKey, testServiceOrigin, []string{"admin-TESTSERVICE", "superadmin"})
+
+	ctx, cancel := newChromeContext(t)
+	defer cancel()
+
+	postKey := "e2e-moderation-post"
+	commentFormURL := server.BaseURL + "/services/" + testServiceKey + "/posts/" + postKey + "/commentform"
+	postCommentsURL := server.BaseURL + "/services/" + testServiceKey + "/posts/" + postKey + "/comments/"
+	adminCommentsURL := server.BaseURL + "/admin/" + testServiceKey + "/comments"
+
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate(server.BaseURL+"/login"),
+		chromedp.WaitVisible(`[data-auth-success]`, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+
+	submitComment := func(comment string) {
+		t.Helper()
+		if err := chromedp.Run(ctx,
+			chromedp.Navigate(commentFormURL),
+			chromedp.WaitVisible(`form[action*="/comments/"]`, chromedp.ByQuery),
+			chromedp.SetValue(`#name`, "Browser User", chromedp.ByQuery),
+			chromedp.SetValue(`#website`, "https://reader.example.com", chromedp.ByQuery),
+			chromedp.SetValue(`#comment`, comment, chromedp.ByQuery),
+			chromedp.Click(`input[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.toast.success`, chromedp.ByQuery),
+		); err != nil {
+			t.Fatalf("failed to submit comment %q: %v", comment, err)
+		}
+	}
+
+	approveComment := func(commentID int) {
+		t.Helper()
+		actionURL := fmt.Sprintf("/admin/%s/comments/%d/approve", testServiceKey, commentID)
+		if err := chromedp.Run(ctx,
+			chromedp.Navigate(adminCommentsURL),
+			chromedp.WaitVisible(`action-confirmation[actionurl="`+actionURL+`"]`, chromedp.ByQuery),
+			chromedp.Evaluate(fmt.Sprintf(`
+				(() => {
+					const action = document.querySelector('action-confirmation[actionurl=%q]');
+					action.shadowRoot.querySelector('.confirm').click();
+					action.shadowRoot.querySelector('.action').click();
+				})()
+			`, actionURL), nil),
+			chromedp.WaitVisible(`.badge.approved`, chromedp.ByQuery),
+		); err != nil {
+			t.Fatalf("failed to approve comment %d: %v", commentID, err)
+		}
+	}
+
+	deleteComment := func(commentID int) {
+		t.Helper()
+		actionURL := fmt.Sprintf("/admin/%s/comments/%d/delete", testServiceKey, commentID)
+		actionSelector := `action-confirmation[actionurl="` + actionURL + `"]`
+		if err := chromedp.Run(ctx,
+			chromedp.Navigate(adminCommentsURL),
+			chromedp.WaitVisible(actionSelector, chromedp.ByQuery),
+			chromedp.Evaluate(fmt.Sprintf(`
+				(() => {
+					const action = document.querySelector('action-confirmation[actionurl=%q]');
+					action.shadowRoot.querySelector('.confirm').click();
+					action.shadowRoot.querySelector('.action').click();
+				})()
+			`, actionURL), nil),
+			chromedp.WaitNotPresent(actionSelector, chromedp.ByQuery),
+		); err != nil {
+			t.Fatalf("failed to delete comment %d: %v", commentID, err)
+		}
+	}
+
+	const approvedCommentBody = "This comment should be approved from the browser."
+	submitComment(approvedCommentBody)
+
+	approvedCandidate := findCommentByBody(t, server.Store, approvedCommentBody)
+	if approvedCandidate.Status != domain.CommentStatusPendingApproval {
+		t.Fatalf("expected new comment to start pending approval, got %v", approvedCandidate.Status)
+	}
+
+	var body string
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate(postCommentsURL),
+		chromedp.WaitVisible(`.badge.pending-approval`, chromedp.ByQuery),
+		chromedp.OuterHTML("body", &body),
+	); err != nil {
+		t.Fatalf("failed to inspect pending comment page: %v", err)
+	}
+	if !strings.Contains(body, approvedCommentBody) || !strings.Contains(body, "Awaiting moderation") {
+		t.Fatalf("expected own pending comment to be visible with moderation status, got: %s", body)
+	}
+
+	approveComment(approvedCandidate.Id)
+
+	approvedCandidate = mustGetComment(t, server.Store, approvedCandidate.Id)
+	if approvedCandidate.Status != domain.CommentStatusApproved {
+		t.Fatalf("expected approved comment after admin action, got %v", approvedCandidate.Status)
+	}
+
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate(postCommentsURL),
+		chromedp.WaitVisible(`dl.comments`, chromedp.ByQuery),
+		chromedp.OuterHTML("body", &body),
+	); err != nil {
+		t.Fatalf("failed to inspect approved comment page: %v", err)
+	}
+	if !strings.Contains(body, approvedCommentBody) || strings.Contains(body, "Awaiting moderation") {
+		t.Fatalf("expected approved comment without pending badge, got: %s", body)
+	}
+
+	const deletedCommentBody = "This comment should be deleted from the browser."
+	submitComment(deletedCommentBody)
+	deletedCandidate := findCommentByBody(t, server.Store, deletedCommentBody)
+
+	deleteComment(deletedCandidate.Id)
+
+	if _, err := server.Store.GetComment(deletedCandidate.Id); err == nil {
+		t.Fatalf("expected deleted comment %d to be removed", deletedCandidate.Id)
+	}
+
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate(adminCommentsURL),
+		chromedp.WaitVisible(`dl.comments`, chromedp.ByQuery),
+		chromedp.OuterHTML("body", &body),
+	); err != nil {
+		t.Fatalf("failed to inspect admin dashboard after delete: %v", err)
+	}
+	if strings.Contains(body, deletedCommentBody) {
+		t.Fatalf("expected deleted comment to be absent from dashboard, got: %s", body)
+	}
+}
+
+func findCommentByBody(t testing.TB, store *repository.Store, body string) domain.Comment {
+	t.Helper()
+
+	comments, err := store.GetCommentsByStatus(nil)
+	if err != nil {
+		t.Fatalf("failed to load comments: %v", err)
+	}
+	for _, comment := range comments {
+		if comment.Comment == body {
+			return comment
+		}
+	}
+
+	t.Fatalf("expected comment %q to exist", body)
+	return domain.Comment{}
+}
+
+func mustGetComment(t testing.TB, store *repository.Store, commentID int) domain.Comment {
+	t.Helper()
+
+	comment, err := store.GetComment(commentID)
+	if err != nil {
+		t.Fatalf("failed to load comment %d: %v", commentID, err)
+	}
+	return comment
+}
+
 // TestE2E_IframeLayoutLoginUsesTopLevelHandoff tests that clicking the "Log in to
 // the Comment Service" link inside an embedded iframe asks the parent page to
 // start a top-level auth flow, then returns to the embedder with a persistent
 // authenticated session.
 func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 	port := findFreePort(t)
-	redirectURI := fmt.Sprintf("http://localhost:%d/oidccallback", port)
-
-	idp, err := oidcmock.Run(
-		"commentservice-client",
-		"commentservice-secret",
-		redirectURI,
-		map[string]any{
-			"roles": []string{"admin-demoservice", "superadmin"},
-		},
-		"",
-	)
-	if err != nil {
-		t.Fatalf("failed to start mock OIDC: %v", err)
-	}
-	defer idp.Close()
-
-	cipher, err := crypto.CreateAes256GcmAead([]byte(testEncryptionKey))
-	if err != nil {
-		t.Fatalf("failed to create cipher: %v", err)
-	}
-
-	store := &repository.Store{Cipher: cipher}
-	if err := store.InitAndVerifyDb(repository.CreateInMemoryDbUrl()); err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer store.Close()
-
-	if _, err := store.CreateService("demoservice", "http://localhost:"+strconv.Itoa(port)); err != nil {
-		t.Fatalf("failed to seed service: %v", err)
-	}
-
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
-	controller := &Controller{
-		Store: store,
-		Config: domain.Config{
-			Port:                        port,
-			DatabaseFilename:            "",
-			BaseURL:                     baseURL,
-			ServerReadTimeoutSeconds:    5,
-			ServerWriteTimeoutSeconds:   10,
-			OidcIdpServer:               idp.Issuer(),
-			OidcClientId:                "commentservice-client",
-			OidcClientSecret:            "commentservice-secret",
-			OidcRedirectUri:             redirectURI,
-			EncryptionKey:               testEncryptionKey,
-			SessionCookieSecretKey:      testSessionCookieSecret,
-			SessionCookieSecureFlag:     false,
-			SessionCookieCookieMaxAge:   2592000,
-			SessionCookieCookieSameSite: "lax",
-		},
-	}
-
-	_ = startRealServer(t, controller, port)
+	server := newE2EServerOnPort(t, port, "demoservice", "http://localhost:"+strconv.Itoa(port), []string{"admin-demoservice", "superadmin"})
 
 	ctx, cancel := newChromeContext(t)
 	defer cancel()
@@ -282,8 +429,8 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 	var iframeHTML string
 
 	// Step 1: Navigate to the demo page. The iframe should show the login link.
-	err = chromedp.Run(ctx,
-		chromedp.Navigate(baseURL+"/demo"),
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(server.BaseURL+"/demo"),
 		chromedp.WaitVisible("iframe", chromedp.ByQuery),
 		chromedp.PollFunction(`() => {
 			try {
@@ -368,6 +515,50 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 		t.Fatalf("expected logout button in iframe after reload, got: %s", iframeHTML)
 	}
 	t.Log("Step 4 passed: session persists after parent reload")
+
+	// Step 5: Submit a comment from inside the embedded UI and verify that the
+	// iframe returns to the post page showing the author's pending comment.
+	const embeddedCommentBody = "This comment was submitted from inside the iframe."
+	err = chromedp.Run(ctx,
+		chromedp.Evaluate(`
+			document.querySelector('iframe')
+				.contentDocument
+				.querySelector('a[href*="/commentform"]')
+				.click()
+		`, nil),
+		chromedp.PollFunction(`() => {
+			const doc = document.querySelector('iframe')?.contentDocument;
+			return Boolean(doc?.querySelector('form[action*="/comments/"]'));
+		}`, nil, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second)),
+		chromedp.Evaluate(fmt.Sprintf(`
+			(() => {
+				const doc = document.querySelector('iframe').contentDocument;
+				doc.querySelector('#name').value = 'Embedded Browser User';
+				doc.querySelector('#website').value = 'https://reader.example.com';
+				doc.querySelector('#comment').value = %q;
+				doc.querySelector('input[type="submit"]').click();
+			})()
+		`, embeddedCommentBody), nil),
+		chromedp.PollFunction(`() => {
+			const doc = document.querySelector('iframe')?.contentDocument;
+			const body = doc?.body?.innerHTML ?? '';
+			return body.includes('This comment was submitted from inside the iframe.') &&
+				body.includes('Awaiting moderation')
+				? body
+				: '';
+		}`, &iframeHTML, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second)),
+	)
+	if err != nil {
+		t.Fatalf("step 5 failed: %v", err)
+	}
+	embeddedComment := findCommentByBody(t, server.Store, embeddedCommentBody)
+	if embeddedComment.ServiceKey != "demoservice" || embeddedComment.PostKey != "demopost" {
+		t.Fatalf("expected embedded comment to target demoservice/demopost, got %s/%s", embeddedComment.ServiceKey, embeddedComment.PostKey)
+	}
+	if embeddedComment.Status != domain.CommentStatusPendingApproval {
+		t.Fatalf("expected embedded comment to start pending approval, got %v", embeddedComment.Status)
+	}
+	t.Log("Step 5 passed: iframe comment submission creates a pending comment")
 }
 
 // TestE2E_CrossOriginEmbedReportsAuthStateAfterTopLevelLogin verifies the
@@ -376,20 +567,6 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 // initiates the documented top-level handoff itself.
 func TestE2E_CrossOriginEmbedReportsAuthStateAfterTopLevelLogin(t *testing.T) {
 	commentPort := findFreePort(t)
-	redirectURI := fmt.Sprintf("http://localhost:%d/oidccallback", commentPort)
-
-	idp, err := oidcmock.Run(
-		"commentservice-client",
-		"commentservice-secret",
-		redirectURI,
-		map[string]any{"roles": []string{"admin-crossorigin", "superadmin"}},
-		"",
-	)
-	if err != nil {
-		t.Fatalf("failed to start mock OIDC: %v", err)
-	}
-	defer idp.Close()
-
 	commentBaseURL := fmt.Sprintf("http://localhost:%d", commentPort)
 	var embedderURL string
 	embedder := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -426,40 +603,7 @@ func TestE2E_CrossOriginEmbedReportsAuthStateAfterTopLevelLogin(t *testing.T) {
 	defer embedder.Close()
 	embedderURL = strings.Replace(embedder.URL, "127.0.0.1", "localhost", 1)
 
-	cipher, err := crypto.CreateAes256GcmAead([]byte(testEncryptionKey))
-	if err != nil {
-		t.Fatalf("failed to create cipher: %v", err)
-	}
-
-	store := &repository.Store{Cipher: cipher}
-	if err := store.InitAndVerifyDb(repository.CreateInMemoryDbUrl()); err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer store.Close()
-	if _, err := store.CreateService("crossorigin", embedderURL); err != nil {
-		t.Fatalf("failed to seed service: %v", err)
-	}
-
-	controller := &Controller{
-		Store: store,
-		Config: domain.Config{
-			Port:                        commentPort,
-			DatabaseFilename:            "",
-			BaseURL:                     commentBaseURL,
-			ServerReadTimeoutSeconds:    5,
-			ServerWriteTimeoutSeconds:   10,
-			OidcIdpServer:               idp.Issuer(),
-			OidcClientId:                "commentservice-client",
-			OidcClientSecret:            "commentservice-secret",
-			OidcRedirectUri:             redirectURI,
-			EncryptionKey:               testEncryptionKey,
-			SessionCookieSecretKey:      testSessionCookieSecret,
-			SessionCookieSecureFlag:     false,
-			SessionCookieCookieMaxAge:   2592000,
-			SessionCookieCookieSameSite: "lax",
-		},
-	}
-	_ = startRealServer(t, controller, commentPort)
+	_ = newE2EServerOnPort(t, commentPort, "crossorigin", embedderURL, []string{"admin-crossorigin", "superadmin"})
 
 	ctx, cancel := newChromeContext(t)
 	defer cancel()
