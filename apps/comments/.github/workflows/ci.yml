@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - name: Install Chromium for E2E tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+      - name: Build
+        run: scripts/build.sh
+      - name: Test with the Go CLI
+        run: scripts/test.sh
+      - name: Test including E2E
+        run: scripts/test-e2e.sh
+        env:
+          CHROME_PATH: /usr/bin/chromium-browser
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.2.0 ./...

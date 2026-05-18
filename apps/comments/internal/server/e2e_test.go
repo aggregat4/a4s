@@ -1,3 +1,6 @@
+//go:build e2e
+// +build e2e
+
 package server
 
 import (
@@ -6,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -60,8 +64,13 @@ func startRealServer(t testing.TB, controller *Controller, port int) *http.Serve
 func newChromeContext(t testing.TB) (context.Context, context.CancelFunc) {
 	t.Helper()
 
+	chromePath := os.Getenv("CHROME_PATH")
+	if chromePath == "" {
+		chromePath = "/usr/bin/chromium"
+	}
+
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath("/usr/bin/chromium"),
+		chromedp.ExecPath(chromePath),
 		chromedp.NoSandbox,
 		chromedp.DisableGPU,
 		chromedp.Headless,
