@@ -366,7 +366,7 @@ class ListsAppShellElement extends HTMLElement {
 
   handleAddList() {
     if (!this.store || !this.repository) return;
-    const response = window.prompt?.("Name for the new list", "New List");
+    const response = window.prompt?.("Name for the new list");
     if (response == null) return;
     const trimmed = response.trim();
     if (!trimmed.length) return;
