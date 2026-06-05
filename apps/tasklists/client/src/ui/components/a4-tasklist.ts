@@ -687,10 +687,6 @@ class A4TaskList extends HTMLElement {
         : typeof headerState.title === "string"
         ? headerState.title
         : "";
-    const searchValue =
-      typeof headerState.searchQuery === "string"
-        ? headerState.searchQuery
-        : "";
     const showDoneChecked = Boolean(headerState.showDone);
 
     render(
@@ -730,15 +726,6 @@ class A4TaskList extends HTMLElement {
           <span class="tasklist-title-edit-icon" aria-hidden="true"></span>
         </div>
         <div class="tasklist-controls">
-          <input
-            type="search"
-            class="tasklist-search-input"
-            placeholder="Search tasks..."
-            aria-label="Search tasks"
-            .value=${searchValue}
-            @input=${this.handleSearchInput}
-            @keydown=${this.handleSearchKeyDown}
-          />
           <label class="tasklist-show-done">
           <input
               type="checkbox"

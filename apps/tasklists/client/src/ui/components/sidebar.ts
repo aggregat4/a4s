@@ -44,6 +44,7 @@ class SidebarElement extends HTMLElement {
   private showDemoSeed: boolean;
   private menuOpen: boolean;
   private menuMediaQuery: MediaQueryList | null;
+  private actionsOpen: boolean;
   private isOnline: boolean;
   private handleOnlineChange: (() => void) | null;
 
@@ -66,6 +67,7 @@ class SidebarElement extends HTMLElement {
     this.showDemoSeed = false;
     this.menuOpen = true;
     this.menuMediaQuery = null;
+    this.actionsOpen = true;
     this.isOnline = true;
     this.handleOnlineChange = null;
     this.handleSearchInput = this.handleSearchInput.bind(this);
@@ -80,6 +82,7 @@ class SidebarElement extends HTMLElement {
     this.handleListDragEnd = this.handleListDragEnd.bind(this);
     this.handleListReorder = this.handleListReorder.bind(this);
     this.handleMenuToggle = this.handleMenuToggle.bind(this);
+    this.handleActionsToggle = this.handleActionsToggle.bind(this);
     this.handleMenuMediaChange = this.handleMenuMediaChange.bind(this);
     this.handleSummaryClick = this.handleSummaryClick.bind(this);
   }
@@ -128,7 +131,8 @@ class SidebarElement extends HTMLElement {
   init() {
     if (typeof window !== "undefined") {
       this.menuMediaQuery = window.matchMedia("(max-width: 640px)");
-      this.menuOpen = !this.menuMediaQuery.matches;
+      this.menuOpen = true;
+      this.actionsOpen = !this.menuMediaQuery.matches;
       this.menuMediaQuery.addEventListener(
         "change",
         this.handleMenuMediaChange
@@ -236,7 +240,7 @@ class SidebarElement extends HTMLElement {
         >
           <summary
             class="sidebar-menu-toggle"
-            aria-label="Toggle list menu"
+            aria-label="Lists navigation"
             @click=${this.handleSummaryClick}
           >
             <div class="sidebar-topbar">
@@ -295,48 +299,75 @@ class SidebarElement extends HTMLElement {
                 })}
               </ul>
             </nav>
-            <div class="sidebar-section sidebar-actions">
-              <button type="button" data-role="add-list" @click=${() =>
-                this.handlers.onAddList?.()}>
-                Add list
-              </button>
-              ${this.showDemoSeed
-                ? html`
-                    <button
-                      type="button"
-                      data-role="seed-demo"
-                      @click=${() => this.handlers.onSeedDemo?.()}
-                    >
-                      Load demo data
-                    </button>
-                  `
-                : null}
-              <button
-                type="button"
-                class="danger"
-                data-role="delete-list"
-                ?disabled=${deleteDisabled}
-                @click=${() => this.handlers.onDeleteList?.()}
-              >
-                Delete list
-              </button>
-            </div>
-            <div class="sidebar-section sidebar-actions sidebar-actions-secondary">
-              <button
-                type="button"
-                data-role="export-snapshot"
-                @click=${() => this.handlers.onExportSnapshot?.()}
-              >
-                Export
-              </button>
-              <button
-                type="button"
-                data-role="import-snapshot"
-                @click=${() => this.handlers.onImportSnapshot?.()}
-              >
-                Import
-              </button>
-            </div>
+            <details
+              class="sidebar-actions-disclosure"
+              ?open=${this.actionsOpen}
+              @toggle=${this.handleActionsToggle}
+            >
+              <summary class="sidebar-actions-toggle">Options</summary>
+              <div class="sidebar-actions-panel">
+                <div class="sidebar-section sidebar-actions">
+                  <button
+                    type="button"
+                    data-role="add-list"
+                    aria-label="Add list"
+                    title="Add list"
+                    @click=${() => this.handlers.onAddList?.()}
+                  >
+                    <span class="sidebar-action-icon" aria-hidden="true">＋</span>
+                    <span class="sidebar-action-label">Add list</span>
+                  </button>
+                  ${this.showDemoSeed
+                    ? html`
+                        <button
+                          type="button"
+                          data-role="seed-demo"
+                          aria-label="Load demo data"
+                          title="Load demo data"
+                          @click=${() => this.handlers.onSeedDemo?.()}
+                        >
+                          <span class="sidebar-action-icon" aria-hidden="true">◎</span>
+                          <span class="sidebar-action-label">Load demo data</span>
+                        </button>
+                      `
+                    : null}
+                  <button
+                    type="button"
+                    class="danger"
+                    data-role="delete-list"
+                    aria-label="Delete list"
+                    title="Delete list"
+                    ?disabled=${deleteDisabled}
+                    @click=${() => this.handlers.onDeleteList?.()}
+                  >
+                    <span class="sidebar-action-icon" aria-hidden="true">−</span>
+                    <span class="sidebar-action-label">Delete list</span>
+                  </button>
+                </div>
+                <div class="sidebar-section sidebar-actions sidebar-actions-secondary">
+                  <button
+                    type="button"
+                    data-role="export-snapshot"
+                    aria-label="Export"
+                    title="Export"
+                    @click=${() => this.handlers.onExportSnapshot?.()}
+                  >
+                    <span class="sidebar-action-icon" aria-hidden="true">⇧</span>
+                    <span class="sidebar-action-label">Export</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-role="import-snapshot"
+                    aria-label="Import"
+                    title="Import"
+                    @click=${() => this.handlers.onImportSnapshot?.()}
+                  >
+                    <span class="sidebar-action-icon" aria-hidden="true">⇩</span>
+                    <span class="sidebar-action-label">Import</span>
+                  </button>
+                </div>
+              </div>
+            </details>
           </div>
         </details>
       `,
@@ -349,12 +380,16 @@ class SidebarElement extends HTMLElement {
   handleMenuToggle(event: Event) {
     const disclosure = event.currentTarget as HTMLDetailsElement | null;
     if (!disclosure) return;
-    if (this.menuMediaQuery && !this.menuMediaQuery.matches) {
+    if (!disclosure.open) {
       disclosure.open = true;
-      this.menuOpen = true;
-      return;
     }
-    this.menuOpen = disclosure.open;
+    this.menuOpen = true;
+  }
+
+  handleActionsToggle(event: Event) {
+    const disclosure = event.currentTarget as HTMLDetailsElement | null;
+    if (!disclosure) return;
+    this.actionsOpen = disclosure.open;
   }
 
   handleSummaryClick(event: Event) {
@@ -370,12 +405,19 @@ class SidebarElement extends HTMLElement {
   }
 
   handleMenuMediaChange(event: MediaQueryListEvent) {
-    this.menuOpen = !event.matches;
-    const disclosure = this.querySelector(
+    this.menuOpen = true;
+    this.actionsOpen = !event.matches;
+    const menuDisclosure = this.querySelector(
       ".sidebar-disclosure"
     ) as HTMLDetailsElement | null;
-    if (disclosure) {
-      disclosure.open = this.menuOpen;
+    if (menuDisclosure) {
+      menuDisclosure.open = true;
+    }
+    const actionsDisclosure = this.querySelector(
+      ".sidebar-actions-disclosure"
+    ) as HTMLDetailsElement | null;
+    if (actionsDisclosure) {
+      actionsDisclosure.open = this.actionsOpen;
     }
   }
 

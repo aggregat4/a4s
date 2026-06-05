@@ -306,13 +306,15 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   );
   const header = listSection.locator(".tasklist-header");
   const title = header.locator(".tasklist-title");
-  const searchInput = header.locator("input.tasklist-search-input");
+  const listSearchInput = header.locator("input.tasklist-search-input");
+  const globalSearch = globalSearchInput(page);
   const showDoneToggle = header.locator(".tasklist-show-done-toggle");
 
   await expect(title).toHaveText("Prototype Tasks");
   await expect(title).toHaveAttribute("tabindex", "0");
   await expect(title).toHaveAttribute("title", "Click to rename");
-  await expect(searchInput).toHaveValue("");
+  await expect(listSearchInput).toHaveCount(0);
+  await expect(globalSearch).toHaveValue("");
   await expect(showDoneToggle).not.toBeChecked();
 
   await title.click();
@@ -339,7 +341,7 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   await showDoneToggle.check();
   await expect(firstItem).toBeVisible();
 
-  await searchInput.evaluate((el, value) => {
+  await globalSearch.evaluate((el, value) => {
     const input = el as HTMLInputElement;
     input.value = value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -347,6 +349,26 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   const visibleTasks = page.locator(listItemsSelector);
   await expect(visibleTasks).toHaveCount(1);
   await expect(visibleTasks.first().locator(".text")).toContainText("umbrella");
+});
+
+test("mobile sidebar keeps lists visible and collapses options", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await gotoWithSnapshot(page, "/?resetStorage=1");
+
+  await expect(globalSearchInput(page)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Prototype Tasks" })
+  ).toBeVisible();
+
+  const options = page.locator(".sidebar-actions-disclosure");
+  await expect(options).not.toHaveAttribute("open", "");
+  await expect(page.getByRole("button", { name: "Add list" })).toBeHidden();
+
+  await page.getByText("Options").click();
+  await expect(options).toHaveAttribute("open", "");
+  await expect(page.getByRole("button", { name: "Add list" })).toBeVisible();
 });
 
 test("undo/redo shortcuts revert task insertions", async ({ page }) => {
