@@ -774,24 +774,88 @@ a4-tasklist {
 }
 
 .task-note-panel {
-    padding: var(--space-xs) var(--space-sm) var(--space-sm)
+    padding: var(--space-sm) var(--space-sm) var(--space-sm)
         calc(20px + var(--space-sm) * 2);
+    border-top: 1px solid rgb(var(--color-border-strong-rgb) / 20%);
+}
+
+.task-note-scroll-wrap {
+    position: relative;
+    max-height: 12rem;
+
+    &::before,
+    &::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 8px;
+        height: 10px;
+        pointer-events: none;
+        z-index: 1;
+        opacity: 0;
+        transition: opacity var(--transition-fast);
+    }
+
+    &::before {
+        top: 0;
+        background: linear-gradient(
+            to bottom,
+            rgb(var(--color-white-rgb) / 70%) 0%,
+            rgb(var(--color-white-rgb) / 0%) 100%
+        );
+    }
+
+    &::after {
+        bottom: 0;
+        background: linear-gradient(
+            to top,
+            rgb(var(--color-white-rgb) / 70%) 0%,
+            rgb(var(--color-white-rgb) / 0%) 100%
+        );
+    }
+
+    &.is-scrolled-down::before {
+        opacity: 1;
+    }
+
+    &.is-scrolled-up::after {
+        opacity: 1;
+    }
 }
 
 .task-note-input {
+    display: block;
     width: 100%;
-    min-height: 64px;
+    min-height: 6.25rem;
+    max-height: 12rem;
     resize: vertical;
     box-sizing: border-box;
-    border: 1px solid var(--color-border-muted);
-    padding: var(--space-xs);
+    border: none;
+    padding: var(--space-xs) 0;
     font: inherit;
+    line-height: 1.4;
     color: inherit;
-    background: var(--color-surface);
+    background: transparent;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
 
     &:focus-visible {
-        outline: var(--field-focus-outline);
-        outline-offset: var(--field-focus-outline-offset);
+        outline: none;
+    }
+
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background-color: var(--color-border);
+        border-radius: 999px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background-color: transparent;
     }
 }
 

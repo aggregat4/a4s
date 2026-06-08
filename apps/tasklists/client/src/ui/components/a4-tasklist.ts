@@ -234,6 +234,7 @@ class A4TaskList extends HTMLElement {
   private _repository: ListRepository | null;
   private repositoryUnsubscribe: (() => void) | null;
   private editingShadowText: Map<string, string>;
+  private editingNoteShadow: Map<string, string>;
 
   constructor() {
     super();
@@ -305,6 +306,8 @@ class A4TaskList extends HTMLElement {
     this.handleNoteToggleClick = this.handleNoteToggleClick.bind(this);
     this.handleNoteInput = this.handleNoteInput.bind(this);
     this.handleNoteKeyDown = this.handleNoteKeyDown.bind(this);
+    this.handleNoteBlur = this.handleNoteBlur.bind(this);
+    this.handleNoteScroll = this.handleNoteScroll.bind(this);
     this.handleItemKeyDown = this.handleItemKeyDown.bind(this);
     this.handleFocusIn = this.handleFocusIn.bind(this);
     this.handleFocusOut = this.handleFocusOut.bind(this);
@@ -333,6 +336,7 @@ class A4TaskList extends HTMLElement {
     this._repository = null;
     this.repositoryUnsubscribe = null;
     this.editingShadowText = new Map();
+    this.editingNoteShadow = new Map();
   }
 
   static get observedAttributes() {
@@ -510,6 +514,31 @@ class A4TaskList extends HTMLElement {
           continue;
         }
         this.editingShadowText.delete(itemId);
+      }
+    }
+    if (this.editingNoteShadow.size > 0) {
+      const activeNoteItemId =
+        document.activeElement?.classList?.contains("task-note-input") === true
+          ? document.activeElement.closest("li")?.dataset?.itemId ?? null
+          : null;
+      for (const [itemId, shadowNote] of this.editingNoteShadow.entries()) {
+        const item = next.items?.find((entry) => entry.id === itemId);
+        if (!item) {
+          this.editingNoteShadow.delete(itemId);
+          continue;
+        }
+        if ((item.note ?? "") === shadowNote) {
+          this.editingNoteShadow.delete(itemId);
+          continue;
+        }
+        if (
+          this.openNoteItemIds.has(itemId) ||
+          activeNoteItemId === itemId
+        ) {
+          item.note = shadowNote;
+          continue;
+        }
+        this.editingNoteShadow.delete(itemId);
       }
     }
     this._initialState = next;
@@ -1459,7 +1488,7 @@ class A4TaskList extends HTMLElement {
         class=${`task-item${isFocused ? " is-focused" : ""}`}
         data-item-id=${itemId}
         data-done=${isDone ? "true" : "false"}
-        draggable="true"
+        draggable=${noteOpen || isEditing ? "false" : "true"}
         ?hidden=${hidden}
       >
         <div class="task-item-body">
@@ -1487,14 +1516,18 @@ class A4TaskList extends HTMLElement {
           ${noteOpen
             ? html`
                 <div class="task-note-panel">
-                  <textarea
-                    class="task-note-input"
-                    rows="3"
-                    placeholder="Add a note..."
-                    .value=${note}
-                    @input=${this.handleNoteInput}
-                    @keydown=${this.handleNoteKeyDown}
-                  ></textarea>
+                  <div class="task-note-scroll-wrap">
+                    <textarea
+                      class="task-note-input"
+                      rows="5"
+                      placeholder="Add a note..."
+                      .value=${this.isNoteInputActive(itemId) ? noChange : note}
+                      @input=${this.handleNoteInput}
+                      @blur=${this.handleNoteBlur}
+                      @scroll=${this.handleNoteScroll}
+                      @keydown=${this.handleNoteKeyDown}
+                    ></textarea>
+                  </div>
                 </div>
               `
             : null}
@@ -1675,6 +1708,17 @@ class A4TaskList extends HTMLElement {
       skip: hasPendingEdit || appliedPendingEdit,
     });
 
+    if (this.openNoteItemIds.size > 0) {
+      for (const itemId of this.openNoteItemIds) {
+        const noteInput = this.listEl.querySelector(
+          `li[data-item-id="${escapeSelectorId(itemId)}"] .task-note-input`
+        ) as HTMLTextAreaElement | null;
+        if (noteInput) {
+          this.updateNoteScrollState(noteInput);
+        }
+      }
+    }
+
     if (
       this.openActionsItemId &&
       !state.items?.some((item) => item.id === this.openActionsItemId)
@@ -1696,7 +1740,12 @@ class A4TaskList extends HTMLElement {
       const target = this.listEl?.querySelector(
         `li[data-item-id="${selectorId}"] .task-note-input`
       ) as HTMLTextAreaElement | null;
-      target?.focus();
+      if (target) {
+        target.focus();
+        const end = target.value.length;
+        target.setSelectionRange(end, end);
+        this.updateNoteScrollState(target);
+      }
     }
 
     if (this.pendingRestoreEdit?.id) {
@@ -1831,6 +1880,67 @@ class A4TaskList extends HTMLElement {
     this.renderFromState(this.store?.getState?.());
   }
 
+  isNoteInputActive(itemId: string) {
+    const activeElement = document.activeElement;
+    if (!activeElement?.classList?.contains("task-note-input")) return false;
+    return activeElement.closest("li")?.dataset?.itemId === itemId;
+  }
+
+  clearNoteShadow(itemId: string) {
+    this.editingNoteShadow.delete(itemId);
+  }
+
+  commitNoteChange(itemId: string, nextNote: string) {
+    if (!this.store) return;
+    const stateItem = this.store
+      .getState()
+      .items.find((item) => item.id === itemId);
+    if (!stateItem) return;
+    if ((stateItem.note ?? "") === nextNote) {
+      this.editingNoteShadow.delete(itemId);
+      return;
+    }
+    this.editingNoteShadow.set(itemId, nextNote);
+    this.store.dispatch({
+      type: LIST_ACTIONS.updateItemNote,
+      payload: { id: itemId, note: nextNote },
+    });
+    if (this._repository && this.listId) {
+      void this._repository.updateTask(this.listId, itemId, {
+        note: nextNote,
+      });
+    }
+  }
+
+  flushNoteChange(itemId: string, nextNote: string) {
+    this.commitNoteChange(itemId, nextNote);
+  }
+
+  updateNoteScrollState(textarea: HTMLTextAreaElement) {
+    const wrap = textarea.closest(".task-note-scroll-wrap");
+    if (!wrap) return;
+    const atTop = textarea.scrollTop <= 1;
+    const atBottom =
+      textarea.scrollTop + textarea.clientHeight >= textarea.scrollHeight - 1;
+    const overflows = textarea.scrollHeight > textarea.clientHeight + 1;
+    wrap.classList.toggle("is-scrolled-down", overflows && !atTop);
+    wrap.classList.toggle("is-scrolled-up", overflows && !atBottom);
+  }
+
+  handleNoteScroll(event: Event) {
+    const target = event.currentTarget as HTMLTextAreaElement | null;
+    if (!target) return;
+    this.updateNoteScrollState(target);
+  }
+
+  handleNoteBlur(event: Event) {
+    const target = event.currentTarget as HTMLTextAreaElement | null;
+    const li = target?.closest("li");
+    const itemId = li?.dataset?.itemId ?? null;
+    if (!itemId || !target) return;
+    this.flushNoteChange(itemId, target.value ?? "");
+  }
+
   handleNoteToggleClick(event: Event) {
     const button = event.currentTarget as HTMLElement | null;
     const li = button?.closest("li");
@@ -1842,27 +1952,12 @@ class A4TaskList extends HTMLElement {
   }
 
   handleNoteInput(event: Event) {
-    if (!this.store) return;
     const target = event.currentTarget as HTMLTextAreaElement | null;
     const li = target?.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
-    if (!itemId) return;
-    const nextNote = target?.value ?? "";
-    const stateItem = this.store
-      .getState()
-      .items.find((item) => item.id === itemId);
-    if (!stateItem) return;
-    if ((stateItem.note ?? "") === nextNote) return;
-    this.store.dispatch({
-      type: LIST_ACTIONS.updateItemNote,
-      payload: { id: itemId, note: nextNote },
-    });
-    if (this._repository && this.listId) {
-      const promise = this._repository.updateTask(this.listId, itemId, {
-        note: nextNote,
-      });
-      void promise;
-    }
+    if (!itemId || !target) return;
+    this.editingNoteShadow.set(itemId, target.value ?? "");
+    this.updateNoteScrollState(target);
   }
 
   handleNoteKeyDown(event: KeyboardEvent) {
@@ -1882,7 +1977,14 @@ class A4TaskList extends HTMLElement {
       this.toggleNoteForItem(itemId, { restoreEdit: true });
       return;
     }
+    const noteInput = li?.querySelector(
+      ".task-note-input"
+    ) as HTMLTextAreaElement | null;
+    if (noteInput) {
+      this.flushNoteChange(itemId, noteInput.value ?? "");
+    }
     this.openNoteItemIds.delete(itemId);
+    this.clearNoteShadow(itemId);
     this.renderFromState(this.store?.getState?.());
     const textTarget = li?.querySelector(".text") as HTMLElement | null;
     textTarget?.focus();
@@ -1957,12 +2059,23 @@ class A4TaskList extends HTMLElement {
     if (!itemId) return;
     let restoreCaret: CaretPreference | null = null;
     if (this.openNoteItemIds.has(itemId)) {
+      const noteInput = this.listEl?.querySelector(
+        `li[data-item-id="${escapeSelectorId(itemId)}"] .task-note-input`
+      ) as HTMLTextAreaElement | null;
+      if (noteInput) {
+        this.flushNoteChange(itemId, noteInput.value ?? "");
+      }
       this.openNoteItemIds.delete(itemId);
+      this.clearNoteShadow(itemId);
       this.pendingNoteFocusId = null;
       if (restoreEdit) {
         restoreCaret = "end";
       }
     } else {
+      const textEl = this.getEditingTarget(itemId);
+      if (textEl && this.inlineEditor?.editingEl === textEl) {
+        this.inlineEditor.finishEditing(textEl);
+      }
       this.openNoteItemIds.add(itemId);
       this.pendingNoteFocusId = focus ? itemId : null;
     }
@@ -2086,6 +2199,8 @@ class A4TaskList extends HTMLElement {
       matchesShortcut(event, SHORTCUTS.jumpToListStart) ||
       matchesShortcut(event, SHORTCUTS.jumpToListEnd)
     ) {
+      const target = event.target as HTMLElement | null;
+      if (target?.classList?.contains("task-note-input")) return;
       if (!this.store) return;
       const items = this.store.getState()?.items ?? [];
       if (!items.length) return;
@@ -2643,7 +2758,8 @@ class A4TaskList extends HTMLElement {
         : preservedFocus.role === "note"
         ? targetLi.querySelector(".task-note-input")
         : null;
-    (focusTarget as HTMLElement | null)?.focus();
+    if (!focusTarget) return;
+    (focusTarget as HTMLElement).focus();
   }
 
   get listId() {

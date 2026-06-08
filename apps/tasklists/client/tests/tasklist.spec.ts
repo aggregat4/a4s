@@ -1104,6 +1104,60 @@ test.describe("tasklist flows", () => {
       .toBeTruthy();
   });
 
+  test("note textarea allows mouse repositioning without text editing", async ({
+    page,
+  }) => {
+    await gotoWithSnapshot(page, "/?resetStorage=1");
+    const item = page.locator(listItemsSelector).first();
+    // Focus the row without entering text-edit mode (keeps li draggable).
+    await item.locator(".text").focus();
+    await item.locator(".task-note-toggle").click();
+    const noteInput = item.locator(".task-note-input");
+    await expect(noteInput).toBeFocused();
+
+    const prefix = "BBBB start marker. ";
+    const suffix = " YYYY end marker.";
+    await noteInput.pressSequentially(prefix, { delay: 20 });
+    for (let i = 0; i < 8; i += 1) {
+      await noteInput.pressSequentially(`Line ${i} has more text. `, {
+        delay: 15,
+      });
+    }
+    await noteInput.pressSequentially(suffix, { delay: 20 });
+    const longNote = await noteInput.inputValue();
+    await page.waitForTimeout(400);
+    await noteInput.evaluate((el) => {
+      const textarea = el as HTMLTextAreaElement;
+      const end = textarea.value.length;
+      textarea.selectionStart = end;
+      textarea.selectionEnd = end;
+    });
+    await expect
+      .poll(async () =>
+        noteInput.evaluate((el) => (el as HTMLTextAreaElement).selectionStart)
+      )
+      .toBe(longNote.length);
+
+    const box = await noteInput.boundingBox();
+    if (!box) {
+      throw new Error("note input not visible");
+    }
+    await page.mouse.click(box.x + 10, box.y + 10);
+
+    await expect
+      .poll(async () =>
+        noteInput.evaluate((el) => (el as HTMLTextAreaElement).selectionStart)
+      )
+      .toBeLessThan(longNote.length / 3);
+
+    await page.waitForTimeout(400);
+    const selectionStart = await noteInput.evaluate(
+      (el) => (el as HTMLTextAreaElement).selectionStart
+    );
+    expect(selectionStart).toBeLessThan(longNote.length / 3);
+    expect(selectionStart).not.toBe(longNote.length);
+  });
+
   test("alt+n toggles note input and returns to editing", async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
     const firstItem = page.locator(listItemsSelector).first();
