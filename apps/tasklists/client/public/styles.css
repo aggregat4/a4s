@@ -629,7 +629,8 @@ a4-tasklist {
 }
 
 .task-item.is-focused {
-    background: var(--color-surface-muted);
+    border-color: var(--outline-color);
+    box-shadow: inset 3px 0 0 var(--outline-color);
 }
 
 .task-item[hidden] {
@@ -670,12 +671,8 @@ a4-tasklist {
     outline: none;
 }
 
-.task-text:focus-visible,
-.task-item.is-focused .task-text,
 .task-text.text-editing {
-    background-color: var(--color-surface-muted);
-    outline: var(--field-focus-outline);
-    outline-offset: var(--field-focus-outline-offset);
+    outline: none;
 }
 
 .task-text mark {
