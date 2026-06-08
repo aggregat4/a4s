@@ -42,8 +42,6 @@ class SidebarElement extends HTMLElement {
   private pendingRender: boolean;
   private pendingRenderMode: "reorder" | "render" | null;
   private showDemoSeed: boolean;
-  private menuOpen: boolean;
-  private menuMediaQuery: MediaQueryList | null;
   private actionsOpen: boolean;
   private isOnline: boolean;
   private handleOnlineChange: (() => void) | null;
@@ -65,9 +63,7 @@ class SidebarElement extends HTMLElement {
     this.pendingRender = false;
     this.pendingRenderMode = null;
     this.showDemoSeed = false;
-    this.menuOpen = true;
-    this.menuMediaQuery = null;
-    this.actionsOpen = true;
+    this.actionsOpen = false;
     this.isOnline = true;
     this.handleOnlineChange = null;
     this.handleSearchInput = this.handleSearchInput.bind(this);
@@ -81,10 +77,7 @@ class SidebarElement extends HTMLElement {
     this.handleListDragStart = this.handleListDragStart.bind(this);
     this.handleListDragEnd = this.handleListDragEnd.bind(this);
     this.handleListReorder = this.handleListReorder.bind(this);
-    this.handleMenuToggle = this.handleMenuToggle.bind(this);
     this.handleActionsToggle = this.handleActionsToggle.bind(this);
-    this.handleMenuMediaChange = this.handleMenuMediaChange.bind(this);
-    this.handleSummaryClick = this.handleSummaryClick.bind(this);
   }
 
   connectedCallback() {
@@ -130,13 +123,6 @@ class SidebarElement extends HTMLElement {
 
   init() {
     if (typeof window !== "undefined") {
-      this.menuMediaQuery = window.matchMedia("(max-width: 640px)");
-      this.menuOpen = true;
-      this.actionsOpen = !this.menuMediaQuery.matches;
-      this.menuMediaQuery.addEventListener(
-        "change",
-        this.handleMenuMediaChange
-      );
       this.isOnline = navigator.onLine !== false;
       this.handleOnlineChange = () => {
         const next = navigator.onLine !== false;
@@ -155,11 +141,6 @@ class SidebarElement extends HTMLElement {
   destroy() {
     clearTimeout(this.searchDebounceId ?? undefined);
     document.removeEventListener("dragend", this.handleGlobalDragEnd);
-    this.menuMediaQuery?.removeEventListener(
-      "change",
-      this.handleMenuMediaChange
-    );
-    this.menuMediaQuery = null;
     this.dragCoordinator?.destroy();
     this.dragCoordinator = null;
     this.dragStartOrder = null;
@@ -233,33 +214,23 @@ class SidebarElement extends HTMLElement {
       this.currentLists.length <= 1 || !this.activeListId;
     render(
       html`
-        <details
-          class="sidebar-disclosure"
-          @toggle=${this.handleMenuToggle}
-          ?open=${this.menuOpen}
-        >
-          <summary
-            class="sidebar-menu-toggle"
-            aria-label="Lists navigation"
-            @click=${this.handleSummaryClick}
-          >
-            <div class="sidebar-topbar">
-              <h1 class="sidebar-title">Lists</h1>
-              <span class="sidebar-offline-indicator ${this.isOnline ? "" : "is-visible"}">Offline</span>
-              <label class="sidebar-field sidebar-field-inline">
-                <input
-                  type="search"
-                  class="sidebar-search-input"
-                  placeholder="Search across all lists…"
-                  aria-label="Global search"
-                  data-role="global-search"
-                  .value=${this.currentSearch}
-                  @input=${this.handleSearchInput}
-                  @keydown=${this.handleSearchKeyDown}
-                />
-              </label>
-            </div>
-          </summary>
+        <div class="sidebar-content">
+          <div class="sidebar-topbar">
+            <h1 class="sidebar-title">Lists</h1>
+            <span class="sidebar-offline-indicator ${this.isOnline ? "" : "is-visible"}">Offline</span>
+            <label class="sidebar-field sidebar-field-inline">
+              <input
+                type="search"
+                class="sidebar-search-input"
+                placeholder="Search across all lists…"
+                aria-label="Global search"
+                data-role="global-search"
+                .value=${this.currentSearch}
+                @input=${this.handleSearchInput}
+                @keydown=${this.handleSearchKeyDown}
+              />
+            </label>
+          </div>
           <div class="sidebar-sections" id="sidebar-sections">
             <nav class="sidebar-section sidebar-lists" aria-label="Available lists">
               <ul class="sidebar-list" data-role="sidebar-list">
@@ -310,24 +281,18 @@ class SidebarElement extends HTMLElement {
                   <button
                     type="button"
                     data-role="add-list"
-                    aria-label="Add list"
-                    title="Add list"
                     @click=${() => this.handlers.onAddList?.()}
                   >
-                    <span class="sidebar-action-icon" aria-hidden="true">＋</span>
-                    <span class="sidebar-action-label">Add list</span>
+                    Add list
                   </button>
                   ${this.showDemoSeed
                     ? html`
                         <button
                           type="button"
                           data-role="seed-demo"
-                          aria-label="Load demo data"
-                          title="Load demo data"
                           @click=${() => this.handlers.onSeedDemo?.()}
                         >
-                          <span class="sidebar-action-icon" aria-hidden="true">◎</span>
-                          <span class="sidebar-action-label">Load demo data</span>
+                          Load demo data
                         </button>
                       `
                     : null}
@@ -335,41 +300,32 @@ class SidebarElement extends HTMLElement {
                     type="button"
                     class="danger"
                     data-role="delete-list"
-                    aria-label="Delete list"
-                    title="Delete list"
                     ?disabled=${deleteDisabled}
                     @click=${() => this.handlers.onDeleteList?.()}
                   >
-                    <span class="sidebar-action-icon" aria-hidden="true">−</span>
-                    <span class="sidebar-action-label">Delete list</span>
+                    Delete list
                   </button>
                 </div>
                 <div class="sidebar-section sidebar-actions sidebar-actions-secondary">
                   <button
                     type="button"
                     data-role="export-snapshot"
-                    aria-label="Export"
-                    title="Export"
                     @click=${() => this.handlers.onExportSnapshot?.()}
                   >
-                    <span class="sidebar-action-icon" aria-hidden="true">⇧</span>
-                    <span class="sidebar-action-label">Export</span>
+                    Export
                   </button>
                   <button
                     type="button"
                     data-role="import-snapshot"
-                    aria-label="Import"
-                    title="Import"
                     @click=${() => this.handlers.onImportSnapshot?.()}
                   >
-                    <span class="sidebar-action-icon" aria-hidden="true">⇩</span>
-                    <span class="sidebar-action-label">Import</span>
+                    Import
                   </button>
                 </div>
               </div>
             </details>
           </div>
-        </details>
+        </div>
       `,
       this
     );
@@ -377,48 +333,10 @@ class SidebarElement extends HTMLElement {
     this.syncListDomOrder();
   }
 
-  handleMenuToggle(event: Event) {
-    const disclosure = event.currentTarget as HTMLDetailsElement | null;
-    if (!disclosure) return;
-    if (!disclosure.open) {
-      disclosure.open = true;
-    }
-    this.menuOpen = true;
-  }
-
   handleActionsToggle(event: Event) {
     const disclosure = event.currentTarget as HTMLDetailsElement | null;
     if (!disclosure) return;
     this.actionsOpen = disclosure.open;
-  }
-
-  handleSummaryClick(event: Event) {
-    const target = event.target as HTMLElement | null;
-    if (!target) return;
-    if (
-      target.closest(".sidebar-field") ||
-      target.closest(".sidebar-search-input")
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }
-
-  handleMenuMediaChange(event: MediaQueryListEvent) {
-    this.menuOpen = true;
-    this.actionsOpen = !event.matches;
-    const menuDisclosure = this.querySelector(
-      ".sidebar-disclosure"
-    ) as HTMLDetailsElement | null;
-    if (menuDisclosure) {
-      menuDisclosure.open = true;
-    }
-    const actionsDisclosure = this.querySelector(
-      ".sidebar-actions-disclosure"
-    ) as HTMLDetailsElement | null;
-    if (actionsDisclosure) {
-      actionsDisclosure.open = this.actionsOpen;
-    }
   }
 
   handleSidebarButtonClick(event: Event) {

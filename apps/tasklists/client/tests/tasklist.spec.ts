@@ -351,24 +351,29 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   await expect(visibleTasks.first().locator(".text")).toContainText("umbrella");
 });
 
-test("mobile sidebar keeps lists visible and collapses options", async ({
+test("sidebar keeps lists visible and collapses options by default", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await gotoWithSnapshot(page, "/?resetStorage=1");
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await gotoWithSnapshot(page, "/?resetStorage=1");
 
-  await expect(globalSearchInput(page)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Prototype Tasks" })
-  ).toBeVisible();
+    await expect(globalSearchInput(page)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Prototype Tasks" })
+    ).toBeVisible();
 
-  const options = page.locator(".sidebar-actions-disclosure");
-  await expect(options).not.toHaveAttribute("open", "");
-  await expect(page.getByRole("button", { name: "Add list" })).toBeHidden();
+    const options = page.locator(".sidebar-actions-disclosure");
+    await expect(options).not.toHaveAttribute("open", "");
+    await expect(page.getByRole("button", { name: "Add list" })).toBeHidden();
 
-  await page.getByText("Options").click();
-  await expect(options).toHaveAttribute("open", "");
-  await expect(page.getByRole("button", { name: "Add list" })).toBeVisible();
+    await page.getByText("Options").click();
+    await expect(options).toHaveAttribute("open", "");
+    await expect(page.getByRole("button", { name: "Add list" })).toBeVisible();
+  }
 });
 
 test("undo/redo shortcuts revert task insertions", async ({ page }) => {
