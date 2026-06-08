@@ -40,8 +40,6 @@
     --list-width: 70ch;
     --search-width: 250px;
     --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4K");
-    --task-note-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjIuNSIgd2lkdGg9IjEwIiBoZWlnaHQ9IjExIiByeD0iMS41Ii8+PGxpbmUgeDE9IjUiIHkxPSI2IiB4Mj0iMTEiIHkyPSI2Ii8+PGxpbmUgeDE9IjUiIHkxPSI4LjUiIHgyPSIxMSIgeTI9IjguNSIvPjwvc3ZnPg==");
-    --task-note-icon-filled: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3QgeD0iMyIgeT0iMi41IiB3aWR0aD0iMTAiIGhlaWdodD0iMTEiIHJ4PSIxLjUiIGZpbGw9ImN1cnJlbnRDb2xvciIvPjxsaW5lIHgxPSI1IiB5MT0iNiIgeDI9IjExIiB5Mj0iNiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxsaW5lIHgxPSI1IiB5MT0iOC41IiB4Mj0iMTEiIHkyPSI4LjUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=");
     --task-options-icon-left: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1sZWZ0IiB2aWV3Qm94PSIwIDAgMTYgMTYiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkuMjI0IDEuNTUzYS41LjUgMCAwIDEgLjIyMy42N0w2LjU2IDhsMi44ODggNS43NzZhLjUuNSAwIDEgMS0uODk0LjQ0OGwtMy02YS41LjUgMCAwIDEgMC0uNDQ4bDMtNmEuNS41IDAgMCAxIC42Ny0uMjIzIi8+Cjwvc3ZnPg==");
     --task-options-icon-right: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzk5OSIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1yaWdodCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik02Ljc3NiAxLjU1M2EuNS41IDAgMCAxIC42NzEuMjIzbDMgNmEuNS41IDAgMCAxIDAgLjQ0OGwtMyA2YS41LjUgMCAxIDEtLjg5NC0uNDQ4TDkuNDQgOCA2LjU1MyAyLjIyNGEuNS41IDAgMCAxIC4yMjMtLjY3MSIvPgo8L3N2Zz4=");
 }
@@ -529,16 +527,9 @@ a4-tasklist {
     .tasklist-controls {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: var(--space-sm);
         flex-wrap: wrap;
-
-        .tasklist-show-done {
-            display: inline-flex;
-            align-items: center;
-            gap: var(--space-xs);
-            font-size: 16px;
-            color: var(--color-text);
-        }
     }
 }
 
@@ -558,10 +549,60 @@ a4-tasklist {
     }
 }
 
-.tasklist-show-done-input {
-    width: 16px;
-    height: 16px;
+.tasklist-show-done {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 16px;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.tasklist-show-done-label {
+    color: var(--color-muted);
+}
+
+.tasklist-show-done-toggle {
+    appearance: none;
+    width: 36px;
+    height: 20px;
     margin: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background-color: var(--color-surface-muted);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: background-color var(--transition-fast);
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background-color: var(--color-surface);
+        border: 1px solid var(--color-border);
+        transform: translateY(-50%);
+        transition: transform var(--transition-fast);
+    }
+
+    &:checked {
+        background-color: var(--color-text);
+        border-color: var(--color-text);
+
+        &::before {
+            transform: translate(16px, -50%);
+            border-color: var(--color-text);
+        }
+    }
+
+    &:focus-visible {
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
+    }
 }
 
 .tasklist {
@@ -648,6 +689,14 @@ a4-tasklist {
     color: var(--color-muted);
 }
 
+.task-item-trailing {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-shrink: 0;
+    margin-left: var(--space-sm);
+}
+
 .handle {
     cursor: grab;
     color: var(--color-handle);
@@ -664,7 +713,6 @@ a4-tasklist {
     background-position: center;
     background-size: 24px 24px;
     background-image: var(--task-handle-icon);
-    margin-left: var(--space-sm);
 
     &:active {
         cursor: grabbing;
@@ -674,37 +722,57 @@ a4-tasklist {
 .task-note-toggle {
     border: none;
     background: transparent;
-    color: var(--color-muted);
-    width: 30px;
-    height: 30px;
+    width: 20px;
+    height: 24px;
     padding: 0;
     flex-shrink: 0;
-    display: inline-flex;
+    display: none;
     align-items: center;
     justify-content: center;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 22px 22px;
-    background-image: var(--task-note-icon);
     cursor: pointer;
 
-    &:hover {
-        background-color: var(--color-surface-muted);
-        color: var(--color-text);
+    &::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        box-sizing: border-box;
+        border: 1px solid var(--color-muted);
+        background-color: transparent;
+    }
+
+    &:hover::before {
+        border-color: var(--color-text);
     }
 
     &:focus-visible {
         outline: var(--field-focus-outline);
         outline-offset: var(--field-focus-outline-offset);
     }
+
+    &[aria-pressed="true"]::before {
+        border-color: var(--color-text);
+    }
+
+    &.has-note,
+    .task-item.is-focused &,
+    .task-item:has(.task-note-panel) & {
+        display: inline-flex;
+    }
 }
 
 .task-note-toggle.has-note {
-    color: var(--color-accent);
-    background-image: var(--task-note-icon-filled);
+    &::before {
+        border: none;
+        background-color: var(--color-muted);
+    }
 
-    &:hover {
-        color: var(--color-accent);
+    &:hover::before {
+        background-color: var(--color-text);
+    }
+
+    &[aria-pressed="true"]::before {
+        background-color: var(--color-text);
     }
 }
 
@@ -1018,12 +1086,6 @@ a4-tasklist {
 
         .tasklist-controls {
             width: 100%;
-            justify-content: flex-start;
-            gap: var(--space-sm);
-
-            .tasklist-show-done {
-                flex: 1;
-            }
         }
     }
 

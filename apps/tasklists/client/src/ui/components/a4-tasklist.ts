@@ -726,15 +726,6 @@ class A4TaskList extends HTMLElement {
           <span class="tasklist-title-edit-icon" aria-hidden="true"></span>
         </div>
         <div class="tasklist-controls">
-          <label class="tasklist-show-done">
-          <input
-              type="checkbox"
-              class="tasklist-show-done-toggle tasklist-show-done-input"
-              ?checked=${showDoneChecked}
-              @change=${this.handleShowDoneChange}
-            />
-            <span>Show done</span>
-          </label>
           <button
             type="button"
             class="iconlabel"
@@ -747,6 +738,17 @@ class A4TaskList extends HTMLElement {
             </svg>
             <span>Add</span>
           </button>
+          <label class="tasklist-show-done">
+            <span class="tasklist-show-done-label">Show done</span>
+            <input
+              type="checkbox"
+              class="tasklist-show-done-toggle"
+              role="switch"
+              aria-label="Show done tasks"
+              ?checked=${showDoneChecked}
+              @change=${this.handleShowDoneChange}
+            />
+          </label>
         </div>
       `,
       this.headerEl
@@ -1469,16 +1471,18 @@ class A4TaskList extends HTMLElement {
               @change=${this.handleToggle}
             />
             ${textSpan}
-            <button
-              type="button"
-              class=${`task-note-toggle${notePresent ? " has-note" : ""}`}
-              aria-pressed=${noteOpen ? "true" : "false"}
-              aria-expanded=${noteOpen ? "true" : "false"}
-              aria-label=${noteLabel}
-              title=${noteLabel}
-              @click=${this.handleNoteToggleClick}
-            ></button>
-            <span class="handle" aria-hidden="true"></span>
+            <div class="task-item-trailing">
+              <button
+                type="button"
+                class=${`task-note-toggle${notePresent ? " has-note" : ""}`}
+                aria-pressed=${noteOpen ? "true" : "false"}
+                aria-expanded=${noteOpen ? "true" : "false"}
+                aria-label=${noteLabel}
+                title=${noteLabel}
+                @click=${this.handleNoteToggleClick}
+              ></button>
+              <span class="handle" aria-hidden="true"></span>
+            </div>
           </div>
           ${noteOpen
             ? html`

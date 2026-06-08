@@ -212,6 +212,7 @@ async function addBlankTask(page: Page) {
 
 async function addNoteToFirstTask(page: Page, noteText: string) {
   const item = page.locator(listItemsSelector).first();
+  await item.locator(".text").click();
   await item.locator(".task-note-toggle").click();
   const noteInput = item.locator(".task-note-input");
   await expect(noteInput).toBeVisible();
