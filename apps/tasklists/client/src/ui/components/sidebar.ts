@@ -216,7 +216,7 @@ class SidebarElement extends HTMLElement {
       html`
         <div class="sidebar-content">
           <div class="sidebar-topbar">
-            <h1 class="sidebar-title">Lists</h1>
+            <h1 class="sidebar-title sr-only">Lists</h1>
             <span class="sidebar-offline-indicator ${this.isOnline ? "" : "is-visible"}">Offline</span>
             <label class="sidebar-field sidebar-field-inline">
               <input
