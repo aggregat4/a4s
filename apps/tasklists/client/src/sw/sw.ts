@@ -2,7 +2,7 @@
 
 declare const self: ServiceWorkerGlobalScope;
 
-const CACHE_NAME = "a4-tasklists-v1";
+const CACHE_NAME = "a4-tasklists-v2";
 const ASSET_MANIFEST_URL = "./asset-manifest.json";
 
 const API_PATH_PREFIXES = ["/sync/", "/healthz", "/auth/"];
@@ -29,6 +29,36 @@ async function networkFirst(request: Request): Promise<Response> {
     return networkResponse;
   } catch {
     const cached = await cache.match(request);
+    if (cached) {
+      return cached;
+    }
+    return new Response("Network error", { status: 408 });
+  }
+}
+
+async function navigateIndex(request: Request): Promise<Response> {
+  const cache = await caches.open(CACHE_NAME);
+  const indexUrl = new URL("/index.html", request.url).href;
+  try {
+    // Do not follow redirects here: OAuth sets oidc-callback-state-cookie on a
+    // 302 from /. If the worker followed the redirect, the browser would drop it.
+    const networkResponse = await fetch(request, { redirect: "manual" });
+    if (
+      networkResponse.type === "opaqueredirect" ||
+      (networkResponse.status >= 300 && networkResponse.status < 400)
+    ) {
+      return networkResponse;
+    }
+    if (networkResponse.ok) {
+      await cache.put(request, networkResponse.clone());
+      if (new URL(request.url).pathname === "/") {
+        await cache.put(indexUrl, networkResponse.clone());
+      }
+    }
+    return networkResponse;
+  } catch {
+    const cached =
+      (await cache.match(request)) ?? (await cache.match(indexUrl));
     if (cached) {
       return cached;
     }
@@ -150,6 +180,11 @@ self.addEventListener("fetch", (event: FetchEvent) => {
 
   if (isApiRequest(url)) {
     event.respondWith(fetch(request));
+    return;
+  }
+
+  if (request.mode === "navigate" && isIndexHtml(url)) {
+    event.respondWith(navigateIndex(request));
     return;
   }
 
