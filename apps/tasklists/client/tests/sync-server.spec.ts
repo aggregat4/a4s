@@ -4,6 +4,7 @@ import {
   stringifyExportSnapshot,
 } from "../src/app/export-snapshot.js";
 import { test, expect } from "./fixtures";
+import { openSidebarOptions } from "./helpers/sidebar";
 
 const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
@@ -21,6 +22,7 @@ async function createList(page: Page, title: string) {
   page.once("dialog", async (dialog) => {
     await dialog.accept(title);
   });
+  await openSidebarOptions(page);
   await page.getByRole("button", { name: "Add list" }).click();
   const listButton = page
     .locator("[data-role='sidebar-list'] .sidebar-list-button")

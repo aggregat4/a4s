@@ -9,6 +9,7 @@ import {
 import type { ListState, RegistryState } from "../src/types/domain.js";
 import { test, expect } from "./fixtures";
 import { dragHandleToTarget } from "./helpers/drag";
+import { openSidebarOptions } from "./helpers/sidebar";
 
 const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
@@ -478,6 +479,7 @@ test("undo merge after split keeps distinct tasks below", async ({ page }) => {
   page.once("dialog", async (dialog) => {
     await dialog.accept("Undo Merge List");
   });
+  await openSidebarOptions(page);
   await page.getByRole("button", { name: "Add list" }).click();
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Undo Merge List"
@@ -977,6 +979,7 @@ test.describe("tasklist flows", () => {
 
   test("export downloads snapshot json", async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
+    await openSidebarOptions(page);
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.getByRole("button", { name: "Export" }).click(),
@@ -1863,6 +1866,7 @@ test.describe("tasklist flows", () => {
       .click();
 
     page.once("dialog", (dialog) => dialog.accept());
+    await openSidebarOptions(page);
     await page.getByRole("button", { name: "Delete list" }).click();
 
     await expect(
@@ -1929,6 +1933,7 @@ test("sidebar count updates after adding a task to a new list", async ({
   await gotoWithSnapshot(page, "/?resetStorage=1");
 
   page.once("dialog", (dialog) => dialog.accept("New List"));
+  await openSidebarOptions(page);
   await page.locator("[data-role='add-list']").click();
   await expect
     .poll(() => getSidebarListNames(page))
