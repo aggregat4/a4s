@@ -15,7 +15,14 @@
   "max_posts_per_feed": 100,
 
   // Session encryption key (can also be set via RSSGRID_SESSION_KEY env var)
+  // MUST be a random value of at least 32 bytes. The placeholder value below
+  // is rejected at startup; generate one with, e.g.:
+  //   openssl rand -base64 32
   "session_key": "your-secure-session-key",
+
+  // Whether to mark session cookies as Secure (only sent over HTTPS).
+  // Set to true when serving over HTTPS in production; leave false for local dev.
+  "secure_cookies": false,
 
   "oidc": {
     // OIDC provider configuration

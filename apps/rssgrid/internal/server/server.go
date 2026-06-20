@@ -124,15 +124,17 @@ func (s *Server) getUserID(r *http.Request) int64 {
 	return userID
 }
 
-func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, sessionKey string) (*Server, error) {
+func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, sessionKey string, secureCookies bool) (*Server, error) {
 	sessionStore := sessions.NewCookieStore([]byte(sessionKey))
 
-	// Configure session store options to ensure flash messages persist
+	// Configure session store options to ensure flash messages persist.
+	// MaxAge is 30 days (86400 * 30 seconds). Secure is driven by the
+	// secure_cookies config flag: enable it behind HTTPS in production.
 	sessionStore.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400 * 30, // 7 days
+		MaxAge:   86400 * 30, // 30 days
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
+		Secure:   secureCookies,
 		SameSite: http.SameSiteLaxMode,
 	}
 

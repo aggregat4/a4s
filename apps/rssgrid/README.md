@@ -51,6 +51,7 @@ The configuration file uses JSON format. Here's an example:
   "db_path": "rssgrid.db",
   "update_interval": "30m",
   "session_key": "your-secure-session-key",
+  "secure_cookies": false,
   "oidc": {
     "issuer_url": "https://your-oidc-provider.com",
     "client_id": "your-client-id",
@@ -67,6 +68,6 @@ For sensitive configuration, you can use environment variables instead of puttin
 - `RSSGRID_OIDC_ISSUER_URL`: The URL of your OIDC provider
 - `RSSGRID_OIDC_CLIENT_ID`: Your OIDC client ID
 - `RSSGRID_OIDC_CLIENT_SECRET`: Your OIDC client secret
-- `RSSGRID_SESSION_KEY`: A secure key for session encryption
+- `RSSGRID_SESSION_KEY`: A secure key for session encryption (at least 32 bytes; the example placeholder value is rejected at startup)
 
 Environment variables take precedence over values in the configuration file.

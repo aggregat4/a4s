@@ -38,6 +38,10 @@ func main() {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Invalid configuration: %v", err)
+	}
+
 	oidcConfig := baseliboidc.CreateOidcConfiguration(
 		cfg.OIDC.IssuerURL,
 		cfg.OIDC.ClientID,
@@ -45,7 +49,7 @@ func main() {
 		cfg.OIDC.RedirectURL,
 	)
 
-	srv, err := server.NewServer(store, oidcConfig, cfg.SessionKey)
+	srv, err := server.NewServer(store, oidcConfig, cfg.SessionKey, cfg.SecureCookies)
 	if err != nil {
 		log.Fatalf("Error initializing server: %v", err)
 	}
