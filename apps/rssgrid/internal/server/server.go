@@ -190,6 +190,23 @@ func (s *Server) logErrorAndRespond(w http.ResponseWriter, statusCode int, userM
 	http.Error(w, userMessage, statusCode)
 }
 
+// isPublicPath reports whether a request path should bypass OIDC authentication.
+// Public paths include the OIDC callback and the favicon (which browsers request
+// pre-login and must not trigger an auth redirect loop).
+func isPublicPath(path string) bool {
+	return path == "/auth/callback" || path == "/favicon.svg"
+}
+
+// handleFavicon serves the embedded SVG favicon. It is registered as a public
+// route so it loads without an authenticated session.
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	if _, err := w.Write(templates.Favicon()); err != nil {
+		log.Printf("Error writing favicon: %v", err)
+	}
+}
+
 func (s *Server) Start(addr string) error {
 	return s.StartWithContext(context.Background(), addr)
 }
@@ -205,7 +222,7 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 			return session.Values["user_id"] != nil
 		},
 		func(r *http.Request) bool {
-			return r.URL.Path == "/auth/callback"
+			return isPublicPath(r.URL.Path)
 		},
 	)
 
@@ -244,6 +261,7 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 
 	// Public routes
 	r.Get("/auth/callback", oidcCallbackHandler)
+	r.Get("/favicon.svg", s.handleFavicon)
 
 	// Static files
 	fileServer := templates.CreateStaticFileServer()

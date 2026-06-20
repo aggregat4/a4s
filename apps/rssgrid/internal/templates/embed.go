@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -14,6 +15,14 @@ var templateFS embed.FS
 
 //go:embed *.css
 var staticFS embed.FS
+
+//go:embed favicon.svg
+var faviconFS []byte
+
+// Favicon returns the embedded favicon as an SVG byte slice.
+func Favicon() []byte {
+	return faviconFS
+}
 
 // LoadTemplates loads all HTML templates from the embedded filesystem
 func LoadTemplates() (*template.Template, error) {
@@ -28,6 +37,7 @@ func LoadTemplates() (*template.Template, error) {
 			}
 			return b
 		},
+		"host":    host,
 		"reltime": reltime,
 	}
 
@@ -68,6 +78,20 @@ func pluralize(n int, unit string) string {
 		return "1 " + unit
 	}
 	return strconv.Itoa(n) + " " + unit + "s"
+}
+
+// host extracts the host (with port) from rawURL. If the URL cannot be parsed
+// or has no host, the input is returned unchanged so callers still get
+// something to display.
+func host(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return rawURL
+	}
+	return u.Host
 }
 
 // reltime renders a time.Time as a human-friendly relative string such as

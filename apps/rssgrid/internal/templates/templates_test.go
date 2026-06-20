@@ -102,3 +102,138 @@ func occurrences(s, sub string) int {
 	}
 	return n
 }
+
+func TestHostTemplateFunc(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{"plain https", "https://example.com/feed.xml", "example.com"},
+		{"with port", "http://localhost:8080/feed", "localhost:8080"},
+		{"with subdomain", "https://blog.example.com/rss", "blog.example.com"},
+		{"malformed falls back to raw", "://not-a-url", "://not-a-url"},
+		{"empty stays empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := host(tt.url); got != tt.want {
+				t.Errorf("host(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTemplatesIncludeFaviconLink(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("Failed to load templates: %v", err)
+	}
+	for _, name := range []string{"dashboard.html", "settings.html", "post.html"} {
+		t.Run(name, func(t *testing.T) {
+			tTmpl := tmpl.Lookup(name)
+			if tTmpl == nil {
+				t.Fatalf("template %s not found", name)
+			}
+			// Render with nil data; we only care that the <link> tag is in the head.
+			var buf bytes.Buffer
+			// dashboard/settings/post all tolerate an empty data struct for the
+			// purpose of checking the static <head> contents.
+			if err := tTmpl.Execute(&buf, nil); err != nil {
+				// Some templates range over data and may error on nil; fall back to
+				// inspecting the raw template source for the link tag.
+				raw, readErr := templateFS.ReadFile(name)
+				if readErr != nil {
+					t.Fatalf("failed to read template %s: %v", name, readErr)
+				}
+				if !contains(string(raw), `rel="icon"`) || !contains(string(raw), `/favicon.svg`) {
+					t.Errorf("template %s must reference /favicon.svg via a rel=icon link", name)
+				}
+				return
+			}
+			out := buf.String()
+			if !contains(out, `rel="icon"`) || !contains(out, `/favicon.svg`) {
+				t.Errorf("template %s output must reference /favicon.svg via a rel=icon link, got:\n%s", name, out)
+			}
+		})
+	}
+}
+
+func TestDashboardTemplate_TitleFallbackToHost(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("Failed to load templates: %v", err)
+	}
+
+	type feedLike struct {
+		ID                  int64
+		Title               string
+		URL                 string
+		ConsecutiveFailures int
+		LastError           string
+	}
+	type postData struct {
+		Feed  feedLike
+		Posts []struct{}
+	}
+	columns := [][]postData{
+		{
+			{Feed: feedLike{ID: 1, Title: "", URL: "https://example.com/feed.xml"}},
+		},
+	}
+	data := struct {
+		Columns     [][]postData
+		ColumnCount int
+	}{
+		Columns:     columns,
+		ColumnCount: 1,
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Lookup("dashboard.html").Execute(&buf, data); err != nil {
+		t.Fatalf("Failed to execute dashboard template: %v", err)
+	}
+	out := buf.String()
+	if !contains(out, "example.com") {
+		t.Errorf("expected the feed URL host 'example.com' to appear as a title fallback, got:\n%s", out)
+	}
+}
+
+func TestSettingsTemplate_TitleFallbackToHost(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("Failed to load templates: %v", err)
+	}
+
+	type feedLike struct {
+		ID                  int64
+		Title               string
+		URL                 string
+		ConsecutiveFailures int
+		LastError           string
+		LastErrorAt         time.Time
+		LastSuccessAt       time.Time
+		LastFetchedAt       time.Time
+	}
+	data := struct {
+		Feeds         []feedLike
+		FlashMessages []struct{ Type, Message string }
+		PostsPerFeed  int
+		Columns       int
+	}{
+		Feeds: []feedLike{
+			{ID: 1, Title: "", URL: "https://blog.example.com/rss"},
+		},
+		PostsPerFeed: 10,
+		Columns:      2,
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Lookup("settings.html").Execute(&buf, data); err != nil {
+		t.Fatalf("Failed to execute settings template: %v", err)
+	}
+	out := buf.String()
+	if !contains(out, "blog.example.com") {
+		t.Errorf("expected the feed URL host 'blog.example.com' to appear as a title fallback, got:\n%s", out)
+	}
+}

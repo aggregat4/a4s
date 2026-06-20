@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RSSGrid - Settings</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -60,7 +61,7 @@
                     {{range $index, $feed := .Feeds}}
                     <li class="feed-item">
                         <div class="feed-info">
-                            <h3>{{$feed.Title}}</h3>
+                            <h3>{{if $feed.Title}}{{$feed.Title}}{{else}}{{host $feed.URL}}{{end}}</h3>
                             <p>{{$feed.URL}}</p>
                             {{if gt $feed.ConsecutiveFailures 0}}
                             <div class="feed-health" title="{{$feed.LastError}}">
