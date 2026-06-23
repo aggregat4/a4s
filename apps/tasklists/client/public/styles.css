@@ -676,6 +676,10 @@ a4-tasklist {
     padding: var(--space-xs) 0;
     flex: 1;
     min-width: 0;
+
+    /* Break long unbreakable strings (e.g. URLs) so they wrap instead of
+       overflowing under the drag handle. */
+    overflow-wrap: anywhere;
     outline: none;
 }
 

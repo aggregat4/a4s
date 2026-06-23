@@ -979,6 +979,18 @@ test.describe("tasklist flows", () => {
     ).toHaveCount(1);
   });
 
+  test("long unbreakable task text wraps instead of overflowing the handle", async ({
+    page,
+  }) => {
+    const longUrl = `https://example.com/${"a".repeat(120)}`;
+    await addTask(page, longUrl);
+    const firstItem = page.locator("ol.tasklist li.task-item").first();
+    const overflow = await firstItem.evaluate(
+      (el) => el.scrollWidth - el.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
   test("search matches note text", async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
     const uniqueText = `Note search task ${Date.now()}`;
