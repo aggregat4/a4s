@@ -44,6 +44,14 @@
     --task-options-icon-right: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1yaWdodCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik02Ljc3NiAxLjU1M2EuNS41IDAgMCAxIC42NzEuMjIzbDMgNmEuNS41IDAgMCAxIDAgLjQ0OGwtMyA2YS41LjUgMCAxIDEtLjg5NC0uNDQ4TDkuNDQgOCA2LjU1MyAyLjIyNGEuNS41IDAgMCAxIC4yMjMtLjY3MSIvPgo8L3N2Zz4=");
 }
 
+html,
+body {
+    /* Suppress iOS rubber-band/bounce on the document scroller. There is no
+       pull-to-reload in the installed home-screen app, so the bounce only
+       gets in the way. Needs iOS 16+; older versions ignore it harmlessly. */
+    overscroll-behavior-y: none;
+}
+
 body {
     font-family: var(--font-family-base);
     font-size: var(--font-size-base);
