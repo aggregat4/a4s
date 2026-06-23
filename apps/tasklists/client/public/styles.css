@@ -954,6 +954,54 @@ a4-tasklist {
     display: block;
 }
 
+/* Compact stub for lists with no matches during search. Scoped under
+   .search-mode (no-matches only occurs while searching) and kept specific so
+   it overrides the base title rules cleanly. Only the appearance collapses —
+   document order is preserved so nothing jumps as you type. */
+.lists-main.search-mode .tasklist-no-matches {
+    /* Lay the title and the "No matching items" note out on a single row
+       (title left, note right) instead of stacking them on two lines. */
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-controls {
+    display: none;
+}
+
+.lists-main.search-mode .tasklist-no-matches ol.tasklist {
+    display: none;
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-header {
+    margin-bottom: 0;
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-title {
+    color: var(--color-muted);
+    font-weight: 500;
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-empty {
+    font-style: normal;
+    padding: 0;
+}
+
+/* In search mode every list title is a read-only label: drop the rename
+   cursor/hover affordance and the padding reserved for the edit icon. */
+.lists-main.search-mode .tasklist-header .tasklist-title {
+    cursor: default;
+    padding-right: var(--space-xs);
+}
+
+.lists-main.search-mode .tasklist-header .tasklist-title:hover,
+.lists-main.search-mode .tasklist-header .tasklist-title:focus-visible {
+    border-color: transparent;
+    background-color: transparent;
+}
+
 .task-token-mention {
     color: var(--color-mention);
     font-weight: 600;

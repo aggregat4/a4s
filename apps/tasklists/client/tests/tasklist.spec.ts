@@ -939,6 +939,46 @@ test.describe("tasklist flows", () => {
     await expect(pageHeader).toBeHidden();
   });
 
+  test("search mode hides Add/Rename and collapses no-match lists", async ({
+    page,
+  }) => {
+    const searchInput = globalSearchInput(page);
+    // "bird" only matches the Prototype Tasks list; the other two have no hits.
+    await searchInput.fill("bird");
+
+    // Add button is gone and titles are read-only for every visible list.
+    await expect(
+      page.locator(".list-section.is-visible [data-role='tasklist-add']")
+    ).toHaveCount(0);
+    await expect(
+      page.locator(".list-section.is-visible .tasklist-title[tabindex]")
+    ).toHaveCount(0);
+
+    // The matching list keeps a visible Show-done switch; no-match lists
+    // collapse to stubs (their controls are hidden, order unchanged).
+    await expect(
+      page.locator(
+        ".list-section.is-visible .tasklist-show-done-toggle:visible"
+      )
+    ).toHaveCount(1);
+    await expect(page.locator("a4-tasklist.tasklist-no-matches")).toHaveCount(
+      2
+    );
+
+    // Clearing search restores Add, the title affordance, and a single
+    // active list section.
+    await searchInput.fill("");
+    await expect(page.locator("a4-tasklist.tasklist-no-matches")).toHaveCount(
+      0
+    );
+    await expect(
+      page.locator(".list-section.is-visible [data-role='tasklist-add']")
+    ).toHaveCount(1);
+    await expect(
+      page.locator(".list-section.is-visible .tasklist-title[tabindex='0']")
+    ).toHaveCount(1);
+  });
+
   test("search matches note text", async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
     const uniqueText = `Note search task ${Date.now()}`;

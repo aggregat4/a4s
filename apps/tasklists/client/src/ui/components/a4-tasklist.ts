@@ -198,6 +198,7 @@ class A4TaskList extends HTMLElement {
   private searchTimer: ReturnType<typeof setTimeout> | null;
   searchQuery: string;
   showDone: boolean;
+  private _searchMode: boolean;
   private store: ListStore | null;
   private unsubscribe: (() => void) | null;
   private suppressNameSync: boolean;
@@ -247,6 +248,7 @@ class A4TaskList extends HTMLElement {
     this.searchTimer = null;
     this.searchQuery = "";
     this.showDone = false;
+    this._searchMode = false;
     this.store = null;
     this.unsubscribe = null;
     this.suppressNameSync = false;
@@ -692,6 +694,7 @@ class A4TaskList extends HTMLElement {
         "",
       searchQuery: typeof this.searchQuery === "string" ? this.searchQuery : "",
       showDone: typeof this.showDone === "boolean" ? this.showDone : false,
+      searchMode: this._searchMode,
       headerError: state?.headerError ?? null,
     };
   }
@@ -701,6 +704,7 @@ class A4TaskList extends HTMLElement {
       title?: string;
       searchQuery?: string;
       showDone?: boolean;
+      searchMode?: boolean;
       headerError?: { message?: string; code?: string } | null;
     } = {}
   ) {
@@ -710,6 +714,7 @@ class A4TaskList extends HTMLElement {
       typeof headerState.headerError.message === "string"
         ? headerState.headerError
         : null;
+    const searchMode = Boolean(headerState?.searchMode);
     const titleText =
       this.isTitleEditing && this.titleEl
         ? this.titleEl.textContent ?? ""
@@ -717,6 +722,68 @@ class A4TaskList extends HTMLElement {
         ? headerState.title
         : "";
     const showDoneChecked = Boolean(headerState.showDone);
+
+    // In search mode the title is a read-only label (no rename affordance)
+    // and the "Add task" button is hidden; "Show done" stays so matched-but-
+    // done items can be surfaced.
+    const titleTemplate = searchMode
+      ? html`
+          <div class="tasklist-title-wrapper">
+            <h2 class="tasklist-title" .textContent=${titleText}></h2>
+          </div>
+        `
+      : html`
+          <div class="tasklist-title-wrapper">
+            <h2
+              class=${`tasklist-title${this.isTitleEditing ? " is-editing" : ""}`}
+              tabindex="0"
+              contenteditable=${this.isTitleEditing ? "true" : null}
+              spellcheck=${this.isTitleEditing ? "false" : null}
+              role=${this.isTitleEditing ? "textbox" : null}
+              aria-multiline=${this.isTitleEditing ? "false" : null}
+              aria-label=${this.isTitleEditing ? "List title" : "Click to edit list title"}
+              title=${this.isTitleEditing ? null : "Click to rename"}
+              @click=${this.handleTitleClick}
+              @input=${this.handleTitleInput}
+              @keydown=${this.handleTitleKeyDown}
+              @blur=${this.handleTitleBlur}
+              .textContent=${live(titleText)}
+            ></h2>
+            <span class="tasklist-title-edit-icon" aria-hidden="true"></span>
+          </div>
+        `;
+
+    const controlsTemplate = html`
+      <div class="tasklist-controls">
+        ${searchMode
+          ? null
+          : html`
+              <button
+                type="button"
+                class="iconlabel"
+                aria-label="Add task"
+                data-role="tasklist-add"
+                @click=${this.handleAddButtonClick}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"></path>
+                </svg>
+                <span>Add</span>
+              </button>
+            `}
+        <label class="tasklist-show-done">
+          <span class="tasklist-show-done-label">Show done</span>
+          <input
+            type="checkbox"
+            class="tasklist-show-done-toggle"
+            role="switch"
+            aria-label="Show done tasks"
+            ?checked=${showDoneChecked}
+            @change=${this.handleShowDoneChange}
+          />
+        </label>
+      </div>
+    `;
 
     render(
       html`
@@ -736,49 +803,8 @@ class A4TaskList extends HTMLElement {
               </div>
             `
           : null}
-        <div class="tasklist-title-wrapper">
-          <h2
-            class=${`tasklist-title${this.isTitleEditing ? " is-editing" : ""}`}
-            tabindex="0"
-            contenteditable=${this.isTitleEditing ? "true" : null}
-            spellcheck=${this.isTitleEditing ? "false" : null}
-            role=${this.isTitleEditing ? "textbox" : null}
-            aria-multiline=${this.isTitleEditing ? "false" : null}
-            aria-label=${this.isTitleEditing ? "List title" : "Click to edit list title"}
-            title=${this.isTitleEditing ? null : "Click to rename"}
-            @click=${this.handleTitleClick}
-            @input=${this.handleTitleInput}
-            @keydown=${this.handleTitleKeyDown}
-            @blur=${this.handleTitleBlur}
-            .textContent=${live(titleText)}
-          ></h2>
-          <span class="tasklist-title-edit-icon" aria-hidden="true"></span>
-        </div>
-        <div class="tasklist-controls">
-          <button
-            type="button"
-            class="iconlabel"
-            aria-label="Add task"
-            data-role="tasklist-add"
-            @click=${this.handleAddButtonClick}
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path fill="currentColor" d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"></path>
-            </svg>
-            <span>Add</span>
-          </button>
-          <label class="tasklist-show-done">
-            <span class="tasklist-show-done-label">Show done</span>
-            <input
-              type="checkbox"
-              class="tasklist-show-done-toggle"
-              role="switch"
-              aria-label="Show done tasks"
-              ?checked=${showDoneChecked}
-              @change=${this.handleShowDoneChange}
-            />
-          </label>
-        </div>
+        ${titleTemplate}
+        ${controlsTemplate}
       `,
       this.headerEl
     );
@@ -820,6 +846,7 @@ class A4TaskList extends HTMLElement {
 
   startTitleEditing() {
     if (this.isTitleEditing) return;
+    if (this._searchMode) return;
     this.isTitleEditing = true;
     // Capture current text before re-render so we can restore on cancel.
     this.titleOriginalValue = this.titleEl?.textContent ?? "";
@@ -943,11 +970,13 @@ class A4TaskList extends HTMLElement {
   }
 
   handleTitleClick() {
+    if (this._searchMode) return;
     if (this.isTitleEditing) return;
     this.startTitleEditing();
   }
 
   handleTitleKeyDown(event: KeyboardEvent) {
+    if (this._searchMode) return;
     if (!this.titleEl) return;
     if (this.isTitleEditing) {
       if (event.key === "Enter") {
@@ -2786,6 +2815,19 @@ class A4TaskList extends HTMLElement {
     if (this._repository === value) return;
     this._repository = value ?? null;
     this.refreshRepositorySubscription();
+  }
+
+  get searchMode() {
+    return this._searchMode;
+  }
+
+  set searchMode(value) {
+    const next = Boolean(value);
+    if (next === this._searchMode) return;
+    this._searchMode = next;
+    if (this.shellRendered) {
+      this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+    }
   }
 
   get name() {

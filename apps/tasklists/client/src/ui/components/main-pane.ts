@@ -118,6 +118,7 @@ class MainPaneElement extends HTMLElement {
           <a4-tasklist
             .listId=${listId}
             .listRepository=${this.listRepository}
+            .searchMode=${this.searchMode}
           ></a4-tasklist>
         </section>
       `;
