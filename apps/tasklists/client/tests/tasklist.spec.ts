@@ -1977,6 +1977,54 @@ test.describe("tasklist flows", () => {
     const movedTop = page.locator(listItemsSelector).first().locator(".text");
     await expect(movedTop).toHaveText(originalText);
   });
+
+  test("alt+? toggles the keyboard shortcuts cheat sheet", async ({ page }) => {
+    const dialog = page.locator(".shortcuts-dialog-content");
+
+    // "?" requires Shift on most layouts, so the physical combo is Alt+Shift+/.
+    await page.keyboard.press("Alt+Shift+Slash");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Keyboard shortcuts");
+    // The cheat sheet is generated from the shortcut registry, so every
+    // shortcut (including the help shortcut itself) is listed with its label.
+    await expect(dialog).toContainText("Move the current task to another list");
+    await expect(dialog).toContainText("Undo the last action");
+    await expect(dialog).toContainText(
+      "Show or hide this keyboard shortcuts cheat sheet"
+    );
+    const keyCount = await dialog.locator("kbd.shortcuts-dialog-key").count();
+    expect(keyCount).toBeGreaterThan(12);
+
+    // Escape closes the dialog.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+
+    // Pressing Alt+? again reopens it, and a third press closes it.
+    await page.keyboard.press("Alt+Shift+Slash");
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Alt+Shift+Slash");
+    await expect(dialog).toBeHidden();
+  });
+
+  test("alt+? opens the cheat sheet while editing a task", async ({ page }) => {
+    await addTask(page, "Editing target");
+    const editor = page.locator(listItemsSelector).first().locator(".text");
+    await editor.click();
+    await expect(editor).toHaveAttribute("contenteditable", "true");
+
+    const dialog = page.locator(".shortcuts-dialog-content");
+    await page.keyboard.press("Alt+Shift+Slash");
+    await expect(dialog).toBeVisible();
+    // The keystroke is intercepted, so "?" is never typed into the task.
+    await expect(editor).toHaveText("Editing target");
+
+    // Opening the dialog moves focus to it (committing the in-progress edit);
+    // Escape closes it, focus returns to the task, and the text is preserved.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(editor).toHaveText("Editing target");
+    await expect(editor).toBeFocused();
+  });
 });
 
 test("sidebar count updates after adding a task to a new list", async ({

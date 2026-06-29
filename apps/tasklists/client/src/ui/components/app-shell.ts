@@ -26,6 +26,7 @@ import type { ListId, TaskItem } from "../../types/domain.js";
 import "./sidebar.js";
 import "./main-pane.js";
 import "./move-dialog.js";
+import "./shortcuts-dialog.js";
 import "./a4-tasklist.js";
 
 type SidebarElement = HTMLElement & {
@@ -70,6 +71,10 @@ type MoveDialogElement = HTMLElement & {
   }) => void;
 };
 
+type ShortcutsDialogElement = HTMLElement & {
+  toggle?: () => void;
+};
+
 type Store = ReturnType<typeof createAppStore>;
 class ListsAppShellElement extends HTMLElement {
   private shellRendered: boolean;
@@ -77,6 +82,7 @@ class ListsAppShellElement extends HTMLElement {
   private sidebarElement: SidebarElement | null;
   private mainElement: MainPaneElement | null;
   private moveDialogElement: MoveDialogElement | null;
+  private shortcutsDialogElement: ShortcutsDialogElement | null;
   private repository: ListRepository | null;
   private store: Store | null;
   private registry: ListRegistry | null;
@@ -103,6 +109,7 @@ class ListsAppShellElement extends HTMLElement {
     this.sidebarElement = null;
     this.mainElement = null;
     this.moveDialogElement = null;
+    this.shortcutsDialogElement = null;
     this.repository = null;
     this.store = null;
     this.registry = null;
@@ -163,6 +170,11 @@ class ListsAppShellElement extends HTMLElement {
           data-role="move-dialog"
           hidden
         ></a4-move-dialog>
+        <a4-shortcuts-dialog
+          class="shortcuts-dialog"
+          data-role="shortcuts-dialog"
+          hidden
+        ></a4-shortcuts-dialog>
         <input
           type="file"
           accept="application/json"
@@ -185,6 +197,9 @@ class ListsAppShellElement extends HTMLElement {
     this.moveDialogElement = this.querySelector(
       "[data-role='move-dialog']"
     ) as MoveDialogElement | null;
+    this.shortcutsDialogElement = this.querySelector(
+      "[data-role='shortcuts-dialog']"
+    ) as ShortcutsDialogElement | null;
     this.importInput = this.querySelector(
       "[data-role='import-snapshot-input']"
     ) as HTMLInputElement | null;
@@ -215,6 +230,7 @@ class ListsAppShellElement extends HTMLElement {
       customElements.whenDefined("a4-sidebar"),
       customElements.whenDefined("a4-main-pane"),
       customElements.whenDefined("a4-move-dialog"),
+      customElements.whenDefined("a4-shortcuts-dialog"),
     ]);
     if (typeof customElements.upgrade === "function") {
       customElements.upgrade(this);
@@ -279,6 +295,16 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   onGlobalKeyDown(event: KeyboardEvent) {
+    // The cheat sheet is useful everywhere, including while editing a task,
+    // so it is handled before the editable-target bail used by undo/redo.
+    if (matchesShortcut(event, SHORTCUTS.help)) {
+      if (event.isComposing || event.repeat) return;
+      event.preventDefault();
+      // Stop the inline editor / note input from receiving the "?" keystroke.
+      event.stopPropagation();
+      this.shortcutsDialogElement?.toggle?.();
+      return;
+    }
     if (!this.repository) return;
     if (this.isEditableTarget(event.target)) return;
     const isUndo = matchesShortcut(event, SHORTCUTS.undo);
