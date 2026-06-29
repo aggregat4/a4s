@@ -161,7 +161,7 @@ export const evaluateSearchEntry = ({
 }) => {
   const hiddenByCompletion = !showDone && isDone;
   if (hiddenByCompletion) {
-    return { hidden: true, markup: null };
+    return { hidden: true, markup: null, noteMarkup: null, noteMatched: false };
   }
 
   const safeText = typeof originalText === "string" ? originalText : "";
@@ -170,10 +170,19 @@ export const evaluateSearchEntry = ({
   const matchesAllTokens = tokens.every((token) => haystack.includes(token));
   const { markup } = buildDecoratedMarkup(safeText, tokens, patternConfig);
   if (tokens.length > 0 && !matchesAllTokens) {
-    return { hidden: true, markup: null };
+    return { hidden: true, markup: null, noteMarkup: null, noteMatched: false };
   }
 
-  return { hidden: false, markup };
+  // noteMatched is true only during an active search whose query appears in
+  // the note; it drives auto-expand and guarantees noteMarkup has mark ranges.
+  const noteMatched =
+    tokens.length > 0 &&
+    tokens.some((token) => safeNote.toLowerCase().includes(token));
+  const { markup: noteMarkup } = noteMatched
+    ? buildDecoratedMarkup(safeNote, tokens, patternConfig)
+    : { markup: null };
+
+  return { hidden: false, markup, noteMarkup, noteMatched };
 };
 
 export const matchesSearchEntry = ({

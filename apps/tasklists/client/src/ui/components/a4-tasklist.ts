@@ -1480,11 +1480,15 @@ class A4TaskList extends HTMLElement {
       isOpen = false,
       hidden = false,
       markup = null,
+      noteMarkup = null,
+      noteMatched = false,
       isEditing = false,
     }: {
       isOpen?: boolean;
       hidden?: boolean;
       markup?: string | null;
+      noteMarkup?: string | null;
+      noteMatched?: boolean;
       isEditing?: boolean;
     } = {}
   ) {
@@ -1494,6 +1498,9 @@ class A4TaskList extends HTMLElement {
     const note = typeof item.note === "string" ? item.note : "";
     const notePresent = note.trim().length > 0;
     const noteOpen = this.openNoteItemIds.has(itemId);
+    // Auto-expand a note while a search matches it. Ephemeral: it does not
+    // mutate openNoteItemIds, so it reverts when the search clears.
+    const effectiveNoteOpen = noteOpen || noteMatched;
     const noteLabel = notePresent ? "Edit note" : "Add note";
     const isFocused = this.focusedItemId === itemId;
     const htmlContent = isEditing
@@ -1533,8 +1540,8 @@ class A4TaskList extends HTMLElement {
               <button
                 type="button"
                 class=${`task-note-toggle${notePresent ? " has-note" : ""}`}
-                aria-pressed=${noteOpen ? "true" : "false"}
-                aria-expanded=${noteOpen ? "true" : "false"}
+                aria-pressed=${effectiveNoteOpen ? "true" : "false"}
+                aria-expanded=${effectiveNoteOpen ? "true" : "false"}
                 aria-label=${noteLabel}
                 title=${noteLabel}
                 @click=${this.handleNoteToggleClick}
@@ -1542,20 +1549,27 @@ class A4TaskList extends HTMLElement {
               <span class="handle" aria-hidden="true"></span>
             </div>
           </div>
-          ${noteOpen
+          ${effectiveNoteOpen
             ? html`
                 <div class="task-note-panel">
                   <div class="task-note-scroll-wrap">
-                    <textarea
-                      class="task-note-input"
-                      rows="5"
-                      placeholder="Add a note..."
-                      .value=${this.isNoteInputActive(itemId) ? noChange : note}
-                      @input=${this.handleNoteInput}
-                      @blur=${this.handleNoteBlur}
-                      @scroll=${this.handleNoteScroll}
-                      @keydown=${this.handleNoteKeyDown}
-                    ></textarea>
+                    ${noteMatched
+                      ? html`<div
+                          class="task-note-highlight"
+                          .innerHTML=${noteMarkup ?? ""}
+                        ></div>`
+                      : html`<textarea
+                          class="task-note-input"
+                          rows="5"
+                          placeholder="Add a note..."
+                          .value=${this.isNoteInputActive(itemId)
+                            ? noChange
+                            : note}
+                          @input=${this.handleNoteInput}
+                          @blur=${this.handleNoteBlur}
+                          @scroll=${this.handleNoteScroll}
+                          @keydown=${this.handleNoteKeyDown}
+                        ></textarea>`}
                   </div>
                 </div>
               `
@@ -1621,6 +1635,8 @@ class A4TaskList extends HTMLElement {
         const isEditing = editingId === item.id;
         let hidden = false;
         let markup = null;
+        let noteMarkup = null;
+        let noteMatched = false;
         if (!isEditing) {
           const result = evaluateSearchEntry({
             originalText: text,
@@ -1632,10 +1648,14 @@ class A4TaskList extends HTMLElement {
           });
           hidden = result.hidden;
           markup = result.markup;
+          noteMarkup = result.noteMarkup;
+          noteMatched = result.noteMatched;
         }
         if (forceVisible?.has(item.id)) {
           hidden = false;
           markup = null;
+          noteMarkup = null;
+          noteMatched = false;
         }
         if (!hidden) {
           visibleCount += 1;
@@ -1644,6 +1664,8 @@ class A4TaskList extends HTMLElement {
           isOpen: openActionsId === item.id,
           hidden,
           markup,
+          noteMarkup,
+          noteMatched,
           isEditing,
         });
       }
