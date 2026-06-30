@@ -164,6 +164,22 @@ button {
     min-width: 0;
 }
 
+.sidebar-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+/* Pulled to the trailing edge so it stays right-aligned whether or not the
+   (visually hidden on mobile) title occupies space. */
+.sidebar-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-left: auto;
+}
+
 .sidebar-title {
     margin: 0;
     font-size: 24px;
@@ -186,7 +202,7 @@ button {
     display: none;
     margin: 0;
     padding: 2px 8px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     color: var(--color-text);
     background-color: var(--color-border);
@@ -197,6 +213,38 @@ button {
 
 .sidebar-offline-indicator.is-visible {
     display: inline-block;
+}
+
+/* Always-visible sync status: quiet by default, escalates on activity/error. */
+.sidebar-sync-indicator {
+    display: inline-block;
+    margin: 0;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: transparent;
+    transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+/* The resting state: present but unobtrusive. */
+.sidebar-sync-indicator.is-idle {
+    color: var(--color-muted);
+}
+
+/* Brief flash while the outbox drains. */
+.sidebar-sync-indicator.is-saving {
+    color: var(--color-text);
+    background-color: var(--color-border);
+}
+
+/* The one state that should draw the eye: changes aren't reaching the server. */
+.sidebar-sync-indicator.is-error {
+    color: var(--color-danger);
+    background-color: var(--color-border);
 }
 
 .sidebar-section {
@@ -1323,7 +1371,8 @@ a4-tasklist {
         gap: var(--space-sm);
     }
 
-    .sidebar-offline-indicator {
+    .sidebar-offline-indicator,
+    .sidebar-sync-indicator {
         font-size: 10px;
         padding: 1px 6px;
     }

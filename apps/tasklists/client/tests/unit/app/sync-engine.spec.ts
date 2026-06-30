@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SyncEngine } from "../../../src/app/sync-engine.js";
 import type { ListStorage } from "../../../src/types/storage.js";
-import type { SyncOp, SyncState } from "../../../src/types/sync.js";
+import type { SyncOp, SyncState, SyncStatus } from "../../../src/types/sync.js";
 
 const createStorage = () => {
   let syncState: SyncState = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
@@ -391,4 +391,145 @@ test("SyncEngine stop cancels pending debounced flush", async () => {
 
   await new Promise((r) => setTimeout(r, 400));
   assert.equal(pushCalls, 0, "stop should cancel pending debounced flush");
+});
+
+const noopFetch = async () => new Response("", { status: 404 });
+
+test("SyncEngine emits idle on initialize when the outbox is empty", async () => {
+  const { storage } = createStorage();
+  const statuses: SyncStatus[] = [];
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn: noopFetch,
+    clientId: "client-1",
+    onStatusChange: (status) => statuses.push(status),
+  });
+  await engine.initialize();
+  assert.deepEqual(statuses, ["idle"]);
+});
+
+test("SyncEngine emits saving on initialize when buffered ops remain in the outbox", async () => {
+  const { storage } = createStorage();
+  await storage.persistOutbox([
+    {
+      scope: "list",
+      resourceId: "list-1",
+      actor: "actor-1",
+      clock: 1,
+      payload: { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+    },
+  ]);
+  const statuses: SyncStatus[] = [];
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn: noopFetch,
+    clientId: "client-1",
+    onStatusChange: (status) => statuses.push(status),
+  });
+  await engine.initialize();
+  assert.deepEqual(statuses, ["saving"]);
+});
+
+test("SyncEngine emits saving on enqueue and idle after a successful flush", async () => {
+  const { storage } = createStorage();
+  await storage.persistSyncState({
+    clientId: "client-1",
+    lastServerSeq: 0,
+    datasetGenerationKey: "d1",
+  });
+  const statuses: SyncStatus[] = [];
+  const fetchFn = async (url: string | URL | Request) => {
+    const u = typeof url === "string" ? url : url.toString();
+    if (u.includes("/sync/push")) {
+      return new Response(
+        JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }),
+        { status: 200 }
+      );
+    }
+    return new Response("", { status: 404 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+    onStatusChange: (status) => statuses.push(status),
+  });
+  await engine.initialize();
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+  ]);
+  await engine.flushOnce();
+  assert.equal(statuses[statuses.length - 1], "idle");
+  assert.ok(statuses.includes("saving"), "should have passed through saving");
+});
+
+test("SyncEngine emits error on flush failure and clears it after a successful flush", async () => {
+  const { storage } = createStorage();
+  await storage.persistSyncState({
+    clientId: "client-1",
+    lastServerSeq: 0,
+    datasetGenerationKey: "d1",
+  });
+  const statuses: SyncStatus[] = [];
+  let pushOk = false;
+  const fetchFn = async (url: string | URL | Request) => {
+    const u = typeof url === "string" ? url : url.toString();
+    if (u.includes("/sync/push")) {
+      return new Response(
+        JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }),
+        { status: pushOk ? 200 : 500 }
+      );
+    }
+    return new Response("", { status: 404 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+    onStatusChange: (status) => statuses.push(status),
+  });
+  await engine.initialize();
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+  ]);
+  await engine.flushOnce();
+  assert.equal(statuses[statuses.length - 1], "error", "failed flush should surface error");
+
+  pushOk = true;
+  await engine.flushOnce();
+  assert.equal(statuses[statuses.length - 1], "idle", "successful flush should clear error");
+});
+
+test("SyncEngine emits error when the push request throws", async () => {
+  const { storage } = createStorage();
+  await storage.persistSyncState({
+    clientId: "client-1",
+    lastServerSeq: 0,
+    datasetGenerationKey: "d1",
+  });
+  const statuses: SyncStatus[] = [];
+  const fetchFn = async (url: string | URL | Request) => {
+    const u = typeof url === "string" ? url : url.toString();
+    if (u.includes("/sync/push")) {
+      throw new Error("network down");
+    }
+    return new Response("", { status: 404 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+    onStatusChange: (status) => statuses.push(status),
+  });
+  await engine.initialize();
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+  ]);
+  await engine.flushOnce();
+  assert.equal(statuses[statuses.length - 1], "error");
 });

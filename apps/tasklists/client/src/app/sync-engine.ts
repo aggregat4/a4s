@@ -1,6 +1,6 @@
 import { ensureActorId } from "../domain/crdt/ids.js";
 import type { ListStorage } from "../types/storage.js";
-import type { SyncOp, SyncScope, SyncState } from "../types/sync.js";
+import type { SyncOp, SyncScope, SyncState, SyncStatus } from "../types/sync.js";
 import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
 
 type FetchFn = typeof fetch;
@@ -14,6 +14,7 @@ type SyncEngineOptions = {
   onRemoteOps?: (ops: SyncOp[]) => Promise<void> | void;
   onSnapshot?: (payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void;
   onConnectionError?: (error: unknown) => void;
+  onStatusChange?: (status: SyncStatus) => void;
   clientId?: string;
   pauseWhenOffline?: boolean;
 };
@@ -43,6 +44,7 @@ export class SyncEngine {
   private onRemoteOps: ((ops: SyncOp[]) => Promise<void> | void) | null;
   private onSnapshot: ((payload: { datasetGenerationKey: string; snapshot: string }) => Promise<void> | void) | null;
   private onConnectionError: ((error: unknown) => void) | null;
+  private onStatusChange: ((status: SyncStatus) => void) | null;
   private state: SyncState;
   private outbox: SyncOp[];
   private eventSource: EventSource | null;
@@ -69,6 +71,7 @@ export class SyncEngine {
     this.onRemoteOps = options.onRemoteOps ?? null;
     this.onSnapshot = options.onSnapshot ?? null;
     this.onConnectionError = options.onConnectionError ?? null;
+    this.onStatusChange = options.onStatusChange ?? null;
     this.state = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
     this.outbox = [];
     this.eventSource = null;
@@ -99,6 +102,15 @@ export class SyncEngine {
       await this.storage.persistSyncState(this.state);
     }
     this.outbox = Array.isArray(outbox) ? outbox : [];
+    this.emitStatus(this.outbox.length > 0 ? "saving" : "idle");
+  }
+
+  private emitStatus(status: SyncStatus) {
+    try {
+      this.onStatusChange?.(status);
+    } catch {
+      // Status callbacks are best-effort UI hints; never let them break sync.
+    }
   }
 
   async bootstrapIfNeeded(applyOps: (ops: SyncOp[]) => Promise<void>) {
@@ -268,6 +280,7 @@ export class SyncEngine {
     }));
     this.outbox.push(...nextOps);
     void this.storage.persistOutbox(this.outbox);
+    this.emitStatus("saving");
     if (this.isActive && (!this.pauseWhenOffline || this.isOnline())) {
       if (this.flushTimer != null) {
         clearTimeout(this.flushTimer);
@@ -297,6 +310,7 @@ export class SyncEngine {
   private async flushOutbox() {
     if (this.outbox.length === 0) return;
     const sentOps = this.outbox.slice();
+    this.emitStatus("saving");
     const response = await this.safeFetch(`${this.baseUrl}/sync/push`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -307,6 +321,7 @@ export class SyncEngine {
       }),
     });
     if (!response) {
+      this.emitStatus("error");
       return;
     }
     if (response.status === 409) {
@@ -314,6 +329,7 @@ export class SyncEngine {
       return;
     }
     if (!response.ok) {
+      this.emitStatus("error");
       return;
     }
     const payload = (await response.json()) as SyncPushResponse;
@@ -327,6 +343,7 @@ export class SyncEngine {
     this.outbox = this.outbox.slice(sentOps.length);
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);
+    this.emitStatus(this.outbox.length === 0 ? "idle" : "saving");
   }
 
   private async pullRemoteOps() {
@@ -337,6 +354,7 @@ export class SyncEngine {
       { method: "GET" }
     );
     if (!response) {
+      this.emitStatus("error");
       return;
     }
     if (response.status === 409) {
@@ -344,6 +362,7 @@ export class SyncEngine {
       return;
     }
     if (!response.ok) {
+      this.emitStatus("error");
       return;
     }
     const payload = (await response.json()) as SyncPullResponse;

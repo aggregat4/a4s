@@ -23,6 +23,7 @@ import {
 } from "../state/highlight-utils.js";
 import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
+import type { SyncStatus } from "../../types/sync.js";
 import "./sidebar.js";
 import "./main-pane.js";
 import "./move-dialog.js";
@@ -33,6 +34,7 @@ type SidebarElement = HTMLElement & {
   init?: () => void;
   setSearchValue?: (value: string) => void;
   setDemoSeedEnabled?: (enabled: boolean) => void;
+  setSyncStatus?: (status: SyncStatus) => void;
   setLists?: (
     lists: Array<{
       id: ListId;
@@ -237,6 +239,7 @@ class ListsAppShellElement extends HTMLElement {
     }
     this.cacheElements();
     this.repository = repository ?? new ListRepository();
+    this.repository.setSyncStatusChange((status) => this.handleSyncStatus(status));
     this.seedConfigs = seedConfigs;
     this.demoSeedEnabled = Boolean(enableDemoSeed);
     this.store = createAppStore();
@@ -329,6 +332,10 @@ class ListsAppShellElement extends HTMLElement {
       return true;
     }
     return Boolean(target.closest("[contenteditable='true']"));
+  }
+
+  handleSyncStatus(status: SyncStatus) {
+    this.sidebarElement?.setSyncStatus?.(status);
   }
 
   dispose() {

@@ -2,6 +2,7 @@ import { html, render } from "lit";
 import { arraysEqual } from "../../shared/array-utils.js";
 import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
+import type { SyncStatus } from "../../types/sync.js";
 
 type SidebarListEntry = {
   id: ListId;
@@ -44,6 +45,7 @@ class SidebarElement extends HTMLElement {
   private showDemoSeed: boolean;
   private actionsOpen: boolean;
   private isOnline: boolean;
+  private syncStatus: SyncStatus | null;
   private handleOnlineChange: (() => void) | null;
 
   private static readonly TASK_MIME = "application/x-a4-task";
@@ -65,6 +67,7 @@ class SidebarElement extends HTMLElement {
     this.showDemoSeed = false;
     this.actionsOpen = false;
     this.isOnline = true;
+    this.syncStatus = null;
     this.handleOnlineChange = null;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -113,6 +116,17 @@ class SidebarElement extends HTMLElement {
 
   setDemoSeedEnabled(enabled: boolean) {
     this.showDemoSeed = Boolean(enabled);
+    if (this.isListDragging) {
+      this.pendingRender = true;
+      this.pendingRenderMode = "render";
+    } else {
+      this.renderView();
+    }
+  }
+
+  setSyncStatus(status: SyncStatus) {
+    if (this.syncStatus === status) return;
+    this.syncStatus = status;
     if (this.isListDragging) {
       this.pendingRender = true;
       this.pendingRenderMode = "render";
@@ -216,8 +230,24 @@ class SidebarElement extends HTMLElement {
       html`
         <div class="sidebar-content">
           <div class="sidebar-topbar">
-            <h1 class="sidebar-title sr-only">Lists</h1>
-            <span class="sidebar-offline-indicator ${this.isOnline ? "" : "is-visible"}">Offline</span>
+            <div class="sidebar-title-row">
+              <h1 class="sidebar-title sr-only">Lists</h1>
+              <div class="sidebar-status">
+                <span class="sidebar-offline-indicator ${this.isOnline ? "" : "is-visible"}">Offline</span>
+                ${this.syncStatus
+                  ? html`<span
+                      class="sidebar-sync-indicator is-${this.syncStatus}"
+                      role="status"
+                      aria-live="polite"
+                      >${this.syncStatus === "idle"
+                        ? "Saved"
+                        : this.syncStatus === "saving"
+                          ? "Saving…"
+                          : "Reconnecting…"}</span
+                    >`
+                  : null}
+              </div>
+            </div>
             <label class="sidebar-field sidebar-field-inline">
               <input
                 type="search"

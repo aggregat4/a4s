@@ -20,6 +20,7 @@ import type { RegistryState } from "../types/domain.js";
 import type { ListStorage } from "../types/storage.js";
 import type { TaskListOperation, ListsOperation } from "../types/crdt.js";
 import type { SyncOp } from "../types/sync.js";
+import type { SyncStatus } from "../types/sync.js";
 import { HistoryManager } from "./history-manager.js";
 import type { HistoryOp, HistoryScope } from "./history-types.js";
 import { SyncEngine } from "./sync-engine.js";
@@ -112,6 +113,7 @@ export class ListRepository {
   private _sync: SyncEngine | null;
   private _syncOptions: SyncOptions | null;
   private _syncErrorHandler: ((error: unknown) => void) | null;
+  private _syncStatusHandler: ((status: SyncStatus) => void) | null;
   private _outboxPersistQueue: Promise<void>;
 
   constructor(
@@ -148,6 +150,7 @@ export class ListRepository {
     this._unsubscribeRegistry = null;
     this._sync = null;
     this._syncErrorHandler = null;
+    this._syncStatusHandler = null;
     this._outboxPersistQueue = Promise.resolve();
   }
 
@@ -279,6 +282,7 @@ export class ListRepository {
     this._sync = null;
     this._syncOptions = null;
     this._syncErrorHandler = null;
+    this._syncStatusHandler = null;
     this._outboxPersistQueue = Promise.resolve();
     this._listMap.clear();
     this._history.clear();
@@ -322,6 +326,9 @@ export class ListRepository {
         this._syncErrorHandler?.(error);
         this.disableSync();
       },
+      onStatusChange: (status) => {
+        this._syncStatusHandler?.(status);
+      },
     });
     await this._sync.initialize();
     await this._sync.bootstrapIfNeeded((ops) => this.applyRemoteOpsInternal(ops));
@@ -334,6 +341,15 @@ export class ListRepository {
       this._sync = null;
     }
     this._syncOptions = null;
+  }
+
+  /**
+   * Register a listener for sync lifecycle changes (idle/saving/error). The
+   * closure is threaded into every SyncEngine the monitor (re)creates, so the
+   * UI keeps receiving status across engine teardown/recreation.
+   */
+  setSyncStatusChange(handler: ((status: SyncStatus) => void) | null) {
+    this._syncStatusHandler = handler;
   }
 
   isInitialized() {

@@ -16,3 +16,10 @@ export type SyncState = {
   lastServerSeq: number;
   datasetGenerationKey: string;
 };
+
+/**
+ * Coarse sync lifecycle surfaced to the UI. `saving` collapses both
+ * pending (debounced) and in-flight flushes; `error` is sticky until the
+ * next successful flush clears it.
+ */
+export type SyncStatus = "idle" | "saving" | "error";
