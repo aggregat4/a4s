@@ -352,6 +352,16 @@ export class ListRepository {
     this._syncStatusHandler = handler;
   }
 
+  /**
+   * Force any buffered outbox ops to the server immediately, bypassing the
+   * engine's debounce. Backs the Ctrl/Cmd+S "save now" shortcut.
+   */
+  async flushSync() {
+    if (this._sync) {
+      await this._sync.flushOnce();
+    }
+  }
+
   isInitialized() {
     return this._initialized;
   }

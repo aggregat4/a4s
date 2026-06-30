@@ -308,6 +308,17 @@ class ListsAppShellElement extends HTMLElement {
       this.shortcutsDialogElement?.toggle?.();
       return;
     }
+    // Ctrl/Cmd+S has no meaning in a CRDT-backed app, but the reflex is strong:
+    // intercept it to suppress the browser "Save Page" dialog and instead flush
+    // any buffered changes to the server immediately. Bound before the
+    // editable-target bail so it works while editing a task or note.
+    if (matchesShortcut(event, SHORTCUTS.save)) {
+      if (event.isComposing || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void this.repository?.flushSync?.();
+      return;
+    }
     if (!this.repository) return;
     if (this.isEditableTarget(event.target)) return;
     const isUndo = matchesShortcut(event, SHORTCUTS.undo);

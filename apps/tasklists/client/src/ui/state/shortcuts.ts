@@ -104,6 +104,13 @@ const SHORTCUTS = {
     description: "Show or hide this keyboard shortcuts cheat sheet",
     category: "Help",
   },
+  save: {
+    id: "save-now",
+    key: "s",
+    modifiers: ["mod"],
+    description: "Sync your changes to the server now",
+    category: "Sync",
+  },
 } satisfies Record<string, Shortcut>;
 
 const normalizeKey = (key: string | undefined | null) =>
