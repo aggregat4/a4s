@@ -133,6 +133,50 @@ async function touchDragReorderTask(source: Locator, target: Locator) {
   );
 }
 
+async function swipeLeftToOpenActions(target: Locator) {
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  if (!box) {
+    throw new Error("Unable to resolve swipe bounds");
+  }
+  const start = {
+    x: box.x + box.width * 0.5,
+    y: box.y + box.height * 0.5,
+  };
+  const end = { x: start.x - 60, y: start.y };
+  await target.evaluate(
+    (node, points) => {
+      const createTouch = (point: { x: number; y: number }) =>
+        new Touch({
+          identifier: 1,
+          target: node,
+          clientX: point.x,
+          clientY: point.y,
+        });
+      const dispatch = (
+        type: "touchstart" | "touchmove" | "touchend",
+        point: { x: number; y: number }
+      ) => {
+        const touch = createTouch(point);
+        node.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: type !== "touchend",
+            touches: type === "touchend" ? [] : [touch],
+            targetTouches: type === "touchend" ? [] : [touch],
+            changedTouches: [touch],
+          })
+        );
+      };
+      dispatch("touchstart", points.start);
+      dispatch("touchmove", { x: points.start.x - 20, y: points.start.y });
+      dispatch("touchmove", points.end);
+      dispatch("touchend", points.end);
+    },
+    { start, end }
+  );
+}
+
 async function dragTaskToSidebarTarget(
   _page: Page,
   sourceItem: Locator,
@@ -1409,6 +1453,27 @@ test.describe("tasklist flows", () => {
           .first()
       ).toBeVisible();
     }
+  });
+
+  test.describe("mobile touch", () => {
+    test.use({ hasTouch: true });
+
+    test("swipe-left then tap Move opens the move dialog on mobile", async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const items = page.locator(listItemsSelector);
+      const firstItem = items.first();
+
+      // On mobile the options toggle is hidden; the tray opens via a left swipe.
+      await expect(firstItem.locator(".task-item-toggle")).toBeHidden();
+      await swipeLeftToOpenActions(firstItem.locator(".text"));
+      const moveButton = firstItem.locator(".task-move-button");
+      await expect(moveButton).toBeVisible();
+
+      await moveButton.tap();
+      await expect(page.locator(".move-dialog-content")).toBeVisible();
+    });
   });
 
   test("task action menu delete prompts confirmation and removes task", async ({
