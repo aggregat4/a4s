@@ -135,6 +135,18 @@ class SidebarElement extends HTMLElement {
     }
   }
 
+  /**
+   * Browser connectivity drives the indicator first — it stays correct even
+   * when the sync engine has been torn down on a connection error — refined
+   * by the engine's own signal so a server that's unreachable while still
+   * online reads as disconnected.
+   */
+  private derivedSyncStatus(): SyncStatus {
+    return this.isOnline && this.syncStatus !== "disconnected"
+      ? "connected"
+      : "disconnected";
+  }
+
   init() {
     if (typeof window !== "undefined") {
       this.isOnline = navigator.onLine !== false;
@@ -142,6 +154,10 @@ class SidebarElement extends HTMLElement {
         const next = navigator.onLine !== false;
         if (next !== this.isOnline) {
           this.isOnline = next;
+          // Optimistically clear a stale "disconnected" the moment
+          // connectivity returns; a still-unreachable server re-asserts it on
+          // the next failed flush.
+          if (next) this.syncStatus = "connected";
           this.renderView();
         }
       };
@@ -226,6 +242,7 @@ class SidebarElement extends HTMLElement {
   renderView() {
     const deleteDisabled =
       this.currentLists.length <= 1 || !this.activeListId;
+    const syncStatus = this.derivedSyncStatus();
     render(
       html`
         <div class="sidebar-content">
@@ -233,19 +250,14 @@ class SidebarElement extends HTMLElement {
             <div class="sidebar-title-row">
               <h1 class="sidebar-title sr-only">Lists</h1>
               <div class="sidebar-status">
-                <span class="sidebar-offline-indicator ${this.isOnline ? "" : "is-visible"}">Offline</span>
-                ${this.syncStatus
-                  ? html`<span
-                      class="sidebar-sync-indicator is-${this.syncStatus}"
-                      role="status"
-                      aria-live="polite"
-                      >${this.syncStatus === "idle"
-                        ? "Saved"
-                        : this.syncStatus === "saving"
-                          ? "Saving…"
-                          : "Reconnecting…"}</span
-                    >`
-                  : null}
+                <span
+                  class="sidebar-sync-indicator is-${syncStatus}"
+                  role="status"
+                  aria-live="polite"
+                  >${syncStatus === "connected"
+                    ? "Connected"
+                    : "Disconnected"}</span
+                >
               </div>
             </div>
             <label class="sidebar-field sidebar-field-inline">

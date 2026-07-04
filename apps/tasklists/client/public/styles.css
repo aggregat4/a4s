@@ -198,29 +198,12 @@ button {
     }
 }
 
-.sidebar-offline-indicator {
-    display: none;
-    margin: 0;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--color-text);
-    background-color: var(--color-border);
-    border-radius: var(--radius-sm);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.sidebar-offline-indicator.is-visible {
-    display: inline-block;
-}
-
-/* Always-visible sync status: quiet by default, escalates on activity/error. */
+/* Always-visible connectivity status: muted when connected, red when not. */
 .sidebar-sync-indicator {
     display: inline-block;
     margin: 0;
-    padding: 1px 6px;
-    font-size: 11px;
+    padding: 1px 4px;
+    font-size: 10px;
     font-weight: 500;
     line-height: 1.4;
     border-radius: var(--radius-sm);
@@ -230,21 +213,22 @@ button {
     transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
-/* The resting state: present but unobtrusive. */
-.sidebar-sync-indicator.is-idle {
+/* The resting state: connected is the norm, so it stays unobtrusive. */
+.sidebar-sync-indicator.is-connected {
     color: var(--color-muted);
+    font-size: 9px;
+    font-weight: 400;
+    opacity: 0.72;
 }
 
-/* Brief flash while the outbox drains. */
-.sidebar-sync-indicator.is-saving {
-    color: var(--color-text);
-    background-color: var(--color-border);
-}
-
-/* The one state that should draw the eye: changes aren't reaching the server. */
-.sidebar-sync-indicator.is-error {
+/* The one state that should draw the eye: the browser is offline or changes
+   aren't reaching the server. No fill; the red hue is the only color in the
+   sidebar, so it stands out against the grays on its own. */
+.sidebar-sync-indicator.is-disconnected {
     color: var(--color-danger);
-    background-color: var(--color-border);
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 1;
 }
 
 .sidebar-section {
@@ -1371,9 +1355,12 @@ a4-tasklist {
         gap: var(--space-sm);
     }
 
-    .sidebar-offline-indicator,
     .sidebar-sync-indicator {
         font-size: 10px;
+        padding: 1px 4px;
+    }
+
+    .sidebar-sync-indicator.is-disconnected {
         padding: 1px 6px;
     }
 
