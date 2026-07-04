@@ -171,13 +171,18 @@ button {
     min-width: 0;
 }
 
-/* Pulled to the trailing edge so it stays right-aligned whether or not the
-   (visually hidden on mobile) title occupies space. */
+.sidebar-search-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
 .sidebar-status {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
-    margin-left: auto;
+    flex: 0 0 auto;
 }
 
 .sidebar-title {
@@ -400,7 +405,6 @@ button {
     display: flex;
     flex-direction: column;
     margin: 0;
-    margin-top: auto;
 }
 
 .sidebar-actions-toggle {
@@ -494,9 +498,9 @@ a4-tasklist {
 }
 
 .tasklist-header {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-lg);
     margin-bottom: var(--space-md);
 
@@ -504,10 +508,14 @@ a4-tasklist {
         position: relative;
         display: inline-flex;
         align-items: center;
+        min-width: 0;
+        justify-self: start;
     }
 
     .tasklist-title {
         margin: 0;
+        min-width: 0;
+        max-width: 100%;
         font-size: var(--font-size-title);
         font-weight: 600;
         color: var(--color-text);
@@ -567,7 +575,7 @@ a4-tasklist {
     .tasklist-controls {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-end;
         gap: var(--space-sm);
         flex-wrap: wrap;
     }
@@ -1370,16 +1378,39 @@ a4-tasklist {
     }
 
     .tasklist-header {
-        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr);
         align-items: stretch;
-        gap: var(--space-md);
+        gap: var(--space-sm);
+
+        .tasklist-title-wrapper {
+            justify-self: start;
+        }
 
         .tasklist-title {
-            width: 100%;
+            width: auto;
         }
 
         .tasklist-controls {
             width: 100%;
+            justify-content: space-between;
+            flex-wrap: nowrap;
+        }
+
+        .tasklist-controls .iconlabel {
+            width: auto;
+        }
+
+        .tasklist-show-done {
+            white-space: nowrap;
+        }
+    }
+
+    .lists-main.search-mode .tasklist-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+
+        .tasklist-controls {
+            width: auto;
         }
     }
 

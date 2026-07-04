@@ -252,6 +252,20 @@ class SidebarElement extends HTMLElement {
           <div class="sidebar-topbar">
             <div class="sidebar-title-row">
               <h1 class="sidebar-title sr-only">Lists</h1>
+            </div>
+            <div class="sidebar-search-row">
+              <label class="sidebar-field sidebar-field-inline">
+                <input
+                  type="search"
+                  class="sidebar-search-input"
+                  placeholder="Search across all lists…"
+                  aria-label="Global search"
+                  data-role="global-search"
+                  .value=${this.currentSearch}
+                  @input=${this.handleSearchInput}
+                  @keydown=${this.handleSearchKeyDown}
+                />
+              </label>
               <div class="sidebar-status">
                 <span
                   class="sidebar-sync-indicator is-${syncStatus}"
@@ -263,18 +277,6 @@ class SidebarElement extends HTMLElement {
                 >
               </div>
             </div>
-            <label class="sidebar-field sidebar-field-inline">
-              <input
-                type="search"
-                class="sidebar-search-input"
-                placeholder="Search across all lists…"
-                aria-label="Global search"
-                data-role="global-search"
-                .value=${this.currentSearch}
-                @input=${this.handleSearchInput}
-                @keydown=${this.handleSearchKeyDown}
-              />
-            </label>
           </div>
           <div class="sidebar-sections" id="sidebar-sections">
             <nav class="sidebar-section sidebar-lists" aria-label="Available lists">

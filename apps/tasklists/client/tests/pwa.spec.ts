@@ -42,13 +42,31 @@ test.describe("PWA", () => {
   });
 
   test("connectivity indicator reflects online/offline state", async ({ page }) => {
+    await page.setViewportSize({ width: 493, height: 500 });
     await page.goto("/");
     await page.waitForSelector(".lists-sidebar", { state: "visible" });
 
     const indicator = page.locator(".sidebar-sync-indicator");
+    const searchInput = page.getByRole("searchbox", { name: "Global search" });
     await expect(indicator).toHaveClass(/is-connected/);
     await expect(indicator).toHaveAttribute("title", "Connected");
     await expect(indicator).toHaveText("●");
+    const indicatorLayout = await indicator.evaluate((el) => {
+      const search = document.querySelector(
+        ".sidebar-search-input"
+      ) as HTMLElement | null;
+      if (!search) return { isRightOfSearch: false, sameRow: false };
+      const indicatorRect = el.getBoundingClientRect();
+      const searchRect = search.getBoundingClientRect();
+      const indicatorCenter = (indicatorRect.top + indicatorRect.bottom) / 2;
+      const searchCenter = (searchRect.top + searchRect.bottom) / 2;
+      return {
+        isRightOfSearch: indicatorRect.left >= searchRect.right,
+        sameRow: Math.abs(indicatorCenter - searchCenter) < 12,
+      };
+    });
+    await expect(searchInput).toBeVisible();
+    expect(indicatorLayout).toEqual({ isRightOfSearch: true, sameRow: true });
 
     await page.context().setOffline(true);
     // Playwright may not fire navigator.onLine change automatically in all browsers.

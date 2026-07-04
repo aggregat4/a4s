@@ -359,6 +359,22 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   await expect(title).toHaveText("Prototype Tasks");
   await expect(title).toHaveAttribute("tabindex", "0");
   await expect(title).toHaveAttribute("title", "Click to rename");
+  const titleIconLayout = await header.evaluate((el) => {
+    const titleEl = el.querySelector(".tasklist-title") as HTMLElement | null;
+    const editIcon = el.querySelector(
+      ".tasklist-title-edit-icon"
+    ) as HTMLElement | null;
+    if (!titleEl || !editIcon) return { adjacent: false, sameRow: false };
+    const titleRect = titleEl.getBoundingClientRect();
+    const iconRect = editIcon.getBoundingClientRect();
+    const titleCenter = (titleRect.top + titleRect.bottom) / 2;
+    const iconCenter = (iconRect.top + iconRect.bottom) / 2;
+    return {
+      adjacent: iconRect.left >= titleRect.left && iconRect.right <= titleRect.right,
+      sameRow: Math.abs(titleCenter - iconCenter) < 12,
+    };
+  });
+  expect(titleIconLayout).toEqual({ adjacent: true, sameRow: true });
   await expect(listSearchInput).toHaveCount(0);
   await expect(globalSearch).toHaveValue("");
   await expect(showDoneToggle).not.toBeChecked();
@@ -397,6 +413,46 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   await expect(visibleTasks.first().locator(".text")).toContainText("umbrella");
 });
 
+test("tasklist header keeps controls below title on narrow screens", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 493, height: 500 });
+  await gotoWithSnapshot(page, "/?resetStorage=1");
+
+  const header = page.locator(
+    "[data-role='lists-container'] .list-section.is-active .tasklist-header"
+  );
+  await expect(header.locator(".tasklist-title")).toBeVisible();
+  await expect(header.locator(".tasklist-show-done")).toBeVisible();
+  await expect(header.locator("[data-role='tasklist-add']")).toBeVisible();
+
+  const layout = await header.evaluate((el) => {
+    const title = el.querySelector(".tasklist-title") as HTMLElement | null;
+    const add = el.querySelector(
+      "[data-role='tasklist-add']"
+    ) as HTMLElement | null;
+    const showDone = el.querySelector(
+      ".tasklist-show-done"
+    ) as HTMLElement | null;
+    if (!title || !add || !showDone) {
+      return { controlsBelow: false, addLeftOfToggle: false, sameControlRow: false };
+    }
+    const titleRect = title.getBoundingClientRect();
+    const addRect = add.getBoundingClientRect();
+    const showDoneRect = showDone.getBoundingClientRect();
+    const addCenter = (addRect.top + addRect.bottom) / 2;
+    const showDoneCenter = (showDoneRect.top + showDoneRect.bottom) / 2;
+    return {
+      controlsBelow: addRect.top > titleRect.bottom,
+      addLeftOfToggle: addRect.left < showDoneRect.left,
+      sameControlRow: Math.abs(addCenter - showDoneCenter) < 12,
+    };
+  });
+  expect(layout.controlsBelow).toBe(true);
+  expect(layout.addLeftOfToggle).toBe(true);
+  expect(layout.sameControlRow).toBe(true);
+});
+
 test("sidebar keeps lists visible and collapses options by default", async ({
   page,
 }) => {
@@ -415,6 +471,21 @@ test("sidebar keeps lists visible and collapses options by default", async ({
     const options = page.locator(".sidebar-actions-disclosure");
     await expect(options).not.toHaveAttribute("open", "");
     await expect(page.getByRole("button", { name: "Add list" })).toBeHidden();
+    const optionsLayout = await page.locator(".lists-sidebar").evaluate((el) => {
+      const lists = el.querySelector(".sidebar-lists") as HTMLElement | null;
+      const optionsEl = el.querySelector(
+        ".sidebar-actions-disclosure"
+      ) as HTMLElement | null;
+      if (!lists || !optionsEl) return { belowLists: false, closeToLists: false };
+      const listsRect = lists.getBoundingClientRect();
+      const optionsRect = optionsEl.getBoundingClientRect();
+      const gap = optionsRect.top - listsRect.bottom;
+      return {
+        belowLists: gap >= 0,
+        closeToLists: gap < 32,
+      };
+    });
+    expect(optionsLayout).toEqual({ belowLists: true, closeToLists: true });
 
     await page.getByText("Options").click();
     await expect(options).toHaveAttribute("open", "");
