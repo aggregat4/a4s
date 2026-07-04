@@ -220,7 +220,14 @@ class A4TaskList extends HTMLElement {
   private focusedItemId: string | null;
   private touchGestureState: Map<
     number,
-    { startX: number; startY: number; target: HTMLElement }
+    {
+      startX: number;
+      startY: number;
+      target: HTMLElement;
+      revealWidth: number;
+      swiping: boolean;
+      wasOpen: boolean;
+    }
   >;
   private pendingRestoreEdit: { id: string; caret: CaretPreference | null } | null;
   private resumeEditOnBlur: { id: string; caret: CaretPreference | null } | null;
@@ -321,6 +328,7 @@ class A4TaskList extends HTMLElement {
     this.handleHeaderErrorDismiss = this.handleHeaderErrorDismiss.bind(this);
     this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
     this.handleTouchGestureStart = this.handleTouchGestureStart.bind(this);
+    this.handleTouchGestureMove = this.handleTouchGestureMove.bind(this);
     this.handleTouchGestureEnd = this.handleTouchGestureEnd.bind(this);
     this.handleTouchGestureCancel = this.handleTouchGestureCancel.bind(this);
     this.handleDragFinalize = this.handleDragFinalize.bind(this);
@@ -415,6 +423,10 @@ class A4TaskList extends HTMLElement {
     this.listEl.removeEventListener("touchstart", this.handleTouchGestureStart);
     this.listEl.addEventListener("touchstart", this.handleTouchGestureStart, {
       passive: true,
+    });
+    this.listEl.removeEventListener("touchmove", this.handleTouchGestureMove);
+    this.listEl.addEventListener("touchmove", this.handleTouchGestureMove, {
+      passive: false,
     });
     this.listEl.removeEventListener("touchend", this.handleTouchGestureEnd);
     this.listEl.addEventListener("touchend", this.handleTouchGestureEnd, {
@@ -611,6 +623,7 @@ class A4TaskList extends HTMLElement {
       "touchstart",
       this.handleTouchGestureStart
     );
+    this.listEl?.removeEventListener("touchmove", this.handleTouchGestureMove);
     this.listEl?.removeEventListener("touchend", this.handleTouchGestureEnd);
     this.listEl?.removeEventListener(
       "touchcancel",
@@ -2181,6 +2194,26 @@ class A4TaskList extends HTMLElement {
     this.renderFromState(this.store?.getState?.());
   }
 
+  getTaskActionsRevealWidth(li: HTMLElement) {
+    const actions = li.querySelector(".task-item-actions");
+    if (!(actions instanceof HTMLElement)) return 128;
+    return Math.max(96, Math.min(actions.scrollWidth || 128, 180));
+  }
+
+  setTaskSwipeReveal(li: HTMLElement, reveal: number, revealWidth: number) {
+    const clamped = Math.max(0, Math.min(reveal, revealWidth));
+    li.style.setProperty("--task-swipe-translate", `${-clamped}px`);
+    li.style.setProperty("--task-actions-reveal-width", `${revealWidth}px`);
+    li.classList.toggle("task-item-swiping", clamped > 0);
+  }
+
+  clearTaskSwipeReveal(li: HTMLElement | null | undefined) {
+    if (!li) return;
+    li.classList.remove("task-item-swiping");
+    li.style.removeProperty("--task-swipe-translate");
+    li.style.removeProperty("--task-actions-reveal-width");
+  }
+
   handleTouchGestureStart(event: TouchEvent) {
     if (!event?.changedTouches) return;
     Array.from(event.changedTouches).forEach((touch) => {
@@ -2209,11 +2242,48 @@ class A4TaskList extends HTMLElement {
       if (element.closest(".task-item-toggle")) return;
       if (element.closest(".task-note-toggle")) return;
       if (element.closest(".task-note-panel")) return;
+      const itemId = li.dataset?.itemId ?? null;
       this.touchGestureState.set(touch.identifier, {
         startX: touch.clientX,
         startY: touch.clientY,
         target: li,
+        revealWidth: this.getTaskActionsRevealWidth(li),
+        swiping: false,
+        wasOpen: itemId != null && this.openActionsItemId === itemId,
       });
+    });
+  }
+
+  handleTouchGestureMove(event: TouchEvent) {
+    if (!event?.changedTouches) return;
+    Array.from(event.changedTouches).forEach((touch) => {
+      const state = this.touchGestureState.get(touch.identifier);
+      if (!state) return;
+      const li = state.target;
+      if (!li || !li.isConnected) {
+        this.touchGestureState.delete(touch.identifier);
+        return;
+      }
+      const deltaX = touch.clientX - state.startX;
+      const deltaY = touch.clientY - state.startY;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      if (!state.swiping) {
+        if (absX < 8) return;
+        if (absX < absY) {
+          this.clearTaskSwipeReveal(li);
+          this.touchGestureState.delete(touch.identifier);
+          return;
+        }
+        state.swiping = true;
+      }
+      event.preventDefault();
+      const startReveal = state.wasOpen ? state.revealWidth : 0;
+      const reveal = Math.max(
+        0,
+        Math.min(state.revealWidth, startReveal - deltaX)
+      );
+      this.setTaskSwipeReveal(li, reveal, state.revealWidth);
     });
   }
 
@@ -2227,9 +2297,15 @@ class A4TaskList extends HTMLElement {
       if (!li || !li.isConnected) return;
       const deltaX = touch.clientX - state.startX;
       const deltaY = touch.clientY - state.startY;
+      this.clearTaskSwipeReveal(li);
       if (Math.abs(deltaX) < 30) return;
       if (Math.abs(deltaX) < Math.abs(deltaY)) return;
-      if (deltaX < 0) {
+      const startReveal = state.wasOpen ? state.revealWidth : 0;
+      const reveal = Math.max(
+        0,
+        Math.min(state.revealWidth, startReveal - deltaX)
+      );
+      if (reveal > state.revealWidth / 2) {
         const itemId = li.dataset?.itemId ?? null;
         this.openActionsItemId = itemId;
         this.renderFromState(this.store?.getState?.());
@@ -2243,6 +2319,8 @@ class A4TaskList extends HTMLElement {
   handleTouchGestureCancel(event: TouchEvent) {
     if (!event?.changedTouches) return;
     Array.from(event.changedTouches).forEach((touch) => {
+      const state = this.touchGestureState.get(touch.identifier);
+      this.clearTaskSwipeReveal(state?.target);
       this.touchGestureState.delete(touch.identifier);
     });
   }

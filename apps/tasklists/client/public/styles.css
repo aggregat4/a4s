@@ -1464,12 +1464,62 @@ a4-tasklist {
     }
 
     .tasklist > .task-item {
+        --task-actions-reveal-width: 128px;
+        --task-swipe-translate: 0px;
+
         .task-item-toggle {
             display: none;
         }
 
+        .task-item-body {
+            flex: 1 1 auto;
+            background-color: var(--color-surface);
+            z-index: 1;
+            transform: translateX(0);
+            transition: transform var(--transition-fast);
+        }
+
         .task-item-actions {
             --task-actions-max-width: 260px;
+            position: absolute;
+            inset-block: 0;
+            right: 0;
+            z-index: 2;
+            width: var(--task-actions-reveal-width);
+            max-width: var(--task-actions-reveal-width);
+            justify-content: flex-end;
+            padding: 0 var(--space-sm);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            background-color: var(--color-surface);
+        }
+
+        .task-item-actions-open {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        &:has(.task-item-actions-open) .task-item-body {
+            transform: translateX(calc(-1 * var(--task-actions-reveal-width)));
+        }
+
+        &:has(.task-item-actions-open) .task-text,
+        &.task-item-swiping .task-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        &.task-item-swiping .task-item-body {
+            transform: translateX(var(--task-swipe-translate));
+            transition: none;
+        }
+
+        &.task-item-swiping .task-item-actions {
+            opacity: 1;
+            visibility: visible;
         }
     }
 }

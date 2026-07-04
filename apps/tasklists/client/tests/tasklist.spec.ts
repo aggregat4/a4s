@@ -177,6 +177,69 @@ async function swipeLeftToOpenActions(target: Locator) {
   );
 }
 
+async function startSwipeLeft(target: Locator, distance = 48) {
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  if (!box) {
+    throw new Error("Unable to resolve swipe bounds");
+  }
+  const start = {
+    x: box.x + box.width * 0.5,
+    y: box.y + box.height * 0.5,
+  };
+  const move = { x: start.x - distance, y: start.y };
+  await target.evaluate(
+    (node, points) => {
+      const createTouch = (point: { x: number; y: number }) =>
+        new Touch({
+          identifier: 1,
+          target: node,
+          clientX: point.x,
+          clientY: point.y,
+        });
+      const dispatch = (
+        type: "touchstart" | "touchmove",
+        point: { x: number; y: number }
+      ) => {
+        const touch = createTouch(point);
+        node.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            touches: [touch],
+            targetTouches: [touch],
+            changedTouches: [touch],
+          })
+        );
+      };
+      dispatch("touchstart", points.start);
+      dispatch("touchmove", points.move);
+    },
+    { start, move }
+  );
+  return { start, move };
+}
+
+async function finishTouch(target: Locator, point: { x: number; y: number }) {
+  await target.evaluate((node, endPoint) => {
+    const touch = new Touch({
+      identifier: 1,
+      target: node,
+      clientX: endPoint.x,
+      clientY: endPoint.y,
+    });
+    node.dispatchEvent(
+      new TouchEvent("touchend", {
+        bubbles: true,
+        cancelable: false,
+        touches: [],
+        targetTouches: [],
+        changedTouches: [touch],
+      })
+    );
+  }, point);
+}
+
 async function dragTaskToSidebarTarget(
   _page: Page,
   sourceItem: Locator,
@@ -1570,12 +1633,38 @@ test.describe("tasklist flows", () => {
 
       // On mobile the options toggle is hidden; the tray opens via a left swipe.
       await expect(firstItem.locator(".task-item-toggle")).toBeHidden();
+      await expect(firstItem.locator(".task-move-button")).toBeHidden();
+      await expect(firstItem.locator(".task-delete-button")).toBeHidden();
       await swipeLeftToOpenActions(firstItem.locator(".text"));
       const moveButton = firstItem.locator(".task-move-button");
       await expect(moveButton).toBeVisible();
 
       await moveButton.tap();
       await expect(page.locator(".move-dialog-content")).toBeVisible();
+    });
+
+    test("swipe-left moves the task row with the finger on mobile", async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const firstItem = page.locator(listItemsSelector).first();
+      const firstText = firstItem.locator(".text");
+
+      const { move } = await startSwipeLeft(firstText, 72);
+      await expect(firstItem).toHaveClass(/task-item-swiping/);
+
+      const translateX = await firstItem.locator(".task-item-body").evaluate(
+        (node) => {
+          const transform = getComputedStyle(node).transform;
+          return transform === "none"
+            ? 0
+            : new DOMMatrixReadOnly(transform).m41;
+        }
+      );
+      expect(translateX).toBeLessThan(-20);
+
+      await finishTouch(firstText, move);
+      await expect(firstItem.locator(".task-move-button")).toBeVisible();
     });
   });
 
