@@ -192,6 +192,19 @@ button {
 }
 
 @media (width > 640px) {
+    .sidebar-title-row {
+        gap: var(--space-sm);
+    }
+
+    .sidebar-title-row::before {
+        content: "";
+        display: block;
+        width: 3px;
+        height: 22px;
+        border-radius: var(--radius-sm);
+        background-color: var(--color-border-strong);
+    }
+
     .sidebar-title.sr-only {
         position: static;
         width: auto;
@@ -200,6 +213,8 @@ button {
         overflow: visible;
         clip-path: none;
         white-space: normal;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
     }
 }
 
