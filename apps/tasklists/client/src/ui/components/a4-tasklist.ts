@@ -1335,13 +1335,31 @@ class A4TaskList extends HTMLElement {
     const items = Array.isArray(state?.items) ? state.items : [];
     const fromIndex = items.findIndex((item) => item.id === id);
     if (fromIndex === -1) return;
-    const delta = direction === "down" ? 1 : -1;
-    const toIndex = fromIndex + delta;
-    if (toIndex < 0 || toIndex >= items.length) return;
+
+    const tokens = tokenizeSearchQuery(this.searchQuery);
+    const visibleItems = items.filter((item) =>
+      matchesSearchEntry({
+        originalText: item?.text ?? "",
+        noteText: item?.note ?? "",
+        tokens,
+        showDone: this.showDone,
+        isDone: Boolean(item?.done),
+      })
+    );
+    const visibleIndex = visibleItems.findIndex((item) => item.id === id);
+    if (visibleIndex === -1) return;
+    const targetVisibleIndex =
+      direction === "down" ? visibleIndex + 1 : visibleIndex - 1;
+    const targetItem = visibleItems[targetVisibleIndex] ?? null;
+    if (!targetItem?.id) return;
 
     const order = items.map((item) => item.id);
-    const [moved] = order.splice(fromIndex, 1);
-    order.splice(toIndex, 0, moved);
+    order.splice(fromIndex, 1);
+    const targetIndexAfterRemoval = order.indexOf(targetItem.id);
+    if (targetIndexAfterRemoval === -1) return;
+    const toIndex =
+      direction === "down" ? targetIndexAfterRemoval + 1 : targetIndexAfterRemoval;
+    order.splice(toIndex, 0, id);
 
     const caretOffset =
       typeof selectionStart === "number" ? Math.max(0, selectionStart) : 0;

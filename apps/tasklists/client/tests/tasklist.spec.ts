@@ -1558,6 +1558,59 @@ test.describe("tasklist flows", () => {
     expect(offsetAfterUp).toBe(3);
   });
 
+  test("keyboard shortcut skips hidden completed items while moving", async ({
+    page,
+  }) => {
+    await gotoWithSnapshot(page, "/?resetStorage=1");
+    await setShowDone(page, true);
+    await addTask(page, "Visible Bottom");
+    await addTask(page, "Hidden Done Two");
+    await addTask(page, "Hidden Done One");
+    await addTask(page, "Visible Top");
+
+    const items = page.locator(listItemsSelector);
+    await items
+      .filter({ has: page.locator(".text", { hasText: "Hidden Done One" }) })
+      .locator(".done-toggle")
+      .check();
+    await items
+      .filter({ has: page.locator(".text", { hasText: "Hidden Done Two" }) })
+      .locator(".done-toggle")
+      .check();
+    await setShowDone(page, false);
+
+    const visibleTop = items
+      .filter({ has: page.locator(".text", { hasText: "Visible Top" }) })
+      .locator(".text");
+    await expect(visibleTop).toHaveText("Visible Top");
+    await visibleTop.click();
+    await setCaretPosition(visibleTop, 7);
+
+    await page.keyboard.press("Control+ArrowDown");
+
+    const topIndex = await items
+      .filter({ has: page.locator(".text", { hasText: "Visible Top" }) })
+      .evaluate((el) =>
+        Array.from(el.parentElement?.children ?? [])
+          .filter((child) => !child.hasAttribute("hidden"))
+          .indexOf(el)
+      );
+    const bottomIndex = await items
+      .filter({ has: page.locator(".text", { hasText: "Visible Bottom" }) })
+      .evaluate((el) =>
+        Array.from(el.parentElement?.children ?? [])
+          .filter((child) => !child.hasAttribute("hidden"))
+          .indexOf(el)
+      );
+    expect(topIndex).toBe(bottomIndex + 1);
+    const movedText = items
+      .filter({ has: page.locator(".text", { hasText: "Visible Top" }) })
+      .locator(".text");
+    await expect(movedText).toHaveText("Visible Top");
+    await expect(movedText).toHaveAttribute("contenteditable", "true");
+    expect(await getCaretOffset(movedText)).toBe(7);
+  });
+
   test("keyboard shortcuts jump to list start and end", async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
     const items = page.locator(listItemsSelector);
