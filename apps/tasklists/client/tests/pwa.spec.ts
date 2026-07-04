@@ -46,37 +46,53 @@ test.describe("PWA", () => {
     await page.goto("/");
     await page.waitForSelector(".lists-sidebar", { state: "visible" });
 
-    const indicator = page.locator(".sidebar-sync-indicator:visible");
+    const indicator = page.locator(".sidebar-sync-indicator");
     const searchInput = page.getByRole("searchbox", { name: "Global search" });
+    await expect(indicator).toHaveCount(1);
     await expect(indicator).toHaveClass(/is-connected/);
     await expect(indicator).toHaveAttribute("title", "Connected");
     await expect(indicator).toHaveText("●");
-    const indicatorLayout = await indicator.evaluate((el) => {
+    const layout = await indicator.evaluate((el) => {
       const search = document.querySelector(
         ".sidebar-search-input"
       ) as HTMLElement | null;
       const topbar = document.querySelector(
         ".sidebar-topbar"
       ) as HTMLElement | null;
-      if (!search || !topbar) {
-        return { isRightOfSearch: false, sameRow: false, leftAligned: false };
+      const optionsToggle = document.querySelector(
+        ".sidebar-actions-toggle"
+      ) as HTMLElement | null;
+      const optionsLabel = document.querySelector(
+        ".sidebar-actions-toggle-label"
+      ) as HTMLElement | null;
+      if (!search || !topbar || !optionsToggle || !optionsLabel) {
+        return {
+          searchLeftAligned: false,
+          statusInOptions: false,
+          statusRightAligned: false,
+          statusSameRow: false,
+        };
       }
       const indicatorRect = el.getBoundingClientRect();
       const searchRect = search.getBoundingClientRect();
       const topbarRect = topbar.getBoundingClientRect();
+      const optionsRect = optionsToggle.getBoundingClientRect();
+      const labelRect = optionsLabel.getBoundingClientRect();
       const indicatorCenter = (indicatorRect.top + indicatorRect.bottom) / 2;
-      const searchCenter = (searchRect.top + searchRect.bottom) / 2;
+      const labelCenter = (labelRect.top + labelRect.bottom) / 2;
       return {
-        isRightOfSearch: indicatorRect.left >= searchRect.right,
-        sameRow: Math.abs(indicatorCenter - searchCenter) < 12,
-        leftAligned: Math.abs(searchRect.left - topbarRect.left) < 2,
+        searchLeftAligned: Math.abs(searchRect.left - topbarRect.left) < 2,
+        statusInOptions: Boolean(el.closest(".sidebar-actions-toggle")),
+        statusRightAligned: Math.abs(indicatorRect.right - optionsRect.right) < 2,
+        statusSameRow: Math.abs(indicatorCenter - labelCenter) < 12,
       };
     });
     await expect(searchInput).toBeVisible();
-    expect(indicatorLayout).toEqual({
-      isRightOfSearch: true,
-      sameRow: true,
-      leftAligned: true,
+    expect(layout).toEqual({
+      searchLeftAligned: true,
+      statusInOptions: true,
+      statusRightAligned: true,
+      statusSameRow: true,
     });
 
     await page.context().setOffline(true);

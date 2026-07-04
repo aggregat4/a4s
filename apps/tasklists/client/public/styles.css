@@ -185,10 +185,6 @@ button {
     flex: 0 0 auto;
 }
 
-.sidebar-status-mobile {
-    display: none;
-}
-
 .sidebar-title {
     margin: 0;
     font-size: 24px;
@@ -412,10 +408,36 @@ button {
 }
 
 .sidebar-actions-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
     cursor: pointer;
     font-weight: 600;
     color: var(--color-text);
     padding: var(--space-xs) 0;
+    list-style: none;
+}
+
+.sidebar-actions-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.sidebar-actions-toggle::before {
+    content: "▸";
+    font-size: 10px;
+    line-height: 1;
+}
+
+.sidebar-actions-disclosure[open] .sidebar-actions-toggle::before {
+    content: "▾";
+}
+
+.sidebar-actions-toggle-label {
+    min-width: 0;
+}
+
+.sidebar-actions-toggle .sidebar-status {
+    margin-left: auto;
 }
 
 .sidebar-actions-toggle:focus-visible {
@@ -1373,14 +1395,6 @@ a4-tasklist {
 
     .sidebar-search-row {
         flex: 1 1 auto;
-    }
-
-    .sidebar-status-desktop {
-        display: none;
-    }
-
-    .sidebar-status-mobile {
-        display: flex;
     }
 
     .sidebar-sync-indicator {

@@ -471,33 +471,38 @@ test("sidebar keeps lists visible and collapses options by default", async ({
     const options = page.locator(".sidebar-actions-disclosure");
     await expect(options).not.toHaveAttribute("open", "");
     await expect(page.getByRole("button", { name: "Add list" })).toBeHidden();
-    if (viewport.width > 640) {
-      const statusLayout = await page.locator(".lists-sidebar").evaluate((el) => {
-        const title = el.querySelector(".sidebar-title") as HTMLElement | null;
-        const status = el.querySelector(
-          ".sidebar-status-desktop .sidebar-sync-indicator"
-        ) as HTMLElement | null;
-        const search = el.querySelector(".sidebar-search-input") as HTMLElement | null;
-        if (!title || !status || !search) {
-          return { afterTitle: false, sameRowAsTitle: false, aboveSearch: false };
-        }
-        const titleRect = title.getBoundingClientRect();
-        const statusRect = status.getBoundingClientRect();
-        const searchRect = search.getBoundingClientRect();
-        const titleCenter = (titleRect.top + titleRect.bottom) / 2;
-        const statusCenter = (statusRect.top + statusRect.bottom) / 2;
+    await expect(page.locator(".sidebar-sync-indicator")).toHaveCount(1);
+    const statusLayout = await page.locator(".lists-sidebar").evaluate((el) => {
+      const status = el.querySelector(".sidebar-sync-indicator") as HTMLElement | null;
+      const optionsToggle = el.querySelector(
+        ".sidebar-actions-toggle"
+      ) as HTMLElement | null;
+      const optionsLabel = el.querySelector(
+        ".sidebar-actions-toggle-label"
+      ) as HTMLElement | null;
+      if (!status || !optionsToggle || !optionsLabel) {
         return {
-          afterTitle: statusRect.left >= titleRect.right,
-          sameRowAsTitle: Math.abs(statusCenter - titleCenter) < 12,
-          aboveSearch: statusRect.bottom <= searchRect.top,
+          statusInOptions: false,
+          statusRightAligned: false,
+          statusSameRow: false,
         };
-      });
-      expect(statusLayout).toEqual({
-        afterTitle: true,
-        sameRowAsTitle: true,
-        aboveSearch: true,
-      });
-    }
+      }
+      const statusRect = status.getBoundingClientRect();
+      const optionsRect = optionsToggle.getBoundingClientRect();
+      const labelRect = optionsLabel.getBoundingClientRect();
+      const statusCenter = (statusRect.top + statusRect.bottom) / 2;
+      const labelCenter = (labelRect.top + labelRect.bottom) / 2;
+      return {
+        statusInOptions: Boolean(status.closest(".sidebar-actions-toggle")),
+        statusRightAligned: Math.abs(statusRect.right - optionsRect.right) < 2,
+        statusSameRow: Math.abs(statusCenter - labelCenter) < 12,
+      };
+    });
+    expect(statusLayout).toEqual({
+      statusInOptions: true,
+      statusRightAligned: true,
+      statusSameRow: true,
+    });
     const optionsLayout = await page.locator(".lists-sidebar").evaluate((el) => {
       const lists = el.querySelector(".sidebar-lists") as HTMLElement | null;
       const optionsEl = el.querySelector(
