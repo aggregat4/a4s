@@ -46,7 +46,7 @@ test.describe("PWA", () => {
     await page.goto("/");
     await page.waitForSelector(".lists-sidebar", { state: "visible" });
 
-    const indicator = page.locator(".sidebar-sync-indicator");
+    const indicator = page.locator(".sidebar-sync-indicator:visible");
     const searchInput = page.getByRole("searchbox", { name: "Global search" });
     await expect(indicator).toHaveClass(/is-connected/);
     await expect(indicator).toHaveAttribute("title", "Connected");
@@ -55,18 +55,29 @@ test.describe("PWA", () => {
       const search = document.querySelector(
         ".sidebar-search-input"
       ) as HTMLElement | null;
-      if (!search) return { isRightOfSearch: false, sameRow: false };
+      const topbar = document.querySelector(
+        ".sidebar-topbar"
+      ) as HTMLElement | null;
+      if (!search || !topbar) {
+        return { isRightOfSearch: false, sameRow: false, leftAligned: false };
+      }
       const indicatorRect = el.getBoundingClientRect();
       const searchRect = search.getBoundingClientRect();
+      const topbarRect = topbar.getBoundingClientRect();
       const indicatorCenter = (indicatorRect.top + indicatorRect.bottom) / 2;
       const searchCenter = (searchRect.top + searchRect.bottom) / 2;
       return {
         isRightOfSearch: indicatorRect.left >= searchRect.right,
         sameRow: Math.abs(indicatorCenter - searchCenter) < 12,
+        leftAligned: Math.abs(searchRect.left - topbarRect.left) < 2,
       };
     });
     await expect(searchInput).toBeVisible();
-    expect(indicatorLayout).toEqual({ isRightOfSearch: true, sameRow: true });
+    expect(indicatorLayout).toEqual({
+      isRightOfSearch: true,
+      sameRow: true,
+      leftAligned: true,
+    });
 
     await page.context().setOffline(true);
     // Playwright may not fire navigator.onLine change automatically in all browsers.

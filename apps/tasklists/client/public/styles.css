@@ -185,6 +185,10 @@ button {
     flex: 0 0 auto;
 }
 
+.sidebar-status-mobile {
+    display: none;
+}
+
 .sidebar-title {
     margin: 0;
     font-size: 24px;
@@ -1361,6 +1365,22 @@ a4-tasklist {
         flex-direction: row;
         align-items: center;
         gap: var(--space-sm);
+    }
+
+    .sidebar-title-row {
+        display: none;
+    }
+
+    .sidebar-search-row {
+        flex: 1 1 auto;
+    }
+
+    .sidebar-status-desktop {
+        display: none;
+    }
+
+    .sidebar-status-mobile {
+        display: flex;
     }
 
     .sidebar-sync-indicator {

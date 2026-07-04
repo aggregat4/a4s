@@ -252,6 +252,16 @@ class SidebarElement extends HTMLElement {
           <div class="sidebar-topbar">
             <div class="sidebar-title-row">
               <h1 class="sidebar-title sr-only">Lists</h1>
+              <div class="sidebar-status sidebar-status-desktop">
+                <span
+                  class="sidebar-sync-indicator is-${syncStatus}"
+                  role="status"
+                  aria-live="polite"
+                  aria-label=${syncLabel}
+                  title=${syncLabel}
+                  >${syncSymbol}</span
+                >
+              </div>
             </div>
             <div class="sidebar-search-row">
               <label class="sidebar-field sidebar-field-inline">
@@ -266,7 +276,7 @@ class SidebarElement extends HTMLElement {
                   @keydown=${this.handleSearchKeyDown}
                 />
               </label>
-              <div class="sidebar-status">
+              <div class="sidebar-status sidebar-status-mobile">
                 <span
                   class="sidebar-sync-indicator is-${syncStatus}"
                   role="status"
