@@ -243,6 +243,9 @@ class SidebarElement extends HTMLElement {
     const deleteDisabled =
       this.currentLists.length <= 1 || !this.activeListId;
     const syncStatus = this.derivedSyncStatus();
+    const syncLabel =
+      syncStatus === "connected" ? "Connected" : "Disconnected";
+    const syncSymbol = syncStatus === "connected" ? "●" : "×";
     render(
       html`
         <div class="sidebar-content">
@@ -254,9 +257,9 @@ class SidebarElement extends HTMLElement {
                   class="sidebar-sync-indicator is-${syncStatus}"
                   role="status"
                   aria-live="polite"
-                  >${syncStatus === "connected"
-                    ? "Connected"
-                    : "Disconnected"}</span
+                  aria-label=${syncLabel}
+                  title=${syncLabel}
+                  >${syncSymbol}</span
                 >
               </div>
             </div>

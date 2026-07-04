@@ -47,6 +47,8 @@ test.describe("PWA", () => {
 
     const indicator = page.locator(".sidebar-sync-indicator");
     await expect(indicator).toHaveClass(/is-connected/);
+    await expect(indicator).toHaveAttribute("title", "Connected");
+    await expect(indicator).toHaveText("●");
 
     await page.context().setOffline(true);
     // Playwright may not fire navigator.onLine change automatically in all browsers.
@@ -60,7 +62,8 @@ test.describe("PWA", () => {
     });
 
     await expect(indicator).toHaveClass(/is-disconnected/);
-    await expect(indicator).toHaveText("Disconnected");
+    await expect(indicator).toHaveAttribute("title", "Disconnected");
+    await expect(indicator).toHaveText("×");
 
     await page.context().setOffline(false);
     await page.evaluate(() => {
@@ -72,7 +75,8 @@ test.describe("PWA", () => {
     });
 
     await expect(indicator).toHaveClass(/is-connected/);
-    await expect(indicator).toHaveText("Connected");
+    await expect(indicator).toHaveAttribute("title", "Connected");
+    await expect(indicator).toHaveText("●");
   });
 
   test("app loads from service worker cache when offline", async ({ page }) => {

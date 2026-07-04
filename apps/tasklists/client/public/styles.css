@@ -200,25 +200,25 @@ button {
 
 /* Always-visible connectivity status: muted when connected, red when not. */
 .sidebar-sync-indicator {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     margin: 0;
-    padding: 1px 4px;
-    font-size: 10px;
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    font-size: 11px;
     font-weight: 500;
-    line-height: 1.4;
-    border-radius: var(--radius-sm);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    line-height: 1;
     background: transparent;
-    transition: color var(--transition-fast), background-color var(--transition-fast);
+    cursor: help;
+    transition: color var(--transition-fast), opacity var(--transition-fast);
 }
 
 /* The resting state: connected is the norm, so it stays unobtrusive. */
 .sidebar-sync-indicator.is-connected {
     color: var(--color-muted);
-    font-size: 9px;
-    font-weight: 400;
-    opacity: 0.72;
+    opacity: 0.45;
 }
 
 /* The one state that should draw the eye: the browser is offline or changes
@@ -226,8 +226,8 @@ button {
    sidebar, so it stands out against the grays on its own. */
 .sidebar-sync-indicator.is-disconnected {
     color: var(--color-danger);
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     opacity: 1;
 }
 
@@ -1356,12 +1356,13 @@ a4-tasklist {
     }
 
     .sidebar-sync-indicator {
+        width: 12px;
+        height: 12px;
         font-size: 10px;
-        padding: 1px 4px;
     }
 
     .sidebar-sync-indicator.is-disconnected {
-        padding: 1px 6px;
+        font-size: 13px;
     }
 
     .sidebar-search-input {
