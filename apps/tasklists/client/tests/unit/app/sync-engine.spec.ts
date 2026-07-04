@@ -395,7 +395,7 @@ test("SyncEngine stop cancels pending debounced flush", async () => {
 
 const noopFetch = async () => new Response("", { status: 404 });
 
-test("SyncEngine emits idle on initialize when the outbox is empty", async () => {
+test("SyncEngine emits connected on initialize when online", async () => {
   const { storage } = createStorage();
   const statuses: SyncStatus[] = [];
   const engine = new SyncEngine({
@@ -406,33 +406,10 @@ test("SyncEngine emits idle on initialize when the outbox is empty", async () =>
     onStatusChange: (status) => statuses.push(status),
   });
   await engine.initialize();
-  assert.deepEqual(statuses, ["idle"]);
+  assert.deepEqual(statuses, ["connected"]);
 });
 
-test("SyncEngine emits saving on initialize when buffered ops remain in the outbox", async () => {
-  const { storage } = createStorage();
-  await storage.persistOutbox([
-    {
-      scope: "list",
-      resourceId: "list-1",
-      actor: "actor-1",
-      clock: 1,
-      payload: { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
-    },
-  ]);
-  const statuses: SyncStatus[] = [];
-  const engine = new SyncEngine({
-    storage,
-    baseUrl: "http://localhost:8080",
-    fetchFn: noopFetch,
-    clientId: "client-1",
-    onStatusChange: (status) => statuses.push(status),
-  });
-  await engine.initialize();
-  assert.deepEqual(statuses, ["saving"]);
-});
-
-test("SyncEngine emits saving on enqueue and idle after a successful flush", async () => {
+test("SyncEngine does not emit a status when ops are enqueued", async () => {
   const { storage } = createStorage();
   await storage.persistSyncState({
     clientId: "client-1",
@@ -458,15 +435,48 @@ test("SyncEngine emits saving on enqueue and idle after a successful flush", asy
     onStatusChange: (status) => statuses.push(status),
   });
   await engine.initialize();
+  statuses.length = 0;
+  engine.enqueueOps("list", "list-1", [
+    { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
+  ]);
+  assert.deepEqual(statuses, [], "enqueueOps must not flicker the connectivity indicator");
+});
+
+test("SyncEngine emits connected after a successful flush", async () => {
+  const { storage } = createStorage();
+  await storage.persistSyncState({
+    clientId: "client-1",
+    lastServerSeq: 0,
+    datasetGenerationKey: "d1",
+  });
+  const statuses: SyncStatus[] = [];
+  const fetchFn = async (url: string | URL | Request) => {
+    const u = typeof url === "string" ? url : url.toString();
+    if (u.includes("/sync/push")) {
+      return new Response(
+        JSON.stringify({ serverSeq: 1, datasetGenerationKey: "d1" }),
+        { status: 200 }
+      );
+    }
+    return new Response("", { status: 404 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+    onStatusChange: (status) => statuses.push(status),
+  });
+  await engine.initialize();
+  statuses.length = 0;
   engine.enqueueOps("list", "list-1", [
     { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
   ]);
   await engine.flushOnce();
-  assert.equal(statuses[statuses.length - 1], "idle");
-  assert.ok(statuses.includes("saving"), "should have passed through saving");
+  assert.equal(statuses[statuses.length - 1], "connected");
 });
 
-test("SyncEngine emits error on flush failure and clears it after a successful flush", async () => {
+test("SyncEngine emits disconnected on flush failure and recovers to connected", async () => {
   const { storage } = createStorage();
   await storage.persistSyncState({
     clientId: "client-1",
@@ -493,18 +503,19 @@ test("SyncEngine emits error on flush failure and clears it after a successful f
     onStatusChange: (status) => statuses.push(status),
   });
   await engine.initialize();
+  statuses.length = 0;
   engine.enqueueOps("list", "list-1", [
     { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
   ]);
   await engine.flushOnce();
-  assert.equal(statuses[statuses.length - 1], "error", "failed flush should surface error");
+  assert.equal(statuses[statuses.length - 1], "disconnected", "failed flush should surface disconnected");
 
   pushOk = true;
   await engine.flushOnce();
-  assert.equal(statuses[statuses.length - 1], "idle", "successful flush should clear error");
+  assert.equal(statuses[statuses.length - 1], "connected", "successful flush should recover to connected");
 });
 
-test("SyncEngine emits error when the push request throws", async () => {
+test("SyncEngine emits disconnected when the push request throws", async () => {
   const { storage } = createStorage();
   await storage.persistSyncState({
     clientId: "client-1",
@@ -527,9 +538,10 @@ test("SyncEngine emits error when the push request throws", async () => {
     onStatusChange: (status) => statuses.push(status),
   });
   await engine.initialize();
+  statuses.length = 0;
   engine.enqueueOps("list", "list-1", [
     { type: "insert", actor: "actor-1", clock: 1, itemId: "item-1" } as any,
   ]);
   await engine.flushOnce();
-  assert.equal(statuses[statuses.length - 1], "error");
+  assert.equal(statuses[statuses.length - 1], "disconnected");
 });

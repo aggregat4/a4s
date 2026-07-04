@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SyncEngine } from "../../../src/app/sync-engine.js";
 import type { ListStorage } from "../../../src/types/storage.js";
-import type { SyncOp, SyncState } from "../../../src/types/sync.js";
+import type { SyncOp, SyncState, SyncStatus } from "../../../src/types/sync.js";
 
 const createStorage = () => {
   let syncState: SyncState = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
@@ -97,6 +97,35 @@ test("SyncEngine does not sync when offline and pauseWhenOffline is true", async
   } finally {
     (globalThis as any).window = originalWindow;
     Object.defineProperty(globalThis, "navigator", { value: originalNavigator, configurable: true, writable: true });
+  }
+});
+
+test("SyncEngine emits disconnected on initialize when offline", async () => {
+  const { storage } = createStorage();
+  const statuses: SyncStatus[] = [];
+  const originalNavigator = (globalThis as any).navigator;
+  Object.defineProperty(globalThis, "navigator", {
+    value: { onLine: false },
+    configurable: true,
+    writable: true,
+  });
+
+  try {
+    const engine = new SyncEngine({
+      storage,
+      baseUrl: "http://localhost:8080",
+      fetchFn: async () => new Response("", { status: 404 }),
+      clientId: "client-1",
+      onStatusChange: (status) => statuses.push(status),
+    });
+    await engine.initialize();
+    assert.deepEqual(statuses, ["disconnected"]);
+  } finally {
+    Object.defineProperty(globalThis, "navigator", {
+      value: originalNavigator,
+      configurable: true,
+      writable: true,
+    });
   }
 });
 

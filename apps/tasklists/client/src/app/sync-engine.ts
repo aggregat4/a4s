@@ -102,7 +102,7 @@ export class SyncEngine {
       await this.storage.persistSyncState(this.state);
     }
     this.outbox = Array.isArray(outbox) ? outbox : [];
-    this.emitStatus(this.outbox.length > 0 ? "saving" : "idle");
+    this.emitStatus(this.isOnline() ? "connected" : "disconnected");
   }
 
   private emitStatus(status: SyncStatus) {
@@ -168,6 +168,7 @@ export class SyncEngine {
     this.bindOnlineListeners();
     this.bindVisibilityListener();
     if (this.pauseWhenOffline && !this.isOnline()) {
+      this.emitStatus("disconnected");
       return;
     }
     this.connectEvents();
@@ -203,6 +204,7 @@ export class SyncEngine {
 
     this.handleOffline = () => {
       this.disconnectEvents();
+      this.emitStatus("disconnected");
     };
 
     window.addEventListener("online", this.handleOnline);
@@ -280,7 +282,6 @@ export class SyncEngine {
     }));
     this.outbox.push(...nextOps);
     void this.storage.persistOutbox(this.outbox);
-    this.emitStatus("saving");
     if (this.isActive && (!this.pauseWhenOffline || this.isOnline())) {
       if (this.flushTimer != null) {
         clearTimeout(this.flushTimer);
@@ -310,7 +311,6 @@ export class SyncEngine {
   private async flushOutbox() {
     if (this.outbox.length === 0) return;
     const sentOps = this.outbox.slice();
-    this.emitStatus("saving");
     const response = await this.safeFetch(`${this.baseUrl}/sync/push`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -321,7 +321,7 @@ export class SyncEngine {
       }),
     });
     if (!response) {
-      this.emitStatus("error");
+      this.emitStatus("disconnected");
       return;
     }
     if (response.status === 409) {
@@ -329,7 +329,7 @@ export class SyncEngine {
       return;
     }
     if (!response.ok) {
-      this.emitStatus("error");
+      this.emitStatus("disconnected");
       return;
     }
     const payload = (await response.json()) as SyncPushResponse;
@@ -343,7 +343,7 @@ export class SyncEngine {
     this.outbox = this.outbox.slice(sentOps.length);
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);
-    this.emitStatus(this.outbox.length === 0 ? "idle" : "saving");
+    this.emitStatus("connected");
   }
 
   private async pullRemoteOps() {
@@ -354,7 +354,7 @@ export class SyncEngine {
       { method: "GET" }
     );
     if (!response) {
-      this.emitStatus("error");
+      this.emitStatus("disconnected");
       return;
     }
     if (response.status === 409) {
@@ -362,7 +362,7 @@ export class SyncEngine {
       return;
     }
     if (!response.ok) {
-      this.emitStatus("error");
+      this.emitStatus("disconnected");
       return;
     }
     const payload = (await response.json()) as SyncPullResponse;
@@ -378,6 +378,7 @@ export class SyncEngine {
     if (ops.length > 0 && this.onRemoteOps) {
       await this.onRemoteOps(ops);
     }
+    this.emitStatus("connected");
   }
 
   async resetWithSnapshot(snapshot: string): Promise<{ ok: boolean; error?: string; status?: number }> {

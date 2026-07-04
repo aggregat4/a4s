@@ -344,7 +344,7 @@ export class ListRepository {
   }
 
   /**
-   * Register a listener for sync lifecycle changes (idle/saving/error). The
+   * Register a listener for connectivity changes (connected/disconnected). The
    * closure is threaded into every SyncEngine the monitor (re)creates, so the
    * UI keeps receiving status across engine teardown/recreation.
    */
