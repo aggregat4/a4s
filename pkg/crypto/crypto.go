@@ -7,7 +7,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
-	"github.com/aggregat4/go-baselib/lang"
+	"github.com/aggregat4/a4s/pkg/lang"
 	"golang.org/x/crypto/argon2"
 	"io"
 	"os"
