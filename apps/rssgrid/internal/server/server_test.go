@@ -14,9 +14,9 @@ import (
 
 	"context"
 
-	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
-	"github.com/aggregat4/rssgrid/internal/db"
-	"github.com/aggregat4/rssgrid/internal/templates"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/db"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/templates"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
 )

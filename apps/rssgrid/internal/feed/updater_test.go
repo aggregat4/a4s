@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aggregat4/rssgrid/internal/db"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

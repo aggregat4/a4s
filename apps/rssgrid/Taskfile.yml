@@ -1,0 +1,10 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - go build -o bin/rssgrid ./cmd/rssgrid
+
+  test:
+    cmds:
+      - go test ./...

@@ -6,7 +6,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/aggregat4/rssgrid/internal/db"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/db"
 )
 
 // FeedFetcher abstracts fetching a single feed by URL, so the updater can be

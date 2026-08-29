@@ -8,11 +8,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
-	"github.com/aggregat4/rssgrid/internal/config"
-	"github.com/aggregat4/rssgrid/internal/db"
-	"github.com/aggregat4/rssgrid/internal/feed"
-	"github.com/aggregat4/rssgrid/internal/server"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/config"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/db"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/feed"
+	"github.com/aggregat4/a4s/apps/rssgrid/internal/server"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
 )
 
 func main() {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aggregat4/go-baselib/migrations"
+	"github.com/aggregat4/a4s/pkg/migrations"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/microcosm-cc/bluemonday"
 )
