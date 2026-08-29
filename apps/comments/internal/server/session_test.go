@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aggregat4/go-baselib/lang"
+	"github.com/aggregat4/a4s/pkg/lang"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

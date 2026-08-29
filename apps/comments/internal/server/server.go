@@ -1,10 +1,10 @@
 package server
 
 import (
-	"aggregat4/go-commentservice/internal/domain"
-	"aggregat4/go-commentservice/internal/repository"
 	"embed"
 	"errors"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
+	"github.com/aggregat4/a4s/apps/comments/internal/repository"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	baselibmiddleware "github.com/aggregat4/go-baselib-services/v4/middleware"
-	baseliboidc "github.com/aggregat4/go-baselib-services/v4/oidc"
-	"github.com/aggregat4/go-baselib/lang"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
+	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
+	"github.com/aggregat4/a4s/pkg/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"

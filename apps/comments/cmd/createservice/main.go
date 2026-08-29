@@ -1,13 +1,13 @@
 package main
 
 import (
-	"aggregat4/go-commentservice/internal/repository"
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/comments/internal/repository"
 	"os"
 
-	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/a4s/pkg/crypto"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/willibrandon/mtlog"

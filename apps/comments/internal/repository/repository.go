@@ -1,17 +1,17 @@
 package repository
 
 import (
-	"aggregat4/go-commentservice/internal/domain"
 	"crypto/cipher"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
 	"strings"
 	"time"
 
-	"github.com/aggregat4/go-baselib/crypto"
-	"github.com/aggregat4/go-baselib/lang"
-	"github.com/aggregat4/go-baselib/migrations"
+	"github.com/aggregat4/a4s/pkg/crypto"
+	"github.com/aggregat4/a4s/pkg/lang"
+	"github.com/aggregat4/a4s/pkg/migrations"
 )
 
 type Store struct {

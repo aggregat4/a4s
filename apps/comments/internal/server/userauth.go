@@ -4,10 +4,10 @@ import (
 	"errors"
 	"net/http"
 
-	"aggregat4/go-commentservice/internal/domain"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
 
-	baseliboidc "github.com/aggregat4/go-baselib-services/v4/oidc"
-	"github.com/aggregat4/go-baselib/lang"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
+	"github.com/aggregat4/a4s/pkg/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"

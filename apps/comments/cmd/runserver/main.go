@@ -1,20 +1,20 @@
 package main
 
 import (
-	"aggregat4/go-commentservice/internal/domain"
-	"aggregat4/go-commentservice/internal/repository"
-	"aggregat4/go-commentservice/internal/server"
 	"context"
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
+	"github.com/aggregat4/a4s/apps/comments/internal/repository"
+	"github.com/aggregat4/a4s/apps/comments/internal/server"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/aggregat4/go-baselib/crypto"
-	"github.com/aggregat4/go-baselib/lang"
+	"github.com/aggregat4/a4s/pkg/crypto"
+	"github.com/aggregat4/a4s/pkg/lang"
 	"github.com/kirsle/configdir"
 	"github.com/kkyr/fig"
 

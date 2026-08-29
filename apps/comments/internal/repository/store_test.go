@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"aggregat4/go-commentservice/internal/domain"
-	"github.com/aggregat4/go-baselib/crypto"
-	"github.com/aggregat4/go-baselib/lang"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
+	"github.com/aggregat4/a4s/pkg/crypto"
+	"github.com/aggregat4/a4s/pkg/lang"
 	_ "github.com/mattn/go-sqlite3"
 )
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"aggregat4/go-commentservice/internal/domain"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 

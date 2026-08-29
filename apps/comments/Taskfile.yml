@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - go build -tags=fts5 -o bin/gocomments-server ./cmd/runserver
+      - go build -tags=fts5 -o bin/gocomments-createencryptionkey ./cmd/createencryptionkey
+      - go build -tags=fts5 -o bin/gocomments-createservice ./cmd/createservice
+
+  test:
+    cmds:
+      - go test ./...

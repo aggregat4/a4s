@@ -1,11 +1,11 @@
 package server
 
 import (
-	"aggregat4/go-commentservice/internal/domain"
 	"bytes"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
 	"net/http"
 
-	"github.com/aggregat4/go-baselib/lang"
+	"github.com/aggregat4/a4s/pkg/lang"
 	"github.com/pkg/errors"
 )
 

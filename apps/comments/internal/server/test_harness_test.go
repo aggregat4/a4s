@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"aggregat4/go-commentservice/internal/domain"
-	"aggregat4/go-commentservice/internal/repository"
-	"aggregat4/go-commentservice/internal/testing/oidcmock"
-	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
+	"github.com/aggregat4/a4s/apps/comments/internal/repository"
+	"github.com/aggregat4/a4s/apps/comments/internal/testing/oidcmock"
+	"github.com/aggregat4/a4s/pkg/crypto"
 )
 
 const (

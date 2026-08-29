@@ -1,7 +1,7 @@
 package server
 
 import (
-	"aggregat4/go-commentservice/internal/domain"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
 	"net/http"
 	"net/url"
 	"strconv"

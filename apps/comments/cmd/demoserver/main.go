@@ -1,20 +1,20 @@
 package main
 
 import (
-	"aggregat4/go-commentservice/internal/domain"
-	"aggregat4/go-commentservice/internal/repository"
-	"aggregat4/go-commentservice/internal/server"
-	"aggregat4/go-commentservice/internal/testing/oidcmock"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"github.com/aggregat4/a4s/apps/comments/internal/domain"
+	"github.com/aggregat4/a4s/apps/comments/internal/repository"
+	"github.com/aggregat4/a4s/apps/comments/internal/server"
+	"github.com/aggregat4/a4s/apps/comments/internal/testing/oidcmock"
 	"io"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/a4s/pkg/crypto"
 	"github.com/willibrandon/mtlog"
 	"github.com/willibrandon/mtlog/core"
 

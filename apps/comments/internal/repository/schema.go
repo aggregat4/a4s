@@ -1,6 +1,6 @@
 package repository
 
-import "github.com/aggregat4/go-baselib/migrations"
+import "github.com/aggregat4/a4s/pkg/migrations"
 
 var mymigrations = []migrations.Migration{
 	{
