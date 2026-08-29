@@ -5,4 +5,5 @@ playwright-output.log
 data.db*
 test.db*
 server/server
+a4-tasklists
 .cache

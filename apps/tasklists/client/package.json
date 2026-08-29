@@ -1,17 +1,18 @@
 {
   "name": "a4-tasklists",
   "version": "1.0.0",
+  "packageManager": "pnpm@11.3.0",
   "scripts": {
-    "build": "node tools/build/clean-dist.mjs && npx tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && npx tsc -p tsconfig.tests.json && npm run lint:deps && npm run lint:css && node tools/build/copy-static.mjs && node tools/build/generate-asset-manifest.mjs",
+    "build": "node tools/build/clean-dist.mjs && tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && tsc -p tsconfig.tests.json && pnpm run lint:deps && pnpm run lint:css && node tools/build/copy-static.mjs && node tools/build/generate-asset-manifest.mjs",
     "watch": "node tools/build/watch.mjs",
-    "start": "npm run build && npx http-server dist -p 8000 -c-1",
+    "start": "pnpm run build && http-server dist -p 8000 -c-1",
     "lint:deps": "knip",
     "lint:css": "stylelint \"public/**/*.css\" || true",
-    "test:unit": "npm run build && node --test dist/tests/unit/**/*.spec.js",
-    "test": "npm run test:unit && npm run test:e2e && npm run test:e2e:embedded",
-    "test:e2e": "PLAYWRIGHT_USE_DOCKER=1 npm run build && npx playwright test --project=chromium",
-    "test:e2e:firefox": "PLAYWRIGHT_USE_DOCKER=1 npm run build && npx playwright test --project=firefox",
-    "test:e2e:embedded": "PLAYWRIGHT_USE_DOCKER=1 SERVER_STATIC_MODE=embedded bash -lc 'npm run build && npx playwright test tests/embedded-static.spec.ts --project=chromium'"
+    "test:unit": "pnpm run build && node --test dist/tests/unit/**/*.spec.js",
+    "test": "pnpm run test:unit && pnpm run test:e2e && pnpm run test:e2e:embedded",
+    "test:e2e": "PLAYWRIGHT_USE_DOCKER=1 pnpm run build && playwright test --project=chromium",
+    "test:e2e:firefox": "PLAYWRIGHT_USE_DOCKER=1 pnpm run build && playwright test --project=firefox",
+    "test:e2e:embedded": "PLAYWRIGHT_USE_DOCKER=1 SERVER_STATIC_MODE=embedded bash -lc 'pnpm run build && playwright test tests/embedded-static.spec.ts --project=chromium'"
   },
   "license": "Apache-2.0",
   "type": "commonjs",

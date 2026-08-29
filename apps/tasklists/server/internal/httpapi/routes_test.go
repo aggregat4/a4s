@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"a4-tasklists/server/internal/auth"
-	"a4-tasklists/server/internal/storage"
+	"github.com/aggregat4/a4s/apps/tasklists/server/internal/auth"
+	"github.com/aggregat4/a4s/apps/tasklists/server/internal/storage"
 )
 
 type bootstrapResponse struct {

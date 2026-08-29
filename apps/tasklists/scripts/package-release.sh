@@ -11,6 +11,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+MONOREPO_ROOT="$(cd "${PROJECT_ROOT}/../.." && pwd)"
 
 VERSION="$1"
 GOOS_TARGET="$2"
@@ -46,18 +47,13 @@ fi
 
 echo "=== Packaging ${SERVICE_NAME} ${VERSION} for ${GOOS_TARGET}/${GOARCH_TARGET} ==="
 
-if [ ! -d "${PROJECT_ROOT}/client/node_modules" ]; then
-  echo "[1/5] Installing client dependencies..."
-  (
-    cd "${PROJECT_ROOT}/client"
-    npm ci
-  )
-fi
+echo "[1/5] Installing workspace dependencies..."
+pnpm --dir "${MONOREPO_ROOT}" install --frozen-lockfile
 
 echo "[2/5] Building frontend..."
 (
   cd "${PROJECT_ROOT}/client"
-  npm run build
+  pnpm run build
 )
 
 echo "[3/5] Preparing embedded static assets..."

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	baseliboidc "github.com/aggregat4/go-baselib-services/v4/oidc"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
 )

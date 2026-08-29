@@ -1,0 +1,13 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the Tasklists client and server
+    cmds:
+      - pnpm --dir client run build
+      - go build ./server/...
+  test:
+    desc: Run the Tasklists server, client, and Docker-backed browser tests
+    cmds:
+      - go test ./server/...
+      - PLAYWRIGHT_USE_DOCKER=1 pnpm --dir client test

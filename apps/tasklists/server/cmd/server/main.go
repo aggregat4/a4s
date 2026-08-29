@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"a4-tasklists/server/internal/auth"
-	"a4-tasklists/server/internal/httpapi"
-	"a4-tasklists/server/internal/storage"
+	"github.com/aggregat4/a4s/apps/tasklists/server/internal/auth"
+	"github.com/aggregat4/a4s/apps/tasklists/server/internal/httpapi"
+	"github.com/aggregat4/a4s/apps/tasklists/server/internal/storage"
 
-	baselibmiddleware "github.com/aggregat4/go-baselib-services/v4/middleware"
+	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
 )
 
 //go:embed all:static

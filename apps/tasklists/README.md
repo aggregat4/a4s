@@ -18,16 +18,22 @@ ordering. The repository includes:
 
 ## Prerequisites
 
-- Node.js `22+`
-- Go `1.25+`
+- Node.js `22+` and pnpm `11.3.0`
+- Go `1.26.6`
 - Docker (required for the default E2E workflow)
+
+Install the workspace dependencies once from the monorepo root:
+
+```bash
+pnpm install
+```
 
 ## Local Development
 
 Run the full app locally (build frontend, run server in dev auth mode):
 
 ```bash
-./scripts/run-local.sh
+./apps/tasklists/scripts/run-local.sh
 ```
 
 Defaults used by `run-local.sh`:
@@ -44,37 +50,33 @@ Open `http://localhost:8080`.
 ### Server
 
 ```bash
-cd server
-make ci-full
+go test ./apps/tasklists/server/...
 ```
 
-`make ci-full` runs formatting checks, imports checks, build, vet, staticcheck,
-golangci-lint, modernize, and race tests.
+The root `Taskfile.yml` provides the full monorepo checks. The command above
+runs the Tasklists server test suite directly.
 
 ### Client
 
 ```bash
-cd client
-npm run lint:deps
-npm run lint:css
-npm run test:unit
+pnpm --dir apps/tasklists/client run lint:deps
+pnpm --dir apps/tasklists/client run lint:css
+pnpm --dir apps/tasklists/client run test:unit
 ```
 
 ### E2E (Playwright + Docker)
 
 ```bash
-cd client
-PLAYWRIGHT_USE_DOCKER=1 npm run test:e2e
+PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e
 ```
 
-`npm test` in `client/` also runs E2E and should be executed with
+`pnpm --dir apps/tasklists/client test` also runs E2E and should be executed with
 `PLAYWRIGHT_USE_DOCKER=1`.
 
 To smoke-test the deployed embedded-static path as well:
 
 ```bash
-cd client
-PLAYWRIGHT_USE_DOCKER=1 npm run test:e2e:embedded
+PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e:embedded
 ```
 
 ## Deployment
@@ -115,6 +117,5 @@ case you still need the increased `proxy_read_timeout`.
 
 ## Component-Specific Docs
 
-- Frontend details: `client/README.md`
 - Backend details: `server/README.md`
 - Deployment and runtime docs: `docs/deployment.md`

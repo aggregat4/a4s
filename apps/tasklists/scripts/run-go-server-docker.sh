@@ -2,8 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+MONOREPO_ROOT=$(cd "${ROOT_DIR}/../.." && pwd)
 PORT=8000
-IMAGE=golang:1.25-bookworm
+IMAGE=golang:1.26.6-bookworm
 CONTAINER_NAME=a4-tasklists-go-server
 STATIC_MODE=${SERVER_STATIC_MODE:-external}
 EMBEDDED_STATIC_DIR="${ROOT_DIR}/server/cmd/server/static"
@@ -18,18 +19,18 @@ if [ "${STATIC_MODE}" = "embedded" ]; then
 fi
 
 if [ "${STATIC_MODE}" = "embedded" ]; then
-  SERVER_COMMAND="SERVER_DB_PATH=/work/server/test.db PORT=${PORT} SERVER_AUTH_MODE=dev exec go run ./cmd/server"
+  SERVER_COMMAND="SERVER_DB_PATH=/work/apps/tasklists/server/test.db PORT=${PORT} SERVER_AUTH_MODE=dev exec go run ./cmd/server"
 else
-  SERVER_COMMAND="SERVER_STATIC_DIR=/work/client/dist SERVER_DB_PATH=/work/server/test.db PORT=${PORT} SERVER_AUTH_MODE=dev exec go run ./cmd/server"
+  SERVER_COMMAND="SERVER_STATIC_DIR=/work/apps/tasklists/client/dist SERVER_DB_PATH=/work/apps/tasklists/server/test.db PORT=${PORT} SERVER_AUTH_MODE=dev exec go run ./cmd/server"
 fi
 
 CID=$(docker run -d --rm \
   --name "${CONTAINER_NAME}" \
   -p "${PORT}:${PORT}" \
-  -v "${ROOT_DIR}":/work \
-  -w /work/client \
+  -v "${MONOREPO_ROOT}":/work \
+  -w /work/apps/tasklists/client \
   "${IMAGE}" \
-  bash -lc "set -euxo pipefail; pwd; ls -la /work; ls -la /work/server; export PATH=$PATH:/usr/local/go/bin; command -v go; go version; cd /work/server; rm -f /work/server/test.db; ${SERVER_COMMAND}")
+  bash -lc "set -euxo pipefail; pwd; ls -la /work; ls -la /work/apps/tasklists/server; export PATH=$PATH:/usr/local/go/bin; command -v go; go version; cd /work/apps/tasklists/server; rm -f /work/apps/tasklists/server/test.db; ${SERVER_COMMAND}")
 
 if [ -z "${CID}" ]; then
   echo "Failed to start Go server container." >&2

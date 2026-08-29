@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+MONOREPO_ROOT="$(cd "${PROJECT_ROOT}/../.." && pwd)"
 OUTPUT_NAME="${1:-a4-tasklists}"
 
 echo "=== Building A4 Tasklists Release ==="
@@ -15,8 +16,8 @@ echo "Output: ${OUTPUT_NAME}"
 echo ""
 echo "[1/4] Building frontend..."
 cd "${PROJECT_ROOT}/client"
-npm ci
-npm run build
+pnpm --dir "${MONOREPO_ROOT}" install --frozen-lockfile
+pnpm run build
 
 # Step 2: Copy frontend to server's static directory
 echo ""

@@ -1,0 +1,12 @@
+{
+  "name": "a4s",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "tasklists:build": "pnpm --filter a4-tasklists run build",
+    "tasklists:test": "pnpm --filter a4-tasklists test"
+  }
+}
