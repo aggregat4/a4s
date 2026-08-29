@@ -1,4 +1,5 @@
-package oidc
+// Package oidcecho contains Bookmarks' Echo-specific OIDC adapter.
+package oidcecho
 
 import (
 	"context"
@@ -15,8 +16,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// OidcMiddleware preserves the Echo-oriented API used by Bookmarks before the
-// shared library gained its standard net/http API.
+// OidcMiddleware preserves Bookmarks' Echo-oriented OIDC behavior while the
+// shared OIDC package remains standard net/http only.
 type OidcMiddleware struct {
 	IdpServerUrl string
 	ClientId     string
@@ -105,8 +106,7 @@ func (oidcMiddleware *OidcMiddleware) CreateOidcCallbackEndpoint(delegate func(c
 	}
 }
 
-// CreateSessionBasedOidcDelegate preserves the v3 state redirect behavior for
-// Echo applications.
+// CreateSessionBasedOidcDelegate preserves Bookmarks' state redirect behavior.
 func CreateSessionBasedOidcDelegate(handleIDToken func(c echo.Context, idToken *coreosoidc.IDToken) error, fallbackRedirectURL string) func(c echo.Context, idToken *coreosoidc.IDToken, state string) error {
 	return func(c echo.Context, idToken *coreosoidc.IDToken, state string) error {
 		if err := handleIDToken(c, idToken); err != nil {

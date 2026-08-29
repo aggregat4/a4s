@@ -15,10 +15,10 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
+	bookmarksmiddleware "github.com/aggregat4/a4s/apps/bookmarks/internal/echomiddleware"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/oidcecho"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 
-	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
-	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
 	"github.com/aggregat4/a4s/pkg/lang"
 
 	"github.com/gorilla/feeds"
@@ -46,7 +46,7 @@ func getUserIdFromSession(c echo.Context) (int, error) {
 	return session.Values["user_id"].(int), nil
 }
 
-func RunServer(controller Controller, oidcMiddleware *baseliboidc.OidcMiddleware) {
+func RunServer(controller Controller, oidcMiddleware *oidcecho.OidcMiddleware) {
 	e := echo.New()
 	// Set server timeouts based on advice from https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/#1687428081
 	e.Server.ReadTimeout = time.Duration(controller.Config.ServerReadTimeoutSeconds) * time.Second
@@ -68,7 +68,7 @@ func RunServer(controller Controller, oidcMiddleware *baseliboidc.OidcMiddleware
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
-	e.Use(baselibmiddleware.CreateCsrfMiddlewareWithSkipper(func(c echo.Context) bool {
+	e.Use(bookmarksmiddleware.CreateCsrfMiddlewareWithSkipper(func(c echo.Context) bool {
 		return false
 	}))
 	e.Use(oidcMiddleware.CreateOidcMiddleware(
@@ -93,7 +93,7 @@ func RunServer(controller Controller, oidcMiddleware *baseliboidc.OidcMiddleware
 	// Endpoints
 	imageFS := echo.MustSubFS(images, "public/images") // MustSubFS basically strips the prefix from the path that is automatically added by Go's embedFS
 	e.StaticFS("/images", imageFS)
-	e.GET("/oidccallback", oidcMiddleware.CreateOidcCallbackEndpoint(baseliboidc.CreateSessionBasedOidcDelegate(
+	e.GET("/oidccallback", oidcMiddleware.CreateOidcCallbackEndpoint(oidcecho.CreateSessionBasedOidcDelegate(
 		func(c echo.Context, idToken *oidc.IDToken) error {
 			session, err := session.Get("user_session", c)
 			if err != nil {

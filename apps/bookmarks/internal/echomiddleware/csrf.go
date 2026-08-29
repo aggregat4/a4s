@@ -1,4 +1,5 @@
-package middleware
+// Package echomiddleware contains Bookmarks' Echo-specific HTTP middleware.
+package echomiddleware
 
 import (
 	"net/http"
@@ -6,11 +7,10 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
 )
 
-// CsrfMiddleware preserves the Echo-oriented CSRF middleware used by
-// Bookmarks before the shared library moved to standard net/http middleware.
+// CsrfMiddleware implements the Echo CSRF behavior used by Bookmarks.
 func CsrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if c.Request().Method == http.MethodHead || c.Request().Method == http.MethodGet || c.Request().Method == http.MethodOptions || c.Request().Method == http.MethodTrace {
@@ -34,7 +34,7 @@ func CsrfMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 // CreateCsrfMiddlewareWithSkipper returns Echo CSRF middleware with a skipper.
-func CreateCsrfMiddlewareWithSkipper(skipper echomiddleware.Skipper) echo.MiddlewareFunc {
+func CreateCsrfMiddlewareWithSkipper(skipper echoMiddleware.Skipper) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if skipper != nil && skipper(c) {

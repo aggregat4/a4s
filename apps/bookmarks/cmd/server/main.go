@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/crawler"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/oidcecho"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/server"
 
-	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
 	"github.com/aggregat4/a4s/pkg/env"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -28,7 +28,7 @@ func main() {
 	}
 	defer store.Close()
 	// Initialize Oidc Middleware
-	oidcMiddleware := baseliboidc.NewOidcMiddleware(
+	oidcMiddleware := oidcecho.NewOidcMiddleware(
 		env.RequireStringFromEnv("DELBM_OIDC_IDP_SERVER"),
 		env.RequireStringFromEnv("DELBM_OIDC_CLIENT_ID"),
 		env.RequireStringFromEnv("DELBM_OIDC_CLIENT_SECRET"),
