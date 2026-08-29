@@ -42,12 +42,23 @@ tasks:
   lint:
     desc: Run repository lint and static checks
     cmds:
+      - bash scripts/check-gofmt
       - go vet -tags=fts5 ./...
       - pnpm --filter a4-tasklists run build
+  modernize:
+    desc: Report Go modernization opportunities without changing source
+    cmds:
+      - go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.23.0 -test ./...
+  security:
+    desc: Verify the module graph and scan reachable vulnerabilities
+    cmds:
+      - go mod verify
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.2.0 ./...
   ci:
-    desc: Run lint, tests, and builds sequentially
+    desc: Run lint, security checks, tests, and builds sequentially
     cmds:
       - task lint
+      - task security
       - task test
       - task build
   check:

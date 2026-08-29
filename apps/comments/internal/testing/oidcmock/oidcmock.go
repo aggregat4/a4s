@@ -106,10 +106,10 @@ func (m *Server) SetRedirectURI(uri string) {
 
 func (m *Server) discovery(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"issuer":                m.Issuer(),
+		"issuer":                 m.Issuer(),
 		"authorization_endpoint": m.Issuer() + "/auth",
-		"token_endpoint":        m.Issuer() + "/token",
-		"jwks_uri":              m.Issuer() + "/jwks",
+		"token_endpoint":         m.Issuer() + "/token",
+		"jwks_uri":               m.Issuer() + "/jwks",
 	})
 }
 
