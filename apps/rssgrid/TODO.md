@@ -66,7 +66,7 @@ Build on the existing `internal/server/server_test.go`, `internal/db/store_test.
 ### Acceptance criteria
 
 - `./scripts/test.sh` passes with all new tests.
-- `./scripts/lint.sh` stays clean.
+- `task lint` stays clean.
 - The authorization tests would fail against the current code (proving they actually cover the bug), and pass after item 1 is implemented.
 - `mockStore` in `server_test.go` is kept in sync with whatever `StoreInterface` changes items 1–4 introduce.
 

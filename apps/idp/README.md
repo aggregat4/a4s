@@ -73,7 +73,7 @@ Claims are resolved dynamically from the current database state when issuing ID 
 Build all binaries:
 
 ```bash
-./scripts/build.sh
+task idp:build
 ```
 
 Run the server with the example configuration:
@@ -85,13 +85,13 @@ go run cmd/server/main.go --config example-config.jsonc
 Run the test suite:
 
 ```bash
-./scripts/test.sh
+task idp:test
 ```
 
-Run linting:
+Run repository checks:
 
 ```bash
-./scripts/lint.sh
+task lint
 ```
 
 ## Configuration Notes

@@ -123,7 +123,7 @@ Out of scope (initially):
 - `specs/protocol-spec.md` (sync envelope spec + payload examples; no shared code).
 
 Tooling options:
-- npm workspaces for the client app (already using npm).
+- pnpm workspace for the client app.
 - `server/go.mod` (standalone Go module).
 
 ## Implementation Plan
