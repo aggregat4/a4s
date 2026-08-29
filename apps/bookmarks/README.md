@@ -46,7 +46,9 @@ location /login {
 
 ## Building
 
-Two build scripts  and included for building the binary locally (`scripts/build.sh`) or using a docker container for better reproducability (`scripts/build-with-docker.sh`). The latter is recommended for binaries that are deployed for hosting somewhere as they build against a stable docker image that has a more conservative glibc dependency version as a local build may have.
+Build from the monorepo root with `task bookmarks:build`. For a Linux binary
+with the repository's supported Go toolchain and stable Debian Bookworm libc
+baseline, run `apps/bookmarks/scripts/build-in-docker.sh`.
 
 ## Migrating from Pinboard
 
