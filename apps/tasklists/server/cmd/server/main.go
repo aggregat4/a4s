@@ -5,7 +5,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -252,26 +251,6 @@ func staticLookupPath(requestPath string) string {
 		return "index.html"
 	}
 	return lookupPath
-}
-
-func serveIndexFallback(w http.ResponseWriter, r *http.Request, fs fs.FS) {
-	idx, err := fs.Open("index.html")
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	defer func() { _ = idx.Close() }()
-
-	content, err := io.ReadAll(idx)
-	if err != nil {
-		http.Error(w, "Error reading index.html", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if _, err := w.Write(content); err != nil {
-		log.Printf("error writing index.html: %v", err)
-	}
 }
 
 func envBoolDefault(key string, defaultValue bool) bool {

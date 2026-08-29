@@ -2325,6 +2325,7 @@ test.describe("tasklist flows", () => {
     const dialog = page.locator(".shortcuts-dialog-content");
     await page.keyboard.press("Alt+Shift+Slash");
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Close" })).toBeFocused();
     // The keystroke is intercepted, so "?" is never typed into the task.
     await expect(editor).toHaveText("Editing target");
 

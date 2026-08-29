@@ -239,7 +239,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, ":ok\n\n")
+	if _, err := fmt.Fprint(w, ":ok\n\n"); err != nil {
+		return
+	}
 	flusher.Flush()
 
 	ch := s.broadcaster.Add(userID)
@@ -252,10 +254,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ch:
-			fmt.Fprintf(w, "event: ops\ndata: {}\n\n")
+			if _, err := fmt.Fprint(w, "event: ops\ndata: {}\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 		case <-heartbeat.C:
-			fmt.Fprintf(w, ":heartbeat\n\n")
+			if _, err := fmt.Fprint(w, ":heartbeat\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 		case <-ctx.Done():
 			return

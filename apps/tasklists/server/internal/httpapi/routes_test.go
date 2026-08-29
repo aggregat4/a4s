@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,8 +43,10 @@ func (s *pushCursorStore) GetActiveDatasetGenerationKey(context.Context, string)
 func (s *pushCursorStore) GetSnapshot(context.Context, string) (storage.Snapshot, error) {
 	return storage.Snapshot{DatasetGenerationKey: "dataset-1", Blob: "{}"}, nil
 }
-func (s *pushCursorStore) ReplaceSnapshot(context.Context, string, storage.Snapshot) error { return nil }
-func (s *pushCursorStore) TouchClient(context.Context, string, string) error               { return nil }
+func (s *pushCursorStore) ReplaceSnapshot(context.Context, string, storage.Snapshot) error {
+	return nil
+}
+func (s *pushCursorStore) TouchClient(context.Context, string, string) error { return nil }
 func (s *pushCursorStore) UpdateClientCursor(_ context.Context, userID string, clientID string, serverSeq int64) error {
 	s.lastCursorUserID = userID
 	s.lastCursorClientID = clientID
@@ -53,11 +56,18 @@ func (s *pushCursorStore) UpdateClientCursor(_ context.Context, userID string, c
 
 func newTestMux(t *testing.T) *http.ServeMux {
 	t.Helper()
+	mux, _ := newTestMuxWithBroadcaster(t)
+	return mux
+}
+
+func newTestMuxWithBroadcaster(t *testing.T) (*http.ServeMux, *Broadcaster) {
+	t.Helper()
 	store := newTestStore(t)
-	server := NewServer(store, NewBroadcaster())
+	broadcaster := NewBroadcaster()
+	server := NewServer(store, broadcaster)
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
-	return mux
+	return mux, broadcaster
 }
 
 func newTestStore(t *testing.T) storage.Store {
@@ -73,6 +83,84 @@ func newTestStore(t *testing.T) storage.Store {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	return store
+}
+
+type sseRecorder struct {
+	mu     sync.Mutex
+	header http.Header
+	body   bytes.Buffer
+	writes chan struct{}
+}
+
+func newSSERecorder() *sseRecorder {
+	return &sseRecorder{
+		header: make(http.Header),
+		writes: make(chan struct{}, 2),
+	}
+}
+
+func (r *sseRecorder) Header() http.Header {
+	return r.header
+}
+
+func (r *sseRecorder) WriteHeader(int) {}
+
+func (r *sseRecorder) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	n, err := r.body.Write(p)
+	r.mu.Unlock()
+	if err == nil {
+		r.writes <- struct{}{}
+	}
+	return n, err
+}
+
+func (r *sseRecorder) Flush() {}
+
+func (r *sseRecorder) BodyString() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.String()
+}
+
+func waitForSSEWrite(t *testing.T, recorder *sseRecorder) {
+	t.Helper()
+	select {
+	case <-recorder.writes:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for SSE write")
+	}
+}
+
+func waitForSSESubscriber(t *testing.T, broadcaster *Broadcaster, userID string) {
+	t.Helper()
+	timeout := time.NewTimer(time.Second)
+	defer timeout.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		broadcaster.mu.RLock()
+		count := len(broadcaster.conns[userID])
+		broadcaster.mu.RUnlock()
+		if count > 0 {
+			return
+		}
+		select {
+		case <-timeout.C:
+			t.Fatal("timed out waiting for SSE subscriber")
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForSSEHandler(t *testing.T, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for SSE handler to stop")
+	}
 }
 
 func TestBootstrapEmpty(t *testing.T) {
@@ -395,35 +483,43 @@ func TestPushUpdatesClientCursor(t *testing.T) {
 }
 
 func TestEventsStream(t *testing.T) {
-	mux := newTestMux(t)
+	mux, broadcaster := newTestMuxWithBroadcaster(t)
 
 	ctx, cancel := context.WithCancel(auth.ContextWithUserID(context.Background(), "user-1"))
-	defer cancel()
 	req := httptest.NewRequest(http.MethodGet, "/sync/events", nil).WithContext(ctx)
-	recorder := httptest.NewRecorder()
+	recorder := newSSERecorder()
+	done := make(chan struct{})
+	go func() {
+		mux.ServeHTTP(recorder, req)
+		close(done)
+	}()
 
-	go mux.ServeHTTP(recorder, req)
+	waitForSSEWrite(t, recorder)
+	waitForSSESubscriber(t, broadcaster, "user-1")
+	cancel()
+	waitForSSEHandler(t, done)
 
-	// Wait for handler to register and send initial comment
-	time.Sleep(50 * time.Millisecond)
-
-	body := recorder.Body.String()
+	body := recorder.BodyString()
 	if !strings.Contains(body, ":ok") {
 		t.Fatalf("expected initial comment, got:\n%s", body)
 	}
 }
 
 func TestPushNotifiesBroadcaster(t *testing.T) {
-	mux := newTestMux(t)
+	mux, broadcaster := newTestMuxWithBroadcaster(t)
 	bootstrap := fetchBootstrap(t, mux)
 
 	// Start SSE connection
 	ctx, cancel := context.WithCancel(auth.ContextWithUserID(context.Background(), "user-1"))
-	defer cancel()
 	sseReq := httptest.NewRequest(http.MethodGet, "/sync/events", nil).WithContext(ctx)
-	sseRecorder := httptest.NewRecorder()
-	go mux.ServeHTTP(sseRecorder, sseReq)
-	time.Sleep(50 * time.Millisecond)
+	sseRecorder := newSSERecorder()
+	done := make(chan struct{})
+	go func() {
+		mux.ServeHTTP(sseRecorder, sseReq)
+		close(done)
+	}()
+	waitForSSEWrite(t, sseRecorder)
+	waitForSSESubscriber(t, broadcaster, "user-1")
 
 	// Push ops
 	body := map[string]any{
@@ -445,10 +541,11 @@ func TestPushNotifiesBroadcaster(t *testing.T) {
 		t.Fatalf("push status: got %d", pushResp.Code)
 	}
 
-	// Give broadcaster time to write
-	time.Sleep(50 * time.Millisecond)
+	waitForSSEWrite(t, sseRecorder)
+	cancel()
+	waitForSSEHandler(t, done)
 
-	sseBody := sseRecorder.Body.String()
+	sseBody := sseRecorder.BodyString()
 	if !strings.Contains(sseBody, "event: ops") {
 		t.Fatalf("expected ops event after push, got:\n%s", sseBody)
 	}

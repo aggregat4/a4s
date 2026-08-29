@@ -165,9 +165,9 @@ class ShortcutsDialog extends HTMLElement {
     this.hidden = false;
     this.setAttribute("aria-hidden", "false");
     this.isOpen = true;
-    requestAnimationFrame(() => {
-      this.closeButton?.focus();
-    });
+    // Focus synchronously so an immediate Escape is handled by the dialog
+    // rather than by the element that was focused before it opened.
+    this.closeButton?.focus();
   }
 
   close({ restoreFocus = true }: { restoreFocus?: boolean } = {}) {

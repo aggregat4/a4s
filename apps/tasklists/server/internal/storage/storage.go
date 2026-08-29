@@ -5,10 +5,10 @@ import "context"
 // Store defines the persistence contract for sync state.
 //
 // Why this exists:
-// - HTTP handlers should express sync behavior, not SQL details.
-// - Cursor tracking and generation handling need consistent semantics across all
-//   endpoints so compaction and reset behavior remain safe.
-// - Tests can validate protocol behavior via this abstraction.
+//   - HTTP handlers should express sync behavior, not SQL details.
+//   - Cursor tracking and generation handling need consistent semantics across all
+//     endpoints so compaction and reset behavior remain safe.
+//   - Tests can validate protocol behavior via this abstraction.
 type Store interface {
 	// Init prepares schema/connection state needed before serving requests.
 	Init(ctx context.Context) error
