@@ -1,17 +1,17 @@
 package server_test
 
 import (
-	"aggregat4/openidprovider/internal/domain"
-	"aggregat4/openidprovider/internal/repository"
-	"aggregat4/openidprovider/internal/server"
-	tokenutil "aggregat4/openidprovider/internal/tokens"
-	"aggregat4/openidprovider/pkg/email"
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"database/sql"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
+	"github.com/aggregat4/a4s/apps/idp/internal/repository"
+	"github.com/aggregat4/a4s/apps/idp/internal/server"
+	tokenutil "github.com/aggregat4/a4s/apps/idp/internal/tokens"
+	"github.com/aggregat4/a4s/apps/idp/pkg/email"
 
-	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/a4s/pkg/crypto"
 
 	"encoding/json"
 	"fmt"

@@ -1,14 +1,14 @@
 package server
 
 import (
-	"aggregat4/openidprovider/internal/cleanup"
-	"aggregat4/openidprovider/internal/domain"
-	"aggregat4/openidprovider/internal/logging"
-	"aggregat4/openidprovider/internal/repository"
-	"aggregat4/openidprovider/pkg/email"
 	"context"
 	"crypto/subtle"
 	"embed"
+	"github.com/aggregat4/a4s/apps/idp/internal/cleanup"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
+	"github.com/aggregat4/a4s/apps/idp/internal/repository"
+	"github.com/aggregat4/a4s/apps/idp/pkg/email"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	baselibmiddleware "github.com/aggregat4/go-baselib-services/v4/middleware"
+	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

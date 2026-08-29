@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"aggregat4/openidprovider/internal/tokens"
+	"github.com/aggregat4/a4s/apps/idp/internal/tokens"
 
-	"github.com/aggregat4/go-baselib/migrations"
+	"github.com/aggregat4/a4s/pkg/migrations"
 )
 
 const sqliteBusyTimeoutMilliseconds = 5000

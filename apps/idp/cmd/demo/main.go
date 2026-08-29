@@ -1,11 +1,11 @@
 package main
 
 import (
-	"aggregat4/openidprovider/internal/logging"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
 	"html/template"
 	"net/http"
 	"net/url"

@@ -1,10 +1,10 @@
 package email
 
 import (
-	"aggregat4/openidprovider/internal/domain"
-	"aggregat4/openidprovider/internal/repository"
 	"context"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
+	"github.com/aggregat4/a4s/apps/idp/internal/repository"
 	"time"
 
 	"github.com/wneessen/go-mail"

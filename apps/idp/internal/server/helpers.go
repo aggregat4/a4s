@@ -1,8 +1,8 @@
 package server
 
 import (
-	"aggregat4/openidprovider/internal/logging"
 	"encoding/json"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
 	"net/http"
 	"net/url"
 

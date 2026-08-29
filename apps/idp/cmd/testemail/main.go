@@ -1,14 +1,14 @@
 package main
 
 import (
-	"aggregat4/openidprovider/internal/config"
-	"aggregat4/openidprovider/internal/domain"
-	"aggregat4/openidprovider/internal/logging"
 	"context"
 	"flag"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/idp/internal/config"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
 
-	"github.com/aggregat4/go-baselib/lang"
+	"github.com/aggregat4/a4s/pkg/lang"
 	"github.com/wneessen/go-mail"
 )
 

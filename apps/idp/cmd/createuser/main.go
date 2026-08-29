@@ -1,11 +1,11 @@
 package main
 
 import (
-	"aggregat4/openidprovider/internal/logging"
-	"aggregat4/openidprovider/internal/repository"
 	"flag"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
+	"github.com/aggregat4/a4s/apps/idp/internal/repository"
 
-	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/a4s/pkg/crypto"
 
 	_ "github.com/mattn/go-sqlite3"
 )

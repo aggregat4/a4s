@@ -1,12 +1,12 @@
 package server
 
 import (
-	"aggregat4/openidprovider/internal/domain"
-	"aggregat4/openidprovider/internal/logging"
-	"aggregat4/openidprovider/internal/repository"
-	"aggregat4/openidprovider/internal/tokens"
 	"encoding/json"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
+	"github.com/aggregat4/a4s/apps/idp/internal/repository"
+	"github.com/aggregat4/a4s/apps/idp/internal/tokens"
 	"maps"
 	"net/http"
 	"net/url"
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/a4s/pkg/crypto"
 	gojose "github.com/go-jose/go-jose/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"

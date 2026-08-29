@@ -1,8 +1,8 @@
 package server
 
 import (
-	"aggregat4/openidprovider/internal/domain"
 	"encoding/json"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
 
 	"github.com/altcha-org/altcha-lib-go"
 )

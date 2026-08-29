@@ -1,12 +1,12 @@
 package config
 
 import (
-	"aggregat4/openidprovider/internal/domain"
-	"aggregat4/openidprovider/internal/logging"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
 	"time"
 
-	"github.com/aggregat4/go-baselib/crypto"
+	"github.com/aggregat4/a4s/pkg/crypto"
 	"github.com/kirsle/configdir"
 	"github.com/knadh/koanf/parsers/hjson"
 	"github.com/knadh/koanf/providers/file"

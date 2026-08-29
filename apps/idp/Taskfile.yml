@@ -1,0 +1,15 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the OpenID Provider binaries
+    cmds:
+      - go build -o bin/createuser ./cmd/createuser
+      - go build -o bin/createkey ./cmd/createkey
+      - go build -o bin/testemail ./cmd/testemail
+      - go build -o bin/cleanup ./cmd/cleanup
+      - go build -o bin/server ./cmd/server
+  test:
+    desc: Run the OpenID Provider test suite
+    cmds:
+      - go test ./...

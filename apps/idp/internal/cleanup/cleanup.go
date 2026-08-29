@@ -1,9 +1,9 @@
 package cleanup
 
 import (
-	"aggregat4/openidprovider/internal/domain"
-	"aggregat4/openidprovider/internal/logging"
-	"aggregat4/openidprovider/internal/repository"
+	"github.com/aggregat4/a4s/apps/idp/internal/domain"
+	"github.com/aggregat4/a4s/apps/idp/internal/logging"
+	"github.com/aggregat4/a4s/apps/idp/internal/repository"
 	"sync"
 	"time"
 )
