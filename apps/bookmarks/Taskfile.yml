@@ -1,0 +1,11 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - go build -tags=fts5 -o bin/bmserver ./cmd/server
+      - go build -tags=fts5 -o bin/bmimporter ./cmd/importer
+
+  test:
+    cmds:
+      - go test -tags=fts5 ./...

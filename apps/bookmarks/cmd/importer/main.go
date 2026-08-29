@@ -4,8 +4,8 @@ import (
 	"flag"
 	"log"
 
-	"aggregat4/gobookmarks/internal/importer"
-	"aggregat4/gobookmarks/internal/repository"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/importer"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 
 	_ "github.com/mattn/go-sqlite3"
 )

@@ -14,12 +14,12 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/labstack/echo/v4"
 
-	"aggregat4/gobookmarks/internal/domain"
-	"aggregat4/gobookmarks/internal/repository"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 
-	baselibmiddleware "github.com/aggregat4/go-baselib-services/v3/middleware"
-	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
-	"github.com/aggregat4/go-baselib/lang"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
+	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
+	"github.com/aggregat4/a4s/pkg/lang"
 
 	"github.com/gorilla/feeds"
 	"github.com/gorilla/sessions"

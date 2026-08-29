@@ -1,13 +1,13 @@
 package repository
 
 import (
-	"aggregat4/gobookmarks/internal/domain"
 	"database/sql"
 	"errors"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
 	"log"
 	"time"
 
-	"github.com/aggregat4/go-baselib/migrations"
+	"github.com/aggregat4/a4s/pkg/migrations"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"

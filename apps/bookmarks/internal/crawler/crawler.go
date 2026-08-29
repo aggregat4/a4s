@@ -1,9 +1,9 @@
 package crawler
 
 import (
-	"aggregat4/gobookmarks/internal/domain"
-	"aggregat4/gobookmarks/internal/repository"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 	"io"
 	"log"
 	"net/http"

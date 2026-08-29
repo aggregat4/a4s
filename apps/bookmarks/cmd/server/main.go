@@ -1,14 +1,14 @@
 package main
 
 import (
-	"aggregat4/gobookmarks/internal/crawler"
-	"aggregat4/gobookmarks/internal/domain"
-	"aggregat4/gobookmarks/internal/repository"
-	"aggregat4/gobookmarks/internal/server"
 	"fmt"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/crawler"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/server"
 
-	baseliboidc "github.com/aggregat4/go-baselib-services/v3/oidc"
-	"github.com/aggregat4/go-baselib/env"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
+	"github.com/aggregat4/a4s/pkg/env"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"

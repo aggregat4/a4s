@@ -1,9 +1,9 @@
 package importer
 
 import (
-	"aggregat4/gobookmarks/internal/domain"
-	"aggregat4/gobookmarks/internal/repository"
 	"encoding/json"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 	"log"
 	"os"
 	"regexp"
