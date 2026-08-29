@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSSGrid</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header class="header">
+        <h1><a href="/">RSSGrid</a></h1>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/settings">Settings</a>
+            <form action="/logout" method="POST" style="display: inline;">
+                <button type="submit" class="btn btn-secondary">Logout</button>
+            </form>
+        </nav>
+    </header>
+
+    <main class="container">
+        <table class="feed-table">
+            <tr>
+                {{range .Columns}}
+                <td class="feed-column feed-column-{{$.ColumnCount}}">
+                    {{range .}}
+                    <div class="widget" data-feed-id="{{.Feed.ID}}">
+                        <div class="widget-header">
+                            <h2 class="widget-title">{{if .Feed.Title}}{{.Feed.Title}}{{else}}{{host .Feed.URL}}{{end}}{{if gt .Feed.ConsecutiveFailures 0}}<span class="widget-health-dot" title="{{.Feed.LastError}}"></span>{{end}}</h2>
+                            <form action="/feeds/{{.Feed.ID}}/seen" method="POST">
+                                <button type="submit" class="btn btn-icon" title="Mark all posts for {{.Feed.Title}} as read">✓</button>
+                            </form>
+                        </div>
+                        <ul class="post-list">
+                            {{range .Posts}}
+                            <li class="post-item">
+                                <a href="#" role="button" class="post-link {{if .Seen}}seen{{end}}" data-post-id="{{.ID}}" data-post-title="{{.Title}}">
+                                    {{.Title}}
+                                </a>
+                                {{if not .PublishedAt.IsZero}}
+                                <div class="post-date">{{.PublishedAt.Format "January 2, 2006 at 3:04 PM"}}</div>
+                                {{end}}
+                            </li>
+                            {{end}}
+                        </ul>
+                    </div>
+                    {{end}}
+                </td>
+                {{end}}
+            </tr>
+        </table>
+    </main>
+
+    <!-- Post Detail Dialog -->
+    <dialog id="postDialog" class="post-dialog-modal">
+        <div class="post-dialog-content">
+            <iframe id="postIframe" class="post-iframe" src="about:blank"></iframe>
+        </div>
+    </dialog>
+
+    <script>
+        let lastOpenedPostButton = null;
+
+        // Mark post as seen when clicked
+        document.addEventListener('click', function(e) {
+            if (e.target.matches('.post-link')) {
+                e.preventDefault(); // Prevent navigation since href="#"
+                
+                const postId = e.target.dataset.postId;
+                if (postId) {
+                    // Mark as seen
+                    fetch(`/posts/${postId}/seen`, {
+                        method: 'POST',
+                    }).catch(console.error);
+                    
+                    // Remember the button for later styling
+                    lastOpenedPostButton = e.target;
+                    
+                    // Open post dialog
+                    openPostDialog(postId);
+                }
+            }
+        });
+
+        // Listen for dialog close event (triggered by Escape, clicking outside, or close button)
+        document.getElementById('postDialog').addEventListener('close', function() {
+            // Mark the last opened post as seen in the UI
+            if (lastOpenedPostButton) {
+                lastOpenedPostButton.classList.add('seen');
+                lastOpenedPostButton = null;
+            }
+            
+            // Clear the iframe source to prevent showing old content
+            const iframe = document.getElementById('postIframe');
+            iframe.src = 'about:blank';
+        });
+
+        // Handle clicking outside the dialog to dismiss it
+        document.getElementById('postDialog').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.close();
+            }
+        });
+
+        // Listen for messages from the iframe
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'closeDialog') {
+                document.getElementById('postDialog').close();
+            }
+        });
+
+        function openPostDialog(postId) {
+            const dialog = document.getElementById('postDialog');
+            const iframe = document.getElementById('postIframe');
+            iframe.src = `/posts/${postId}`;
+            dialog.showModal();
+        }
+    </script>
+</body>
+</html> 

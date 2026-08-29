@@ -1,0 +1,574 @@
+:root {
+    --primary-color: #2563eb;
+    --text-color: #1f2937;
+    --bg-color: #f3f4f6;
+    --border-color: #e5e7eb;
+}
+
+body {
+    font-family: system-ui, sans-serif;
+    line-height: 1.5;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background-color: white;
+    border-bottom: 1px solid var(--border-color);
+
+    h1 {
+        margin: 0;
+
+        a, a:visited, a:hover {
+            text-decoration: none;
+            color: var(--text-color);
+        }
+    }
+}
+
+.nav {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+
+    a {
+        color: var(--text-color);
+        text-decoration: none;
+
+        &:hover {
+            color: var(--primary-color);
+        }
+    }
+}
+
+/* Feed table layout */
+.feed-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 1rem 0;
+}
+
+.feed-column {
+    vertical-align: top;
+    width: 50%; /* Default for 2 columns */
+
+    &.feed-column-1 { width: 100%; }
+    &.feed-column-2 { width: 50%; }
+    &.feed-column-3 { width: 33.33%; }
+    &.feed-column-4 { width: 25%; }
+    &.feed-column-5 { width: 20%; }
+}
+
+.widget {
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+
+    &[data-feed-id] {
+        /* Feed-specific styling if needed */
+    }
+}
+
+.widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: top;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+
+.widget-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.widget-actions {
+    display: flex;
+    align-items: center;
+}
+
+.post-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.post-item {
+    margin-bottom: 0.5rem;
+
+    .post-date {
+        margin-top: 0.125rem;
+        margin-bottom: 0.25rem;
+        font-style: italic;
+        font-size: 0.75rem;
+    }
+}
+
+.post-link {
+    color: var(--text-color);
+    text-decoration: none;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    display: block;
+
+    &:hover {
+        color: var(--primary-color);
+    }
+
+    &.seen {
+        color: #6b7280;
+    }
+}
+
+.form-group {
+    margin-bottom: 1rem;
+
+    label {
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.25rem;
+    }
+
+    small {
+        display: block;
+        margin-top: 0.25rem;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    text-decoration: none;
+
+    &:hover {
+        opacity: 0.9;
+    }
+
+    &.btn-secondary {
+        background-color: #6b7280;
+    }
+
+    &.btn-danger {
+        background-color: #dc2626;
+    }
+
+    &.btn-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        font-size: 1rem;
+        font-weight: bold;
+        line-height: 1;
+        text-align: center;
+        transition: background-color 0.2s;
+
+        &.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+
+            &:hover {
+                opacity: 0.5;
+            }
+        }
+    }
+}
+
+.settings {
+    max-width: 800px;
+    margin: 0 auto;
+
+    h2 {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+
+        &:first-child {
+            margin-top: 0;
+        }
+    }
+}
+
+.feed-list {
+    list-style: none;
+    padding: 0;
+    margin: 2rem 0;
+}
+
+.feed-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.feed-info {
+    flex: 1;
+    margin-right: 1rem;
+
+    h3 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+
+    p {
+        margin: 0.5rem 0 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+}
+
+.feed-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.feed-reorder-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.feed-reorder-section {
+    margin-top: 2rem;
+}
+
+.feed-reorder-hint {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+    font-style: italic;
+}
+
+.feed-health {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: #991b1b;
+}
+
+.feed-health-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    background-color: #fee2e2;
+    color: #991b1b;
+    font-weight: bold;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.feed-last-fetched {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.widget-health-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background-color: #dc2626;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+}
+
+.flash-messages {
+    margin-bottom: 1rem;
+}
+
+.flash-message {
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+
+    &.flash-success {
+        background-color: #d1fae5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+    }
+
+    &.flash-error {
+        background-color: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+    }
+}
+
+.post-dialog-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    border: none;
+    padding: 0;
+    margin: 0;
+
+    &::backdrop {
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    /* Only show flex layout when dialog is open */
+    &[open] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+}
+
+.post-dialog-content {
+    background-color: white;
+    border-radius: 0.5rem;
+    width: 90%;
+    max-width: 800px;
+    height: 90%;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.post-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    flex: 1;
+    min-height: 400px;
+}
+
+.post-dialog-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+
+    .post-header-content {
+        flex: 1;
+        margin-right: 1rem;
+    }
+
+    .post-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+        margin-bottom: 0.5rem;
+    }
+}
+
+.post-meta {
+    margin: 0;
+}
+
+.post-date {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.post-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+
+    .btn {
+        padding: 0.5rem 1rem;
+    }
+}
+
+.post-content {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+
+    h1, h2, h3, h4, h5, h6 {
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    p {
+        margin-bottom: 1rem;
+    }
+
+    img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.25rem;
+        margin: 1rem 0;
+    }
+
+    a {
+        color: var(--primary-color);
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    blockquote {
+        border-left: 4px solid var(--primary-color);
+        margin: 1rem 0;
+        padding-left: 1rem;
+        font-style: italic;
+        color: #6b7280;
+    }
+
+    pre {
+        background-color: #f3f4f6;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        overflow-x: auto;
+        margin: 1rem 0;
+    }
+
+    code {
+        background-color: #f3f4f6;
+        padding: 0.125rem 0.25rem;
+        border-radius: 0.125rem;
+        font-family: monospace;
+    }
+
+    pre code {
+        background-color: transparent;
+        padding: 0;
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .post-dialog-modal {
+        padding: 0.5rem;
+    }
+
+    .post-dialog-header {
+        padding: 0.75rem;
+
+        .post-title {
+            font-size: 1.1rem;
+        }
+    }
+
+    .post-content {
+        padding: 0.75rem;
+    }
+
+    .post-actions {
+        padding: 0.75rem;
+
+        .btn {
+            padding: 0.5rem;
+            font-size: 0.875rem;
+        }
+    }
+
+    .container {
+        padding: 0.5rem;
+    }
+
+    .header {
+        padding: 0.75rem;
+
+        h1 {
+            font-size: 1.5rem;
+        }
+    }
+
+    .nav {
+        gap: 0.5rem;
+    }
+
+    .feed-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .feed-info {
+        margin-right: 0;
+        width: 100%;
+    }
+
+    .feed-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .widget {
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .widget-title {
+        font-size: 1.1rem;
+    }
+
+    .feed-table {
+        border-spacing: 0.5rem 0;
+    }
+}
+
+@media (min-width: 1200px) {
+    .feed-column {
+        &.feed-column-3 { width: 33.33%; }
+    }
+} 
