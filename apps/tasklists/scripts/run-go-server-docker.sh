@@ -30,7 +30,7 @@ CID=$(docker run -d --rm \
   -v "${MONOREPO_ROOT}":/work \
   -w /work/apps/tasklists/client \
   "${IMAGE}" \
-  bash -lc "set -euxo pipefail; pwd; ls -la /work; ls -la /work/apps/tasklists/server; export PATH=$PATH:/usr/local/go/bin; command -v go; go version; cd /work/apps/tasklists/server; rm -f /work/apps/tasklists/server/test.db; ${SERVER_COMMAND}")
+  bash -lc "set -euo pipefail; export PATH=$PATH:/usr/local/go/bin; cd /work/apps/tasklists/server; rm -f /work/apps/tasklists/server/test.db; ${SERVER_COMMAND}")
 
 if [ -z "${CID}" ]; then
   echo "Failed to start Go server container." >&2

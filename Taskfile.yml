@@ -1,12 +1,56 @@
 version: '3'
 
+includes:
+  rssgrid:
+    taskfile: ./apps/rssgrid/Taskfile.yml
+    dir: ./apps/rssgrid
+  bookmarks:
+    taskfile: ./apps/bookmarks/Taskfile.yml
+    dir: ./apps/bookmarks
+  comments:
+    taskfile: ./apps/comments/Taskfile.yml
+    dir: ./apps/comments
+  idp:
+    taskfile: ./apps/idp/Taskfile.yml
+    dir: ./apps/idp
+  tasklists:
+    taskfile: ./apps/tasklists/Taskfile.yml
+    dir: ./apps/tasklists
+
 tasks:
   default:
     desc: List available repository tasks
     cmds:
       - task --list
-
-  check:
-    desc: Run the initial repository check
+  build:
+    desc: Build all applications
     cmds:
-      - go test ./...
+      - task rssgrid:build
+      - task bookmarks:build
+      - task comments:build
+      - task idp:build
+      - task tasklists:build
+  test:
+    desc: Run all shared and application test suites
+    cmds:
+      - go test ./pkg/...
+      - task rssgrid:test
+      - task bookmarks:test
+      - task comments:test
+      - task idp:test
+      - task tasklists:test
+  lint:
+    desc: Run repository lint and static checks
+    cmds:
+      - go vet -tags=fts5 ./...
+      - pnpm --filter a4-tasklists run build
+  ci:
+    desc: Run lint, tests, and builds sequentially
+    cmds:
+      - task lint
+      - task test
+      - task build
+  check:
+    desc: Alias for the full CI task
+    cmds:
+      - task ci
