@@ -1,0 +1,60 @@
+{{define "title"}}Comment Service Demo{{end}}
+
+{{define "bodyClass"}}demo{{end}}
+
+{{define "content"}}
+<header>
+    <h1>Comment Service Demo</h1>
+    <p>This is a demo of the comment service. It is a simple example of how to integrate the comment service into your website.</p>
+    <p>In addition to the comments themselves there is a management ui for the user's own comments that is accessible after logging in:
+        {{if gt .Data.User.Id 0}}
+        <a href="/users/{{.Data.User.Id}}/comments/">Manage your comments</a>
+        {{else}}
+        <a href="/login">Login to manage your comments</a>
+        {{end}}
+    </p>
+    <p>Finally there is an admin dashboard that allows an admin to manage all comments:
+        <a href="{{.Data.BaseURL}}/admin">Admin Dashboard</a>
+    </p>
+</header>
+<main>
+    <article class="article-content">
+        <h2>Example Article Title</h2>
+        <p>This is a sample article that demonstrates how comments can be integrated into any webpage. The content here is just a placeholder to show where your actual content would go.</p>
+        <p>In a real implementation, this section would contain your website's actual content, such as blog posts, news articles, or any other content you'd like users to comment on.</p>
+    </article>
+
+    <section class="comment-section">
+        <h3>Comments</h3>
+        <iframe 
+            class="comment-frame"
+            src="{{.Data.BaseURL}}/services/demoservice/posts/demopost/comments/"
+            title="Comments"
+            scrolling="no"
+            style="width: 100%; border: none; overflow: hidden;">
+        </iframe>
+        <script>
+            const iframe = document.querySelector('.comment-frame');
+            
+            // Handle messages from the comment iframe
+            window.addEventListener('message', function(e) {
+                if (e.origin !== '{{.Data.BaseURL}}') {
+                    return;
+                }
+                if (e.data && e.data.type === 'comment-height') {
+                    iframe.style.height = e.data.height + 'px';
+                }
+                if (e.data && e.data.type === 'comment-login-request') {
+                    const loginUrl = new URL(e.data.loginPath, e.origin);
+                    loginUrl.searchParams.set('returnTo', window.location.href);
+                    window.location.href = loginUrl.toString();
+                }
+            });
+        </script>
+    </section>
+</main>
+{{end}}
+
+{{define "demo"}}
+{{template "layout" .}}
+{{end}}

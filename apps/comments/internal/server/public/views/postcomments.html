@@ -1,0 +1,66 @@
+{{define "title"}}Post Comments{{end}}
+
+{{define "bodyClass"}}postcomments{{end}}
+
+{{define "content"}}
+<header>
+  {{range .Data.Success}}
+  <p class="toast success">
+      {{.}}
+  </p>
+  {{end}}
+  <nav>
+    <a href="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/commentform">Add new comment</a>
+  </nav>
+</header>
+<main>
+<dl class="comments">
+  {{range .Data.Comments}}
+    {{$isOwnComment := and $.Data.User.IsValid (eq $.Data.User.Id .UserId)}}
+    <dt{{if $isOwnComment}} class="own-comment"{{end}}>
+      <span class="author">
+        {{if .Website}}
+          <a href="{{.Website}}" target="_blank">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
+        {{else}}
+          {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
+        {{end}}
+      </span>
+      ·
+      <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
+        {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
+      </time>
+      {{if $isOwnComment}}
+        ·
+        <span class="badge own-comment">Your comment</span>
+      {{end}}
+      {{if eq .Status 1}}
+        ·
+        <span class="badge pending-approval" title="This comment is awaiting administrator approval.">
+          Awaiting moderation
+        </span>
+      {{end}}
+      {{if and $isOwnComment (ne .Status 2)}}
+        ·
+        <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
+      {{end}}
+    </dt>
+    <dd{{if $isOwnComment}} class="own-comment"{{end}}>
+      {{range .Paragraphs}}
+        <p>{{.}}</p>
+      {{end}}
+    </dd>
+  {{end}}
+</dl>
+</main>
+{{if .Data.Auth.AdminUser}}
+  {{if .Data.Auth.AdminUser.HasServiceAdminRole .Data.ServiceKey}}
+  <footer>
+    <a href="/admin/{{.Data.ServiceKey}}/comments" class="admin-link">Administer comments</a>
+  </footer>
+  {{end}}
+{{end}}
+{{end}}
+
+{{define "postcomments"}}
+{{template "layout" .}}
+{{end}}

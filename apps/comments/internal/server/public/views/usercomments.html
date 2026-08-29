@@ -1,0 +1,50 @@
+{{define "title"}}Your Comments{{end}}
+
+{{define "bodyClass"}}usercomments{{end}}
+
+{{define "content"}}
+<header>
+    <h1>Your Comments</h1>
+</header>
+<main>
+    <dl class="comments">
+        {{range .Data.Comments}}
+            <dt>
+                <span class="author">
+                {{if .Website}}
+                    <a href="{{.Website}}">{{if .Name}}{{.Name}}{{else}}Anonymous{{end}}</a>
+                {{else}}
+                    {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
+                {{end}}
+                </span>
+                <time datetime="{{.CreatedAt}}">{{.CreatedAt}}</time>
+                {{if eq .Status 1}}
+                    <span class="badge pending-approval" title="This comment is awaiting administrator approval.">
+                        Awaiting Admin Review
+                    </span>
+                {{end}}
+                {{if eq .Status 2}}
+                    <span class="badge approved" title="This comment has been approved by the administrator and will be displayed.">
+                        Approved
+                    </span>
+                {{end}}
+                <div class="actionbar">
+                    {{if ne .Status 2}}
+                    <a href="/users/{{$.Data.User.Id}}/comments/{{.Id}}/edit">Modify</a>
+                    {{end}}
+                    <action-confirmation actionName="Delete" actionUrl="/users/{{$.Data.User.Id}}/comments/{{.Id}}/delete"></action-confirmation>
+                </div>
+            </dt>
+            <dd>
+                {{range .Paragraphs}}
+                    <p>{{.}}</p>
+                {{end}}
+            </dd>
+        {{end}}
+    </dl>
+</main>
+{{end}}
+
+{{define "usercomments"}}
+{{template "layout" .}}
+{{end}}

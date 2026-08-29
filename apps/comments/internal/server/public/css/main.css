@@ -1,0 +1,406 @@
+:root {
+    --font-size: 18px;
+
+    --site-bg-color: white;
+    --site-text-color: #333;
+    --error-color: #9c2424;
+    --error-bg-color: #FFEBEE;
+    --error-border-color: #FFCDD2;
+    --success-color: #337535;
+    --success-bg-color: #E8F5E9;
+    --success-border-color: #C8E6C9;
+    --info-color: #026092;
+    --info-bg-color: #E1F5FE;
+    --info-border-color: #B3E5FC;
+
+    --button-color: #545964;
+    --button-color-hover: #3F424A;
+    --button-primary-color: #08599B;
+    --button-primary-color-hover: #06477c;
+
+    --focus-border-color: #08599B;
+    --focus-shadow-color: #06477c;
+
+    /* Status Colors */
+    --status-pending-admin-color: #004085;
+    --status-pending-admin-bg: #cce5ff;
+    --status-pending-admin-border: #b8daff;
+    
+    --status-approved-color: #155724;
+    --status-approved-bg: #d4edda;
+    --status-approved-border: #c3e6cb;
+
+    --own-comment-color: #4a3600;
+    --own-comment-bg: #fff8e1;
+    --own-comment-border: #f0d48a;
+    
+}
+
+body {
+    font-family: sans-serif;
+    box-sizing: border-box;
+    font-size: var(--font-size);
+    margin: 0;
+    line-height: 1.5;
+    background-color: var(--site-bg-color);
+    color: var(--site-text-color);
+    padding: 0;
+
+    &.admin-dashboard,
+    &.demo,
+    &.usercomments {
+        padding: 0 24px;
+    }
+}
+
+.auth-roles {
+    color: #4d5563;
+    font-size: 0.85rem;
+}
+
+.site-auth-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+}
+
+body.demo {
+    & main,
+    & header {
+        margin: auto;
+    }
+}
+
+main, header {
+    max-width: 76ch;
+}
+
+.postcomments {
+    & nav {
+        display: flex;
+        gap: 1rem;
+    }
+
+    & dl.comments {
+        & dt.own-comment {
+            margin-bottom: 0;
+            padding: 0.5rem 0.75rem 0.25rem;
+            border: 1px solid var(--own-comment-border);
+            border-bottom: 0;
+            border-radius: 6px 6px 0 0;
+            background-color: var(--own-comment-bg);
+        }
+
+        & dd.own-comment {
+            padding: 0.25rem 0.75rem 0.75rem;
+            border: 1px solid var(--own-comment-border);
+            border-top: 0;
+            border-radius: 0 0 6px 6px;
+            background-color: var(--own-comment-bg);
+        }
+    }
+}
+
+h1 {
+    /* this is a hack to make the header not overlap with the iframe , apparently the top margin of the h1 extends above the body of the embedded document*/
+    margin-top: 0;
+}
+
+h2 {
+    text-transform: capitalize;
+}
+
+.toast {
+    border-radius: 4px;
+    padding: 10px;
+    margin: 0 0 15px 0;
+
+    &.error {
+        color: var(--error-color);
+        background-color: var(--error-bg-color);
+        border: 1px solid var(--error-border-color);
+    }
+
+    &.success {
+        color: var(--success-color);
+        background-color: var(--success-bg-color);
+        border: 1px solid var(--success-border-color);
+    }
+
+    &.info {
+        color: var(--info-color);
+        background-color: var(--info-bg-color);
+        border: 1px solid var(--info-border-color);
+    }
+}
+
+.auth-required {
+    text-align: center;
+    padding: 2rem;
+    background-color: var(--info-bg-color);
+    border: 1px solid var(--info-border-color);
+    border-radius: 8px;
+    margin: 1rem 0;
+
+    & p {
+        margin: 0 0 1rem 0;
+        font-size: 1.1em;
+        color: var(--info-color);
+    }
+
+    & .primary-button {
+        font-size: 1.1em;
+        padding: 0.75rem 1.5rem;
+    }
+
+}
+
+.auth-success {
+    text-align: center;
+    padding: 2rem;
+    background-color: var(--success-bg-color);
+    border: 1px solid var(--success-border-color);
+    border-radius: 8px;
+    margin: 1rem 0;
+
+    & h1 {
+        color: var(--success-color);
+        margin-top: 0;
+    }
+
+    & p {
+        margin: 0 0 1rem 0;
+        font-size: 1.1em;
+        color: var(--success-color);
+    }
+}
+
+.actionbar {
+    display: flex;
+    gap: 12px;
+}
+
+dl.comments {
+    & dt {
+        margin-bottom: 6px;
+
+        & time {
+            white-space: nowrap;
+            font-weight: italic;
+            font-size: 0.8em;
+            color: #555;
+        }
+    }
+
+    & dd {
+        margin: 0 0 24px 0;
+
+        & p:first-child {
+            margin-top: 0;
+        }
+
+        & p:last-child {
+            margin-bottom: 0;
+        }
+    }
+}
+
+.admin-dashboard {
+    & dl.comments dt {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 1rem;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+}
+
+.author {
+    font-weight: bold;
+}
+
+.byline {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    align-items: center;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.5em;
+    border-radius: 4px;
+    font-size: 0.875em;
+    font-weight: 500;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    text-transform: capitalize;
+
+    &.pending-approval {
+        background-color: var(--status-pending-admin-bg);
+        color: var(--status-pending-admin-color);
+        border: 1px solid var(--status-pending-admin-border);
+    }
+
+    &.approved {
+        background-color: var(--status-approved-bg);
+        color: var(--status-approved-color);
+        border: 1px solid var(--status-approved-border);
+    }
+
+    &.own-comment {
+        background-color: var(--own-comment-bg);
+        color: var(--own-comment-color);
+        border: 1px solid var(--own-comment-border);
+    }
+
+}
+
+.important {
+    background-color: #fffde7;
+    border-top: 1px solid #fff9c4;
+    border-bottom: 1px solid #fff9c4;
+    padding: 0 24px 0 24px;
+    margin: 0;
+}
+
+@media (max-width: 600px) {
+    .admin-dashboard {
+        & dl.comments dt {
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+        }
+    }
+    
+    dl.comments .badge-actions {
+        grid-template-columns: auto;
+        justify-content: flex-start;
+        gap: 0.5rem;
+    }
+}
+
+/* Form styles */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="url"],
+textarea,
+select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: var(--font-size);
+
+    &:focus {
+        outline: none;
+        border-color: var(--focus-border-color);
+        box-shadow: 0 0 5px var(--focus-shadow-color);
+    }
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+    margin-top: 12px;
+}
+
+button[type="submit"],
+input[type="submit"],
+a.button {
+    background-color: var(--button-color);
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: var(--font-size);
+    margin-top: 12px;
+    text-decoration: none;
+
+    &:hover {
+        background-color: var(--button-color-hover);
+    }
+
+    &.primary-button {
+        background-color: var(--button-primary-color);
+
+        &:hover {
+            background-color: var(--button-primary-color-hover);
+        }
+    }
+}
+
+.error {
+    & input,
+    & textarea,
+    & select {
+        border-color: #ff3860;
+    }
+}
+
+form small {
+    font-size: 0.8em;
+    color: #555;
+}
+
+.button-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.usercomments {
+    & main,
+    & header {
+        max-width: 76ch;
+        margin: 0 auto;
+    }
+
+    & dl.comments {
+        & dt {
+            margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            gap: 1rem;
+            align-items: center;
+
+            & time {
+                white-space: nowrap;
+                font-weight: normal;
+                font-size: 0.8em;
+                color: #555;
+                margin-left: 8px;
+            }
+
+            & .badge {
+                justify-self: start;
+            }
+        }
+
+        & dd {
+            margin: 0 0 36px 0;
+        }
+    }
+
+    & .actionbar {
+        margin-top: 10px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+}

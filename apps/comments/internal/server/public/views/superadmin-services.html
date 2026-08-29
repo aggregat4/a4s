@@ -1,0 +1,58 @@
+{{define "title"}}Super Admin - Services{{end}}
+
+{{define "bodyClass"}}superadmin-services{{end}}
+
+{{define "content"}}
+<header>
+  <h1>Super Admin Dashboard - Services</h1>
+  {{range .Data.Success}}
+  <p class="toast success">
+      {{.}}
+  </p>
+  {{end}}
+  {{range .Data.Error}}
+  <p class="toast error">
+      {{.}}
+  </p>
+  {{end}}
+  <nav>
+    <ol>
+      <li><a href="/superadmin/services">Manage Services</a></li>
+      <li><a href="/superadmin/comments">All Comments</a></li>
+    </ol>
+  </nav>
+</header>
+<main>
+  <h2>All Services</h2>
+  {{if eq (len .Data.Services) 0}}
+  <p class="toast info">
+    No services are configured.
+  </p>
+  {{else}}
+  <table>
+    <thead>
+      <tr>
+        <th>Service Key</th>
+        <th>Origin</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Data.Services}}
+      <tr>
+        <td>{{.ServiceKey}}</td>
+        <td>{{.Origin}}</td>
+        <td>
+          <a href="/admin/{{.ServiceKey}}/comments">View Comments</a>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</main>
+{{end}}
+
+{{define "superadmin-services"}}
+{{template "layout" .}}
+{{end}}

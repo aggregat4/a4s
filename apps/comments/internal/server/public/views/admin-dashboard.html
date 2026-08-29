@@ -1,0 +1,92 @@
+{{define "title"}}Admin Dashboard{{end}}
+
+{{define "bodyClass"}}admin-dashboard{{end}}
+
+{{define "content"}}
+<header>
+  <h1>Admin Dashboard</h1>
+  {{range .Data.Success}}
+  <p class="toast success">
+      {{.}}
+  </p>
+  {{end}}
+  {{range .Data.Error}}
+  <p class="toast error">
+      {{.}}
+  </p>
+  {{end}}
+  <nav>
+    <ol>
+      <li><a href="/admin/comments">Show All Comments</a></li>
+      <li><a href="/admin/comments?showStatus=pending-approval">Show Comments Pending Approval</a></li>
+      <li><a href="/admin/comments?showStatus=approved">Show Approved Comments</a></li>
+    </ol>
+  </nav>
+</header>
+<main>
+  <dl class="comments">
+    <h2>
+        {{if eq (len .Data.Statuses) 0}}
+            All Comments
+        {{else}}
+            {{range $i, $status := .Data.Statuses}}
+                {{if $i}}, {{end}}
+                {{template "statusToString" $status}}
+            {{end}}
+        {{end}}
+    </h2>
+    {{if eq (len .Data.Comments) 0}}
+    <p class="toast info">
+      There are no 
+      {{if eq (len .Data.Statuses) 0}}comments{{else}}
+        {{range $i, $status := .Data.Statuses}}
+          {{if $i}}, {{end}}
+          {{template "statusToString" $status}}
+        {{end}}
+      {{end}}
+      to display.
+    </p>
+    {{end}}
+    {{range .Data.Comments}}
+        <dt class="{{template "statusToCssClass" .Status}}">
+          <div class="byline">
+            <div class="author">
+              {{if .Name}}{{.Name}}{{else}}Anonymous{{end}}
+              {{if .Website}}
+                , <a href="{{.Website}}">{{.Website}}</a>
+              {{end}}
+            </div>
+            <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
+              {{.CreatedAt.Format "Jan 2, 2006 at 15:00"}}
+            </time>
+            <span class="post-link">
+              {{if .ParentUrl}}
+                post <a href="{{.ParentUrl}}" target="_blank">{{.PostKey}}</a> on service {{.ServiceKey}}
+              {{else}}
+                post {{.PostKey}} on service {{.ServiceKey}}
+              {{end}}
+            </span>
+          </div>
+          <div class="badge-actions">
+              <span class="badge {{template "statusToCssClass" .Status}}" role="status">{{template "statusToShortString" .Status}}</span>
+              <div class="actionbar">
+                {{if eq .Status 1}}
+                <action-confirmation actionName="Approve" actionUrl="/admin/{{.ServiceKey}}/comments/{{.Id}}/approve" directionLeftRight="false"></action-confirmation>
+                {{end}}
+                <action-confirmation actionName="Delete" actionUrl="/admin/{{.ServiceKey}}/comments/{{.Id}}/delete" directionLeftRight="false"></action-confirmation>
+              </div>
+            </div>
+        </dt>
+        <dd>
+          {{range .Paragraphs}}
+            <p>{{.}}</p>
+          {{end}}
+        </dd>
+    {{end}}
+</dl>
+</main>
+{{end}}
+
+{{define "admin-dashboard"}}
+{{template "layout" .}}
+{{end}}

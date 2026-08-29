@@ -1,0 +1,64 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{template "title" .}}</title>
+    {{range .Data.Stylesheets}}    
+    <link rel="stylesheet" href="{{call $.AssetPath .}}">
+    {{end}}
+    {{range .Data.Scripts}}
+    <script src="{{call $.AssetPath .}}" defer></script>
+    {{end}}
+</head>
+<body class="{{template "bodyClass" .}}">
+    {{- $auth := .Data.Auth -}}
+    <header class="site-auth-bar" role="banner">
+        {{- if $auth.AdminUser -}}
+        <div>Comment Service Admin</div>
+        {{- end -}}
+        {{- if or $auth.User $auth.AdminUser -}}
+        <form method="POST" action="/logout">
+            <input type="hidden" name="redirectTo" value="{{.Data.CurrentPath}}">
+            <button type="submit">Log out of the Comment Service</button>
+        </form>
+        {{- else -}}
+        <a href="/login?redirectTo={{.Data.CurrentPath}}"
+           {{if .Data.EmbedLoginPath}}data-embed-login-path="{{.Data.EmbedLoginPath}}"
+           data-embedder-origin="{{.Data.EmbedderOrigin}}"
+           onclick="return requestCommentLogin(this);"{{end}}>
+           Log in to the Comment Service
+        </a>
+        {{- end -}}
+    </header>
+    {{template "content" .}}
+
+    <script>
+        function updateParentHeight() {
+            const height = document.body.scrollHeight;
+            window.parent.postMessage({
+                type: 'comment-height',
+                height: height
+            }, {{if .Data.EmbedderOrigin}}'{{.Data.EmbedderOrigin}}'{{else}}'*'{{end}});
+        }
+
+        // Update on load and when content changes
+        window.addEventListener('load', updateParentHeight);
+        {{if .Data.IsEmbeddedPage}}
+        window.addEventListener('load', function() {
+            window.parent.postMessage({
+                type: 'comment-auth-state',
+                authenticated: {{if or .Data.Auth.User .Data.Auth.AdminUser}}true{{else}}false{{end}}
+            }, '{{.Data.EmbedderOrigin}}');
+        });
+        {{end}}
+        const observer = new MutationObserver(updateParentHeight);
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+      </script>
+</body>
+</html>
+{{end}}

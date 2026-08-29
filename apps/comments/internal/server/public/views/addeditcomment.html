@@ -1,0 +1,72 @@
+{{define "title"}}{{if .Data.CommentFound}}Edit Comment{{else}}Add Comment{{end}}{{end}}
+
+{{define "bodyClass"}}addeditcomment{{end}}
+
+{{define "content"}}
+<header>
+    {{if .Data.CommentFound}}
+        <h2>Edit Comment</h2>
+    {{else}}
+        <h2>New Comment</h2>
+    {{end}}
+</header>
+<main>
+    {{if not .Data.UserFound}}
+        <div class="auth-required" data-auth-required>
+            <p>You need to be logged in to post a comment.</p>
+            <button
+                type="button"
+                class="primary-button"
+                data-login-button
+                data-embed-login-path="{{.Data.EmbedLoginPath}}"
+                data-embedder-origin="{{.Data.EmbedderOrigin}}"
+                onclick="return requestCommentLogin(this);"
+            >Login to Comment</button>
+        </div>
+    {{else}}
+        <div class="important">
+            <p>Important:</p>
+            <ul class="hanging-indent">
+                <li>You must be {{.Data.MinimumCommentAge}} years or older to comment. User-submitted data is handled as described in our <a href="{{.Data.PrivacyPolicyURL}}">privacy policy</a>.</li>
+                <li>All comments are checked by a human before posting.</li>
+            </ul>
+        </div>
+        <form method="POST" action="/users/{{.Data.User.Id}}/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/comments/">
+            {{if .Data.CommentFound}}
+            <input type="hidden" name="commentId" value="{{.Data.Comment.Id}}">
+            {{end}}
+            <input type="hidden" name="parentUrl" id="parentUrl">
+
+            <label for="name">Name</label>
+            <input type="text" name="name" id="name" value="{{if .Data.CommentFound}}{{.Data.Comment.Name}}{{end}}" aria-describedby="name-helper">
+            <small id="name-helper">
+                Your name or alias is optional, if you provide one it will be displayed next to your comment.
+            </small>
+
+            <label for="website">Website</label>
+            <input type="url" name="website" id="website" value="{{if .Data.CommentFound}}{{.Data.Comment.Website}}{{end}}" aria-describedby="website-helper">
+            <small id="website-helper">
+                The website is optional, if you provide one it will be displayed and linked next to your comment.
+            </small>
+
+            <label for="comment">Comment <span aria-label="required">*</span></label>
+            <textarea name="comment" id="comment" rows="10" cols="50" required>{{if .Data.CommentFound}}{{.Data.Comment.Comment}}{{end}}</textarea>
+
+            <div class="button-group">
+                <input type="submit" value="Submit" class="primary-button">
+                <a href="/services/{{.Data.ServiceKey}}/posts/{{.Data.PostKey}}/comments/" class="button">Cancel</a>
+            </div>
+        </form>
+    {{end}}
+</main>
+{{if .Data.UserFound}}
+<script>
+    document.getElementById('parentUrl').value = window.parent.location.href;
+</script>
+{{end}}
+
+{{end}}
+
+{{define "addeditcomment"}}
+{{template "layout" .}}
+{{end}}
