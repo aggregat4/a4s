@@ -1,0 +1,1197 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"aggregat4/openidprovider/internal/tokens"
+
+	"github.com/aggregat4/go-baselib/migrations"
+)
+
+const sqliteBusyTimeoutMilliseconds = 5000
+
+var mymigrations = []migrations.Migration{
+	{
+		SequenceId: 1,
+		Sql: `
+		-- Enable WAL mode on the database to allow for concurrent reads and writes
+		PRAGMA journal_mode=WAL;
+		PRAGMA foreign_keys = ON;
+
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+			username TEXT NOT NULL UNIQUE,
+			password TEXT NOT NULL,
+			last_updated INTEGER NOT NULL
+		);
+		
+		CREATE TABLE IF NOT EXISTS codes (
+			code TEXT NOT NULL PRIMARY KEY,
+			username TEXT NOT NULL,
+			client_id TEXT NOT NULL,
+			redirect_uri TEXT NOT NULL,
+			created INTEGER NOT NULL,
+			FOREIGN KEY (username) REFERENCES users(username)
+		);
+		`,
+	},
+	{
+		SequenceId: 2,
+		Sql: `
+		-- Disable foreign keys temporarily for the migration
+		PRAGMA foreign_keys = OFF;
+
+		-- Rename columns in users table
+		ALTER TABLE users RENAME COLUMN username TO email;
+
+		-- Rename columns in codes table
+		ALTER TABLE codes RENAME COLUMN username TO email;
+
+		-- Re-enable foreign keys
+		PRAGMA foreign_keys = ON;
+		`,
+	},
+	{
+		SequenceId: 3,
+		Sql: `
+		-- Add verification status to users table and create verification tokens table
+		-- Note: Existing users will be marked as unverified (0) by default
+		-- This will be corrected in migration sequence 6 to prevent cleanup of existing users
+		ALTER TABLE users ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0;
+
+		CREATE TABLE IF NOT EXISTS verification_tokens (
+			token TEXT NOT NULL PRIMARY KEY,
+			email TEXT NOT NULL,
+			type TEXT NOT NULL, -- 'registration', 'password_reset', 'account_deletion'
+			created INTEGER NOT NULL,
+			expires INTEGER NOT NULL,
+			FOREIGN KEY (email) REFERENCES users(email)
+		);
+
+		-- Index for cleanup of expired tokens
+		CREATE INDEX idx_verification_tokens_expires ON verification_tokens(expires);
+		`,
+	},
+	{
+		SequenceId: 4,
+		Sql: `
+		-- Create tables for scopes and claims
+		CREATE TABLE IF NOT EXISTS scopes (
+			scope_name TEXT NOT NULL PRIMARY KEY,
+			description TEXT,
+			created_at INTEGER NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS scope_claims (
+			scope_name TEXT NOT NULL,
+			claim_name TEXT NOT NULL,
+			description TEXT,
+			created_at INTEGER NOT NULL,
+			PRIMARY KEY (scope_name, claim_name),
+			FOREIGN KEY (scope_name) REFERENCES scopes(scope_name)
+		);
+
+		CREATE TABLE IF NOT EXISTS user_claims (
+			user_id INTEGER NOT NULL,
+			claim_name TEXT NOT NULL,
+			claim_value TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			PRIMARY KEY (user_id, claim_name),
+			FOREIGN KEY (user_id) REFERENCES users(id)
+		);
+
+		-- Add scopes column to codes table to store requested scopes
+		ALTER TABLE codes ADD COLUMN scopes TEXT NOT NULL DEFAULT 'openid';
+
+		-- Insert default scopes
+		INSERT OR IGNORE INTO scopes (scope_name, description, created_at) VALUES
+			('openid', 'OpenID Connect scope', unixepoch()),
+			('profile', 'Profile information scope', unixepoch()),
+			('email', 'Email information scope', unixepoch());
+
+		-- Insert default claims for standard scopes
+		INSERT OR IGNORE INTO scope_claims (scope_name, claim_name, description, created_at) VALUES
+			('openid', 'sub', 'Subject identifier', unixepoch()),
+			('openid', 'iss', 'Issuer identifier', unixepoch()),
+			('openid', 'aud', 'Audience identifier', unixepoch()),
+			('openid', 'exp', 'Expiration time', unixepoch()),
+			('openid', 'iat', 'Issued at time', unixepoch()),
+			('profile', 'name', 'Full name', unixepoch()),
+			('profile', 'family_name', 'Family name', unixepoch()),
+			('profile', 'given_name', 'Given name', unixepoch()),
+			('profile', 'middle_name', 'Middle name', unixepoch()),
+			('profile', 'nickname', 'Nickname', unixepoch()),
+			('profile', 'preferred_username', 'Preferred username', unixepoch()),
+			('profile', 'picture', 'Profile picture URL', unixepoch()),
+			('profile', 'website', 'Website URL', unixepoch()),
+			('profile', 'gender', 'Gender', unixepoch()),
+			('profile', 'birthdate', 'Birth date', unixepoch()),
+			('profile', 'zoneinfo', 'Time zone', unixepoch()),
+			('profile', 'locale', 'Locale', unixepoch()),
+			('profile', 'updated_at', 'Last updated timestamp', unixepoch()),
+			('email', 'email', 'Email address', unixepoch()),
+			('email', 'email_verified', 'Email verification status', unixepoch());
+		`,
+	},
+	{
+		SequenceId: 5,
+		Sql: `
+		-- Create email tracking table for rate limiting and abuse prevention
+		CREATE TABLE IF NOT EXISTS email_tracking (
+			email TEXT NOT NULL,
+			type TEXT NOT NULL,
+			first_attempt INTEGER NOT NULL,
+			last_attempt INTEGER NOT NULL,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			blocked INTEGER NOT NULL DEFAULT 0,
+			blocked_at INTEGER,
+			PRIMARY KEY (email, type)
+		);
+
+		-- Create index for cleanup of expired tracking records
+		CREATE INDEX idx_email_tracking_first_attempt ON email_tracking(first_attempt);
+		-- Create index for cleanup of expired blocks
+		CREATE INDEX idx_email_tracking_blocked_at ON email_tracking(blocked_at);
+		`,
+	},
+	{
+		SequenceId: 6,
+		Sql: `
+		-- Mark all existing users as verified to prevent them from being cleaned up
+		-- This migration ensures that users created before the verification system
+		-- are not accidentally deleted by the cleanup job
+		UPDATE users SET is_verified = 1 WHERE is_verified = 0;
+		`,
+	},
+	{
+		SequenceId: 7,
+		Sql: `
+		CREATE TABLE IF NOT EXISTS refresh_tokens (
+			token_hash TEXT NOT NULL PRIMARY KEY,
+			token_hint_prefix TEXT NOT NULL,
+			family_id TEXT NOT NULL,
+			client_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			scopes TEXT NOT NULL,
+			auth_time INTEGER NOT NULL,
+			created_at INTEGER NOT NULL,
+			expires_at INTEGER NOT NULL,
+			rotated_at INTEGER,
+			revoked_at INTEGER,
+			FOREIGN KEY (email) REFERENCES users(email)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family_id ON refresh_tokens(family_id);
+		CREATE INDEX IF NOT EXISTS idx_refresh_tokens_email ON refresh_tokens(email);
+		CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
+		CREATE INDEX IF NOT EXISTS idx_refresh_tokens_revoked_at ON refresh_tokens(revoked_at);
+		`,
+	},
+}
+
+type Store struct {
+	db *sql.DB
+}
+
+type User struct {
+	Id          int64
+	Email       string
+	Password    string
+	LastUpdated int64
+	Verified    bool
+}
+
+type Code struct {
+	Code        string
+	Email       string
+	ClientId    string
+	RedirectUri string
+	Created     int64
+	Scopes      string // Space-separated list of scopes
+}
+
+type VerificationToken struct {
+	Token   string
+	Email   string
+	Type    string
+	Created int64
+	Expires int64
+}
+
+// Add new types for scopes and claims
+type Scope struct {
+	Name        string
+	Description string
+	CreatedAt   int64
+}
+
+type ScopeClaim struct {
+	ScopeName   string
+	ClaimName   string
+	Description string
+	CreatedAt   int64
+}
+
+type UserClaim struct {
+	UserId    int64
+	ClaimName string
+	Value     string
+	CreatedAt int64
+}
+
+type EmailTracking struct {
+	Email        string
+	Type         string
+	FirstAttempt int64
+	LastAttempt  int64
+	Attempts     int
+	Blocked      bool
+	BlockedAt    sql.NullInt64
+}
+
+type RefreshToken struct {
+	TokenHash       string
+	TokenHintPrefix string
+	FamilyId        string
+	ClientId        string
+	Email           string
+	Scopes          string
+	AuthTime        int64
+	CreatedAt       int64
+	ExpiresAt       int64
+	RotatedAt       sql.NullInt64
+	RevokedAt       sql.NullInt64
+}
+
+type RefreshTokenState string
+
+const (
+	RefreshTokenStateActive      RefreshTokenState = "active"
+	RefreshTokenStateNotFound    RefreshTokenState = "not_found"
+	RefreshTokenStateExpired     RefreshTokenState = "expired"
+	RefreshTokenStateRevoked     RefreshTokenState = "revoked"
+	RefreshTokenStateRotated     RefreshTokenState = "rotated"
+	RefreshTokenStateWrongClient RefreshTokenState = "wrong_client"
+)
+
+type RefreshTokenRotationResult struct {
+	State RefreshTokenState
+	Token *RefreshToken
+}
+
+const refreshTokenSelectColumns = `
+	token_hash,
+	token_hint_prefix,
+	family_id,
+	client_id,
+	email,
+	scopes,
+	auth_time,
+	created_at,
+	expires_at,
+	rotated_at,
+	revoked_at
+`
+
+func CreateFileDbUrl(dbName string) string {
+	return fmt.Sprintf("file:%s.sqlite?_busy_timeout=%d", dbName, sqliteBusyTimeoutMilliseconds)
+}
+
+func CreateInMemoryDbUrl() string {
+	return fmt.Sprintf("file::memory:?cache=shared&_busy_timeout=%d", sqliteBusyTimeoutMilliseconds)
+}
+
+func (store *Store) InitAndVerifyDb(dbUrl string) error {
+	var err error
+	store.db, err = sql.Open("sqlite3", dbUrl)
+	if err != nil {
+		return fmt.Errorf("error opening database: %w", err)
+	}
+	return migrations.MigrateSchema(store.db, mymigrations)
+}
+
+func (store *Store) CreateUser(email, hashedPassword string) error {
+	rows, err := store.db.Query("SELECT password FROM users WHERE email = ?", email)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var password string
+		err = rows.Scan(&password)
+
+		if err != nil {
+			return err
+		}
+
+		if hashedPassword != password {
+			return errors.New("the database already has this account but with a different password")
+		}
+	} else {
+		_, err := store.db.Exec("INSERT INTO users (email, password, last_updated) VALUES (?, ?, ?)",
+			email, hashedPassword, time.Now().Unix())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (store *Store) FindCode(code string) (*Code, error) {
+	rows, err := store.db.Query("SELECT email, client_id, redirect_uri, created, scopes FROM codes WHERE code = ?", code)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var email string
+		var clientId string
+		var redirectUri string
+		var created int64
+		var scopes string
+		err = rows.Scan(&email, &clientId, &redirectUri, &created, &scopes)
+		if err != nil {
+			return nil, err
+		}
+		return &Code{code, email, clientId, redirectUri, created, scopes}, nil
+	}
+	return nil, nil
+}
+
+func (store *Store) DeleteCode(code string) error {
+	_, err := store.db.Exec("DELETE FROM codes WHERE code = ?", code)
+	return err
+}
+
+func (store *Store) SaveCode(code Code) error {
+	_, err := store.db.Exec("INSERT INTO codes (code, email, client_id, redirect_uri, created, scopes) VALUES (?, ?, ?, ?, ?, ?)", code.Code, code.Email, code.ClientId, code.RedirectUri, code.Created, code.Scopes)
+	return err
+}
+
+func (store *Store) FindUser(email string) (*User, error) {
+	rows, err := store.db.Query("SELECT id, email, password, last_updated, is_verified FROM users WHERE email = ?", email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var id int64
+		var userEmail string
+		var password string
+		var lastUpdated int64
+		var isVerified bool
+		err = rows.Scan(&id, &userEmail, &password, &lastUpdated, &isVerified)
+		if err != nil {
+			return nil, err
+		}
+		return &User{id, userEmail, password, lastUpdated, isVerified}, nil
+	}
+	return nil, nil
+}
+
+func (store *Store) CreateVerificationToken(token VerificationToken) error {
+	_, err := store.db.Exec(
+		"INSERT INTO verification_tokens (token, email, type, created, expires) VALUES (?, ?, ?, ?, ?)",
+		token.Token, token.Email, token.Type, token.Created, token.Expires,
+	)
+	return err
+}
+
+func (store *Store) FindVerificationToken(token string) (*VerificationToken, error) {
+	rows, err := store.db.Query(
+		"SELECT token, email, type, created, expires FROM verification_tokens WHERE token = ?",
+		token,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var vt VerificationToken
+		err = rows.Scan(&vt.Token, &vt.Email, &vt.Type, &vt.Created, &vt.Expires)
+		if err != nil {
+			return nil, err
+		}
+		return &vt, nil
+	}
+	return nil, nil
+}
+
+func (store *Store) FindVerificationTokenByEmail(email string) ([]*VerificationToken, error) {
+	rows, err := store.db.Query(
+		"SELECT token, email, type, created, expires FROM verification_tokens WHERE email = ?",
+		email,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []*VerificationToken
+	for rows.Next() {
+		var vt VerificationToken
+		err = rows.Scan(&vt.Token, &vt.Email, &vt.Type, &vt.Created, &vt.Expires)
+		if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, &vt)
+	}
+	return tokens, nil
+}
+
+func (store *Store) DeleteVerificationToken(token string) error {
+	_, err := store.db.Exec("DELETE FROM verification_tokens WHERE token = ?", token)
+	return err
+}
+
+func (store *Store) DeleteExpiredVerificationTokens() error {
+	_, err := store.db.Exec("DELETE FROM verification_tokens WHERE expires < ?", time.Now().Unix())
+	return err
+}
+
+func (store *Store) DeleteUnverifiedUsers(maxAge time.Duration) error {
+	// First delete verification tokens for unverified users
+	_, err := store.db.Exec(`
+		DELETE FROM verification_tokens 
+		WHERE email IN (
+			SELECT email FROM users 
+			WHERE is_verified = 0 
+			AND last_updated < ?
+		)`, time.Now().Add(-maxAge).Unix())
+	if err != nil {
+		return err
+	}
+
+	// Then delete the unverified users
+	_, err = store.db.Exec(`
+		DELETE FROM users 
+		WHERE is_verified = 0 
+		AND last_updated < ?`, time.Now().Add(-maxAge).Unix())
+	return err
+}
+
+func (store *Store) VerifyUser(email string) error {
+	_, err := store.db.Exec("UPDATE users SET is_verified = 1 WHERE email = ?", email)
+	return err
+}
+
+func (store *Store) IsUserVerified(email string) (bool, error) {
+	rows, err := store.db.Query("SELECT is_verified FROM users WHERE email = ?", email)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var isVerified int
+		err = rows.Scan(&isVerified)
+		if err != nil {
+			return false, err
+		}
+		return isVerified == 1, nil
+	}
+	return false, nil
+}
+
+func (store *Store) UpdateUserPassword(email, hashedPassword string) error {
+	_, err := store.db.Exec("UPDATE users SET password = ?, last_updated = ? WHERE email = ?",
+		hashedPassword, time.Now().Unix(), email)
+	return err
+}
+
+func (store *Store) Close() error {
+	return store.db.Close()
+}
+
+// Used in tests only!
+func (store *Store) UpdateLastUpdated(email string, lastUpdated int64) error {
+	_, err := store.db.Exec("UPDATE users SET last_updated = ? WHERE email = ?", lastUpdated, email)
+	return err
+}
+
+func (store *Store) DeleteUser(email string) error {
+	// Start a transaction to ensure all related data is deleted atomically
+	tx, err := store.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete verification tokens
+	_, err = tx.Exec("DELETE FROM verification_tokens WHERE email = ?", email)
+	if err != nil {
+		return err
+	}
+
+	// Delete refresh tokens
+	_, err = tx.Exec("DELETE FROM refresh_tokens WHERE email = ?", email)
+	if err != nil {
+		return err
+	}
+
+	// Delete authorization codes
+	_, err = tx.Exec("DELETE FROM codes WHERE email = ?", email)
+	if err != nil {
+		return err
+	}
+
+	// Delete the user
+	_, err = tx.Exec("DELETE FROM users WHERE email = ?", email)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// Scope Management Methods
+func (store *Store) CreateScope(scope Scope) error {
+	_, err := store.db.Exec(
+		"INSERT INTO scopes (scope_name, description, created_at) VALUES (?, ?, ?)",
+		scope.Name, scope.Description, scope.CreatedAt,
+	)
+	return err
+}
+
+func (store *Store) DeleteScope(scopeName string) error {
+	_, err := store.db.Exec("DELETE FROM scopes WHERE scope_name = ?", scopeName)
+	return err
+}
+
+func (store *Store) ListScopes() ([]Scope, error) {
+	rows, err := store.db.Query("SELECT scope_name, description, created_at FROM scopes")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scopes []Scope
+	for rows.Next() {
+		var scope Scope
+		err = rows.Scan(&scope.Name, &scope.Description, &scope.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		scopes = append(scopes, scope)
+	}
+	return scopes, nil
+}
+
+func (store *Store) GetScope(scopeName string) (*Scope, error) {
+	rows, err := store.db.Query("SELECT scope_name, description, created_at FROM scopes WHERE scope_name = ?", scopeName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var scope Scope
+		err = rows.Scan(&scope.Name, &scope.Description, &scope.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		return &scope, nil
+	}
+	return nil, nil
+}
+
+// Scope Claims Management Methods
+func (store *Store) AddClaimToScope(claim ScopeClaim) error {
+	_, err := store.db.Exec(
+		"INSERT INTO scope_claims (scope_name, claim_name, description, created_at) VALUES (?, ?, ?, ?)",
+		claim.ScopeName, claim.ClaimName, claim.Description, claim.CreatedAt,
+	)
+	return err
+}
+
+func (store *Store) RemoveClaimFromScope(scopeName, claimName string) error {
+	_, err := store.db.Exec("DELETE FROM scope_claims WHERE scope_name = ? AND claim_name = ?", scopeName, claimName)
+	return err
+}
+
+func (store *Store) ListScopeClaims(scopeName string) ([]ScopeClaim, error) {
+	rows, err := store.db.Query(
+		"SELECT scope_name, claim_name, description, created_at FROM scope_claims WHERE scope_name = ?",
+		scopeName,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var claims []ScopeClaim
+	for rows.Next() {
+		var claim ScopeClaim
+		err = rows.Scan(&claim.ScopeName, &claim.ClaimName, &claim.Description, &claim.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		claims = append(claims, claim)
+	}
+	return claims, nil
+}
+
+// User Claims Management Methods
+func (store *Store) SetUserClaim(claim UserClaim) error {
+	_, err := store.db.Exec(
+		"INSERT OR REPLACE INTO user_claims (user_id, claim_name, claim_value, created_at) VALUES (?, ?, ?, ?)",
+		claim.UserId, claim.ClaimName, claim.Value, claim.CreatedAt,
+	)
+	return err
+}
+
+func (store *Store) RemoveUserClaim(userId int64, claimName string) error {
+	_, err := store.db.Exec("DELETE FROM user_claims WHERE user_id = ? AND claim_name = ?", userId, claimName)
+	return err
+}
+
+func (store *Store) GetUserClaims(userId int64) ([]UserClaim, error) {
+	rows, err := store.db.Query(
+		"SELECT user_id, claim_name, claim_value, created_at FROM user_claims WHERE user_id = ?",
+		userId,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var claims []UserClaim
+	for rows.Next() {
+		var claim UserClaim
+		err = rows.Scan(&claim.UserId, &claim.ClaimName, &claim.Value, &claim.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		claims = append(claims, claim)
+	}
+	return claims, nil
+}
+
+func (store *Store) GetUserClaim(userId int64, claimName string) (*UserClaim, error) {
+	rows, err := store.db.Query(
+		"SELECT user_id, claim_name, claim_value, created_at FROM user_claims WHERE user_id = ? AND claim_name = ?",
+		userId, claimName,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var claim UserClaim
+		err = rows.Scan(&claim.UserId, &claim.ClaimName, &claim.Value, &claim.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		return &claim, nil
+	}
+	return nil, nil
+}
+
+// Helper method to get all claims for a user based on requested scopes
+func (store *Store) GetUserClaimsForScopes(userId int64, scopes []string) ([]UserClaim, error) {
+	// First get all claims associated with the requested scopes
+	scopeClaims := make(map[string]bool)
+	for _, scope := range scopes {
+		claims, err := store.ListScopeClaims(scope)
+		if err != nil {
+			return nil, err
+		}
+		for _, claim := range claims {
+			scopeClaims[claim.ClaimName] = true
+		}
+	}
+
+	// Then get all user claims
+	allClaims, err := store.GetUserClaims(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter claims to only include those associated with requested scopes
+	var filteredClaims []UserClaim
+	for _, claim := range allClaims {
+		if scopeClaims[claim.ClaimName] {
+			filteredClaims = append(filteredClaims, claim)
+		}
+	}
+
+	return filteredClaims, nil
+}
+
+// ScopeExists checks if a scope exists in the database
+func (store *Store) ScopeExists(scopeName string) (bool, error) {
+	var count int
+	err := store.db.QueryRow("SELECT COUNT(*) FROM scopes WHERE scope_name = ?", scopeName).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (store *Store) TrackEmailAttempt(email, emailType string) error {
+	now := time.Now().Unix()
+
+	_, err := store.db.Exec(`
+		INSERT INTO email_tracking (email, type, first_attempt, last_attempt, attempts)
+		VALUES (?, ?, ?, ?, 1)
+		ON CONFLICT(email, type) DO UPDATE SET
+			last_attempt = ?,
+			attempts = attempts + 1
+	`, email, emailType, now, now, now)
+	return err
+}
+
+func (store *Store) GetEmailTracking(email, emailType string) (*EmailTracking, error) {
+	rows, err := store.db.Query(`
+		SELECT email, type, first_attempt, last_attempt, attempts, blocked, blocked_at
+		FROM email_tracking
+		WHERE email = ? AND type = ?
+	`, email, emailType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var et EmailTracking
+		var blocked int
+		err = rows.Scan(&et.Email, &et.Type, &et.FirstAttempt, &et.LastAttempt, &et.Attempts, &blocked, &et.BlockedAt)
+		if err != nil {
+			return nil, err
+		}
+		et.Blocked = blocked == 1
+		return &et, nil
+	}
+	return nil, nil
+}
+
+func (store *Store) BlockEmailAddress(email, emailType string, blockUntil time.Time) error {
+	_, err := store.db.Exec(`
+		UPDATE email_tracking
+		SET blocked = 1, blocked_at = ?
+		WHERE email = ? AND type = ?
+	`, time.Now().Unix(), email, emailType)
+	return err
+}
+
+func (store *Store) GetEmailCounts(since time.Time) (map[string]int, error) {
+	counts := make(map[string]int)
+	sinceUnix := since.Unix()
+
+	// Get count per email address
+	rows, err := store.db.Query(`
+		SELECT email, attempts
+		FROM email_tracking
+		WHERE first_attempt >= ?
+	`, sinceUnix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var email string
+		var count int
+		err = rows.Scan(&email, &count)
+		if err != nil {
+			return nil, err
+		}
+		counts[email] = count
+	}
+
+	return counts, nil
+}
+
+func (store *Store) CleanupExpiredEmailTracking() error {
+	// First unblock addresses where the block period has expired
+	_, err := store.db.Exec(`
+		UPDATE email_tracking
+		SET blocked = 0, blocked_at = NULL
+		WHERE blocked = 1 AND blocked_at < ?
+	`, time.Now().Unix())
+	if err != nil {
+		return err
+	}
+
+	// Then delete tracking records that are older than 24 hours AND are not blocked
+	_, err = store.db.Exec(`
+		DELETE FROM email_tracking
+		WHERE first_attempt < ? AND blocked = 0
+	`, time.Now().Add(-24*time.Hour).Unix())
+	return err
+}
+
+func (store *Store) DeleteExpiredAuthorizationCodes() error {
+	// Delete codes that are older than 10 minutes as per https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2
+	_, err := store.db.Exec("DELETE FROM codes WHERE created < ?", time.Now().Add(-10*time.Minute).Unix())
+	return err
+}
+
+func (store *Store) CreateRefreshToken(token RefreshToken) error {
+	_, err := store.db.Exec(`
+		INSERT INTO refresh_tokens (
+			token_hash,
+			token_hint_prefix,
+			family_id,
+			client_id,
+			email,
+			scopes,
+			auth_time,
+			created_at,
+			expires_at,
+			rotated_at,
+			revoked_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		token.TokenHash,
+		token.TokenHintPrefix,
+		token.FamilyId,
+		token.ClientId,
+		token.Email,
+		token.Scopes,
+		token.AuthTime,
+		token.CreatedAt,
+		token.ExpiresAt,
+		token.RotatedAt,
+		token.RevokedAt,
+	)
+	return err
+}
+
+func (store *Store) FindRefreshToken(rawToken string) (*RefreshToken, error) {
+	return store.findRefreshTokenByHash(store.db, tokens.HashOpaqueToken(rawToken))
+}
+
+func (store *Store) RotateRefreshToken(presentedToken string, replacement RefreshToken, now int64) (RefreshTokenRotationResult, error) {
+	ctx := context.Background()
+	conn, err := store.db.Conn(ctx)
+	if err != nil {
+		return RefreshTokenRotationResult{}, err
+	}
+	defer conn.Close()
+
+	// Refresh-token rotation must behave like a single state transition:
+	// either the presented token is marked consumed and the replacement token
+	// is persisted, or neither happens. BEGIN IMMEDIATE acquires SQLite's write
+	// lock up front on this dedicated connection so competing refresh attempts
+	// serialize before either request can observe and update the old token as
+	// still active. That gives us a clean "first committed refresh wins" model
+	// without depending on row-level locks that SQLite does not provide.
+	if err := beginImmediateTransaction(ctx, conn); err != nil {
+		return RefreshTokenRotationResult{}, err
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			_ = rollbackImmediateTransaction(ctx, conn)
+		}
+	}()
+
+	tokenHash := tokens.HashOpaqueToken(presentedToken)
+	current, err := store.findRefreshTokenByHash(conn, tokenHash)
+	if err != nil {
+		return RefreshTokenRotationResult{}, err
+	}
+	if current == nil {
+		return RefreshTokenRotationResult{State: RefreshTokenStateNotFound}, nil
+	}
+	if current.ClientId != replacement.ClientId {
+		return RefreshTokenRotationResult{State: RefreshTokenStateWrongClient, Token: current}, nil
+	}
+	if current.ExpiresAt < now {
+		return RefreshTokenRotationResult{State: RefreshTokenStateExpired, Token: current}, nil
+	}
+	if current.RevokedAt.Valid {
+		return RefreshTokenRotationResult{State: RefreshTokenStateRevoked, Token: current}, nil
+	}
+	if current.RotatedAt.Valid {
+		if err := revokeRefreshTokenFamilyOnExecutor(ctx, conn, current.FamilyId, now); err != nil {
+			return RefreshTokenRotationResult{}, err
+		}
+		if err := commitImmediateTransaction(ctx, conn); err != nil {
+			return RefreshTokenRotationResult{}, err
+		}
+		committed = true
+		current.RevokedAt = sql.NullInt64{Int64: now, Valid: true}
+		return RefreshTokenRotationResult{State: RefreshTokenStateRotated, Token: current}, nil
+	}
+
+	result, err := conn.ExecContext(ctx, `
+		UPDATE refresh_tokens
+		SET rotated_at = ?
+		WHERE token_hash = ?
+			AND rotated_at IS NULL
+			AND revoked_at IS NULL
+			AND expires_at >= ?
+	`, now, tokenHash, now)
+	if err != nil {
+		return RefreshTokenRotationResult{}, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return RefreshTokenRotationResult{}, err
+	}
+
+	if rowsAffected == 0 {
+		current, err = store.findRefreshTokenByHash(conn, tokenHash)
+		if err != nil {
+			return RefreshTokenRotationResult{}, err
+		}
+		if current == nil {
+			return RefreshTokenRotationResult{State: RefreshTokenStateNotFound}, nil
+		}
+		if current.ClientId != replacement.ClientId {
+			return RefreshTokenRotationResult{State: RefreshTokenStateWrongClient, Token: current}, nil
+		}
+		if current.ExpiresAt < now {
+			return RefreshTokenRotationResult{State: RefreshTokenStateExpired, Token: current}, nil
+		}
+		if current.RevokedAt.Valid {
+			return RefreshTokenRotationResult{State: RefreshTokenStateRevoked, Token: current}, nil
+		}
+		if current.RotatedAt.Valid {
+			if err := revokeRefreshTokenFamilyOnExecutor(ctx, conn, current.FamilyId, now); err != nil {
+				return RefreshTokenRotationResult{}, err
+			}
+			if err := commitImmediateTransaction(ctx, conn); err != nil {
+				return RefreshTokenRotationResult{}, err
+			}
+			committed = true
+			current.RevokedAt = sql.NullInt64{Int64: now, Valid: true}
+			return RefreshTokenRotationResult{State: RefreshTokenStateRotated, Token: current}, nil
+		}
+		return RefreshTokenRotationResult{State: RefreshTokenStateNotFound}, nil
+	}
+
+	if err := createRefreshTokenOnExecutor(ctx, conn, replacement); err != nil {
+		return RefreshTokenRotationResult{}, err
+	}
+	if err := commitImmediateTransaction(ctx, conn); err != nil {
+		return RefreshTokenRotationResult{}, err
+	}
+	committed = true
+	current.RotatedAt = sql.NullInt64{Int64: now, Valid: true}
+	return RefreshTokenRotationResult{State: RefreshTokenStateActive, Token: current}, nil
+}
+
+func (store *Store) RevokeRefreshTokenFamily(familyId string, revokedAt int64) error {
+	return revokeRefreshTokenFamilyOnExecutor(context.Background(), store.db, familyId, revokedAt)
+}
+
+func (store *Store) RevokeRefreshTokenFamilyByToken(rawToken, clientId string, revokedAt int64) (bool, error) {
+	token, err := store.FindRefreshToken(rawToken)
+	if err != nil {
+		return false, err
+	}
+	if token == nil || token.ClientId != clientId {
+		return false, nil
+	}
+	if err := store.RevokeRefreshTokenFamily(token.FamilyId, revokedAt); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (store *Store) RevokeAllRefreshTokensForUser(email string, revokedAt int64) error {
+	_, err := store.db.Exec(`
+		UPDATE refresh_tokens
+		SET revoked_at = ?
+		WHERE email = ? AND revoked_at IS NULL
+	`, revokedAt, email)
+	return err
+}
+
+func (store *Store) DeleteExpiredRefreshTokens() error {
+	_, err := store.db.Exec("DELETE FROM refresh_tokens WHERE expires_at < ?", time.Now().Unix())
+	return err
+}
+
+func (store *Store) DeleteOldRevokedRefreshTokens(retention time.Duration) error {
+	_, err := store.db.Exec(`
+		DELETE FROM refresh_tokens
+		WHERE revoked_at IS NOT NULL AND revoked_at < ?
+	`, time.Now().Add(-retention).Unix())
+	return err
+}
+
+func (store *Store) ListRefreshTokensByEmail(email string) ([]RefreshToken, error) {
+	rows, err := store.db.Query(fmt.Sprintf(`
+		SELECT %s
+		FROM refresh_tokens
+		WHERE email = ?
+		ORDER BY created_at ASC
+	`, refreshTokenSelectColumns), email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var refreshTokens []RefreshToken
+	for rows.Next() {
+		refreshToken, err := scanRefreshToken(rows)
+		if err != nil {
+			return nil, err
+		}
+		refreshTokens = append(refreshTokens, *refreshToken)
+	}
+	return refreshTokens, nil
+}
+
+func (store *Store) GetActiveVerificationTokensCount(email string) (int, error) {
+	var count int
+	err := store.db.QueryRow(`
+		SELECT COUNT(*) 
+		FROM verification_tokens 
+		WHERE email = ? AND expires > ?`,
+		email, time.Now().Unix()).Scan(&count)
+	return count, err
+}
+
+func (store *Store) GetLastRegistrationAttempt(email string) (int64, error) {
+	var lastAttempt sql.NullInt64
+	err := store.db.QueryRow(`
+		SELECT MAX(created) 
+		FROM verification_tokens 
+		WHERE email = ? AND type = 'registration'`,
+		email).Scan(&lastAttempt)
+	if err != nil {
+		return 0, err
+	}
+	if lastAttempt.Valid {
+		return lastAttempt.Int64, nil
+	}
+	return 0, nil
+}
+
+func (store *Store) GetFailedVerificationAttempts(email string) (int, error) {
+	var count int
+	err := store.db.QueryRow(`
+		SELECT COUNT(*) 
+		FROM verification_tokens 
+		WHERE email = ? AND type = 'registration' AND expires < ?`,
+		email, time.Now().Unix()).Scan(&count)
+	return count, err
+}
+
+type queryExecutor interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// findRefreshTokenByHash accepts either *sql.DB or *sql.Conn because refresh-token
+// rotation pins work to a dedicated connection after BEGIN IMMEDIATE. Reusing the
+// same helper with the active executor ensures every statement participates in the
+// same transactional context instead of accidentally hopping back onto a different
+// pooled database connection.
+func (store *Store) findRefreshTokenByHash(exec queryExecutor, tokenHash string) (*RefreshToken, error) {
+	row := exec.QueryRowContext(context.Background(), fmt.Sprintf(`
+		SELECT %s
+		FROM refresh_tokens
+		WHERE token_hash = ?
+	`, refreshTokenSelectColumns), tokenHash)
+	return scanRefreshToken(row)
+}
+
+func scanRefreshToken(scanner interface {
+	Scan(dest ...any) error
+}) (*RefreshToken, error) {
+	var refreshToken RefreshToken
+	err := scanner.Scan(
+		&refreshToken.TokenHash,
+		&refreshToken.TokenHintPrefix,
+		&refreshToken.FamilyId,
+		&refreshToken.ClientId,
+		&refreshToken.Email,
+		&refreshToken.Scopes,
+		&refreshToken.AuthTime,
+		&refreshToken.CreatedAt,
+		&refreshToken.ExpiresAt,
+		&refreshToken.RotatedAt,
+		&refreshToken.RevokedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &refreshToken, nil
+}
+
+func beginImmediateTransaction(ctx context.Context, conn *sql.Conn) error {
+	// IMMEDIATE is intentional here instead of relying on SQLite's default
+	// deferred transaction start. We want write contention to surface before
+	// reading token state so concurrent refresh requests cannot both read the
+	// same token as active and race each other into a partial rotation.
+	// The SQLite driver's connection-level busy timeout absorbs brief writer
+	// contention. A persistent lock still returns an error to the caller.
+	_, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE")
+	return err
+}
+
+func commitImmediateTransaction(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, "COMMIT")
+	return err
+}
+
+func rollbackImmediateTransaction(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, "ROLLBACK")
+	return err
+}
+
+// createRefreshTokenOnExecutor runs on either the store DB or a pinned SQL
+// connection. The latter is required during rotation because the replacement
+// token insert must happen on the same connection that already performed
+// BEGIN IMMEDIATE and updated the presented token row.
+func createRefreshTokenOnExecutor(ctx context.Context, exec queryExecutor, token RefreshToken) error {
+	_, err := exec.ExecContext(ctx, `
+		INSERT INTO refresh_tokens (
+			token_hash,
+			token_hint_prefix,
+			family_id,
+			client_id,
+			email,
+			scopes,
+			auth_time,
+			created_at,
+			expires_at,
+			rotated_at,
+			revoked_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		token.TokenHash,
+		token.TokenHintPrefix,
+		token.FamilyId,
+		token.ClientId,
+		token.Email,
+		token.Scopes,
+		token.AuthTime,
+		token.CreatedAt,
+		token.ExpiresAt,
+		token.RotatedAt,
+		token.RevokedAt,
+	)
+	return err
+}
+
+// revokeRefreshTokenFamilyOnExecutor likewise accepts the current executor so
+// family revocation can be done safely inside an existing connection-bound
+// transaction during replay handling, while still being reusable for
+// non-transactional callers that go through *sql.DB.
+func revokeRefreshTokenFamilyOnExecutor(ctx context.Context, exec queryExecutor, familyId string, revokedAt int64) error {
+	_, err := exec.ExecContext(ctx, `
+		UPDATE refresh_tokens
+		SET revoked_at = ?
+		WHERE family_id = ? AND revoked_at IS NULL
+	`, revokedAt, familyId)
+	return err
+}

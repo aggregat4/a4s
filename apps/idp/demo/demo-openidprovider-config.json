@@ -1,0 +1,37 @@
+{
+	"databasefilename": "demodb",
+	"serverport": 1301,
+	"baseurl": "http://localhost:1301",
+	"privatekeypemfilename": "demo-private.pem",
+	"publickeypemfilename": "demo-public.pem",
+	"registeredclients": [
+		{
+			"id": "demo-client",
+			"basicauthsecret": "demo-secret",
+			"redirecturis" : ["http://localhost:8080/auth/callback"]
+		}
+	],
+    "cleanup": {
+        "unverifiedusermaxage": 24,
+        "cleanupinterval": 1
+    },
+	"jwt": {
+		"issuer": "http://localhost:1301",
+		"idtokenvalidityminutes": 5
+	},
+	"mock_email_demo_server_url": "http://localhost:8080",
+	"altcha": {
+		"hmacKey": "demo-altcha-secret-key",
+		"maxNumber": 100000,
+		"saltLength": 12
+	},
+	"smtp": {
+		"host": "smtp.example.com",
+		"port": 587,
+		"username": "your-email@gmail.com",
+		"password": "your-app-password",
+		"fromEmail": "noreply@yourdomain.com",
+		"fromName": "Your Application Name",
+		"useTls": true
+	},
+}
