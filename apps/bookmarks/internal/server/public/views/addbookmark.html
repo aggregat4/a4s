@@ -1,0 +1,105 @@
+{{define "addbookmark"}}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Add Bookmarks</title>
+    <link rel="icon" href="/images/delicious.png">
+    <style>
+      body {
+        font-family: sans-serif;
+        box-sizing: border-box;
+        margin: 0;
+        line-height: 1.5;
+        background-color: white;
+        color: #333;
+      }
+      h1 {
+        text-align: left;     
+        letter-spacing: -1px;
+        font-weight: normal;
+        font-size: 2rem;
+        margin: 1rem 1rem;
+      }
+      form {
+        margin: 0 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      button {
+        box-sizing: border-box;
+        width: 15ch;
+        margin-top: 0.5rem;
+      }
+      input[type="text"], input[type="url"], textarea {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 80ch;
+        font-family: sans-serif;
+      }
+      input[type="checkbox"] {
+        display: inline-block;
+      }
+      textarea {
+        height: 5rem;
+        display: block;
+      }
+      .delicious {
+        font-size: 60%;
+        vertical-align: middle;
+      }
+      a, a:visited {
+        color: rgb(36, 36, 118);
+      }
+      .actions {
+        display: flex;
+        gap: 1rem;
+        align-items: baseline;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Add Delici<span class="delicious">😋</span>us Bookmark</h1>
+    </header>
+    <main>
+      <form action="/bookmarks" method="POST">
+        <label>URL
+          <input type="url" name="url" value="{{.Bookmark.URL}}" required />
+        </label>
+
+        <label>Title
+          <input type="text" name="title" value="{{.Bookmark.Title}}"/>
+        </label>
+
+        <label>Description
+          <textarea name="description">{{.Bookmark.Description}}</textarea>
+        </label>
+
+        <label>
+          <input type="checkbox" name="private" {{if .Bookmark.Private}}checked{{end}} />
+          Private
+        </label>
+
+        <label>
+          <input type="checkbox" name="readlater" {{if .Bookmark.Readlater}}checked{{end}} />
+          Read Later
+        </label>
+
+        <label>Tags
+          <input type="text" name="tags" autocomplete="off" autocapitalize="off" value="{{.Bookmark.Tags}}" {{if .Bookmark.URL}}autofocus{{end}} />
+        </label>
+
+        <div class="actions">
+          <button type="submit">Add Bookmark</button>
+          <a href="/bookmarks">Cancel</a>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>
+{{end}}

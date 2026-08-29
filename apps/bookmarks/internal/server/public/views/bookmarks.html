@@ -1,0 +1,197 @@
+{{define "bookmarks"}}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bookmarks</title>
+    <link rel="icon" href="/images/delicious.png">
+    <style>
+      body {
+        font-family: sans-serif;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1.5;
+        background-color: white;
+        color: #333;
+      }
+      h1 {
+        text-align: center;     
+        margin: 1rem 0   
+      }
+      h1 a, h1 a:visited  {
+        text-decoration: none;
+        color: black;
+        margin: 1rem 0;
+        letter-spacing: -1px;
+        font-weight: normal;
+        font-size: 2rem;
+      }
+      nav {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        border-top: 1px #eec solid;
+        border-bottom: 1px #eec solid;
+        background-color: lightgoldenrodyellow;
+        padding: 6px;
+      }
+      .bm {
+        margin: 0 0 0.5rem 0;
+        padding: 0.5rem 1rem;
+      }
+      .bm.private {
+        background-color: rgb(223, 223, 223);
+      }
+      div.description {
+        max-width: 80ch;
+        margin: 6px 30px;
+        font-style: italic;
+        border-left: 1px #555 solid;
+        padding-left: 6px;
+      }
+      dl {
+        margin: 0;
+      }
+      dt a{
+        font-weight: bold;         
+      }
+      dd {
+        margin: 0;
+      }
+      dd p {
+        margin: 0;
+      }
+      dd time {
+        color: #757575;
+      }
+      a[aria-disabled=true] {
+        color: #8d8d8d;
+      }
+      a, a:visited {
+        color: rgb(36, 36, 118);
+      }
+      .visually-hidden {
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        height: 1px;
+        overflow: hidden;
+        position: absolute;
+        white-space: nowrap;
+        width: 1px;
+      }
+      .delicious {
+        font-size: 60%;
+        vertical-align: middle;
+      }
+      form.deletebookmark {
+        display: none;
+      }
+      .canceldeletebookmark {
+        display: none;
+      }
+      .bmactionbar {
+        display: flex;
+        column-gap: 12px;
+      }
+      .bookmark-url {
+        color: #757575;
+        font-size: 0.9em;
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 80ch;
+        cursor: help;
+      }
+    </style>  
+    <link rel="alternate" type="application/rss+xml" title="RSS Feed for your delicious bookmarks (PRIVATE LINK)"  href="{{.RssFeedUrl}}" />
+  </head>
+  <body>
+    <header>
+      <h1><a href="/bookmarks">Delici<span class="delicious">😋</span>us Bookmarks</a></h1>
+      <nav>
+        <div>
+          {{if .HasLeft}}
+          <a href="/bookmarks?offset={{.LeftOffset}}&direction=0{{if .SearchQuery}}&q={{.SearchQuery}}{{end}}">Previous</a>
+          {{else}}
+          <a role="link" aria-disabled="true">Previous</a>
+          {{end}}
+          ·
+          {{if .HasRight}}
+          <a href="/bookmarks?offset={{.RightOffset}}&direction=1{{if .SearchQuery}}&q={{.SearchQuery}}{{end}}">Next</a>
+          {{else}}
+          <a role="link" aria-disabled="true">Next</a>
+          {{end}}
+        </div>
+        <form action="/bookmarks" method="get">
+          <label for="search" class="visually-hidden">Search:</label>
+          <input type="search" id="search" name="q" value="{{.SearchQuery}}">
+          <button type="submit">Search</button>
+        </form>
+        <div>
+          <a href="{{.RssFeedUrl}}">RSS Feed</a>
+          ·
+          <a href="/addbookmark">Add Bookmark</a>
+        </div>
+      </nav>
+    </header>
+    <main>
+      <dl>
+        {{range .Bookmarks}}
+        <div class="bm{{if .Private}} private{{end}}">
+          <dt>
+            <a href="{{.URL}}">{{if .Title}}{{highlight .Title}}{{end}}{{if not .Title}}{{.URL}}{{end}}</a>
+            <div class="bookmark-url" title="{{.URL}}">{{.URL}}</div>
+          </dt>
+          <dd>
+            {{if .Description}}
+            <div class="description">{{highlight .Description}}</div>
+            {{end}}
+            {{if .Tags}}
+            <p>Tags: <span class="tags">{{highlight .Tags}}</span></p>
+            {{end}}
+            <span class="bmactionbar">
+              <time datetime="{{.Created}}">Created: {{.Created.Format "2006-01-02"}}</time>
+              <a class="editbookmark" href="/addbookmark?url={{.URL}}">Edit</a>
+              <button class="confirmdelete" onclick="showDeleteOptions(this)">Delete...</button>
+              <button class="canceldeletebookmark" onclick="hideDeleteOptions(this)">Cancel</button>
+              <form class="deletebookmark" method="post" action="deletebookmark">
+                <input type="hidden" name="url" value="{{.URL}}">
+                <button class="deletebookmark">Delete!</button>
+              </form>
+            </span>
+          </dd>
+          </div>
+        {{end}}
+      </dl>
+    </main>
+    <script>
+      function showDeleteOptions(el) {
+        if (el) {
+          const cancelbutton = el.parentElement.querySelector(".canceldeletebookmark");
+          const deleteBookmarkForm = el.parentElement.querySelector("form.deletebookmark");
+          if (cancelbutton && deleteBookmarkForm) {
+            cancelbutton.style.display = "inline";
+            deleteBookmarkForm.style.display = "inline";
+            el.style.display = "none";
+          }
+        }
+      }
+
+      function hideDeleteOptions(el) {
+        if (el) {
+          const deleteBookmarkButton = el.parentElement.querySelector("button.confirmdelete");
+          const deleteBookmarkForm = el.parentElement.querySelector("form.deletebookmark");
+          if (deleteBookmarkButton && deleteBookmarkForm) {
+            el.style.display = "none";
+            deleteBookmarkForm.style.display = "none";
+            deleteBookmarkButton.style.display = "inline";
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
+{{end}}
