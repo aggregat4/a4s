@@ -1,0 +1,211 @@
+interface HighlightRange {
+  start: number;
+  end: number;
+  priority: number;
+  key: string;
+  open: string;
+  close: string;
+}
+
+interface PatternConfig {
+  regexSource: string;
+  regexFlags: string;
+  className: string;
+  key: string;
+  priority: number;
+}
+
+const escapeHTML = (str: string) =>
+  str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const mergeRanges = (ranges: HighlightRange[]) => {
+  if (!ranges.length) return [];
+  const sorted = ranges.slice().sort((a, b) => {
+    if (a.start !== b.start) return a.start - b.start;
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    if (a.end !== b.end) return a.end - b.end;
+    return a.key.localeCompare(b.key);
+  });
+  const merged = [{ ...sorted[0] }];
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const last = merged[merged.length - 1];
+    if (current.start <= last.end && current.key === last.key) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push({ ...current });
+    }
+  }
+  return merged;
+};
+
+const buildDecoratedMarkup = (
+  original: string,
+  tokens: string[],
+  patternConfig: PatternConfig[]
+) => {
+  const haystack = original.toLowerCase();
+  const ranges: HighlightRange[] = [];
+  const patterns = Array.isArray(patternConfig) ? patternConfig : [];
+  let matchesAllTokens = true;
+
+  tokens.forEach((token) => {
+    let searchIndex = 0;
+    let foundAny = false;
+    while (searchIndex <= haystack.length) {
+      const found = haystack.indexOf(token, searchIndex);
+      if (found === -1) break;
+      ranges.push({
+        start: found,
+        end: found + token.length,
+        priority: 1,
+        open: "<mark>",
+        close: "</mark>",
+        key: "mark",
+      });
+      searchIndex = found + token.length;
+      foundAny = true;
+    }
+    if (!foundAny) {
+      matchesAllTokens = false;
+    }
+  });
+
+  patterns.forEach((def) => {
+    const patternRegex = new RegExp(def.regexSource, def.regexFlags);
+    let match;
+    while ((match = patternRegex.exec(original)) !== null) {
+      if (!match[0].length) {
+        patternRegex.lastIndex += 1;
+        continue;
+      }
+      ranges.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        priority: def.priority,
+        open: `<span class="${def.className}">`,
+        close: "</span>",
+        key: def.key,
+      });
+      if (!patternRegex.global) break;
+    }
+  });
+
+  if (!ranges.length) {
+    return { markup: null, matchesAllTokens };
+  }
+
+  const merged = mergeRanges(ranges);
+  if (!merged.length) {
+    return { markup: null, matchesAllTokens };
+  }
+
+  const boundaries = new Set([0, original.length]);
+  merged.forEach((range) => {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  });
+  const sortedBoundaries = Array.from(boundaries).sort((a, b) => a - b);
+
+  let result = "";
+  for (let i = 0; i < sortedBoundaries.length - 1; i++) {
+    const start = sortedBoundaries[i];
+    const end = sortedBoundaries[i + 1];
+    if (start === end) continue;
+    let segment = escapeHTML(original.slice(start, end));
+    if (!segment) continue;
+    const covering = merged.filter(
+      (range) => range.start <= start && range.end >= end
+    );
+    if (covering.length) {
+      covering.sort((a, b) => a.priority - b.priority);
+      for (let j = covering.length - 1; j >= 0; j--) {
+        const wrapper = covering[j];
+        segment = wrapper.open + segment + wrapper.close;
+      }
+    }
+    result += segment;
+  }
+
+  return { markup: result, matchesAllTokens };
+};
+
+export const tokenizeSearchQuery = (query: string) => {
+  if (typeof query !== "string") return [];
+  return query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => token.toLowerCase());
+};
+
+export const evaluateSearchEntry = ({
+  originalText,
+  noteText,
+  tokens,
+  patternConfig,
+  showDone,
+  isDone,
+}: {
+  originalText: string;
+  noteText: string;
+  tokens: string[];
+  patternConfig: PatternConfig[];
+  showDone: boolean;
+  isDone: boolean;
+}) => {
+  const hiddenByCompletion = !showDone && isDone;
+  if (hiddenByCompletion) {
+    return { hidden: true, markup: null, noteMarkup: null, noteMatched: false };
+  }
+
+  const safeText = typeof originalText === "string" ? originalText : "";
+  const safeNote = typeof noteText === "string" ? noteText : "";
+  const haystack = `${safeText}\n${safeNote}`.toLowerCase();
+  const matchesAllTokens = tokens.every((token) => haystack.includes(token));
+  const { markup } = buildDecoratedMarkup(safeText, tokens, patternConfig);
+  if (tokens.length > 0 && !matchesAllTokens) {
+    return { hidden: true, markup: null, noteMarkup: null, noteMatched: false };
+  }
+
+  // noteMatched is true only during an active search whose query appears in
+  // the note; it drives auto-expand and guarantees noteMarkup has mark ranges.
+  const noteMatched =
+    tokens.length > 0 &&
+    tokens.some((token) => safeNote.toLowerCase().includes(token));
+  const { markup: noteMarkup } = noteMatched
+    ? buildDecoratedMarkup(safeNote, tokens, patternConfig)
+    : { markup: null };
+
+  return { hidden: false, markup, noteMarkup, noteMatched };
+};
+
+export const matchesSearchEntry = ({
+  originalText,
+  noteText,
+  tokens,
+  showDone,
+  isDone,
+}: {
+  originalText: string;
+  noteText: string;
+  tokens: string[];
+  showDone: boolean;
+  isDone: boolean;
+}) => {
+  if (!showDone && isDone) {
+    return false;
+  }
+  if (!tokens || tokens.length === 0) {
+    return true;
+  }
+  const safeText = typeof originalText === "string" ? originalText : "";
+  const safeNote = typeof noteText === "string" ? noteText : "";
+  const haystack = `${safeText}\n${safeNote}`.toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
+};

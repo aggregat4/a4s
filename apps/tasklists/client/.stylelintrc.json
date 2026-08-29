@@ -1,0 +1,7 @@
+{
+  "customSyntax": "postcss-scss",
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "declaration-empty-line-before": "never"
+  }
+}

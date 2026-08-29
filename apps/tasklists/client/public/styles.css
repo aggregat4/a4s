@@ -1,0 +1,1525 @@
+:root {
+    --font-family-base: "Inter", sans-serif;
+    --font-size-base: 16px;
+    --font-size-title: 20px;
+    --color-background: #f5f5f5;
+    --color-surface: #fff;
+    --color-surface-muted: #f0f0f0;
+    --color-sidebar: #e7e7e7;
+    --color-sidebar-mobile: #dedede;
+    --color-main-mobile: #fafafa;
+    --color-text: #333;
+    --color-muted: #626262;
+    --color-border: #949494;
+    --color-border-muted: #949494;
+    --color-border-strong: #4d4d4d;
+    --color-highlight: #ffec99;
+    --color-mention: #333;
+    --color-tag: #333;
+    --color-handle: #848484;
+    --color-accent: #1c7ed6;
+    --color-danger: #c92a2a;
+    --color-focus-ring: #6d7dbd;
+    --outline-color: #4d4d4d;
+    --color-black-rgb: 0 0 0;
+    --color-white-rgb: 255 255 255;
+    --color-accent-rgb: 28 126 214;
+    --color-border-strong-rgb: 77 77 77;
+    --color-editing-outline: rgb(var(--color-border-strong-rgb) / 60%);
+    --field-focus-outline: 2px solid var(--color-editing-outline);
+    --field-focus-outline-offset: 2px;
+    --shadow-drag: 0 8px 24px rgb(var(--color-black-rgb) / 18%);
+    --radius-sm: 4px;
+    --space-xs: 6px;
+    --space-sm: 8px;
+    --space-md: 12px;
+    --space-lg: 16px;
+    --space-xl: 20px;
+    --transition-fast: 0.2s ease;
+    --drop-duration: 0.3s;
+    --list-width: 70ch;
+    --search-width: 250px;
+    --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4=");
+    --task-options-icon-left: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1sZWZ0IiB2aWV3Qm94PSIwIDAgMTYgMTYiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkuMjI0IDEuNTUzYS41LjUgMCAwIDEgLjIyMy42N0w2LjU2IDhsMi44ODggNS43NzZhLjUuNSAwIDEgMS0uODk0LjQ0OGwtMy02YS41LjUgMCAwIDEgMC0uNDQ4bDMtNmEuNS41IDAgMCAxIC42Ny0uMjIzIi8+Cjwvc3ZnPg==");
+    --task-options-icon-right: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1yaWdodCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik02Ljc3NiAxLjU1M2EuNS41IDAgMCAxIC42NzEuMjIzbDMgNmEuNS41IDAgMCAxIDAgLjQ0OGwtMyA2YS41LjUgMCAxIDEtLjg5NC0uNDQ4TDkuNDQgOCA2LjU1MyAyLjIyNGEuNS41IDAgMCAxIC4yMjMtLjY3MSIvPgo8L3N2Zz4=");
+}
+
+html,
+body {
+    /* Suppress iOS rubber-band/bounce on the document scroller. There is no
+       pull-to-reload in the installed home-screen app, so the bounce only
+       gets in the way. Needs iOS 16+; older versions ignore it harmlessly. */
+    overscroll-behavior-y: none;
+}
+
+body {
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-base);
+    background-color: var(--color-background);
+    color: var(--color-text);
+    padding: 0;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+}
+
+button {
+    font: inherit;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--outline-color);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition:
+        background-color var(--transition-fast),
+        color var(--transition-fast);
+
+    svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    &:hover {
+        background-color: var(--color-text);
+        color: var(--color-surface);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--outline-color);
+        outline-offset: 2px;
+    }
+}
+
+.danger {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+
+    &:hover,
+    &:focus-visible {
+        background-color: var(--color-danger);
+        color: var(--color-surface);
+    }
+}
+
+.iconlabel {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.is-drop-target {
+    border: 1px solid var(--color-accent);
+    box-shadow: inset 0 0 0 2px rgb(var(--color-accent-rgb) / 60%);
+}
+
+.lists-app {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    width: 100%;
+    max-width: 1200px;
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--color-background);
+}
+
+.lists-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    background-color: var(--color-sidebar);
+    border-right: 1px solid var(--color-border);
+    box-shadow: inset -1px 0 0 rgb(var(--color-white-rgb) / 45%);
+    min-width: 0;
+    grid-column: 1;
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+.sidebar-topbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.sidebar-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+.sidebar-search-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+.sidebar-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex: 0 0 auto;
+}
+
+.sidebar-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+@media (width > 640px) {
+    .sidebar-title-row {
+        gap: var(--space-sm);
+    }
+
+    .sidebar-title-row::before {
+        content: "";
+        display: block;
+        width: 3px;
+        height: 22px;
+        border-radius: var(--radius-sm);
+        background-color: var(--color-border-strong);
+    }
+
+    .sidebar-title.sr-only {
+        position: static;
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip-path: none;
+        white-space: normal;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+}
+
+/* Always-visible connectivity status: muted when connected, red when not. */
+.sidebar-sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    background: transparent;
+    cursor: help;
+    transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* The resting state: connected is the norm, so it stays unobtrusive. */
+.sidebar-sync-indicator.is-connected {
+    color: var(--color-muted);
+    opacity: 0.45;
+}
+
+/* The one state that should draw the eye: the browser is offline or changes
+   aren't reaching the server. No fill; the red hue is the only color in the
+   sidebar, so it stands out against the grays on its own. */
+.sidebar-sync-indicator.is-disconnected {
+    color: var(--color-danger);
+    font-size: 14px;
+    font-weight: 700;
+    opacity: 1;
+}
+
+.sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.sidebar-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    font-weight: 500;
+    color: var(--color-muted);
+}
+
+.sidebar-field-inline {
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar-search-input {
+    font: inherit;
+    padding: var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    width: 100%;
+
+    &:focus {
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
+    }
+}
+
+.sidebar-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+    flex: 1;
+    min-height: 0;
+}
+
+.sidebar-content > .sidebar-sections {
+    width: 100%;
+}
+
+.sidebar-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.sidebar-list-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border: none;
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    flex: 1;
+
+    &:hover {
+        background-color: transparent;
+        color: inherit;
+    }
+
+    &:focus-visible {
+        outline: none;
+    }
+}
+
+.sidebar-list-label {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.sidebar-list-count {
+    font-size: 14px;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+.sidebar-list > li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+    padding: 0;
+}
+
+.sidebar-list > li:hover:not(.is-active),
+.sidebar-list > li:focus-within:not(.is-active) {
+    border-color: var(--outline-color);
+}
+
+.sidebar-list > .is-active {
+    background-color: var(--color-text);
+    border-color: var(--color-text);
+    color: var(--color-surface);
+}
+
+.sidebar-list > .is-active .sidebar-list-count {
+    color: rgb(var(--color-white-rgb) / 70%);
+}
+
+.sidebar-list > .dragging {
+    outline: 2px dotted var(--color-focus-ring);
+    box-shadow: var(--shadow-drag);
+    background-color: var(--color-surface);
+}
+
+.sidebar-list > .is-drop-target {
+    border-color: var(--color-accent);
+    background-color: rgb(var(--color-accent-rgb) / 12%);
+}
+
+.sidebar-list > .is-drop-target .sidebar-list-count {
+    color: var(--color-text);
+}
+
+.sidebar-list-handle {
+    cursor: grab;
+    color: var(--color-handle);
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 20px 20px;
+    background-image: var(--task-handle-icon);
+    margin-left: 0;
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+.sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.sidebar-actions-disclosure {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+.sidebar-actions-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--color-text);
+    padding: var(--space-xs) 0;
+    list-style: none;
+}
+
+.sidebar-actions-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.sidebar-actions-toggle::before {
+    content: "▸";
+    font-size: 10px;
+    line-height: 1;
+}
+
+.sidebar-actions-disclosure[open] .sidebar-actions-toggle::before {
+    content: "▾";
+}
+
+.sidebar-actions-toggle-label {
+    min-width: 0;
+}
+
+.sidebar-actions-toggle .sidebar-status {
+    margin-left: auto;
+}
+
+.sidebar-actions-toggle:focus-visible {
+    outline: 2px solid var(--outline-color);
+    outline-offset: 2px;
+}
+
+.sidebar-actions-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.sidebar-actions-secondary {
+    margin-top: var(--space-sm);
+}
+
+.lists-main {
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+    min-width: 0;
+    grid-column: 2;
+}
+
+.lists-main-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.lists-main:not(.search-mode) .lists-main-header {
+    display: none;
+}
+
+.lists-main-title {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.lists-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+}
+
+.list-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.list-section:not(.is-visible) {
+    display: none;
+}
+
+.lists-main.search-mode .list-section {
+    display: flex;
+}
+
+.list-section-flash {
+    animation: target-flash 0.8s ease;
+}
+
+@keyframes target-flash {
+    0% {
+        box-shadow: 0 0 0 0 rgb(var(--color-accent-rgb) / 40%);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgb(var(--color-accent-rgb) / 20%);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgb(var(--color-accent-rgb) / 0%);
+    }
+}
+
+a4-tasklist {
+    display: block;
+}
+
+.tasklist-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-md);
+
+    .tasklist-title-wrapper {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        justify-self: start;
+    }
+
+    .tasklist-title {
+        margin: 0;
+        min-width: 0;
+        max-width: 100%;
+        font-size: var(--font-size-title);
+        font-weight: 600;
+        color: var(--color-text);
+        padding: var(--space-xs) calc(var(--space-xs) + 20px) var(--space-xs)
+            var(--space-xs);
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        cursor: text;
+        transition:
+            border-color var(--transition-fast),
+            background-color var(--transition-fast),
+            box-shadow var(--transition-fast);
+        outline: none;
+
+        &:empty {
+            display: none;
+        }
+
+        &:focus-visible {
+            border-color: var(--outline-color);
+            box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
+        }
+
+        &.is-editing {
+            border-color: var(--outline-color);
+            background-color: var(--color-surface);
+            box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
+        }
+
+        &:hover:not(.is-editing),
+        &:focus-visible:not(.is-editing) {
+            border-color: var(--color-border-muted);
+            background-color: var(--color-surface-muted);
+        }
+    }
+
+    .tasklist-title-edit-icon {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        opacity: 0.7;
+        pointer-events: none;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 14px 14px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%23626262' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.5 2.5l2 2M3 13l8-8 2 2-8 8H3v-2z'/%3E%3C/svg%3E");
+    }
+
+    .tasklist-title-wrapper:has(.tasklist-title.is-editing)
+        .tasklist-title-edit-icon {
+        display: none;
+    }
+
+    .tasklist-controls {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: var(--space-sm);
+        flex-wrap: wrap;
+    }
+}
+
+.tasklist-search-input {
+    font: inherit;
+    padding: var(--space-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    width: var(--search-width);
+    max-width: 100%;
+
+    &:focus {
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
+    }
+}
+
+.tasklist-show-done {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 16px;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.tasklist-show-done-label {
+    color: var(--color-muted);
+}
+
+.tasklist-show-done-toggle {
+    appearance: none;
+    width: 36px;
+    height: 20px;
+    margin: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background-color: var(--color-surface-muted);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: background-color var(--transition-fast);
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background-color: var(--color-surface);
+        border: 1px solid var(--color-border);
+        transform: translateY(-50%);
+        transition: transform var(--transition-fast);
+    }
+
+    &:checked {
+        background-color: var(--color-text);
+        border-color: var(--color-text);
+
+        &::before {
+            transform: translate(16px, -50%);
+            border-color: var(--color-text);
+        }
+    }
+
+    &:focus-visible {
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
+    }
+}
+
+.tasklist {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.task-item {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    padding-left: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border-strong);
+    overflow: hidden;
+    transition:
+        background-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+.task-item.is-focused {
+    border-color: var(--outline-color);
+    box-shadow: inset 3px 0 0 var(--outline-color);
+}
+
+.task-item[hidden] {
+    display: none;
+}
+
+.task-item-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 38px;
+}
+
+.task-item-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.done-toggle {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    cursor: pointer;
+    margin: 0;
+
+    &:focus-visible {
+        outline: 2px solid var(--outline-color);
+        outline-offset: 2px;
+    }
+}
+
+.task-text {
+    padding: var(--space-xs) 0;
+    flex: 1;
+    min-width: 0;
+
+    /* Break long unbreakable strings (e.g. URLs) so they wrap instead of
+       overflowing under the drag handle. */
+    overflow-wrap: anywhere;
+    outline: none;
+}
+
+.task-text.text-editing {
+    outline: none;
+}
+
+.task-text mark {
+    background-color: var(--color-highlight);
+    color: inherit;
+    border-radius: 2px;
+}
+
+.task-text.text-checked {
+    text-decoration: line-through;
+    color: var(--color-muted);
+}
+
+.task-item-trailing {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-shrink: 0;
+    margin-left: var(--space-sm);
+}
+
+.handle {
+    cursor: grab;
+    color: var(--color-handle);
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 24px 24px;
+    background-image: var(--task-handle-icon);
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+.task-note-toggle {
+    border: none;
+    background: transparent;
+    width: 20px;
+    height: 24px;
+    padding: 0;
+    flex-shrink: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    &::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        box-sizing: border-box;
+        border: 1px solid var(--color-muted);
+        background-color: transparent;
+    }
+
+    &:hover::before {
+        border-color: var(--color-text);
+    }
+
+    &:focus-visible {
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
+    }
+
+    &[aria-pressed="true"]::before {
+        border-color: var(--color-text);
+    }
+
+    &.has-note,
+    .task-item.is-focused &,
+    .task-item:has(.task-note-panel) & {
+        display: inline-flex;
+    }
+}
+
+.task-note-toggle.has-note {
+    &::before {
+        border: none;
+        background-color: var(--color-muted);
+    }
+
+    &:hover::before {
+        background-color: var(--color-text);
+    }
+
+    &[aria-pressed="true"]::before {
+        background-color: var(--color-text);
+    }
+}
+
+.task-note-panel {
+    padding: var(--space-sm) var(--space-sm) var(--space-sm)
+        calc(20px + var(--space-sm) * 2);
+    border-top: 1px solid rgb(var(--color-border-strong-rgb) / 60%);
+}
+
+.task-note-scroll-wrap {
+    position: relative;
+    max-height: 12rem;
+
+    &::before,
+    &::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 8px;
+        height: 10px;
+        pointer-events: none;
+        z-index: 1;
+        opacity: 0;
+        transition: opacity var(--transition-fast);
+    }
+
+    &::before {
+        top: 0;
+        background: linear-gradient(
+            to bottom,
+            rgb(var(--color-white-rgb) / 70%) 0%,
+            rgb(var(--color-white-rgb) / 0%) 100%
+        );
+    }
+
+    &::after {
+        bottom: 0;
+        background: linear-gradient(
+            to top,
+            rgb(var(--color-white-rgb) / 70%) 0%,
+            rgb(var(--color-white-rgb) / 0%) 100%
+        );
+    }
+
+    &.is-scrolled-down::before {
+        opacity: 1;
+    }
+
+    &.is-scrolled-up::after {
+        opacity: 1;
+    }
+}
+
+.task-note-input {
+    display: block;
+    width: 100%;
+    min-height: 6.25rem;
+    max-height: 12rem;
+    resize: vertical;
+    box-sizing: border-box;
+    border: none;
+    padding: var(--space-xs) 0;
+    font: inherit;
+    line-height: 1.4;
+    color: inherit;
+    background: transparent;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+
+    &:focus-visible {
+        outline: none;
+    }
+
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background-color: var(--color-border);
+        border-radius: 999px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background-color: transparent;
+    }
+}
+
+.task-item-toggle {
+    background-color: inherit;
+    border-radius: 0;
+    align-self: stretch;
+    flex: 0 0 auto;
+    min-width: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--space-sm);
+    margin-right: 0;
+    border: none;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 24px 24px;
+    background-image: var(--task-options-icon-left);
+    cursor: pointer;
+    transition:
+        background-color var(--transition-fast),
+        color var(--transition-fast);
+
+    &:hover,
+    &:focus-visible {
+        background-color: var(--color-text);
+        color: var(--color-surface);
+        outline: none;
+    }
+}
+
+.task-item-toggle-open {
+    background-image: var(--task-options-icon-right);
+}
+
+.task-item-actions {
+    --task-actions-max-width: 220px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 0;
+    margin: 0;
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: nowrap;
+    transition:
+        max-width var(--transition-fast),
+        opacity var(--transition-fast),
+        padding var(--transition-fast),
+        margin var(--transition-fast);
+}
+
+.task-item-actions-open {
+    max-width: var(--task-actions-max-width);
+    padding: 0 var(--space-sm);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.task-move-button,
+.task-delete-button {
+    flex: 0 0 auto;
+}
+
+.task-item:active {
+    cursor: grabbing;
+}
+
+.task-item.dragging {
+    will-change: transform;
+    outline: 3px dotted var(--color-focus-ring);
+    box-shadow: var(--shadow-drag);
+    background: var(--color-surface);
+    opacity: 0.9;
+}
+
+.task-item.placeholder {
+    background: transparent;
+    border: 2px dashed var(--color-border-muted);
+    height: 0;
+    margin-bottom: var(--space-sm);
+}
+
+.tasklist-empty {
+    display: none;
+    padding: var(--space-md) var(--space-sm);
+    color: var(--color-muted);
+    font-style: italic;
+}
+
+.tasklist-no-matches .tasklist-empty {
+    display: block;
+}
+
+/* Compact stub for lists with no matches during search. Scoped under
+   .search-mode (no-matches only occurs while searching) and kept specific so
+   it overrides the base title rules cleanly. Only the appearance collapses —
+   document order is preserved so nothing jumps as you type. */
+.lists-main.search-mode .tasklist-no-matches {
+    /* Lay the title and the "No matching items" note out on a single row
+       (title left, note right) instead of stacking them on two lines. */
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-controls {
+    display: none;
+}
+
+.lists-main.search-mode .tasklist-no-matches ol.tasklist {
+    display: none;
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-header {
+    margin-bottom: 0;
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-title {
+    color: var(--color-muted);
+    font-weight: 500;
+}
+
+.lists-main.search-mode .tasklist-no-matches .tasklist-empty {
+    font-style: normal;
+    padding: 0;
+}
+
+/* In search mode every list title is a read-only label: drop the rename
+   cursor/hover affordance and the padding reserved for the edit icon. */
+.lists-main.search-mode .tasklist-header .tasklist-title {
+    cursor: default;
+    padding-right: var(--space-xs);
+}
+
+.lists-main.search-mode .tasklist-header .tasklist-title:hover,
+.lists-main.search-mode .tasklist-header .tasklist-title:focus-visible {
+    border-color: transparent;
+    background-color: transparent;
+}
+
+.task-token-mention {
+    color: var(--color-mention);
+    font-weight: 600;
+}
+
+.task-token-tag {
+    color: var(--color-tag);
+    font-weight: 600;
+}
+
+.flip-animating {
+    will-change: transform;
+    transition: transform 140ms ease;
+}
+
+.drop-animation {
+    will-change: transform;
+    animation: drop-slide var(--drop-duration) ease-out;
+}
+
+@keyframes drop-slide {
+    0% {
+        transform: translateX(-8px);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: translateX(8px);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.move-dialog {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.move-dialog[hidden] {
+    display: none;
+}
+
+.move-dialog-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgb(var(--color-black-rgb) / 30%);
+}
+
+.move-dialog-content {
+    position: relative;
+    background-color: var(--color-surface);
+    border-radius: 8px;
+    padding: var(--space-xl);
+    min-width: min(420px, calc(100vw - 40px));
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    box-shadow: 0 24px 48px rgb(var(--color-black-rgb) / 20%);
+}
+
+.move-dialog-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.move-dialog-description {
+    margin: 0;
+    font-size: 16px;
+    color: var(--color-muted);
+}
+
+.move-dialog-options {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.move-dialog-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    font: inherit;
+    cursor: pointer;
+    width: 100%;
+}
+
+.move-dialog-option-name {
+    font-weight: 600;
+}
+
+.move-dialog-option-count {
+    font-size: 14px;
+    color: var(--color-muted);
+}
+
+.move-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.move-dialog-cancel {
+    font: inherit;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--outline-color);
+    background-color: transparent;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+        background-color: var(--color-text);
+        color: var(--color-surface);
+        outline: none;
+    }
+}
+
+.shortcuts-dialog {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.shortcuts-dialog[hidden] {
+    display: none;
+}
+
+.shortcuts-dialog-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgb(var(--color-black-rgb) / 30%);
+}
+
+.shortcuts-dialog-content {
+    position: relative;
+    background-color: var(--color-surface);
+    border-radius: 8px;
+    padding: var(--space-xl);
+    min-width: min(360px, calc(100vw - 40px));
+    max-width: min(680px, calc(100vw - 40px));
+    max-height: calc(100dvh - 80px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    box-shadow: 0 24px 48px rgb(var(--color-black-rgb) / 20%);
+}
+
+.shortcuts-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.shortcuts-dialog-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.shortcuts-dialog-close {
+    font: inherit;
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--outline-color);
+    background-color: transparent;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+        background-color: var(--color-text);
+        color: var(--color-surface);
+        outline: none;
+    }
+}
+
+.shortcuts-dialog-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+    padding-right: var(--space-xs);
+}
+
+.shortcuts-dialog-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.shortcuts-dialog-group-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+}
+
+.shortcuts-dialog-list {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--space-sm) var(--space-lg);
+}
+
+.shortcuts-dialog-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.shortcuts-dialog-keys {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-width: 6.5em;
+}
+
+.shortcuts-dialog-desc {
+    flex: 1 1 auto;
+    margin: 0;
+    color: var(--color-text);
+}
+
+.shortcuts-dialog-hint {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 14px;
+    color: var(--color-muted);
+}
+
+.shortcuts-dialog-key {
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    min-width: 1.5em;
+    text-align: center;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--outline-color);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-muted);
+}
+
+@media (width <= 640px) {
+    .lists-app {
+        grid-template-columns: 1fr;
+        align-content: start;
+    }
+
+    .lists-sidebar {
+        border-right: none;
+        border-bottom: 1px dashed var(--color-border-strong);
+        box-shadow: 0 6px 16px rgb(var(--color-black-rgb) / 10%);
+        align-self: start;
+        grid-column: 1;
+        background-color: var(--color-sidebar-mobile);
+        gap: var(--space-lg);
+    }
+
+    .lists-main {
+        grid-column: 1;
+        background-color: var(--color-main-mobile);
+    }
+
+    .sidebar-content {
+        flex: none;
+        gap: var(--space-lg);
+    }
+
+    .sidebar-sections {
+        flex: none;
+        gap: var(--space-lg);
+    }
+
+    .sidebar-actions-disclosure {
+        margin-top: 0;
+    }
+
+    .sidebar-topbar {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-sm);
+    }
+
+    .sidebar-title-row {
+        display: none;
+    }
+
+    .sidebar-search-row {
+        flex: 1 1 auto;
+    }
+
+    .sidebar-sync-indicator {
+        width: 12px;
+        height: 12px;
+        font-size: 10px;
+    }
+
+    .sidebar-sync-indicator.is-disconnected {
+        font-size: 13px;
+    }
+
+    .sidebar-search-input {
+        min-width: 0;
+    }
+
+    .tasklist-header {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+        gap: var(--space-sm);
+
+        .tasklist-title-wrapper {
+            justify-self: start;
+        }
+
+        .tasklist-title {
+            width: auto;
+        }
+
+        .tasklist-controls {
+            width: 100%;
+            justify-content: space-between;
+            flex-wrap: nowrap;
+        }
+
+        .tasklist-controls .iconlabel {
+            width: auto;
+        }
+
+        .tasklist-show-done {
+            white-space: nowrap;
+        }
+    }
+
+    .lists-main.search-mode .tasklist-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+
+        .tasklist-controls {
+            width: auto;
+        }
+    }
+
+    .tasklist > .task-item {
+        --task-actions-reveal-width: 128px;
+        --task-swipe-translate: 0px;
+
+        .task-item-toggle {
+            display: none;
+        }
+
+        .task-item-body {
+            flex: 1 1 auto;
+            background-color: var(--color-surface);
+            z-index: 1;
+            transform: translateX(0);
+            transition: transform var(--transition-fast);
+        }
+
+        .task-item-actions {
+            --task-actions-max-width: 260px;
+            position: absolute;
+            inset-block: 0;
+            right: 0;
+            z-index: 2;
+            width: var(--task-actions-reveal-width);
+            max-width: var(--task-actions-reveal-width);
+            justify-content: flex-end;
+            padding: 0 var(--space-sm);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            background-color: var(--color-surface);
+        }
+
+        .task-item-actions-open {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        &:has(.task-item-actions-open) .task-item-body {
+            transform: translateX(calc(-1 * var(--task-actions-reveal-width)));
+        }
+
+        &:has(.task-item-actions-open) .task-text,
+        &.task-item-swiping .task-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        &.task-item-swiping .task-item-body {
+            transform: translateX(var(--task-swipe-translate));
+            transition: none;
+        }
+
+        &.task-item-swiping .task-item-actions {
+            opacity: 1;
+            visibility: visible;
+        }
+    }
+}

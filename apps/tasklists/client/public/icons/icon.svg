@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#ffffff"/>
+  <g fill="none" stroke="#000000" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Checkbox with checkmark -->
+    <rect x="64" y="80" width="96" height="96" rx="12"/>
+    <polyline points="88,128 112,152 136,104"/>
+    <!-- List item lines -->
+    <line x1="192" y1="104" x2="448" y2="104"/>
+    <line x1="192" y1="152" x2="384" y2="152"/>
+    <!-- Second checkbox -->
+    <rect x="64" y="208" width="96" height="96" rx="12"/>
+    <!-- Second list lines -->
+    <line x1="192" y1="232" x2="448" y2="232"/>
+    <line x1="192" y1="280" x2="352" y2="280"/>
+    <!-- Third checkbox -->
+    <rect x="64" y="336" width="96" height="96" rx="12"/>
+    <!-- Third list lines -->
+    <line x1="192" y1="360" x2="448" y2="360"/>
+    <line x1="192" y1="408" x2="416" y2="408"/>
+  </g>
+</svg>

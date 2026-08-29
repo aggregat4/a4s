@@ -1,0 +1,219 @@
+import { createStore } from "./list-store.js";
+import type { ListId } from "../../types/domain.js";
+
+const APP_ACTIONS = {
+  setRegistry: "app/setRegistry",
+  setOrder: "app/setOrder",
+  setActiveList: "app/setActiveList",
+  setPendingActiveList: "app/setPendingActiveList",
+  setSearchQuery: "app/setSearchQuery",
+  updateListName: "app/updateListName",
+  upsertList: "app/upsertList",
+} as const;
+
+type ListSummary = {
+  id: ListId;
+  name: string;
+};
+
+type AppState = {
+  lists: Record<ListId, ListSummary>;
+  order: ListId[];
+  activeListId: ListId | null;
+  pendingActiveListId: ListId | null;
+  searchQuery: string;
+};
+
+const initialState: AppState = {
+  lists: {},
+  order: [],
+  activeListId: null,
+  pendingActiveListId: null,
+  searchQuery: "",
+};
+
+const normalizeLists = (lists: Array<Partial<ListSummary>> = []) =>
+  lists.reduce((acc, entry) => {
+    if (!entry || typeof entry.id !== "string") return acc;
+    acc[entry.id] = {
+      id: entry.id,
+      name:
+        typeof entry.name === "string" && entry.name.length
+          ? entry.name
+          : "Untitled List",
+    };
+    return acc;
+  }, {} as Record<ListId, ListSummary>);
+
+const filterOrder = (order: Array<ListId | string> = [], lists: AppState["lists"] = {}) =>
+  order.filter((id) => typeof id === "string" && id in lists);
+
+const ensureActive = (state: AppState): AppState => {
+  if (state.activeListId && state.lists[state.activeListId]) {
+    return state;
+  }
+  const nextActive = state.order[0] ?? null;
+  return { ...state, activeListId: nextActive };
+};
+
+type AppAction =
+  | {
+      type: typeof APP_ACTIONS.setRegistry;
+      payload?: {
+        lists?: Array<Partial<ListSummary>>;
+        order?: ListId[];
+        activeListId?: ListId | null;
+        pendingActiveListId?: ListId | null;
+      };
+    }
+  | { type: typeof APP_ACTIONS.setOrder; payload?: { order?: ListId[] } }
+  | { type: typeof APP_ACTIONS.setActiveList; payload?: { id?: ListId | null } }
+  | {
+      type: typeof APP_ACTIONS.setPendingActiveList;
+      payload?: { id?: ListId | null };
+    }
+  | { type: typeof APP_ACTIONS.setSearchQuery; payload?: { query?: string } }
+  | {
+      type: typeof APP_ACTIONS.updateListName;
+      payload?: { id?: ListId; name?: string };
+    }
+  | {
+      type: typeof APP_ACTIONS.upsertList;
+      payload?: Partial<ListSummary> & { id?: ListId };
+    }
+  | { type: "@@INIT"; payload?: unknown };
+
+const appReducer = (
+  state: AppState = initialState,
+  action: AppAction = { type: "@@INIT" }
+) => {
+  switch (action.type) {
+    case APP_ACTIONS.setRegistry: {
+      const payload = action.payload ?? {};
+      const lists = normalizeLists(payload.lists);
+      const order = filterOrder(payload.order, lists);
+      const pendingActive =
+        typeof payload.pendingActiveListId === "string" &&
+        lists[payload.pendingActiveListId]
+          ? null
+          : payload.pendingActiveListId ?? null;
+      const activeCandidate =
+        typeof payload.activeListId === "string" && lists[payload.activeListId]
+          ? payload.activeListId
+          : state.activeListId;
+      const nextState = {
+        ...state,
+        lists,
+        order,
+        pendingActiveListId: pendingActive,
+        activeListId: activeCandidate,
+      };
+      return ensureActive(nextState);
+    }
+    case APP_ACTIONS.setOrder: {
+      const nextOrder = filterOrder(action.payload?.order, state.lists);
+      if (nextOrder.length === state.order.length) {
+        const same = nextOrder.every((id, idx) => id === state.order[idx]);
+        if (same) return state;
+      }
+      return ensureActive({ ...state, order: nextOrder });
+    }
+    case APP_ACTIONS.setActiveList: {
+      const nextId = action.payload?.id ?? null;
+      if (nextId === null) {
+        return { ...state, activeListId: null };
+      }
+      if (!state.lists[nextId]) return state;
+      if (state.activeListId === nextId) return state;
+      return { ...state, activeListId: nextId };
+    }
+    case APP_ACTIONS.setPendingActiveList: {
+      const next = action.payload?.id ?? null;
+      if (state.pendingActiveListId === next) return state;
+      return { ...state, pendingActiveListId: next };
+    }
+    case APP_ACTIONS.setSearchQuery: {
+      const query =
+        typeof action.payload?.query === "string" ? action.payload.query : "";
+      if (query === state.searchQuery) return state;
+      return { ...state, searchQuery: query };
+    }
+    case APP_ACTIONS.updateListName: {
+      const { id, name } = action.payload ?? {};
+      if (!id || !state.lists[id]) return state;
+      const nextName =
+        typeof name === "string" && name.trim().length
+          ? name.trim()
+          : "Untitled List";
+      if (state.lists[id].name === nextName) return state;
+      return {
+        ...state,
+        lists: {
+          ...state.lists,
+          [id]: { ...state.lists[id], name: nextName },
+        },
+      };
+    }
+    case APP_ACTIONS.upsertList: {
+      const payload = action.payload ?? {};
+      const id = payload.id ?? null;
+      if (!id) return state;
+      const current = state.lists[id];
+      const nextName =
+        typeof payload.name === "string" && payload.name.trim().length
+          ? payload.name.trim()
+          : current?.name ?? "Untitled List";
+      if (current && current.name === nextName) {
+        return state;
+      }
+      if (current) {
+        return {
+          ...state,
+          lists: {
+            ...state.lists,
+            [id]: {
+              id,
+              name: nextName,
+            },
+          },
+        };
+      }
+      return {
+        ...state,
+        lists: {
+          ...state.lists,
+          [id]: {
+            id,
+            name: nextName,
+          },
+        },
+      };
+    }
+    default:
+      return state;
+  }
+};
+
+const createAppStore = (preloadedState?: AppState) =>
+  createStore(appReducer as (state: AppState | undefined, action: AppAction) => AppState, preloadedState);
+
+const selectors = {
+  getState: (state: AppState) => state,
+  getListOrder: (state: AppState) => state.order,
+  getActiveListId: (state: AppState) => state.activeListId,
+  getPendingActiveListId: (state: AppState) => state.pendingActiveListId,
+  getSearchQuery: (state: AppState) => state.searchQuery,
+  isSearchMode: (state: AppState) => (state.searchQuery ?? "").trim().length > 0,
+  getList: (state: AppState, id: ListId) => state.lists[id] ?? null,
+  getSidebarListData: (state: AppState) =>
+    state.order
+      .map((id) => state.lists[id])
+      .filter(Boolean)
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+      })),
+};
+
+export { APP_ACTIONS, createAppStore, selectors };
+export type { AppAction };
