@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  default:
+    desc: List available repository tasks
+    cmds:
+      - task --list
+
+  check:
+    desc: Run the initial repository check
+    cmds:
+      - go test ./...
