@@ -1,7 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os"
+
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/crawler"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/oidcecho"
@@ -17,7 +20,7 @@ import (
 
 func main() {
 	err := godotenv.Load()
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		panic(fmt.Errorf("error loading .env file: %s", err))
 	}
 	var dbFilename = env.RequireStringFromEnv("DELBM_DB_FILENAME")
