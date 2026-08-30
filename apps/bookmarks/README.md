@@ -41,9 +41,13 @@ OpenID Provider, where the login endpoint actually lives.
 
 ## Building
 
-Build from the monorepo root with `task bookmarks:build`. For a Linux binary
-with the repository's supported Go toolchain and stable Debian Bookworm libc
-baseline, run `apps/bookmarks/scripts/build-in-docker.sh`.
+Build locally from the monorepo root with `task bookmarks:build`. Build the
+versioned Linux deployment archive with the supported Go toolchain and Debian
+Bookworm libc baseline using:
+
+```bash
+task package APP=bookmarks VERSION=v1.5.0
+```
 
 ## Migrating from Pinboard
 
@@ -81,6 +85,7 @@ Pages are delivered with gzip compression.
 
 Pages are cached with a revalidate strategy that is based on the time of the last change made to the database for the current user.
 
-Full text search is implemented using the sqlite fts5 extension. A build script is included for local and docker based builds to make sure the extension is activated.
+Full text search is implemented using the SQLite FTS5 extension. The root build
+and packaging tasks enable it.
 
 One requirement of the design was that the `/addbookmark` page should be easily invokable from a bookmarklet or a browser extension as a shortcut for adding new URLs.
