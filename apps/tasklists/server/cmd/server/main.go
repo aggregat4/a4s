@@ -43,7 +43,7 @@ func main() {
 		addr = ":" + port
 	}
 
-	log.Printf("starting a4-tasklists version=%s", version)
+	log.Printf("starting tasklists version=%s", version)
 
 	dbPath := os.Getenv("SERVER_DB_PATH")
 	if dbPath == "" {

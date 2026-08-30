@@ -97,7 +97,9 @@ that would allow a compromised process to replace the executable selected by
 
 This is the one-time, rollback-safe change from `a4tasklists.service` and
 `/opt/a4services/a4tasklists` to `tasklists.service` and
-`/opt/a4services/tasklists`. The binary remains `a4-tasklists`.
+`/opt/a4services/tasklists`. New monorepo releases contain a `tasklists`
+executable; older releases contain `a4-tasklists`, so the directory and binary
+changes must be switched together.
 
 ### Prepare
 
@@ -109,10 +111,16 @@ This is the one-time, rollback-safe change from `a4tasklists.service` and
    existing secrets and new database path.
 5. Install `deploy/systemd/tasklists.service` as
    `/etc/systemd/system/tasklists.service`.
+6. Build or download a new monorepo Tasklists release, verify its checksum, and
+   confirm that its only archive entry is the root-level `tasklists`
+   executable. Keep the archive available for the maintenance window.
 
 ### Switch
 
 ```bash
+TASKLISTS_NEW_VERSION=1.5.0
+TASKLISTS_ARCHIVE=/path/to/tasklists-v1.5.0-linux-amd64.tar.gz
+sha256sum -c "${TASKLISTS_ARCHIVE}.sha256"
 sudo systemctl stop a4tasklists.service
 sudo install -d -m 0700 /opt/a4services/tasklists-name-backup-YYYYMMDD
 sudo sqlite3 /opt/a4services/a4tasklists/data/a4-tasklists.db \
@@ -121,6 +129,16 @@ sudo sqlite3 /opt/a4services/tasklists-name-backup-YYYYMMDD/a4-tasklists.db \
   'PRAGMA integrity_check;'
 sudo mv /opt/a4services/a4tasklists /opt/a4services/tasklists
 sudo chown -R a4-tasklists:a4-tasklists /opt/a4services/tasklists/data
+sudo install -d -o root -g root -m 0755 \
+  "/opt/a4services/tasklists/${TASKLISTS_NEW_VERSION}"
+sudo tar -xzf "${TASKLISTS_ARCHIVE}" \
+  -C "/opt/a4services/tasklists/${TASKLISTS_NEW_VERSION}"
+sudo chown -R root:root "/opt/a4services/tasklists/${TASKLISTS_NEW_VERSION}"
+sudo chmod 0755 \
+  "/opt/a4services/tasklists/${TASKLISTS_NEW_VERSION}/tasklists"
+cd /opt/a4services/tasklists
+sudo ln -sfn "${TASKLISTS_NEW_VERSION}" current.next
+sudo mv -Tf current.next current
 sudo ln -s tasklists /opt/a4services/a4tasklists
 sudo systemctl daemon-reload
 sudo systemctl start tasklists.service
@@ -128,7 +146,8 @@ sudo systemctl start tasklists.service
 
 Continue only when the integrity check reports `ok`. The temporary
 compatibility symlink keeps unexpected old absolute references working while
-the new service is verified.
+the new service is verified. Set the version and archive variables to the exact
+release being deployed.
 
 ```bash
 sudo systemctl status tasklists.service
@@ -152,15 +171,23 @@ Keep the old unit file until a later cleanup pass.
 
 ### Tasklists rollback
 
-If verification fails, stop the new unit, restore the original directory name,
-and restart the old unit:
+If verification fails, stop the new unit, point `current` back at the old
+release recorded during preparation, restore the original directory name, and
+restart the old unit. This is necessary because the old unit expects the old
+release's `a4-tasklists` executable:
 
 ```bash
+TASKLISTS_OLD_VERSION=1.4.0
 sudo systemctl stop tasklists.service
+cd /opt/a4services/tasklists
+sudo ln -sfn "${TASKLISTS_OLD_VERSION}" current.next
+sudo mv -Tf current.next current
 sudo unlink /opt/a4services/a4tasklists
 sudo mv /opt/a4services/tasklists /opt/a4services/a4tasklists
 sudo systemctl start a4tasklists.service
 ```
+
+Set `TASKLISTS_OLD_VERSION` to the exact target recorded before the migration.
 
 If the new binary applied an incompatible schema migration, restore the
 verified database backup before starting the old release.

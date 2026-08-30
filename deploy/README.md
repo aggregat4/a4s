@@ -31,8 +31,8 @@ can write only its state directory:
 | Tasklists | `a4-tasklists` | `/opt/a4services/tasklists/data` | 9085 |
 | Comments | `a4-comments` | `/opt/a4services/comments/data` | 1333 |
 
-The canonical Tasklists directory and unit are named `tasklists`; its binary
-and release artifact remain named `a4-tasklists`.
+The canonical Tasklists directory, unit, executable, and release archive prefix
+are named `tasklists`. Its system account remains `a4-tasklists`.
 
 ## Service accounts
 
@@ -194,6 +194,34 @@ Tasklists `/sync/events` location uses the SSE snippet; its one-hour proxy
 timeout is safely longer than the server's 30-second heartbeat.
 
 ## Release and rollback
+
+Build one application package from the repository root:
+
+```bash
+task package APP=rssgrid VERSION=v1.5.0
+```
+
+`APP` accepts `rssgrid`, `bookmarks`, `comments`, `idp`, or `tasklists`.
+`VERSION` accepts either a plain semantic version or its matching namespaced
+tag, such as `rssgrid/v1.5.0`. Linux and amd64 are the default target; override
+the ignored output directory with `OUTPUT_DIR=...` when needed.
+
+| App | Archive prefix | Root-level binaries |
+| --- | --- | --- |
+| `rssgrid` | `rssgrid` | `rssgrid` |
+| `bookmarks` | `bookmarks` | `bmimporter`, `bmserver` |
+| `comments` | `comments` | `gocomments-createencryptionkey`, `gocomments-createservice`, `gocomments-server` |
+| `idp` | `openidprovider` | `createkey`, `createuser`, `server` |
+| `tasklists` | `tasklists` | `tasklists` |
+
+Archive prefixes match the canonical deployed service-directory names. Binary
+names remain part of each application's runtime interface and can differ from
+the archive prefix when an application ships multiple commands.
+
+The CGO/SQLite applications are compiled inside the Go-version-matched Debian
+Bookworm image. Tasklists is a static binary with its frontend embedded. Every
+archive has an adjacent `.sha256` file and contains binaries directly at its
+root, matching the version-directory layout used by systemd.
 
 Never unpack over `current`. Put each release in a new immutable version
 directory, verify its checksum and ownership, then switch the relative symlink
