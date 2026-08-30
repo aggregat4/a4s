@@ -86,29 +86,10 @@ examples live in `docs/deployment.md`.
 
 ### NGINX And SSE
 
-The app uses a Server-Sent Events stream at `/sync/events`. The backend already
-sends `X-Accel-Buffering: no`, but you should also raise the proxy read timeout
-so NGINX does not close the long-lived connection prematurely:
-
-```nginx
-location / {
-    proxy_pass http://localhost:8080;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    # SSE support: disable buffering and keep the connection open
-    proxy_buffering off;
-    proxy_cache off;
-    proxy_read_timeout 86400s;
-}
-```
-
-If you prefer to keep `proxy_buffering on` globally, the `X-Accel-Buffering`
-header the app sends will disable buffering for the SSE endpoint only. In that
-case you still need the increased `proxy_read_timeout`.
+The app uses a Server-Sent Events stream at `/sync/events`. The canonical Nginx
+site and shared SSE settings live under
+[`../../deploy/nginx`](../../deploy/nginx); keep buffering disabled and the
+proxy timeout longer than the server's 30-second heartbeat.
 
 ## API And Data Specs
 

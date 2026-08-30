@@ -39,3 +39,9 @@ task ci
 `task ci` runs linting, all tests, and all builds sequentially. Application
 specific commands remain available through the namespaced task names such as
 `task idp:test` and `task tasklists:build`.
+
+## Deployment
+
+Canonical Debian systemd units, Nginx sites, sanitized configuration examples,
+and operational runbooks live in [`deploy/`](deploy/README.md). Production
+secrets and mutable service data remain outside the repository.

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+node -e '
+const fs = require("node:fs");
+for (const filename of process.argv.slice(1)) {
+  JSON.parse(fs.readFileSync(filename, "utf8"));
+}
+' \
+  "$repo_root/deploy/config/comments/commentservice.json" \
+  "$repo_root/deploy/config/openidprovider/openidprovider.json.example" \
+  "$repo_root/deploy/config/rssgrid/rssgrid.json"
+
+if command -v systemd-analyze >/dev/null 2>&1; then
+  deploy_check_tmp=$(mktemp -d)
+  trap 'rm -rf "$deploy_check_tmp"' EXIT
+
+  cp "$repo_root"/deploy/systemd/*.service "$deploy_check_tmp"/
+  sed -i -E \
+    -e 's|^ExecStart=.*$|ExecStart=/bin/true|' \
+    -e 's|^ReadWritePaths=.*$|ReadWritePaths=/tmp|' \
+    -e 's|^WorkingDirectory=.*$|WorkingDirectory=/tmp|' \
+    -e 's|^EnvironmentFile=|EnvironmentFile=-|' \
+    -e '/^User=/d' \
+    -e '/^Group=/d' \
+    "$deploy_check_tmp"/*.service
+
+  systemd-analyze verify "$deploy_check_tmp"/*.service
+fi

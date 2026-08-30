@@ -1,0 +1,25 @@
+[Unit]
+Description=A4 RSSGrid
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=a4-rssgrid
+Group=a4-rssgrid
+WorkingDirectory=/opt/a4services/rssgrid
+EnvironmentFile=/etc/a4s/rssgrid.env
+ExecStart=/opt/a4services/rssgrid/current/rssgrid -config /etc/a4s/rssgrid
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/a4services/rssgrid/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -58,28 +58,10 @@ embedded assets; use them instead of manually copying `client/dist` files.
 
 ## Example Linux service
 
-```ini
-[Unit]
-Description=A4 Tasklists
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/a4-tasklists/current
-ExecStart=/opt/a4-tasklists/current/bin/a4-tasklists
-EnvironmentFile=/etc/a4-tasklists/secrets.env
-EnvironmentFile=-/etc/a4-tasklists/runtime.env
-Restart=on-failure
-RestartSec=2
-TimeoutStartSec=30
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable it with:
-
-```bash
-sudo systemctl enable --now a4-tasklists
-```
+The canonical production unit is
+[`../../../deploy/systemd/tasklists.service`](../../../deploy/systemd/tasklists.service),
+with its environment template at
+[`../../../deploy/env/tasklists.env.example`](../../../deploy/env/tasklists.env.example).
+It uses the normalized `/opt/a4services/tasklists` directory and
+`tasklists.service` unit name. The repository deployment guide also documents
+the one-time migration from the old `a4tasklists` names.

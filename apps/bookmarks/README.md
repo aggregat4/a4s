@@ -6,14 +6,21 @@ In addition to storing, editing and searching bookmarks, the system also contain
 
 ## Starting the Server
 
-The service will generate a random session key, this means that after each restart user provided cookies are invalid and they need to login again. You can configure a secret key to use by setting the environment variable `BOOKMARKS_SESSION_COOKIE_SECRET_KEY` to some string value.
+The service will generate a random session key, which invalidates existing
+login cookies after a restart. Configure a stable production key with
+`DELBM_SESSION_COOKIE_SECRET_KEY`.
 
-The default port for the server will be `1323` but you can override that by setting the environment variable `BOOKMARKS_PORT`.
+The default port is `1323`; override it with `DELBM_SERVER_PORT`. The server
+loads a local `.env` file when one exists, but all settings can instead be
+provided directly by the environment. Database and OpenID Connect settings are
+required. See the canonical production example in
+[`../../deploy/env/bookmarks.env.example`](../../deploy/env/bookmarks.env.example).
 
-Assuming that a `bookmarks.sqlite` database is present in the current directory and that it contains at least one user with a password you can start the service using the following command:
+Build and start the server from the monorepo root with:
 
 ```bash
-./gobookmarks
+task bookmarks:build
+./apps/bookmarks/bin/bmserver
 ```
 
 ## Security
@@ -28,21 +35,9 @@ CSRF vulnerabilities are avoided by doing same origin checks on relevant methods
 
 It is a good idea to operate the service behind a reverse proxy so you can layer concerns like HTTPS and rate limiting on top of it.
 
-It is good practice to rate limit the login page in your reverse proxy. For example for nginx you can refine a rate limit like so:
-
-```nginx
-# Rate limiting as per blog post at https://www.nginx.com/blog/rate-limiting-nginx
-limit_req_zone $binary_remote_addr zone=mylimit:10m rate=10r/s;
-```
-
-And then inside the `server` declaration for the bookmarks service you can specifically install this rate limiter for the login page:
-
-```nginx
-location /login {
-    limit_req zone=mylimit;
-    proxy_pass  http://127.0.0.1:1323/login
-}
-```
+The canonical reverse-proxy configuration is maintained under
+[`../../deploy/nginx`](../../deploy/nginx). Login rate limiting belongs at the
+OpenID Provider, where the login endpoint actually lives.
 
 ## Building
 

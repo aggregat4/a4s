@@ -137,7 +137,11 @@ Operators can point the comment form at another policy page with
 `privacy_policy_url`, and can customize the displayed minimum age with
 `minimum_comment_age`.
 
-For production deployment you need a real OIDC provider and a proper `commentservice.json` configuration file. See `cmd/runserver/main.go` for the production server entry point.
+For production deployment you need a real OIDC provider and a proper
+`commentservice.json` configuration file. The canonical sanitized configuration,
+environment, systemd, and Nginx templates live under
+[`../../deploy`](../../deploy/README.md). Comments is not currently enabled on
+the production host.
 
 ## Security
 

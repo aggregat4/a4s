@@ -1,0 +1,25 @@
+[Unit]
+Description=A4 Tasklists
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=a4-tasklists
+Group=a4-tasklists
+WorkingDirectory=/opt/a4services/tasklists
+EnvironmentFile=/etc/a4s/tasklists.env
+ExecStart=/opt/a4services/tasklists/current/a4-tasklists
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/a4services/tasklists/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

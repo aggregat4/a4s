@@ -1,0 +1,61 @@
+{
+  "databasefilename": "/opt/a4services/openidprovider/data/openidprovider.sqlite",
+  "serverport": 1301,
+  "baseurl": "https://openidprovider.aggregat4.net",
+  "privatekeypemfilename": "/etc/a4s/openidprovider/private.pem",
+  "publickeypemfilename": "/etc/a4s/openidprovider/public.pem",
+  "serverreadtimeoutseconds": 30,
+  "serverwritetimeoutseconds": 30,
+  "registeredclients": [
+    {
+      "id": "bookmarks",
+      "basicauthsecret": "replace-with-bookmarks-client-secret",
+      "redirecturis": ["https://bookmarks.aggregat4.net/oidccallback"]
+    },
+    {
+      "id": "rssgrid",
+      "basicauthsecret": "replace-with-rssgrid-client-secret",
+      "redirecturis": ["https://rssgrid.aggregat4.net/auth/callback"]
+    },
+    {
+      "id": "tasklists",
+      "basicauthsecret": "replace-with-tasklists-client-secret",
+      "redirecturis": ["https://tasklists.aggregat4.net/auth/callback"]
+    },
+    {
+      "id": "comments",
+      "basicauthsecret": "replace-with-comments-client-secret",
+      "redirecturis": ["https://comments.aggregat4.net/oidccallback"]
+    }
+  ],
+  "jwt": {
+    "idtokenvalidityminutes": 60,
+    "accesstokenvalidityminutes": 5,
+    "refreshtokeninactivityvalidityhours": 168
+  },
+  "cleanup": {
+    "unverifiedusermaxage": 24,
+    "cleanupinterval": 1
+  },
+  "smtp": {
+    "host": "smtp.example.com",
+    "port": 587,
+    "username": "replace-with-smtp-user",
+    "password": "replace-with-smtp-password",
+    "fromEmail": "noreply@aggregat4.net",
+    "fromName": "Aggregat4",
+    "useTls": true
+  },
+  "emailRateLimit": {
+    "maxEmailsPerDay": 1000,
+    "maxEmailsPerAddress": 5,
+    "backoffPeriod": 5,
+    "blockPeriod": 24
+  },
+  "mock_email_demo_server_url": "",
+  "altcha": {
+    "hmacKey": "replace-with-random-altcha-hmac-key",
+    "maxNumber": 100000,
+    "saltLength": 12
+  }
+}

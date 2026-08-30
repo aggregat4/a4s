@@ -1,0 +1,10 @@
+{
+  "addr": ":1400",
+  "db_path": "/opt/a4services/rssgrid/data/rssgrid.db",
+  "update_interval": "30m",
+  "max_posts_per_feed": 100,
+  "secure_cookies": true,
+  "oidc": {
+    "redirect_url": "https://rssgrid.aggregat4.net/auth/callback"
+  }
+}

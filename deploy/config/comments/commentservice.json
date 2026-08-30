@@ -1,0 +1,15 @@
+{
+  "port": 1333,
+  "database_filename": "/opt/a4services/comments/data/comments.sqlite",
+  "server_read_timeout_seconds": 5,
+  "server_write_timeout_seconds": 10,
+  "base_url": "https://comments.aggregat4.net",
+  "oidc_idp_server": "https://openidprovider.aggregat4.net",
+  "oidc_client_id": "comments",
+  "oidc_redirect_uri": "https://comments.aggregat4.net/oidccallback",
+  "session_cookie_secure_flag": true,
+  "session_cookie_max_age": 2592000,
+  "session_cookie_same_site": "none",
+  "privacy_policy_url": "/privacy-policy",
+  "minimum_comment_age": 18
+}

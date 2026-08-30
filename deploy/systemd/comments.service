@@ -1,0 +1,25 @@
+[Unit]
+Description=A4 Comments
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=a4-comments
+Group=a4-comments
+WorkingDirectory=/opt/a4services/comments
+EnvironmentFile=/etc/a4s/comments.env
+ExecStart=/opt/a4services/comments/current/gocomments-server -configdir /etc/a4s/comments
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/a4services/comments/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

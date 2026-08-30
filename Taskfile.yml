@@ -43,6 +43,7 @@ tasks:
     desc: Run repository lint and static checks
     cmds:
       - bash scripts/check-gofmt
+      - bash scripts/check-deploy
       - go vet -tags=fts5 ./...
       - pnpm --filter a4-tasklists run build
   modernize:
