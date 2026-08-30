@@ -30,6 +30,22 @@ tasks:
       - task comments:build
       - task idp:build
       - task tasklists:build
+  package:
+    desc: Build one versioned deployment archive and checksum
+    requires:
+      vars: [APP, VERSION]
+    vars:
+      TARGET_GOOS: '{{.GOOS | default "linux"}}'
+      TARGET_GOARCH: '{{.GOARCH | default "amd64"}}'
+      TARGET_OUTPUT_DIR: '{{.OUTPUT_DIR | default "dist/releases"}}'
+    cmds:
+      - >-
+        scripts/package-release.sh
+        '{{.APP}}'
+        '{{.VERSION}}'
+        '{{.TARGET_GOOS}}'
+        '{{.TARGET_GOARCH}}'
+        '{{.TARGET_OUTPUT_DIR}}'
   test:
     desc: Run all shared and application test suites
     cmds:
@@ -44,6 +60,7 @@ tasks:
     cmds:
       - bash scripts/check-gofmt
       - bash scripts/check-deploy
+      - bash -n scripts/package-release.sh
       - go vet -tags=fts5 ./...
       - pnpm --filter a4-tasklists run build
   modernize:

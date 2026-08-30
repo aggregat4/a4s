@@ -1,21 +1,18 @@
 # Deployment
 
 A4 Tasklists release is a single Go binary with embedded frontend assets.
-The monorepo release workflow has not been established yet; build and package
-artifacts locally from the repository root until that work is complete.
+Build deployment artifacts through the common monorepo packaging command.
 
 ## Build and package
 
 ```bash
-pnpm install
-apps/tasklists/scripts/build-release.sh
-apps/tasklists/scripts/package-release.sh v1.0.0 linux amd64
+task package APP=tasklists VERSION=v1.5.0
 ```
 
-The packaging script produces an `a4-tasklists` tarball and checksum in
-`apps/tasklists/dist/`. It builds the frontend through the root pnpm workspace,
-embeds it in the server binary, and restores the source static directory when
-finished.
+The command produces a `tasklists` tarball and adjacent checksum in
+`dist/releases/`. The archive contains `tasklists` directly at its root. It
+builds the frontend through the root pnpm workspace, embeds it in the server
+binary, and restores the source static directory when finished.
 
 ## Runtime configuration
 
@@ -47,14 +44,14 @@ OIDC_ISSUER_URL=https://issuer.example.com \
 OIDC_CLIENT_ID=a4-tasklists \
 OIDC_REDIRECT_URL=https://lists.example.com/auth/callback \
 SERVER_SESSION_KEY='replace-with-openssl-output' \
-./bin/a4-tasklists
+./tasklists
 ```
 
 ## Static assets
 
 The server prefers `SERVER_STATIC_DIR` when it is configured, then falls back
-to assets embedded in the release binary. The release scripts prepare the
-embedded assets; use them instead of manually copying `client/dist` files.
+to assets embedded in the release binary. The packaging command prepares the
+embedded assets; use it instead of manually copying `client/dist` files.
 
 ## Example Linux service
 

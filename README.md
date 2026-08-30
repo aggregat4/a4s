@@ -45,3 +45,13 @@ specific commands remain available through the namespaced task names such as
 Canonical Debian systemd units, Nginx sites, sanitized configuration examples,
 and operational runbooks live in [`deploy/`](deploy/README.md). Production
 secrets and mutable service data remain outside the repository.
+
+Build a versioned Linux deployment archive and checksum for one application
+with the common packaging task:
+
+```bash
+task package APP=rssgrid VERSION=v1.5.0
+task package APP=tasklists VERSION=tasklists/v1.5.0
+```
+
+Outputs are written to the ignored `dist/releases/` directory by default.

@@ -2,11 +2,11 @@
 
 set -euo pipefail
 
-unformatted=$(find . -type f -name '*.go' \
-  -not -path './.git/*' \
-  -not -path './.cache/*' \
-  -not -path './node_modules/*' \
-  -print0 | xargs -0 -r gofmt -l)
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+unformatted=$(
+  cd "${repo_root}"
+  git ls-files -z -- '*.go' | xargs -0 -r gofmt -l
+)
 if [[ -n "${unformatted}" ]]; then
   printf 'gofmt is required for:\n%s\n' "${unformatted}"
   exit 1
