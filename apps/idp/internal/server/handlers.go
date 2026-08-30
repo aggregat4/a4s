@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/aggregat4/a4s/pkg/crypto"
-	gojose "github.com/go-jose/go-jose/v3"
+	gojose "github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
