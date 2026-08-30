@@ -1,4 +1,14 @@
-# A4S contributor notes
+# A4S Develoment Guidelines
+
+## HTML
+
+- Write semantic concise HTML
+
+## CSS
+
+- Never use inline styles
+- Use custom properties to extract design tokens from CSS and make it easier to change and reuse
+- Use CSS nesting to make stylesheets more concise
 
 ## Repository boundaries
 
