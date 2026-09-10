@@ -22,7 +22,7 @@ function isHashedAsset(url: URL): boolean {
 async function networkFirst(request: Request): Promise<Response> {
   const cache = await caches.open(CACHE_NAME);
   try {
-    const networkResponse = await fetch(request);
+    const networkResponse = await fetch(request, { cache: "no-store" });
     if (networkResponse.ok) {
       cache.put(request, networkResponse.clone());
     }
@@ -40,9 +40,14 @@ async function navigateIndex(request: Request): Promise<Response> {
   const cache = await caches.open(CACHE_NAME);
   const indexUrl = new URL("/index.html", request.url).href;
   try {
-    // Do not follow redirects here: OAuth sets oidc-callback-state-cookie on a
-    // 302 from /. If the worker followed the redirect, the browser would drop it.
-    const networkResponse = await fetch(request, { redirect: "manual" });
+    // Always consult the network for the app shell. The document is gated by
+    // the server, so an expired session must produce the server's redirect to
+    // the identity provider instead of a cached copy. Do not follow redirects
+    // here so the browser processes the OAuth Set-Cookie on the 302 itself.
+    const networkResponse = await fetch(request, {
+      redirect: "manual",
+      cache: "no-store",
+    });
     if (
       networkResponse.type === "opaqueredirect" ||
       (networkResponse.status >= 300 && networkResponse.status < 400)
@@ -116,6 +121,21 @@ async function fetchAssetManifest(): Promise<string[]> {
   return assets.filter((a) => typeof a === "string");
 }
 
+// Cache a clean copy of the app shell under both "/" and "/index.html". The
+// manifest-driven install normally fetches "/index.html", which the server
+// redirects to "/"; the resulting redirected response cannot be returned for a
+// navigation, so it must not be what offline mode falls back to.
+async function cacheAppShell(cache: Cache): Promise<void> {
+  const response = await fetch("/", { cache: "no-store" });
+  if (!response.ok) {
+    return;
+  }
+  const rootUrl = new URL("/", self.location.origin).href;
+  const indexUrl = new URL("/index.html", self.location.origin).href;
+  await cache.put(rootUrl, response.clone());
+  await cache.put(indexUrl, response);
+}
+
 async function cleanUpCache() {
   const cache = await caches.open(CACHE_NAME);
   const manifestResponse = await cache.match(ASSET_MANIFEST_URL);
@@ -152,6 +172,7 @@ self.addEventListener("install", (event: ExtendableEvent) => {
       const assets = await fetchAssetManifest();
       const urlsToCache = new Set([ASSET_MANIFEST_URL, ...assets]);
       await cache.addAll(Array.from(urlsToCache));
+      await cacheAppShell(cache);
       await self.skipWaiting();
     })()
   );
