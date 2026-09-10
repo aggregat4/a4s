@@ -79,6 +79,13 @@ To smoke-test the deployed embedded-static path as well:
 PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e:embedded
 ```
 
+The OIDC session reauthentication flow runs against a server configured with the
+in-repo mock OpenID Provider (`server/cmd/mockidp`):
+
+```bash
+PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e:oidc
+```
+
 ## Deployment
 
 Deployment, runtime configuration, release packaging, and Linux service

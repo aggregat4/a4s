@@ -26,7 +26,7 @@ async function generate() {
     if (relPath === "/package.json") continue;
     if (relPath.startsWith("/tests/")) continue;
     if (relPath.startsWith("/src/")) continue;
-    if (relPath.startsWith("/playwright.config")) continue;
+    if (relPath.startsWith("/playwright")) continue;
     assets.push(relPath);
   }
   assets.sort();

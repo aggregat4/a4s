@@ -4,6 +4,7 @@ test-results/
 playwright-output.log
 data.db*
 test.db*
+oidc-test.db*
 server/server
 a4-tasklists
 .cache

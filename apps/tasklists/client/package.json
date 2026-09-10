@@ -9,10 +9,11 @@
     "lint:deps": "knip",
     "lint:css": "stylelint \"public/**/*.css\" || true",
     "test:unit": "pnpm run build && node --test dist/tests/unit/**/*.spec.js",
-    "test": "pnpm run test:unit && pnpm run test:e2e && pnpm run test:e2e:embedded",
+    "test": "pnpm run test:unit && pnpm run test:e2e && pnpm run test:e2e:embedded && pnpm run test:e2e:oidc",
     "test:e2e": "PLAYWRIGHT_USE_DOCKER=1 pnpm run build && playwright test --project=chromium",
     "test:e2e:firefox": "PLAYWRIGHT_USE_DOCKER=1 pnpm run build && playwright test --project=firefox",
-    "test:e2e:embedded": "PLAYWRIGHT_USE_DOCKER=1 SERVER_STATIC_MODE=embedded bash -lc 'pnpm run build && playwright test tests/embedded-static.spec.ts --project=chromium'"
+    "test:e2e:embedded": "PLAYWRIGHT_USE_DOCKER=1 SERVER_STATIC_MODE=embedded bash -lc 'pnpm run build && playwright test tests/embedded-static.spec.ts --project=chromium'",
+    "test:e2e:oidc": "PLAYWRIGHT_USE_DOCKER=1 pnpm run build && playwright test -c playwright.oidc.config.ts --project=chromium"
   },
   "license": "Apache-2.0",
   "type": "commonjs",
