@@ -1,0 +1,138 @@
+name: Publish release
+
+run-name: Publish ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - 'rssgrid/v*'
+      - 'bookmarks/v*'
+      - 'comments/v*'
+      - 'idp/v*'
+      - 'tasklists/v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: release
+        name: Validate release tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          case "${TAG%%/*}" in
+            rssgrid)
+              app=rssgrid
+              archive_prefix=rssgrid
+              ;;
+            bookmarks)
+              app=bookmarks
+              archive_prefix=bookmarks
+              ;;
+            comments)
+              app=comments
+              archive_prefix=comments
+              ;;
+            idp)
+              app=idp
+              archive_prefix=openidprovider
+              ;;
+            tasklists)
+              app=tasklists
+              archive_prefix=tasklists
+              ;;
+            *)
+              echo "unsupported release tag: ${TAG}" >&2
+              exit 1
+              ;;
+          esac
+
+          version=${TAG#*/}
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "invalid release version: ${version}" >&2
+            exit 1
+          fi
+
+          tag_commit=$(git rev-parse "${GITHUB_REF}^{commit}")
+          if ! git merge-base --is-ancestor "${tag_commit}" origin/main; then
+            echo "release tag must point to a commit reachable from main" >&2
+            exit 1
+          fi
+
+          printf 'app=%s\n' "${app}" >> "${GITHUB_OUTPUT}"
+          printf 'archive_prefix=%s\n' "${archive_prefix}" >> "${GITHUB_OUTPUT}"
+          printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright Chromium
+        run: pnpm --filter a4-tasklists exec playwright install --with-deps chromium
+      - name: Install Go Task
+        run: go install github.com/go-task/task/v3/cmd/task@v3.53.1
+
+      - name: Run repository checks
+        run: task ci
+      - name: Build release package
+        env:
+          APP: ${{ steps.release.outputs.app }}
+          TAG: ${{ github.ref_name }}
+        run: task package APP="${APP}" VERSION="${TAG}"
+      - id: artifact
+        name: Validate release assets
+        env:
+          ARCHIVE_PREFIX: ${{ steps.release.outputs.archive_prefix }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          archive="dist/releases/${ARCHIVE_PREFIX}-${VERSION}-linux-amd64.tar.gz"
+          test -f "${archive}"
+          test -f "${archive}.sha256"
+          sha256sum -c "${archive}.sha256"
+          printf 'archive=%s\n' "${archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          ARCHIVE: ${{ steps.artifact.outputs.archive }}
+        run: |
+          set -euo pipefail
+
+          previous_tag=$(git tag --list "${TAG%%/*}/v*" --sort=-version:refname \
+            | awk -v tag="${TAG}" '$0 != tag { print; exit }')
+          release_args=(--verify-tag --title "${TAG}" --generate-notes --latest=false)
+          if [ -n "${previous_tag}" ]; then
+            release_args+=(--notes-start-tag "${previous_tag}")
+          fi
+          if [[ "${TAG#*/}" == *-* ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh release create "${TAG}" "${ARCHIVE}" "${ARCHIVE}.sha256" \
+            "${release_args[@]}"
