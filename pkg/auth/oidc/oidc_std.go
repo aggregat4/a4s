@@ -46,25 +46,38 @@ func CreateOidcConfiguration(idpServerUrl string, clientId string, clientSecret 
 	}
 }
 
+// oidcStateCookieName is the cookie that carries the CSRF state for an
+// in-flight authorization request.
+const oidcStateCookieName = "oidc-callback-state-cookie"
+
 // CreateOidcAuthenticationMiddleware returns a middleware function that handles OIDC authentication
 func (oidcMiddleware *OidcConfiguration) CreateOidcAuthenticationMiddleware(isAuthenticated func(r *http.Request) bool, skipper func(r *http.Request) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !skipper(r) && !isAuthenticated(r) {
-				state, err := crypto.RandomString(16)
-				if err != nil {
-					http.Error(w, "Unauthorized", http.StatusUnauthorized)
-					return
+				// Reuse an in-flight state cookie when one is present. A single
+				// cookie cannot hold more than one state, so overwriting it on
+				// every unauthenticated request would invalidate any authorization
+				// attempt that is already in progress in another tab or request.
+				state := ""
+				if existing, err := r.Cookie(oidcStateCookieName); err == nil && existing.Value != "" {
+					state = existing.Value
+				} else {
+					generated, err := crypto.RandomString(16)
+					if err != nil {
+						http.Error(w, "Unauthorized", http.StatusUnauthorized)
+						return
+					}
+					// encode the original request URL into the state
+					state = generated + "|" + base64.StdEncoding.EncodeToString([]byte(r.URL.String()))
+					http.SetCookie(w, &http.Cookie{
+						Name:     oidcStateCookieName,
+						Value:    state,
+						Path:     "/",
+						Expires:  time.Now().Add(time.Minute * 5),
+						HttpOnly: true,
+					})
 				}
-				// encode the original request URL into the state
-				state = state + "|" + base64.StdEncoding.EncodeToString([]byte(r.URL.String()))
-				http.SetCookie(w, &http.Cookie{
-					Name:     "oidc-callback-state-cookie",
-					Value:    state,
-					Path:     "/",
-					Expires:  time.Now().Add(time.Minute * 5),
-					HttpOnly: true,
-				})
 				http.Redirect(w, r, oidcMiddleware.oidcConfig.AuthCodeURL(state), http.StatusFound)
 				return
 			}
@@ -78,7 +91,7 @@ func (oidcMiddleware *OidcConfiguration) CreateOidcCallbackHandler(delegate func
 	verifier := oidcMiddleware.oidcProvider.Verifier(&oidc.Config{ClientID: oidcMiddleware.oidcConfig.ClientID})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check state vs cookie
-		stateCookie, err := r.Cookie("oidc-callback-state-cookie")
+		stateCookie, err := r.Cookie(oidcStateCookieName)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
