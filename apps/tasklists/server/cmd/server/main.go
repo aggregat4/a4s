@@ -128,18 +128,12 @@ func main() {
 		log.Fatalf("static asset error: %v", err)
 	}
 
-	skipAuthPaths := map[string]struct{}{
-		"/auth/login":    {},
-		"/auth/callback": {},
-		"/auth/logout":   {},
-		"/healthz":       {},
-	}
+	// Only the application document is gated by OIDC. Static assets are public
+	// and the sync API enforces its own session checks. Gating subresources
+	// caused every asset request to mint a new oidc-callback-state-cookie,
+	// which invalidated in-flight logins.
 	authSkipper := func(r *http.Request) bool {
-		if strings.HasPrefix(r.URL.Path, "/sync/") {
-			return true
-		}
-		_, ok := skipAuthPaths[r.URL.Path]
-		return ok
+		return !requiresAuthentication(r.URL.Path)
 	}
 
 	handler := http.Handler(mux)
@@ -219,7 +213,7 @@ func (e *missingStaticFileError) Unwrap() error {
 }
 
 func registerStaticDir(mux *http.ServeMux, staticDir string) {
-	fileServer := http.FileServer(http.Dir(staticDir))
+	fileServer := cacheControlForStatic(http.FileServer(http.Dir(staticDir)))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lookupPath := staticLookupPath(r.URL.Path)
 		fullPath := filepath.Join(staticDir, filepath.FromSlash(lookupPath))
@@ -233,7 +227,7 @@ func registerStaticDir(mux *http.ServeMux, staticDir string) {
 }
 
 func registerEmbeddedFS(mux *http.ServeMux, staticSub fs.FS) {
-	fileServer := http.FileServer(http.FS(staticSub))
+	fileServer := cacheControlForStatic(http.FileServer(http.FS(staticSub)))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lookupPath := staticLookupPath(r.URL.Path)
 		if _, err := staticSub.Open(lookupPath); err == nil {
@@ -242,6 +236,39 @@ func registerEmbeddedFS(mux *http.ServeMux, staticSub fs.FS) {
 		}
 		http.NotFound(w, r)
 	}))
+}
+
+// cacheControlForStatic sets a cache policy per static asset. Hashed chunk
+// names are immutable; the app shell and asset manifest are never cached;
+// everything else must be revalidated.
+func cacheControlForStatic(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", staticCacheControl(r.URL.Path))
+		next.ServeHTTP(w, r)
+	})
+}
+
+func staticCacheControl(requestPath string) string {
+	switch {
+	case strings.HasPrefix(requestPath, "/chunks/"):
+		return "public, max-age=31536000, immutable"
+	case requestPath == "/" || requestPath == "/index.html" || requestPath == "/asset-manifest.json":
+		return "no-store"
+	default:
+		return "no-cache"
+	}
+}
+
+// requiresAuthentication reports whether a request path must be behind the
+// session based OIDC gate. Only the HTML application document is gated;
+// static assets are public and sync endpoints perform their own checks.
+func requiresAuthentication(requestPath string) bool {
+	switch requestPath {
+	case "/", "/index.html":
+		return true
+	default:
+		return false
+	}
 }
 
 func staticLookupPath(requestPath string) string {

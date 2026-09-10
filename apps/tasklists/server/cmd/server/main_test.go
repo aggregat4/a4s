@@ -140,6 +140,50 @@ func TestRegisterStaticDirReturnsNotFoundForMissingAsset(t *testing.T) {
 	}
 }
 
+func TestStaticCacheControl(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"/chunks/chunk-ABC123.js": "public, max-age=31536000, immutable",
+		"/":                       "no-store",
+		"/index.html":             "no-store",
+		"/asset-manifest.json":    "no-store",
+		"/styles.css":             "no-cache",
+		"/entrypoints/main.js":    "no-cache",
+		"/icons/icon-192.png":     "no-cache",
+	}
+
+	for requestPath, want := range tests {
+		if got := staticCacheControl(requestPath); got != want {
+			t.Errorf("staticCacheControl(%q) = %q, want %q", requestPath, got, want)
+		}
+	}
+}
+
+func TestRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	for _, requestPath := range []string{"/", "/index.html"} {
+		if !requiresAuthentication(requestPath) {
+			t.Errorf("expected %q to require authentication", requestPath)
+		}
+	}
+
+	for _, requestPath := range []string{
+		"/styles.css",
+		"/entrypoints/main.js",
+		"/chunks/chunk-ABC123.js",
+		"/manifest.json",
+		"/auth/callback",
+		"/sync/bootstrap",
+		"/healthz",
+	} {
+		if requiresAuthentication(requestPath) {
+			t.Errorf("expected %q to be public", requestPath)
+		}
+	}
+}
+
 func writeTestFile(t *testing.T, root, relativePath, content string) {
 	t.Helper()
 
