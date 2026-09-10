@@ -12,8 +12,8 @@ import (
 
 	"github.com/aggregat4/a4s/apps/comments/internal/domain"
 	"github.com/aggregat4/a4s/apps/comments/internal/repository"
-	"github.com/aggregat4/a4s/apps/comments/internal/testing/oidcmock"
 	"github.com/aggregat4/a4s/pkg/crypto"
+	"github.com/aggregat4/a4s/pkg/testing/oidcmock"
 )
 
 const (

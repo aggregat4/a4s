@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/aggregat4/a4s/apps/comments/internal/testing/oidcmock"
+	"github.com/aggregat4/a4s/pkg/testing/oidcmock"
 
 	"github.com/stretchr/testify/require"
 )

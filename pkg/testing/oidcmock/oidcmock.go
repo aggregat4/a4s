@@ -39,16 +39,61 @@ type codeEntry struct {
 }
 
 // Run starts a mock OIDC server on a random port.
-// The caller should call Shutdown() when done.
+// The caller should call Close() when done.
 // If host is non-empty the server listens on all interfaces so it is reachable
 // from other machines on the network, and Issuer() returns a URL using that host.
 func Run(clientID, clientSecret, redirectURI string, claims map[string]any, host string) (*Server, error) {
+	m, err := newServer(clientID, clientSecret, redirectURI, claims, host)
+	if err != nil {
+		return nil, err
+	}
+
+	if host != "" {
+		l, err := net.Listen("tcp", "0.0.0.0:0")
+		if err != nil {
+			return nil, fmt.Errorf("listen on all interfaces: %w", err)
+		}
+		m.Server = httptest.NewUnstartedServer(m.handler())
+		m.Server.Listener = l
+		m.Server.Start()
+		_, port, err := net.SplitHostPort(m.Server.Listener.Addr().String())
+		if err != nil {
+			return nil, fmt.Errorf("get listener port: %w", err)
+		}
+		m.Server.URL = "http://" + net.JoinHostPort(host, port)
+	} else {
+		m.Server = httptest.NewServer(m.handler())
+	}
+	return m, nil
+}
+
+// RunAt starts a mock OIDC server listening on listenAddr and advertising
+// issuerURL. It is meant for browser and container based end-to-end tests that
+// need a fixed, mutually reachable address for both the application under test
+// and the browser.
+func RunAt(listenAddr, issuerURL, clientID, clientSecret, redirectURI string, claims map[string]any) (*Server, error) {
+	m, err := newServer(clientID, clientSecret, redirectURI, claims, issuerURL)
+	if err != nil {
+		return nil, err
+	}
+	l, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", listenAddr, err)
+	}
+	m.Server = httptest.NewUnstartedServer(m.handler())
+	m.Server.Listener = l
+	m.Server.Start()
+	m.Server.URL = issuerURL
+	return m, nil
+}
+
+func newServer(clientID, clientSecret, redirectURI string, claims map[string]any, host string) (*Server, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, fmt.Errorf("generate rsa key: %w", err)
 	}
 
-	m := &Server{
+	return &Server{
 		privateKey:   priv,
 		clientID:     clientID,
 		clientSecret: clientSecret,
@@ -61,31 +106,16 @@ func Run(clientID, clientSecret, redirectURI string, claims map[string]any, host
 				{Key: &priv.PublicKey, Use: "sig", Algorithm: string(jose.RS256), KeyID: "mock-key-1"},
 			},
 		},
-	}
+	}, nil
+}
 
+func (m *Server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", m.discovery)
 	mux.HandleFunc("/auth", m.authorize)
 	mux.HandleFunc("/token", m.token)
 	mux.HandleFunc("/jwks", m.jwks)
-
-	if host != "" {
-		l, err := net.Listen("tcp", "0.0.0.0:0")
-		if err != nil {
-			return nil, fmt.Errorf("listen on all interfaces: %w", err)
-		}
-		m.Server = httptest.NewUnstartedServer(mux)
-		m.Server.Listener = l
-		m.Server.Start()
-		_, port, err := net.SplitHostPort(m.Server.Listener.Addr().String())
-		if err != nil {
-			return nil, fmt.Errorf("get listener port: %w", err)
-		}
-		m.Server.URL = "http://" + net.JoinHostPort(host, port)
-	} else {
-		m.Server = httptest.NewServer(mux)
-	}
-	return m, nil
+	return mux
 }
 
 func (m *Server) Issuer() string {

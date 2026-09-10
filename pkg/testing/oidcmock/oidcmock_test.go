@@ -2,6 +2,7 @@ package oidcmock
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -76,4 +77,27 @@ func TestMockOidcAuthorizationCodeFlow(t *testing.T) {
 	jwksRes, err := http.Get(disco["jwks_uri"])
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, jwksRes.StatusCode)
+}
+
+func TestRunAtUsesConfiguredAddressAndIssuer(t *testing.T) {
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := probe.Addr().String()
+	require.NoError(t, probe.Close())
+
+	issuer := "http://" + addr
+	m, err := RunAt(addr, issuer, "test-client", "test-secret", "http://localhost:8080/oidccallback", nil)
+	require.NoError(t, err)
+	defer m.Close()
+
+	require.Equal(t, issuer, m.Issuer())
+
+	discoRes, err := http.Get(m.Issuer() + "/.well-known/openid-configuration")
+	require.NoError(t, err)
+	defer discoRes.Body.Close()
+	require.Equal(t, http.StatusOK, discoRes.StatusCode)
+
+	var disco map[string]string
+	require.NoError(t, json.NewDecoder(discoRes.Body).Decode(&disco))
+	require.Equal(t, issuer, disco["issuer"])
 }
