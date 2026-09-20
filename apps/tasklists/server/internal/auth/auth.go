@@ -165,7 +165,12 @@ func (m *Manager) handleIDToken(w http.ResponseWriter, r *http.Request, idToken 
 	}
 	session, err := m.sessionStore.Get(r, baseliboidc.STDSessionCookieName)
 	if err != nil {
-		return err
+		// An undecodable cookie (for example after a session key rotation)
+		// must not fail the login. gorilla returns a fresh session in that
+		// case, which we populate and save to replace the invalid cookie.
+		if session == nil {
+			return err
+		}
 	}
 	session.Options = cloneOptions(m.cookieOptions)
 	session.Values["user_id"] = claims.Subject
