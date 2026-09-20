@@ -113,7 +113,7 @@ jobs:
           archive="dist/releases/${ARCHIVE_PREFIX}-${VERSION}-linux-amd64.tar.gz"
           test -f "${archive}"
           test -f "${archive}.sha256"
-          sha256sum -c "${archive}.sha256"
+          (cd "$(dirname "${archive}")" && sha256sum -c "$(basename "${archive}.sha256")")
           printf 'archive=%s\n' "${archive}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish GitHub Release
