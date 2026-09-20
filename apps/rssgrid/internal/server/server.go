@@ -237,8 +237,14 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 				}
 				session, err := s.sessions.Get(r, "user_session")
 				if err != nil {
-					log.Printf("Error getting session for user %d: %v\nStack trace:\n%s", userId, err, debug.Stack())
-					return fmt.Errorf("error getting session: %w", err)
+					// An undecodable cookie (for example after a session key
+					// rotation) must not fail the login. gorilla returns a
+					// fresh session in that case, which we populate and save
+					// to replace the invalid cookie.
+					log.Printf("Discarding invalid session for user %d: %v", userId, err)
+					if session == nil {
+						return fmt.Errorf("error getting session: %w", err)
+					}
 				}
 				session.Values["user_id"] = userId
 				if err := session.Save(r, w); err != nil {
