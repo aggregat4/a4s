@@ -184,6 +184,36 @@ func TestRequiresAuthentication(t *testing.T) {
 	}
 }
 
+func TestIsDocumentRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		method  string
+		headers map[string]string
+		want    bool
+	}{
+		{"fetch-mode navigate", http.MethodGet, map[string]string{"Sec-Fetch-Mode": "navigate"}, true},
+		{"fetch-dest document", http.MethodGet, map[string]string{"Sec-Fetch-Dest": "document"}, true},
+		{"accept html", http.MethodGet, map[string]string{"Accept": "text/html,application/xhtml+xml"}, true},
+		{"service worker shell fetch", http.MethodGet, map[string]string{"Accept": "*/*", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"}, false},
+		{"plain asset fetch", http.MethodGet, nil, false},
+		{"post", http.MethodPost, map[string]string{"Accept": "text/html"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, "/", nil)
+			for key, value := range tt.headers {
+				req.Header.Set(key, value)
+			}
+			if got := isDocumentRequest(req); got != tt.want {
+				t.Errorf("isDocumentRequest() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func writeTestFile(t *testing.T, root, relativePath, content string) {
 	t.Helper()
 

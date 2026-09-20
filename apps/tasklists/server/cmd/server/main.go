@@ -131,9 +131,14 @@ func main() {
 	// Only the application document is gated by OIDC. Static assets are public
 	// and the sync API enforces its own session checks. Gating subresources
 	// caused every asset request to mint a new oidc-callback-state-cookie,
-	// which invalidated in-flight logins.
+	// which invalidated in-flight logins. For the same reason, a shell fetch
+	// from the service worker must not start an OIDC flow: only real document
+	// navigations redirect.
 	authSkipper := func(r *http.Request) bool {
-		return !requiresAuthentication(r.URL.Path)
+		if !requiresAuthentication(r.URL.Path) {
+			return true
+		}
+		return !isDocumentRequest(r)
 	}
 
 	handler := http.Handler(mux)
@@ -269,6 +274,19 @@ func requiresAuthentication(requestPath string) bool {
 	default:
 		return false
 	}
+}
+
+// isDocumentRequest reports whether the request is a top-level document
+// navigation, as opposed to a service worker or subresource fetch. Only real
+// navigations may start the OIDC flow.
+func isDocumentRequest(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	if r.Header.Get("Sec-Fetch-Mode") == "navigate" || r.Header.Get("Sec-Fetch-Dest") == "document" {
+		return true
+	}
+	return strings.Contains(r.Header.Get("Accept"), "text/html")
 }
 
 func staticLookupPath(requestPath string) string {

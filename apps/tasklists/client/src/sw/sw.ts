@@ -2,10 +2,10 @@
 
 declare const self: ServiceWorkerGlobalScope;
 
-const CACHE_NAME = "a4-tasklists-v2";
+const CACHE_NAME = "a4-tasklists-v3";
 const ASSET_MANIFEST_URL = "./asset-manifest.json";
 
-const API_PATH_PREFIXES = ["/sync/", "/healthz", "/auth/"];
+const API_PATH_PREFIXES = ["/sync/", "/healthz"];
 
 function isApiRequest(url: URL): boolean {
   return API_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
@@ -40,10 +40,9 @@ async function navigateIndex(request: Request): Promise<Response> {
   const cache = await caches.open(CACHE_NAME);
   const indexUrl = new URL("/index.html", request.url).href;
   try {
-    // Always consult the network for the app shell. The document is gated by
-    // the server, so an expired session must produce the server's redirect to
-    // the identity provider instead of a cached copy. Do not follow redirects
-    // here so the browser processes the OAuth Set-Cookie on the 302 itself.
+    // Offline fallback path. Online navigations are handled natively by the
+    // browser (see the fetch handler) so redirects and their cookies work on
+    // every browser; this only runs when navigator.onLine is false.
     const networkResponse = await fetch(request, {
       redirect: "manual",
       cache: "no-store",
@@ -126,7 +125,12 @@ async function fetchAssetManifest(): Promise<string[]> {
 // redirects to "/"; the resulting redirected response cannot be returned for a
 // navigation, so it must not be what offline mode falls back to.
 async function cacheAppShell(cache: Cache): Promise<void> {
-  const response = await fetch("/", { cache: "no-store" });
+  // redirect: "manual" keeps an unauthenticated request from following the
+  // OIDC redirect and caching the identity provider's login page as the shell.
+  const response = await fetch("/", {
+    cache: "no-store",
+    redirect: "manual",
+  });
   if (!response.ok) {
     return;
   }
@@ -165,6 +169,15 @@ async function cleanUpCache() {
   }
 }
 
+async function deleteOldCaches(): Promise<void> {
+  const names = await caches.keys();
+  await Promise.all(
+    names
+      .filter((name) => name !== CACHE_NAME)
+      .map((name) => caches.delete(name))
+  );
+}
+
 self.addEventListener("install", (event: ExtendableEvent) => {
   event.waitUntil(
     (async () => {
@@ -181,6 +194,7 @@ self.addEventListener("install", (event: ExtendableEvent) => {
 self.addEventListener("activate", (event: ExtendableEvent) => {
   event.waitUntil(
     (async () => {
+      await deleteOldCaches();
       await self.clients.claim();
       await cleanUpCache();
     })()
@@ -199,13 +213,26 @@ self.addEventListener("fetch", (event: FetchEvent) => {
     return;
   }
 
+  // The OIDC flow must be handled by the browser itself. WebKit drops
+  // Set-Cookie headers on redirects that a service worker returns as an opaque
+  // redirect, which loses the state and session cookies on mobile Safari.
+  if (url.pathname.startsWith("/auth/")) {
+    return;
+  }
+
   if (isApiRequest(url)) {
     event.respondWith(fetch(request));
     return;
   }
 
   if (request.mode === "navigate" && isIndexHtml(url)) {
-    event.respondWith(navigateIndex(request));
+    // When the browser is online, let it perform the navigation itself. The
+    // server may redirect to the identity provider, and the browser must be
+    // allowed to process that redirect and its Set-Cookie headers natively.
+    // The cache is only an offline fallback.
+    if (self.navigator.onLine === false) {
+      event.respondWith(navigateIndex(request));
+    }
     return;
   }
 
