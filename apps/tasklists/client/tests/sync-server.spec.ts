@@ -259,6 +259,58 @@ test("late client bootstraps from existing data", async ({ browser }) => {
   }
 });
 
+test("new tasks go to the top of tasks added by an earlier actor", async ({
+  browser,
+}) => {
+  const contextA = await browser.newContext();
+  await contextA.addInitScript(() => {
+    window.localStorage.setItem("prototypeLists.actorId", "actor-a");
+  });
+  const contextB = await browser.newContext();
+  await contextB.addInitScript(() => {
+    window.localStorage.setItem("prototypeLists.actorId", "actor-z");
+  });
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    await Promise.all([
+      pageA.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageA.goto("/?sync=1"),
+    ]);
+
+    const listTitle = `Prepended ${Date.now()}`;
+    await createList(pageA, listTitle);
+
+    // Add enough tasks at the top that the first position reaches digit zero.
+    for (let i = 1; i <= 12; i += 1) {
+      await addTask(pageA, `Existing ${i}`);
+    }
+
+    await Promise.all([
+      pageB.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageB.goto("/?sync=1"),
+    ]);
+    await selectList(pageB, listTitle);
+    await expect(taskItem(pageB, "Existing 1")).toBeVisible({
+      timeout: 10_000,
+    });
+    await addTask(pageB, "Newest task");
+
+    const texts = await pageB
+      .locator(listItemsSelector)
+      .locator(".text")
+      .allTextContents();
+    expect(texts[0]).toBe("Newest task");
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
 test.afterAll(async ({ request }) => {
   const response = await request.post("/sync/reset", {
     data: {

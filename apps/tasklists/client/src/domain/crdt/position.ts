@@ -155,16 +155,27 @@ export function between(
       const leftActor = leftComponent ? leftComponent.actor : "";
       const rightActor = rightComponent ? rightComponent.actor : "";
       if (leftActor < actor && (rightActor === "" || actor < rightActor)) {
-        result.push({
-          digit: leftDigit,
-          actor,
-        });
-        return result;
+        // A digit-zero component must never terminate a position. Otherwise a
+        // later insert before it cannot pick a smaller first component and has
+        // to fall back to a larger actor, which would sort after it.
+        if (leftDigit !== 0) {
+          result.push({
+            digit: leftDigit,
+            actor,
+          });
+          return result;
+        }
+        result.push({ digit: leftDigit, actor });
+        continue;
       }
     }
 
     if (leftComponent) {
       result.push({ digit: leftComponent.digit, actor: leftComponent.actor });
+    } else if (sameDigit && rightComponent) {
+      // No room to insert our actor before the right component. Reuse the
+      // right component as a shared prefix and descend so we stay below it.
+      result.push({ digit: rightComponent.digit, actor: rightComponent.actor });
     } else {
       result.push({ digit: leftDigit, actor });
     }
