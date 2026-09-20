@@ -30,6 +30,30 @@ function makeOperationKey(operation: { actor?: string; clock?: number }) {
   return `${actor}:${clock}`;
 }
 
+/**
+ * Total order over writes: Lamport clock first, then actor id. Plain clock
+ * comparison is not enough because two replicas commonly produce operations with
+ * the same clock while partitioned. Without the actor tie-break each replica
+ * keeps its own write (both reject the other as `clock <= updatedAt`) and they
+ * never converge.
+ */
+function compareWrites(
+  leftClock: number | null | undefined,
+  leftActor: string | null | undefined,
+  rightClock: number | null | undefined,
+  rightActor: string | null | undefined
+) {
+  const left = Number.isFinite(leftClock) ? Math.floor(leftClock as number) : 0;
+  const right = Number.isFinite(rightClock)
+    ? Math.floor(rightClock as number)
+    : 0;
+  if (left !== right) return left < right ? -1 : 1;
+  const leftId = typeof leftActor === "string" ? leftActor : "";
+  const rightId = typeof rightActor === "string" ? rightActor : "";
+  if (leftId === rightId) return 0;
+  return leftId < rightId ? -1 : 1;
+}
+
 function shallowClone<T>(value: T): T {
   if (value == null) return value as T;
   if (typeof structuredClone === "function") {
@@ -102,6 +126,14 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     this._snapshotCache = null;
   }
 
+  private writeWins(
+    clock: number,
+    actor: string,
+    record: { updatedAt?: number | null; updatedBy?: string | null }
+  ) {
+    return compareWrites(clock, actor, record.updatedAt, record.updatedBy) > 0;
+  }
+
   sanitizeInsertPayload(
     data?: Partial<TData>,
     _context: { existingData?: TData } = {}
@@ -153,6 +185,8 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       updatedAt: Number.isFinite(entry.updatedAt)
         ? Math.floor(entry.updatedAt as number)
         : 0,
+      updatedBy:
+        typeof entry.updatedBy === "string" ? entry.updatedBy : "",
       deletedAt: Number.isFinite(entry.deletedAt)
         ? Math.floor(entry.deletedAt as number)
         : null,
@@ -180,6 +214,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       data: this.cloneData(record.data),
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
+      updatedBy: record.updatedBy,
       deletedAt: record.deletedAt,
     };
   }
@@ -203,6 +238,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         data: this.cloneData(record.data),
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
+        updatedBy: record.updatedBy,
         deletedAt: record.deletedAt,
       }))
       .sort((a, b) => comparePositions(a.pos, b.pos));
@@ -214,6 +250,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         data: this.cloneData(item.data),
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
+        updatedBy: item.updatedBy,
         deletedAt: item.deletedAt,
       }));
     }
@@ -292,14 +329,18 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         data: payloadData,
         createdAt: clock,
         updatedAt: clock,
+        updatedBy: operation.actor,
         deletedAt: null,
       });
       return true;
     }
 
+    const winsWrite = this.writeWins(clock, operation.actor, existing);
     let mutated = false;
 
-    if (position.length) {
+    // Only an insert that wins the write race may move an existing item. Older
+    // creates replayed during bootstrap must not undo a newer move.
+    if (position.length && winsWrite) {
       const samePosition = comparePositions(position, existing.pos) === 0;
       if (!samePosition) {
         existing.pos = position;
@@ -312,15 +353,17 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       mutated = true;
     }
 
-    if (clock > (existing.updatedAt ?? 0)) {
+    if (winsWrite) {
       const merged = this.mergeInsertData(existing.data, payloadData);
       if (!this.areDataEqual(existing.data, merged)) {
         existing.data = merged;
         mutated = true;
       }
-      if (mutated) {
-        existing.updatedAt = clock;
-      }
+    }
+
+    if (mutated && winsWrite) {
+      existing.updatedAt = clock;
+      existing.updatedBy = operation.actor;
     }
 
     return mutated;
@@ -336,8 +379,9 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       : 0;
     if (record.deletedAt != null && clock <= record.deletedAt) return false;
     record.deletedAt = clock;
-    if (clock > (record.updatedAt ?? 0)) {
+    if (this.writeWins(clock, operation.actor, record)) {
       record.updatedAt = clock;
+      record.updatedBy = operation.actor;
     }
     return true;
   }
@@ -352,12 +396,13 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (clock <= (record.updatedAt ?? 0)) return false;
+    if (!this.writeWins(clock, operation.actor, record)) return false;
     if (comparePositions(position, record.pos) === 0) {
       return false;
     }
     record.pos = position;
     record.updatedAt = clock;
+    record.updatedBy = operation.actor;
     return true;
   }
 
@@ -369,7 +414,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (clock <= (record.updatedAt ?? 0)) return false;
+    if (!this.writeWins(clock, operation.actor, record)) return false;
     const updatePayload = this.sanitizeUpdatePayload(operation.payload?.data, {
       existingData: record.data,
     });
@@ -382,6 +427,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     }
     record.data = merged;
     record.updatedAt = clock;
+    record.updatedBy = operation.actor;
     return true;
   }
 

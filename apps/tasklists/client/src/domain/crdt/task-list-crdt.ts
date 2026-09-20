@@ -37,6 +37,7 @@ type TaskEntry = {
   note: string;
   createdAt?: number | null;
   updatedAt?: number | null;
+  updatedBy?: string | null;
   deletedAt?: number | null;
 };
 
@@ -51,6 +52,7 @@ function cloneRecordEntry(
     note: entry.data.note,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
+    updatedBy: entry.updatedBy,
     deletedAt: entry.deletedAt,
   };
 }
@@ -185,6 +187,7 @@ export class TaskListCRDT {
           },
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
+          updatedBy: item.updatedBy,
           deletedAt: item.deletedAt,
         }))
       : [];

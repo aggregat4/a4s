@@ -4,6 +4,7 @@ import {
   stringifyExportSnapshot,
 } from "../src/app/export-snapshot.js";
 import { test, expect } from "./fixtures";
+import { dragHandleToTarget } from "./helpers/drag";
 import { openSidebarOptions } from "./helpers/sidebar";
 
 const listItemsSelector =
@@ -305,6 +306,131 @@ test("new tasks go to the top of tasks added by an earlier actor", async ({
       .locator(".text")
       .allTextContents();
     expect(texts[0]).toBe("Newest task");
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
+test("list reorder propagates to other clients", async ({ browser }) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  const sidebarNames = (page: Page) =>
+    page
+      .locator("[data-role='sidebar-list'] .sidebar-list-label")
+      .allTextContents();
+  try {
+    await Promise.all([
+      pageA.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageA.goto("/?sync=1&resetStorage=1"),
+    ]);
+    await Promise.all([
+      pageB.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageB.goto("/?sync=1&resetStorage=1"),
+    ]);
+
+    await createList(pageA, "List A");
+    await createList(pageA, "List B");
+    await createList(pageA, "List C");
+    await expect
+      .poll(() => sidebarNames(pageB), { timeout: 10_000 })
+      .toEqual(["List A", "List B", "List C"]);
+
+    const items = pageA.locator("[data-role='sidebar-list'] li");
+    await dragHandleToTarget(
+      items.nth(2).locator(".sidebar-list-handle"),
+      items.nth(0),
+      { targetPosition: { x: 10, y: 2 } }
+    );
+
+    await expect
+      .poll(() => sidebarNames(pageA), { timeout: 10_000 })
+      .toEqual(["List C", "List A", "List B"]);
+    await expect
+      .poll(() => sidebarNames(pageB), { timeout: 10_000 })
+      .toEqual(["List C", "List A", "List B"]);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
+test("concurrent list reorders converge across clients", async ({
+  browser,
+}) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  const registryIds = (page: Page) =>
+    page.evaluate(() =>
+      (window as any).listsApp.repository
+        .getRegistrySnapshot()
+        .map((entry: { id: string }) => entry.id)
+    );
+  try {
+    await Promise.all([
+      pageA.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageA.goto("/?sync=1&resetStorage=1"),
+    ]);
+    await Promise.all([
+      pageB.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageB.goto("/?sync=1&resetStorage=1"),
+    ]);
+
+    await createList(pageA, "List A");
+    await createList(pageA, "List B");
+    await createList(pageA, "List C");
+    await createList(pageA, "List D");
+    await expect
+      .poll(() => registryIds(pageB), { timeout: 10_000 })
+      .toHaveLength(4);
+
+    // Both clients edit the same list to different positions while offline, so
+    // their reorder operations carry the same Lamport clock.
+    await contextA.setOffline(true);
+    await contextB.setOffline(true);
+    await pageA.evaluate(async () => {
+      const repository = (window as any).listsApp.repository;
+      const ids = repository
+        .getRegistrySnapshot()
+        .map((entry: { id: string }) => entry.id);
+      await repository.reorderList(ids[2], { beforeId: ids[0] });
+    });
+    await pageB.evaluate(async () => {
+      const repository = (window as any).listsApp.repository;
+      const ids = repository
+        .getRegistrySnapshot()
+        .map((entry: { id: string }) => entry.id);
+      await repository.reorderList(ids[2], { afterId: ids[3] });
+    });
+    await contextA.setOffline(false);
+    await contextB.setOffline(false);
+
+    // After both clients reconnect and exchange their reorders, they must agree
+    // on a single order even though neither saw the other's move when it was made.
+    await expect
+      .poll(
+        async () => {
+          const [a, b] = await Promise.all([
+            registryIds(pageA),
+            registryIds(pageB),
+          ]);
+          return { converged: JSON.stringify(a) === JSON.stringify(b), a, b };
+        },
+        { timeout: 15_000 }
+      )
+      .toMatchObject({ converged: true });
   } finally {
     await contextA.close();
     await contextB.close();

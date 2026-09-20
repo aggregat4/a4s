@@ -18,6 +18,7 @@ type EncodedEntry<TData> = {
   data: TData;
   createdAt: number;
   updatedAt: number;
+  updatedBy: string;
   deletedAt: number | null;
 };
 type MapDataFn<TIn, TOut> = (data: TIn) => TOut;
@@ -79,6 +80,7 @@ function encodeEntry<TIn, TOut>(
     data,
     createdAt: encodeTimestamp(entry.createdAt),
     updatedAt: encodeTimestamp(entry.updatedAt),
+    updatedBy: encodeActor(entry.updatedBy),
     deletedAt:
       entry.deletedAt == null || !Number.isFinite(entry.deletedAt)
         ? null
@@ -97,6 +99,7 @@ function decodeEntry<TOut>(
     data?: unknown;
     createdAt?: unknown;
     updatedAt?: unknown;
+    updatedBy?: unknown;
     deletedAt?: unknown;
   };
   if (typeof record.id !== "string" || !record.id.length) return null;
@@ -107,6 +110,7 @@ function decodeEntry<TOut>(
     data,
     createdAt: encodeTimestamp(record.createdAt),
     updatedAt: encodeTimestamp(record.updatedAt),
+    updatedBy: encodeActor(record.updatedBy),
     deletedAt:
       typeof record.deletedAt !== "number" || !Number.isFinite(record.deletedAt)
         ? null

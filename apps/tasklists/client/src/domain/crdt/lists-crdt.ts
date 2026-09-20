@@ -119,6 +119,7 @@ export class ListsCRDT {
           },
           createdAt: entry.createdAt,
           updatedAt: entry.updatedAt,
+          updatedBy: entry.updatedBy,
           deletedAt: entry.deletedAt,
         }))
       : [];
@@ -196,6 +197,7 @@ export class ListsCRDT {
       pos: entry.pos,
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt,
+      updatedBy: entry.updatedBy,
       deletedAt: entry.deletedAt,
     };
   }

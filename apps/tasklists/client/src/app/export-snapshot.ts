@@ -107,6 +107,7 @@ function buildOrderedEntries<TData extends Record<string, unknown>>(
   data: TData;
   createdAt: number;
   updatedAt: number;
+  updatedBy: string;
   deletedAt: null;
 }> {
   let previousPosition: ReturnType<typeof between> | null = null;
@@ -116,6 +117,7 @@ function buildOrderedEntries<TData extends Record<string, unknown>>(
     data: TData;
     createdAt: number;
     updatedAt: number;
+    updatedBy: string;
     deletedAt: null;
   } => {
     const position = between(previousPosition, null, { actor });
@@ -127,6 +129,7 @@ function buildOrderedEntries<TData extends Record<string, unknown>>(
       data: item.data,
       createdAt: time,
       updatedAt: time,
+      updatedBy: actor,
       deletedAt: null,
     };
   });

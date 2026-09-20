@@ -63,6 +63,62 @@ test("remove operations set tombstones and snapshots omit deleted items by defau
   assert.equal(withDeleted[0].deletedAt! > 0, true);
 });
 
+function seedConcurrentReplicas() {
+  const seed = new OrderedSetCRDT({ actorId: "seed" });
+  seed.generateInsert({ itemId: "a", data: { label: "a" } });
+  seed.generateInsert({ itemId: "b", data: { label: "b" }, afterId: "a" });
+  seed.generateInsert({ itemId: "c", data: { label: "c" }, afterId: "b" });
+  const entries = seed.exportState().entries;
+  const clock = seed.getClockValue();
+  const clientA = new OrderedSetCRDT({ actorId: "actor-a" });
+  const clientB = new OrderedSetCRDT({ actorId: "actor-b" });
+  // importRecords alone does not advance the clock, so merge it explicitly to
+  // mirror hydration from persisted state.
+  clientA.importRecords(entries);
+  clientA.clock.merge(clock);
+  clientB.importRecords(entries);
+  clientB.clock.merge(clock);
+  return { clientA, clientB };
+}
+
+test("concurrent moves with equal clocks converge", () => {
+  const { clientA, clientB } = seedConcurrentReplicas();
+
+  const moveA = clientA.generateMove({ itemId: "b", beforeId: "a" }).op;
+  const moveB = clientB.generateMove({ itemId: "b", afterId: "c" }).op;
+  assert.equal(moveA.clock, moveB.clock);
+
+  // Each replica already applied its own move; now exchange them.
+  clientA.applyOperation(moveB);
+  clientB.applyOperation(moveA);
+
+  assert.deepEqual(
+    clientA.getSnapshot().map((entry) => entry.id),
+    clientB.getSnapshot().map((entry) => entry.id)
+  );
+});
+
+test("concurrent updates with equal clocks converge", () => {
+  const { clientA, clientB } = seedConcurrentReplicas();
+
+  const updateA = clientA.generateUpdate({
+    itemId: "b",
+    data: { label: "from-a" },
+  }).op;
+  const updateB = clientB.generateUpdate({
+    itemId: "b",
+    data: { label: "from-b" },
+  }).op;
+  assert.equal(updateA.clock, updateB.clock);
+
+  clientA.applyOperation(updateB);
+  clientB.applyOperation(updateA);
+
+  const labelA = clientA.getSnapshot().find((entry) => entry.id === "b")?.data;
+  const labelB = clientB.getSnapshot().find((entry) => entry.id === "b")?.data;
+  assert.deepEqual(labelA, labelB);
+});
+
 test("exported state captures entries and clock", () => {
   const crdt = new OrderedSetCRDT({ actorId: "tester" });
   crdt.generateInsert({ itemId: "one", data: { value: 1 } });

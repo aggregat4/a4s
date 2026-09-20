@@ -30,6 +30,32 @@ test("lists CRDT creates, reorders, and removes lists", () => {
     assert.equal(remove.snapshot[0].id, "alpha");
 });
 
+test("concurrent reorders converge with equal Lamport clocks", () => {
+    const seed = new ListsCRDT({ actorId: "actor-seed" });
+    let previousId: string | null = null;
+    for (const id of ["a", "b", "c", "d"]) {
+        seed.generateCreate({ listId: id, title: id, afterId: previousId });
+        previousId = id;
+    }
+    const state = seed.exportState();
+
+    const clientA = new ListsCRDT({ actorId: "actor-a" });
+    const clientB = new ListsCRDT({ actorId: "actor-b" });
+    clientA.resetFromState(state);
+    clientB.resetFromState(state);
+
+    const moveA = clientA.generateReorder({ listId: "c", beforeId: "a" }).op;
+    const moveB = clientB.generateReorder({ listId: "c", afterId: "d" }).op;
+    assert.equal(moveA.clock, moveB.clock);
+
+    clientA.applyOperation(moveB);
+    clientB.applyOperation(moveA);
+
+    const order = (crdt: ListsCRDT) =>
+        crdt.getVisibleLists().map((entry) => entry.id);
+    assert.deepEqual(order(clientA), order(clientB));
+});
+
 test("lists CRDT rename updates title metadata", () => {
     const index = new ListsCRDT({ actorId: "actor-idx" });
     index.generateCreate({ listId: "alpha", title: "Alpha" });

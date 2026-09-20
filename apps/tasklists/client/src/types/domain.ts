@@ -30,6 +30,7 @@ export type OrderedSetEntry<TData> = {
   data: TData;
   createdAt?: number | null;
   updatedAt?: number | null;
+  updatedBy?: string | null;
   deletedAt?: number | null;
 };
 
