@@ -654,7 +654,7 @@ export class ListRepository {
     await this.initialize();
     const listId = ensureId(options.listId, "list");
     const title = sanitizeText(options.title);
-    const afterId =
+    let afterId =
       typeof options.afterId === "string" && options.afterId.length
         ? options.afterId
         : null;
@@ -662,9 +662,20 @@ export class ListRepository {
       typeof options.beforeId === "string" && options.beforeId.length
         ? options.beforeId
         : null;
+    const position =
+      Array.isArray(options.position) && options.position.length
+        ? options.position
+        : null;
 
     if (this._listMap.has(listId)) {
       return { id: listId, state: this.getListState(listId) };
+    }
+
+    // Without explicit neighbors a bare midpoint position collides with the
+    // first list. Default to appending after the last visible list instead.
+    if (!afterId && !beforeId && !position) {
+      const visible = this._listsCrdt.getVisibleLists();
+      afterId = visible.length ? visible[visible.length - 1].id : null;
     }
 
     const createResult = this._listsCrdt.generateCreate({
@@ -672,7 +683,7 @@ export class ListRepository {
       title,
       afterId,
       beforeId,
-      position: options.position ?? null,
+      position,
     });
 
     const listCrdt = this._createListInstance(listId, null);

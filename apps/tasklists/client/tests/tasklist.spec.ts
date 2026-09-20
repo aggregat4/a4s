@@ -780,6 +780,34 @@ test("undo/redo walks through text edits and task insertions", async ({
     .toBe("Hello");
 });
 
+test("adding a list appends it after the existing lists", async ({ page }) => {
+  await gotoWithSnapshot(page, "/?resetStorage=1");
+
+  const listItems = page.locator("[data-role='sidebar-list'] li");
+  await expect(listItems).toHaveCount(3);
+  await expect.poll(async () => getSidebarListNames(page)).toEqual([
+    "Prototype Tasks",
+    "Weekend Projects",
+    "Work Follow-ups",
+  ]);
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept("Added List");
+  });
+  await openSidebarOptions(page);
+  await page.getByRole("button", { name: "Add list" }).click();
+  await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+    "Added List"
+  );
+
+  await expect.poll(async () => getSidebarListNames(page)).toEqual([
+    "Prototype Tasks",
+    "Weekend Projects",
+    "Work Follow-ups",
+    "Added List",
+  ]);
+});
+
 test("sidebar list order updates after drag reorder", async ({ page }) => {
   await gotoWithSnapshot(page, "/?resetStorage=1");
 
