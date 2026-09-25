@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.5.3] - 2026-09-25
+
 ### Fixed
 
 - Fix task moves and list reorders not converging between clients that edited
