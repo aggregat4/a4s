@@ -120,15 +120,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          APP: ${{ steps.release.outputs.app }}
           ARCHIVE: ${{ steps.artifact.outputs.archive }}
         run: |
           set -euo pipefail
 
           previous_tag=$(git tag --list "${TAG%%/*}/v*" --sort=-version:refname \
             | awk -v tag="${TAG}" '$0 != tag { print; exit }')
-          release_args=(--verify-tag --title "${TAG}" --generate-notes --latest=false)
-          if [ -n "${previous_tag}" ]; then
-            release_args+=(--notes-start-tag "${previous_tag}")
+          release_args=(--verify-tag --title "${TAG}" --latest=false)
+
+          if notes=$(scripts/changelog-notes.sh "${APP}" "${TAG}") && [ -n "${notes}" ]; then
+            mkdir -p dist
+            printf '%s\n' "${notes}" > dist/release-notes.md
+            release_args+=(--notes-file dist/release-notes.md)
+          else
+            echo "::warning::no changelog entry for ${TAG}; falling back to generated notes"
+            release_args+=(--generate-notes)
+            if [ -n "${previous_tag}" ]; then
+              release_args+=(--notes-start-tag "${previous_tag}")
+            fi
           fi
           if [[ "${TAG#*/}" == *-* ]]; then
             release_args+=(--prerelease)

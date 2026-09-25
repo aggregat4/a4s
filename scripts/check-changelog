@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
+node - "$repo_root" <<'EOF'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const repoRoot = process.argv[2];
+const appsDir = path.join(repoRoot, "apps");
+const versionPattern = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+let failed = false;
+
+for (const app of fs.readdirSync(appsDir).sort()) {
+  const file = path.join(appsDir, app, "CHANGELOG.md");
+  if (!fs.existsSync(file)) {
+    continue;
+  }
+
+  const lines = fs.readFileSync(file, "utf8").split("\n");
+  if (!/^#\s+\S/.test(lines[0] ?? "")) {
+    console.error(`${file}: missing a level-1 title`);
+    failed = true;
+  }
+
+  const sections = [];
+  let current = null;
+  for (const line of lines) {
+    const heading = /^##\s+\[([^\]]+)\]/.exec(line);
+    if (heading) {
+      current = { version: heading[1], body: [] };
+      sections.push(current);
+      continue;
+    }
+    if (current) {
+      current.body.push(line);
+    }
+  }
+
+  if (sections.length === 0) {
+    console.error(`${file}: missing a version section such as "## [Unreleased]"`);
+    failed = true;
+    continue;
+  }
+
+  const seen = new Set();
+  for (const section of sections) {
+    const version = section.version;
+    if (version !== "Unreleased" && !versionPattern.test(version)) {
+      console.error(`${file}: invalid version heading [${version}]`);
+      failed = true;
+    }
+    const key = version.replace(/^v/, "");
+    if (seen.has(key)) {
+      console.error(`${file}: duplicate version heading [${version}]`);
+      failed = true;
+    }
+    seen.add(key);
+
+    if (version !== "Unreleased" && !section.body.some((line) => line.trim() !== "")) {
+      console.error(`${file}: release section [${version}] has no entries`);
+      failed = true;
+    }
+  }
+}
+
+if (failed) {
+  process.exit(1);
+}
+EOF

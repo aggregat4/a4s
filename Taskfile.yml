@@ -60,7 +60,9 @@ tasks:
     cmds:
       - bash scripts/check-gofmt
       - bash scripts/check-deploy
+      - bash scripts/check-changelog
       - bash -n scripts/package-release.sh
+      - bash -n scripts/changelog-notes.sh
       - go vet -tags=fts5 ./...
       - pnpm --filter a4-tasklists run build
   modernize:

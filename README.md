@@ -64,7 +64,23 @@ tag forms: `rssgrid/vX.Y.Z`, `bookmarks/vX.Y.Z`, `comments/vX.Y.Z`,
 `idp/vX.Y.Z`, and `tasklists/vX.Y.Z`. The tag must point to a commit reachable
 from `main`.
 
-For example, after the release commit has been merged into `main`:
+Changes accumulate under `## [Unreleased]` until a release is cut. Cutting a
+release is two steps on `main`.
+
+First, add a release commit that renames the `Unreleased` section to the release
+version and date, and starts a fresh, empty `Unreleased` section:
+
+```markdown
+## [Unreleased]
+
+## [v1.5.0] - 2026-01-31
+
+### Fixed
+
+- ...
+```
+
+Then tag that commit and push the tag:
 
 ```bash
 git tag -a tasklists/v1.5.0 -m "Tasklists v1.5.0"
@@ -73,8 +89,10 @@ git push origin tasklists/v1.5.0
 
 The workflow re-runs `task ci`, builds the matching Linux/amd64 package, checks
 its SHA-256 file, and creates a GitHub Release with the archive and checksum as
-assets. Generated notes start at the previous tag for that same service;
-prerelease tags become GitHub prereleases, and no service release is marked as
-repository-wide “Latest”. It never deploys to a host. The repository must allow
-GitHub Actions to use a write-capable workflow token; the workflow requests only
-`contents: write`.
+assets. Release notes come from the matching `## [vX.Y.Z]` section of
+`apps/<app>/CHANGELOG.md` via `scripts/changelog-notes.sh`; when no section
+exists the workflow falls back to GitHub's generated notes starting at the
+previous tag for that service. Prerelease tags become GitHub prereleases, and no
+service release is marked as repository-wide “Latest”. It never deploys to a
+host. The repository must allow GitHub Actions to use a write-capable workflow
+token; the workflow requests only `contents: write`.
