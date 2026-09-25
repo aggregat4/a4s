@@ -336,10 +336,10 @@ export class SyncEngine {
     if (payload.datasetGenerationKey) {
       this.state.datasetGenerationKey = payload.datasetGenerationKey;
     }
-    const nextSeq = parseServerSeq(payload.serverSeq);
-    if (nextSeq >= this.state.lastServerSeq) {
-      this.state.lastServerSeq = nextSeq;
-    }
+    // Do not advance the pull cursor with the push response: the server reports
+    // the dataset's global max seq, which may have already advanced past ops
+    // from other clients that this client has not pulled yet. The next pull
+    // advances the cursor to the highest op actually received.
     this.outbox = this.outbox.slice(sentOps.length);
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);

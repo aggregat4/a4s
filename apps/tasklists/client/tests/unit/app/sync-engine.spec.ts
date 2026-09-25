@@ -333,7 +333,7 @@ test("SyncEngine debounces rapid enqueueOps into a single flush", async () => {
   engine.stop();
 });
 
-test("SyncEngine flushOnce updates lastServerSeq without pulling", async () => {
+test("SyncEngine flushOnce pushes without advancing the pull cursor", async () => {
   const { storage, getState } = createStorage();
   const fetchCalls: string[] = [];
   const fetchFn = async (url: string | URL | Request) => {
@@ -358,9 +358,74 @@ test("SyncEngine flushOnce updates lastServerSeq without pulling", async () => {
   ]);
   await engine.flushOnce();
 
-  assert.equal(getState().lastServerSeq, 42, "flushOnce should update lastServerSeq from push response");
+  // The push response reports the dataset's global max seq, which may be ahead
+  // of ops this client has not pulled yet. Advancing here would skip them.
+  assert.equal(getState().lastServerSeq, 0, "flushOnce must not advance the pull cursor");
   assert.ok(fetchCalls.some((u) => u.includes("/sync/push")), "should have pushed");
   assert.ok(!fetchCalls.some((u) => u.includes("/sync/pull")), "should not have pulled");
+
+  engine.stop();
+});
+
+test("SyncEngine does not skip concurrent ops missed between push and pull", async () => {
+  const { storage, getState } = createStorage();
+  await storage.persistSyncState({
+    clientId: "client-1",
+    lastServerSeq: 8,
+    datasetGenerationKey: "d1",
+  });
+  let pullUrl = "";
+  const applied: SyncOp[] = [];
+  const fetchFn = async (url: string | URL | Request) => {
+    const urlString = typeof url === "string" ? url : url.toString();
+    if (urlString.includes("/sync/push")) {
+      // Another client's op (seq 9) is already stored, so the global max jumps
+      // to 10 when our op lands even though we have only seen up to seq 8.
+      return new Response(
+        JSON.stringify({ serverSeq: 10, datasetGenerationKey: "d1" }),
+        { status: 200 }
+      );
+    }
+    if (urlString.includes("/sync/pull")) {
+      pullUrl = urlString;
+      return new Response(
+        JSON.stringify({
+          serverSeq: 10,
+          datasetGenerationKey: "d1",
+          ops: [
+            {
+              scope: "registry",
+              resourceId: "registry",
+              actor: "actor-2",
+              clock: 5,
+              payload: { type: "reorderList", listId: "list-1", payload: { pos: [] } },
+            },
+          ],
+        }),
+        { status: 200 }
+      );
+    }
+    return new Response("", { status: 404 });
+  };
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    fetchFn,
+    clientId: "client-1",
+    onRemoteOps: async (ops) => {
+      applied.push(...ops);
+    },
+  });
+  await engine.initialize();
+
+  engine.enqueueOps("registry", "registry", [
+    { type: "reorderList", actor: "actor-1", clock: 5, listId: "list-1", payload: { pos: [] } } as any,
+  ]);
+  await engine.syncOnce();
+
+  assert.ok(pullUrl.includes("since=8"), `pull must resume from the last applied seq: ${pullUrl}`);
+  assert.equal(applied.length, 1, "concurrent op must still be applied");
+  assert.equal(getState().lastServerSeq, 10, "cursor advances only after applying the pulled ops");
 
   engine.stop();
 });

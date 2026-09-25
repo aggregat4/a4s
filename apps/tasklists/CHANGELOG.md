@@ -15,8 +15,9 @@ Release notes for a tag are taken from the matching version section, so the
 ### Fixed
 
 - Fix task moves and list reorders not converging between clients that edited
-  offline and shared a Lamport clock; concurrent writes are now ordered
-  deterministically by `(clock, actor)`.
+  offline. Concurrent writes are now ordered deterministically by
+  `(clock, actor)`, and a client no longer skips a concurrent operation when
+  its own push advances the sync cursor past it.
 - Add new lists after the last list instead of at a shared midpoint, which made
   them collide with the first list.
 - Keep newly added tasks at the top of a list when an existing item's position
