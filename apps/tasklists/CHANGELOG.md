@@ -10,6 +10,18 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.6.1] - 2026-09-27
+
+### Fixed
+
+- Version the service worker cache per release so a deployment installs a fresh
+  cache instead of continuing to serve the previous app shell.
+
+### Changed
+
+- Refresh the app icon and theme color, and respect the device safe area on
+  mobile.
+
 ## [v1.6.0] - 2026-09-27
 
 ### Added
