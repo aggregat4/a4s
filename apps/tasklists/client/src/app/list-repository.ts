@@ -1464,7 +1464,6 @@ export class ListRepository {
         resourceId,
         operations as (ListsOperation | TaskListOperation)[]
       );
-      return;
     }
     if (!this._storage) {
       return;
