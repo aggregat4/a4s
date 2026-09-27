@@ -472,6 +472,11 @@ export class ListRepository {
           : { published: false, error: result.error };
       }
       this._sync.start();
+    } else if (publishSnapshot) {
+      publishResult = {
+        published: false,
+        error: "Snapshot imported on this device only. Sync is unavailable; reconnect and import again to update other devices.",
+      };
     }
     return publishResult;
   }

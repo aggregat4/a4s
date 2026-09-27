@@ -307,6 +307,53 @@ test("a failed snapshot apply retains the previous dataset and pending outbox", 
   assert.equal(getOutbox().length, 1);
 });
 
+test("starting with a saved cursor checks for a replaced server dataset", async () => {
+  const { storage, getState } = createStorage();
+  await storage.persistSyncState({
+    clientId: "client-1",
+    lastServerSeq: 8,
+    datasetGenerationKey: "old-dataset",
+  });
+  let resolveSnapshot!: () => void;
+  const snapshotApplied = new Promise<void>((resolve) => {
+    resolveSnapshot = resolve;
+  });
+  const eventUrls: string[] = [];
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    eventSourceFactory: (url) => {
+      eventUrls.push(url);
+      return {
+        addEventListener: () => {},
+        close: () => {},
+      } as unknown as EventSource;
+    },
+    fetchFn: async () => new Response(JSON.stringify({
+      datasetGenerationKey: "new-dataset",
+      serverSeq: 0,
+      snapshot: "replacement",
+    }), { status: 409 }),
+    onSnapshot: async () => resolveSnapshot(),
+  });
+  await engine.initialize();
+  engine.start();
+  try {
+    await Promise.race([
+      snapshotApplied,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("startup did not check for a new dataset")), 100)
+      ),
+    ]);
+    await engine.syncOnce();
+    assert.equal(getState().datasetGenerationKey, "new-dataset");
+    assert.ok(eventUrls[0].includes("old-dataset"));
+    assert.ok(eventUrls[eventUrls.length - 1]?.includes("new-dataset"));
+  } finally {
+    engine.stop();
+  }
+});
+
 test("SyncEngine syncs when EventSource receives ops event", async () => {
   const { storage } = createStorage();
   const fetchCalls: string[] = [];

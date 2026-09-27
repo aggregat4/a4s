@@ -170,6 +170,21 @@ export class SyncEngine {
       return;
     }
     this.connectEvents();
+    // A saved cursor skips bootstrap. EventSource may never open when its
+    // generation is stale, so check for a replacement snapshot immediately.
+    this.syncQueue = this.syncQueue.then(
+      () => this.checkOnStart(),
+      () => this.checkOnStart()
+    );
+    void this.syncQueue.catch((error) => this.onConnectionError?.(error));
+  }
+
+  private async checkOnStart() {
+    if (!this.isActive) return;
+    await this.pullRemoteOps();
+    if (this.isActive && this.outbox.length > 0) {
+      await this.flushOutbox();
+    }
   }
 
   stop() {
@@ -451,6 +466,12 @@ export class SyncEngine {
     this.outbox = [];
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);
+    // The old stream was opened with the previous generation key. Reconnect
+    // after the replacement is durable so later operations can wake this client.
+    if (this.isActive) {
+      this.disconnectEvents();
+      this.connectEvents();
+    }
     return true;
   }
 

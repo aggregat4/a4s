@@ -204,6 +204,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	s.broadcaster.Notify(userID)
 	writeJSON(w, http.StatusOK, jsonResponse{
 		"serverSeq":            int64(0),
 		"datasetGenerationKey": payload.DatasetGenerationKey,

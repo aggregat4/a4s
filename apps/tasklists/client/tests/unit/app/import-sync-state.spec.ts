@@ -85,3 +85,18 @@ test("replaceWithSnapshot preserves dataset generation key in sync state", async
   assert.equal(state.lastServerSeq, 0);
   assert.equal(state.datasetGenerationKey, "dataset-old");
 });
+
+test("snapshot import reports when sync is unavailable", async () => {
+  const repository = new ListRepository({
+    storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+  });
+  const result = await repository.replaceWithSnapshot({
+    registryState: { clock: 0, entries: [] },
+    lists: [],
+    snapshotText: "snapshot",
+    publishSnapshot: true,
+  });
+  assert.equal(result?.published, false);
+  assert.match(result?.error ?? "", /Sync is unavailable/);
+});

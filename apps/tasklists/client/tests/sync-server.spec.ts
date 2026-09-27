@@ -602,6 +602,64 @@ test("an offline edit syncs after its client closes and restarts", async ({ brow
   }
 });
 
+test("imported snapshot replaces an open client's order and survives its reload", async ({ browser }) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  const readOrder = (page: Page, listId: string) =>
+    page.evaluate((id) =>
+      (window as any).listsApp?.repository?.getListSnapshot(id)
+        .map((item: { id: string }) => item.id) ?? [], listId);
+  try {
+    await Promise.all([
+      pageA.waitForResponse((r) => r.url().includes("/sync/bootstrap")),
+      pageA.goto("/?sync=1&resetStorage=1"),
+    ]);
+    await Promise.all([
+      pageB.waitForResponse((r) => r.url().includes("/sync/bootstrap")),
+      pageB.goto("/?sync=1&resetStorage=1"),
+    ]);
+    const title = `Snapshot import ${Date.now()}`;
+    await createList(pageA, title);
+    await selectList(pageB, title);
+    const listId = await pageA.evaluate((name) =>
+      (window as any).listsApp.repository.getRegistrySnapshot()
+        .find((entry: { id: string; title: string }) => entry.title === name).id, title);
+    await pageA.evaluate(async (id) => {
+      const repo = (window as any).listsApp.repository;
+      await repo.insertTask(id, { itemId: "first", text: "First" });
+      await repo.insertTask(id, { itemId: "second", text: "Second", afterId: "first" });
+    }, listId);
+    await expect.poll(() => readOrder(pageB, listId)).toEqual(["first", "second"]);
+
+    const exported = await pageA.evaluate(() =>
+      (window as any).listsApp.repository.exportSnapshotData());
+    const snapshot = buildExportSnapshot(exported);
+    snapshot.data.lists.find((list) => list.listId === listId)?.items.reverse();
+    const snapshotText = stringifyExportSnapshot(snapshot);
+    pageA.once("dialog", (dialog) => dialog.accept());
+    const [resetResponse] = await Promise.all([
+      pageA.waitForResponse((r) => r.url().includes("/sync/reset") && r.request().method() === "POST"),
+      pageA.locator("[data-role='import-snapshot-input']").setInputFiles({
+        name: "reordered.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(snapshotText),
+      }),
+    ]);
+    expect(resetResponse.ok()).toBe(true);
+    await expect.poll(() => readOrder(pageA, listId)).toEqual(["second", "first"]);
+    await expect.poll(() => readOrder(pageB, listId), { timeout: 10_000 })
+      .toEqual(["second", "first"]);
+    await pageB.goto("/?sync=1");
+    await expect.poll(() => readOrder(pageB, listId), { timeout: 10_000 })
+      .toEqual(["second", "first"]);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
 test.afterAll(async ({ request }) => {
   const response = await request.post("/sync/reset", {
     data: {
