@@ -120,6 +120,11 @@ export class ListsCRDT {
           createdAt: entry.createdAt,
           updatedAt: entry.updatedAt,
           updatedBy: entry.updatedBy,
+          positionUpdatedAt: entry.positionUpdatedAt,
+          positionUpdatedBy: entry.positionUpdatedBy,
+          dataUpdatedAt: entry.dataUpdatedAt,
+          dataUpdatedBy: entry.dataUpdatedBy,
+          fieldVersions: entry.fieldVersions,
           deletedAt: entry.deletedAt,
         }))
       : [];

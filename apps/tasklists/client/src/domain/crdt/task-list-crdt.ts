@@ -38,6 +38,11 @@ type TaskEntry = {
   createdAt?: number | null;
   updatedAt?: number | null;
   updatedBy?: string | null;
+  positionUpdatedAt?: number | null;
+  positionUpdatedBy?: string | null;
+  dataUpdatedAt?: number | null;
+  dataUpdatedBy?: string | null;
+  fieldVersions?: Record<string, { clock: number; actor: string }>;
   deletedAt?: number | null;
 };
 
@@ -53,6 +58,11 @@ function cloneRecordEntry(
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     updatedBy: entry.updatedBy,
+    positionUpdatedAt: entry.positionUpdatedAt,
+    positionUpdatedBy: entry.positionUpdatedBy,
+    dataUpdatedAt: entry.dataUpdatedAt,
+    dataUpdatedBy: entry.dataUpdatedBy,
+    fieldVersions: entry.fieldVersions,
     deletedAt: entry.deletedAt,
   };
 }
@@ -188,6 +198,11 @@ export class TaskListCRDT {
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
           updatedBy: item.updatedBy,
+          positionUpdatedAt: item.positionUpdatedAt,
+          positionUpdatedBy: item.positionUpdatedBy,
+          dataUpdatedAt: item.dataUpdatedAt,
+          dataUpdatedBy: item.dataUpdatedBy,
+          fieldVersions: item.fieldVersions,
           deletedAt: item.deletedAt,
         }))
       : [];

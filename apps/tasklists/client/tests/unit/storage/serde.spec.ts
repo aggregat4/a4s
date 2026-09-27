@@ -28,6 +28,11 @@ test("list state serialization round-trips entries and metadata", () => {
                 data: { text: "Task", done: true, note: "Context" },
                 createdAt: 1,
                 updatedAt: 2,
+                fieldVersions: {
+                    text: { clock: 2, actor: "writer-a" },
+                    done: { clock: 3, actor: "writer-b" },
+                    note: { clock: 4, actor: "writer-c" },
+                },
                 deletedAt: null,
             },
         ],
@@ -40,6 +45,7 @@ test("list state serialization round-trips entries and metadata", () => {
     assert.equal(decoded.entries[0].data.text, "Task");
     assert.equal(decoded.entries[0].data.done, true);
     assert.equal(decoded.entries[0].data.note, "Context");
+    assert.deepEqual(decoded.entries[0].fieldVersions, original.entries[0].fieldVersions);
 });
 
 test("registry state serialization retains ordering data", () => {

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { OrderedSetCRDT } from "../../../src/domain/crdt/ordered-set-crdt.js";
+import { deserializeOrderedSetSnapshot, serializeOrderedSetSnapshot } from "../../../src/storage/serde.js";
 
 test("ordered set retains positional ordering across inserts", () => {
   const crdt = new OrderedSetCRDT({ actorId: "tester" });
@@ -117,6 +118,109 @@ test("concurrent updates with equal clocks converge", () => {
   const labelA = clientA.getSnapshot().find((entry) => entry.id === "b")?.data;
   const labelB = clientB.getSnapshot().find((entry) => entry.id === "b")?.data;
   assert.deepEqual(labelA, labelB);
+});
+
+test("a concurrent completion and move preserve the same item order on both clients", () => {
+  const { clientA, clientB } = seedConcurrentReplicas();
+  // A has moved b to the front while B completes it without seeing the move.
+  const move = clientA.generateMove({ itemId: "b", beforeId: "a" }).op;
+  const complete = clientB.generateUpdate({
+    itemId: "b",
+    data: { done: true },
+  }).op;
+  assert.equal(move.clock, complete.clock);
+
+  clientA.applyOperation(complete);
+  clientB.applyOperation(move);
+
+  const view = (client: OrderedSetCRDT) =>
+    client.getSnapshot().map(({ id, data }) => ({ id, data }));
+  assert.deepEqual(view(clientA), view(clientB));
+  assert.deepEqual(clientA.getSnapshot().map(({ id }) => id), ["b", "a", "c"]);
+
+  // Saving and reopening a client must retain the independent write markers.
+  const restored = new OrderedSetCRDT({ actorId: "actor-b" });
+  restored.importRecords(deserializeOrderedSetSnapshot(serializeOrderedSetSnapshot(clientB.exportState().entries)));
+  assert.deepEqual(view(restored), view(clientA));
+  assert.deepEqual(restored.getItem("b")?.pos, clientA.getItem("b")?.pos);
+});
+
+test("a concurrent move does not suppress an older actor's completion", () => {
+  const { clientA, clientB } = seedConcurrentReplicas();
+  const complete = clientA.generateUpdate({ itemId: "b", data: { done: true } }).op;
+  const move = clientB.generateMove({ itemId: "b", beforeId: "a" }).op;
+
+  clientA.applyOperation(move);
+  clientB.applyOperation(complete);
+
+  assert.deepEqual(clientA.getSnapshot(), clientB.getSnapshot());
+  assert.equal(clientB.getItem("b")?.data.done, true);
+});
+
+test("mixed concurrent edits converge in every arrival order and after serialization", () => {
+  const seed = new OrderedSetCRDT({ actorId: "seed" });
+  seed.generateInsert({ itemId: "a", data: { text: "old", done: false, note: "" } });
+  seed.generateInsert({ itemId: "b", data: { text: "second", done: false, note: "" }, afterId: "a" });
+  const baseline = seed.exportState();
+  const makeReplica = () => {
+    const replica = new OrderedSetCRDT({ actorId: "reader" });
+    replica.importRecords(baseline.entries);
+    replica.clock.merge(baseline.clock);
+    return replica;
+  };
+  const sources = ["text", "done", "note", "move"].map((actorId) => {
+    const replica = new OrderedSetCRDT({ actorId });
+    replica.importRecords(baseline.entries);
+    replica.clock.merge(baseline.clock);
+    return replica;
+  });
+  const moveOp = sources[3].generateMove({ itemId: "b", beforeId: "a" }).op;
+  const ops = [
+    sources[0].generateUpdate({ itemId: "a", data: { text: "new" } }).op,
+    sources[1].generateUpdate({ itemId: "a", data: { done: true } }).op,
+    sources[2].generateUpdate({ itemId: "a", data: { note: "detail" } }).op,
+    moveOp,
+  ];
+  const permutations = (remaining: typeof ops, prefix: typeof ops = []): Array<typeof ops> =>
+    remaining.length === 0
+      ? [prefix]
+      : remaining.flatMap((op, index) =>
+          permutations(remaining.filter((_, i) => i !== index), [...prefix, op])
+        );
+  const view = (replica: OrderedSetCRDT) =>
+    replica.getSnapshot().map(({ id, pos, data }) => ({ id, pos, data }));
+  const expected = [
+    { id: "b", pos: moveOp.payload.pos, data: { text: "second", done: false, note: "" } },
+    { id: "a", pos: baseline.entries[0].pos, data: { text: "new", done: true, note: "detail" } },
+  ];
+
+  for (const order of permutations(ops)) {
+    const replica = makeReplica();
+    order.forEach((op) => replica.applyOperation(op));
+    assert.deepEqual(view(replica), expected);
+    const reopened = makeReplica();
+    reopened.importRecords(deserializeOrderedSetSnapshot(serializeOrderedSetSnapshot(replica.exportState().entries)));
+    assert.deepEqual(view(reopened), expected);
+  }
+});
+
+test("equal positions sort identically after opposite insert arrival orders", () => {
+  const clientA = new OrderedSetCRDT({ actorId: "actor-a" });
+  const clientB = new OrderedSetCRDT({ actorId: "actor-b" });
+  const pos = [{ digit: 512, actor: "shared" }];
+  const inserts = ["z", "a"].map((itemId, index) => ({
+    type: "insert" as const,
+    itemId,
+    actor: "shared",
+    clock: index + 1,
+    payload: { pos, data: { label: itemId } },
+  }));
+
+  inserts.forEach((op) => clientA.applyOperation(op));
+  inserts.slice().reverse().forEach((op) => clientB.applyOperation(op));
+
+  assert.deepEqual(clientA.getSnapshot().map(({ id }) => id), ["a", "z"]);
+  assert.deepEqual(clientB.getSnapshot().map(({ id }) => id), ["a", "z"]);
 });
 
 test("exported state captures entries and clock", () => {

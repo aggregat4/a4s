@@ -82,6 +82,36 @@ function shallowEqual(a: Record<string, unknown> = {}, b: Record<string, unknown
   return true;
 }
 
+function cloneFieldVersions(
+  versions: Record<string, { clock: number; actor: string }> = {}
+) {
+  return Object.fromEntries(
+    Object.entries(versions).map(([field, version]) => [field, { ...version }])
+  );
+}
+
+function fieldVersionsForData<TData extends Record<string, unknown>>(
+  entry: OrderedSetEntry<TData>,
+  data: TData
+) {
+  const fallbackClock = Number.isFinite(entry.dataUpdatedAt)
+    ? Math.floor(entry.dataUpdatedAt as number)
+    : Number.isFinite(entry.updatedAt)
+      ? Math.floor(entry.updatedAt as number)
+      : 0;
+  const fallbackActor = entry.dataUpdatedBy ?? entry.updatedBy ?? "";
+  const saved = entry.fieldVersions ?? {};
+  return Object.fromEntries(
+    Object.keys(data ?? {}).map((field) => {
+      const version = saved[field];
+      return [field, {
+        clock: Number.isFinite(version?.clock) ? Math.floor(version.clock) : fallbackClock,
+        actor: typeof version?.actor === "string" ? version.actor : fallbackActor,
+      }];
+    })
+  );
+}
+
 /**
  * OrderedSetCRDT tracks a position-aware set of records that replicates across peers
  * using Lamport-clocked operations. Callers typically:
@@ -187,6 +217,31 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         : 0,
       updatedBy:
         typeof entry.updatedBy === "string" ? entry.updatedBy : "",
+      // Older snapshots only have an item-wide write marker. Preserve that
+      // ordering until a new position or data write establishes its own marker.
+      positionUpdatedAt: Number.isFinite(entry.positionUpdatedAt)
+        ? Math.floor(entry.positionUpdatedAt as number)
+        : Number.isFinite(entry.updatedAt)
+          ? Math.floor(entry.updatedAt as number)
+          : 0,
+      positionUpdatedBy:
+        typeof entry.positionUpdatedBy === "string"
+          ? entry.positionUpdatedBy
+          : typeof entry.updatedBy === "string"
+            ? entry.updatedBy
+            : "",
+      dataUpdatedAt: Number.isFinite(entry.dataUpdatedAt)
+        ? Math.floor(entry.dataUpdatedAt as number)
+        : Number.isFinite(entry.updatedAt)
+          ? Math.floor(entry.updatedAt as number)
+          : 0,
+      dataUpdatedBy:
+        typeof entry.dataUpdatedBy === "string"
+          ? entry.dataUpdatedBy
+          : typeof entry.updatedBy === "string"
+            ? entry.updatedBy
+            : "",
+      fieldVersions: fieldVersionsForData(entry, data),
       deletedAt: Number.isFinite(entry.deletedAt)
         ? Math.floor(entry.deletedAt as number)
         : null,
@@ -215,6 +270,11 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       updatedBy: record.updatedBy,
+      positionUpdatedAt: record.positionUpdatedAt,
+      positionUpdatedBy: record.positionUpdatedBy,
+      dataUpdatedAt: record.dataUpdatedAt,
+      dataUpdatedBy: record.dataUpdatedBy,
+      fieldVersions: cloneFieldVersions(record.fieldVersions),
       deletedAt: record.deletedAt,
     };
   }
@@ -226,6 +286,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         ...item,
         pos: clonePosition(item.pos),
         data: this.cloneData(item.data),
+        fieldVersions: cloneFieldVersions(item.fieldVersions),
       }));
     }
 
@@ -239,18 +300,32 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
         updatedBy: record.updatedBy,
+        positionUpdatedAt: record.positionUpdatedAt,
+        positionUpdatedBy: record.positionUpdatedBy,
+        dataUpdatedAt: record.dataUpdatedAt,
+        dataUpdatedBy: record.dataUpdatedBy,
+        fieldVersions: cloneFieldVersions(record.fieldVersions),
         deletedAt: record.deletedAt,
       }))
-      .sort((a, b) => comparePositions(a.pos, b.pos));
+      .sort(
+        (a, b) =>
+          comparePositions(a.pos, b.pos) ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      );
 
     if (!includeDeleted) {
       this._snapshotCache = entries.map((item) => ({
         id: item.id,
         pos: clonePosition(item.pos),
         data: this.cloneData(item.data),
+        fieldVersions: cloneFieldVersions(item.fieldVersions),
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
         updatedBy: item.updatedBy,
+        positionUpdatedAt: item.positionUpdatedAt,
+        positionUpdatedBy: item.positionUpdatedBy,
+        dataUpdatedAt: item.dataUpdatedAt,
+        dataUpdatedBy: item.dataUpdatedBy,
         deletedAt: item.deletedAt,
       }));
     }
@@ -330,22 +405,40 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         createdAt: clock,
         updatedAt: clock,
         updatedBy: operation.actor,
+        positionUpdatedAt: clock,
+        positionUpdatedBy: operation.actor,
+        dataUpdatedAt: clock,
+        dataUpdatedBy: operation.actor,
+        fieldVersions: Object.fromEntries(
+          Object.keys(payloadData).map((field) => [field, { clock, actor: operation.actor }])
+        ),
         deletedAt: null,
       });
       return true;
     }
 
-    const winsWrite = this.writeWins(clock, operation.actor, existing);
+    // Position and content are independent registers: a completion must not
+    // suppress a concurrent move, regardless of which operation arrives first.
+    const winsPosition =
+      compareWrites(
+        clock,
+        operation.actor,
+        existing.positionUpdatedAt,
+        existing.positionUpdatedBy
+      ) > 0;
     let mutated = false;
 
     // Only an insert that wins the write race may move an existing item. Older
     // creates replayed during bootstrap must not undo a newer move.
-    if (position.length && winsWrite) {
+    if (position.length && winsPosition) {
       const samePosition = comparePositions(position, existing.pos) === 0;
       if (!samePosition) {
         existing.pos = position;
         mutated = true;
       }
+      existing.positionUpdatedAt = clock;
+      existing.positionUpdatedBy = operation.actor;
+      mutated = true;
     }
 
     if (existing.deletedAt != null && clock > existing.deletedAt) {
@@ -353,15 +446,28 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       mutated = true;
     }
 
-    if (winsWrite) {
-      const merged = this.mergeInsertData(existing.data, payloadData);
+    const winningData: Partial<TData> = {};
+    for (const [field, value] of Object.entries(payloadData)) {
+      const prior = existing.fieldVersions?.[field];
+      if (compareWrites(clock, operation.actor, prior?.clock, prior?.actor) <= 0) continue;
+      (winningData as Record<string, unknown>)[field] = value;
+      existing.fieldVersions ??= {};
+      existing.fieldVersions[field] = { clock, actor: operation.actor };
+      mutated = true;
+    }
+    if (Object.keys(winningData).length > 0) {
+      const merged = this.mergeInsertData(existing.data, winningData);
       if (!this.areDataEqual(existing.data, merged)) {
         existing.data = merged;
         mutated = true;
       }
+      if (compareWrites(clock, operation.actor, existing.dataUpdatedAt, existing.dataUpdatedBy) > 0) {
+        existing.dataUpdatedAt = clock;
+        existing.dataUpdatedBy = operation.actor;
+      }
     }
 
-    if (mutated && winsWrite) {
+    if (mutated && this.writeWins(clock, operation.actor, existing)) {
       existing.updatedAt = clock;
       existing.updatedBy = operation.actor;
     }
@@ -396,13 +502,22 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (!this.writeWins(clock, operation.actor, record)) return false;
-    if (comparePositions(position, record.pos) === 0) {
-      return false;
+    if (
+      compareWrites(
+        clock,
+        operation.actor,
+        record.positionUpdatedAt,
+        record.positionUpdatedBy
+      ) <= 0
+    ) return false;
+    const moved = comparePositions(position, record.pos) !== 0;
+    if (moved) record.pos = position;
+    record.positionUpdatedAt = clock;
+    record.positionUpdatedBy = operation.actor;
+    if (this.writeWins(clock, operation.actor, record)) {
+      record.updatedAt = clock;
+      record.updatedBy = operation.actor;
     }
-    record.pos = position;
-    record.updatedAt = clock;
-    record.updatedBy = operation.actor;
     return true;
   }
 
@@ -414,20 +529,31 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (!this.writeWins(clock, operation.actor, record)) return false;
     const updatePayload = this.sanitizeUpdatePayload(operation.payload?.data, {
       existingData: record.data,
     });
     if (!updatePayload || Object.keys(updatePayload).length === 0) {
       return false;
     }
-    const merged = this.mergeUpdateData(record.data, updatePayload);
-    if (this.areDataEqual(record.data, merged)) {
-      return false;
+    const winningData: Partial<TData> = {};
+    for (const [field, value] of Object.entries(updatePayload)) {
+      const prior = record.fieldVersions?.[field];
+      if (compareWrites(clock, operation.actor, prior?.clock, prior?.actor) <= 0) continue;
+      (winningData as Record<string, unknown>)[field] = value;
+      record.fieldVersions ??= {};
+      record.fieldVersions[field] = { clock, actor: operation.actor };
     }
-    record.data = merged;
-    record.updatedAt = clock;
-    record.updatedBy = operation.actor;
+    if (Object.keys(winningData).length === 0) return false;
+    const merged = this.mergeUpdateData(record.data, winningData);
+    if (!this.areDataEqual(record.data, merged)) record.data = merged;
+    if (compareWrites(clock, operation.actor, record.dataUpdatedAt, record.dataUpdatedBy) > 0) {
+      record.dataUpdatedAt = clock;
+      record.dataUpdatedBy = operation.actor;
+    }
+    if (this.writeWins(clock, operation.actor, record)) {
+      record.updatedAt = clock;
+      record.updatedBy = operation.actor;
+    }
     return true;
   }
 

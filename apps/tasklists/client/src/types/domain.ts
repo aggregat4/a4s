@@ -31,6 +31,11 @@ export type OrderedSetEntry<TData> = {
   createdAt?: number | null;
   updatedAt?: number | null;
   updatedBy?: string | null;
+  positionUpdatedAt?: number | null;
+  positionUpdatedBy?: string | null;
+  dataUpdatedAt?: number | null;
+  dataUpdatedBy?: string | null;
+  fieldVersions?: Record<string, { clock: number; actor: string }>;
   deletedAt?: number | null;
 };
 
