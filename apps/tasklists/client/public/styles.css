@@ -1382,6 +1382,11 @@ a4-tasklist {
 }
 
 @media (width <= 640px) {
+    html,
+    body {
+        background-color: var(--color-sidebar-mobile);
+    }
+
     .lists-app {
         grid-template-columns: 1fr;
         align-content: start;
@@ -1395,6 +1400,9 @@ a4-tasklist {
         grid-column: 1;
         background-color: var(--color-sidebar-mobile);
         gap: var(--space-lg);
+        padding-top: calc(var(--space-lg) + env(safe-area-inset-top, 0px));
+        padding-left: calc(var(--space-lg) + env(safe-area-inset-left, 0px));
+        padding-right: calc(var(--space-lg) + env(safe-area-inset-right, 0px));
     }
 
     .lists-main {
