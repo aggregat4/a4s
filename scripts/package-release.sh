@@ -132,7 +132,8 @@ if [ "${release_app}" = tasklists ]; then
   fi
 
   pnpm --dir "${release_repo_root}" install --frozen-lockfile
-  pnpm --dir "${release_tasklists_root}/client" run build
+  A4_TASKLISTS_VERSION="${release_version}" \
+    pnpm --dir "${release_tasklists_root}/client" run build
 
   mkdir -p "${release_tasklists_static_dir}"
   find "${release_tasklists_static_dir}" -mindepth 1 -maxdepth 1 \

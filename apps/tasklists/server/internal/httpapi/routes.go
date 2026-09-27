@@ -23,10 +23,11 @@ type errorResponse struct {
 type Server struct {
 	store       storage.Store
 	broadcaster *Broadcaster
+	version     string
 }
 
-func NewServer(store storage.Store, broadcaster *Broadcaster) *Server {
-	return &Server{store: store, broadcaster: broadcaster}
+func NewServer(store storage.Store, broadcaster *Broadcaster, version string) *Server {
+	return &Server{store: store, broadcaster: broadcaster, version: version}
 }
 
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
@@ -35,6 +36,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/sync/pull", s.handlePull)
 	mux.HandleFunc("/sync/reset", s.handleReset)
 	mux.HandleFunc("/sync/events", s.handleEvents)
+	mux.HandleFunc("/version", s.handleVersion)
 	mux.HandleFunc("/healthz", handleHealthz)
 }
 
@@ -278,6 +280,22 @@ func handleHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, jsonResponse{
 		"status": "ok",
 		"time":   time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// handleVersion reports the running service version. The endpoint is session
+// authenticated so the version is only visible to signed-in users; the health
+// endpoint stays focused on liveness.
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	if _, ok := requireUserID(w, r); !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, jsonResponse{
+		"version": s.version,
 	})
 }
 

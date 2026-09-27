@@ -176,6 +176,7 @@ func TestRequiresAuthentication(t *testing.T) {
 		"/manifest.json",
 		"/auth/callback",
 		"/sync/bootstrap",
+		"/version",
 		"/healthz",
 	} {
 		if requiresAuthentication(requestPath) {

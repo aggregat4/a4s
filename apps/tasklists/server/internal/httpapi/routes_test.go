@@ -64,7 +64,7 @@ func newTestMuxWithBroadcaster(t *testing.T) (*http.ServeMux, *Broadcaster) {
 	t.Helper()
 	store := newTestStore(t)
 	broadcaster := NewBroadcaster()
-	server := NewServer(store, broadcaster)
+	server := NewServer(store, broadcaster, "v9.9.9-test")
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
 	return mux, broadcaster
@@ -398,6 +398,33 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
+func TestVersion(t *testing.T) {
+	mux := newTestMux(t)
+	resp := doRequest(t, mux, http.MethodGet, "/version", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status: got %d", resp.Code)
+	}
+	var payload struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Version != "v9.9.9-test" {
+		t.Fatalf("version: got %q", payload.Version)
+	}
+}
+
+func TestVersionRequiresAuthentication(t *testing.T) {
+	mux := newTestMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/version", nil)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status: got %d", recorder.Code)
+	}
+}
+
 func TestTwoClientsSync(t *testing.T) {
 	mux := newTestMux(t)
 	bootstrap := fetchBootstrap(t, mux)
@@ -449,7 +476,7 @@ func TestTwoClientsSync(t *testing.T) {
 
 func TestPushUpdatesClientCursor(t *testing.T) {
 	store := &pushCursorStore{}
-	server := NewServer(store, NewBroadcaster())
+	server := NewServer(store, NewBroadcaster(), "v9.9.9-test")
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
 

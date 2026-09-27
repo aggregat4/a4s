@@ -1,6 +1,7 @@
 import { html, render } from "lit";
 import { arraysEqual } from "../../shared/array-utils.js";
 import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
+import { APP_VERSION, fetchServerVersion } from "../../app/version.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
 import type { SyncStatus } from "../../types/sync.js";
 
@@ -46,6 +47,8 @@ class SidebarElement extends HTMLElement {
   private actionsOpen: boolean;
   private isOnline: boolean;
   private syncStatus: SyncStatus | null;
+  private serverVersion: string | null;
+  private serverVersionLoading: boolean;
   private handleOnlineChange: (() => void) | null;
 
   private static readonly TASK_MIME = "application/x-a4-task";
@@ -68,6 +71,8 @@ class SidebarElement extends HTMLElement {
     this.actionsOpen = false;
     this.isOnline = true;
     this.syncStatus = null;
+    this.serverVersion = null;
+    this.serverVersionLoading = false;
     this.handleOnlineChange = null;
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
@@ -371,6 +376,12 @@ class SidebarElement extends HTMLElement {
                     Import
                   </button>
                 </div>
+                <dl class="sidebar-version" data-role="app-versions">
+                  <dt>Service</dt>
+                  <dd>${this.serverVersion ?? "unknown"}</dd>
+                  <dt>Client</dt>
+                  <dd>${APP_VERSION}</dd>
+                </dl>
               </div>
             </details>
           </div>
@@ -386,6 +397,27 @@ class SidebarElement extends HTMLElement {
     const disclosure = event.currentTarget as HTMLDetailsElement | null;
     if (!disclosure) return;
     this.actionsOpen = disclosure.open;
+    if (this.actionsOpen) {
+      void this.loadServerVersion();
+    }
+  }
+
+  private async loadServerVersion() {
+    if (this.serverVersion || this.serverVersionLoading) return;
+    this.serverVersionLoading = true;
+    try {
+      const version = await fetchServerVersion();
+      if (!version) return;
+      this.serverVersion = version;
+      if (this.isListDragging) {
+        this.pendingRender = true;
+        this.pendingRenderMode = "render";
+      } else {
+        this.renderView();
+      }
+    } finally {
+      this.serverVersionLoading = false;
+    }
   }
 
   handleSidebarButtonClick(event: Event) {

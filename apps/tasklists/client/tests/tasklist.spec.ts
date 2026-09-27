@@ -585,6 +585,13 @@ test("sidebar keeps lists visible and collapses options by default", async ({
     await page.getByText("Options").click();
     await expect(options).toHaveAttribute("open", "");
     await expect(page.getByRole("button", { name: "Add list" })).toBeVisible();
+    const versions = page.locator("[data-role='app-versions']");
+    await expect(versions).toBeVisible();
+    await expect(versions).toContainText("Service");
+    await expect(versions).toContainText("Client");
+    // The service version is fetched lazily when the disclosure opens; wait for
+    // the placeholder to be replaced by a real value.
+    await expect(versions).not.toContainText("unknown");
   }
 });
 

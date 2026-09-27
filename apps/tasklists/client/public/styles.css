@@ -2,6 +2,7 @@
     --font-family-base: "Inter", sans-serif;
     --font-size-base: 16px;
     --font-size-title: 20px;
+    --font-size-sm: 13px;
     --color-background: #f5f5f5;
     --color-surface: #fff;
     --color-surface-muted: #f0f0f0;
@@ -468,6 +469,23 @@ button {
 
 .sidebar-actions-secondary {
     margin-top: var(--space-sm);
+}
+
+.sidebar-version {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px var(--space-xs);
+    margin: var(--space-sm) 0 0;
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+
+    dt {
+        font-weight: 500;
+    }
+
+    dd {
+        margin: 0;
+    }
 }
 
 .lists-main {

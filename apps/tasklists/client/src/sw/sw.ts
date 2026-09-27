@@ -5,7 +5,7 @@ declare const self: ServiceWorkerGlobalScope;
 const CACHE_NAME = "a4-tasklists-v3";
 const ASSET_MANIFEST_URL = "./asset-manifest.json";
 
-const API_PATH_PREFIXES = ["/sync/", "/healthz"];
+const API_PATH_PREFIXES = ["/sync/", "/healthz", "/version"];
 
 function isApiRequest(url: URL): boolean {
   return API_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));

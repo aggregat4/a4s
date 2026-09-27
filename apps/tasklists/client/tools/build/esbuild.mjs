@@ -9,6 +9,7 @@ const entryPoints = {
   "entrypoints/demo-seeds": resolve(root, "src", "entrypoints", "demo-seeds.ts"),
 };
 
+const appVersion = process.env.A4_TASKLISTS_VERSION || "dev";
 const options = {
   entryPoints,
   outdir: distRoot,
@@ -19,6 +20,9 @@ const options = {
   sourcemap: true,
   splitting: true,
   chunkNames: "chunks/[name]-[hash]",
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
 };
 
 const serviceWorkerOptions = {
