@@ -10,6 +10,15 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.6.0] - 2026-09-27
+
+### Added
+
+- Show the service and client versions in the Options disclosure. The service
+  version comes from a dedicated authenticated endpoint, while the client
+  version is embedded at build time so a service-worker-cached UI can be
+  compared against the running server.
+
 ## [v1.5.5] - 2026-09-27
 
 ### Fixed
