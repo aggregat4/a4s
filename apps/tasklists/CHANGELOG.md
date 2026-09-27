@@ -10,6 +10,22 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.5.4] - 2026-09-27
+
+### Fixed
+
+- Converge concurrent edits to the same task: content and position now carry
+  independent write markers, so completing a task and moving it on different
+  clients no longer suppress each other. Per-field versions are persisted and
+  restored with the snapshot.
+- Order tasks that share a position deterministically by id, so clients agree
+  on the order regardless of the order in which concurrent inserts arrive.
+- Keep offline edits in the durable outbox before an edit is reported as saved,
+  so pending changes survive a client restart.
+- Retry a remote operation or snapshot that fails to apply instead of advancing
+  the pull cursor or discarding the current dataset, so no remote change is
+  skipped.
+
 ## [v1.5.3] - 2026-09-25
 
 ### Fixed
