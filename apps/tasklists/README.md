@@ -70,8 +70,9 @@ pnpm --dir apps/tasklists/client run test:unit
 PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e
 ```
 
-`pnpm --dir apps/tasklists/client test` also runs E2E and should be executed with
-`PLAYWRIGHT_USE_DOCKER=1`.
+Run the complete server, unit, and browser suite through `task tasklists:test`.
+It includes a Firefox and mobile WebKit smoke test in the pinned Playwright
+container, so both engines use their supported Linux libraries.
 
 To smoke-test the deployed embedded-static path as well:
 

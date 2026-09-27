@@ -437,6 +437,171 @@ test("concurrent list reorders converge across clients", async ({
   }
 });
 
+test("concurrent task completion and move converge after mixed edits", async ({
+  browser,
+}) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  const readTasks = (page: Page, listId: string) =>
+    page.evaluate(
+      (id) =>
+        (window as any).listsApp.repository
+          .getListSnapshot(id)
+          .map((item: { id: string; text: string; done: boolean; note: string }) => ({
+            id: item.id,
+            text: item.text,
+            done: item.done,
+            note: item.note,
+          })),
+      listId
+    );
+  const readPositions = (page: Page, listId: string) =>
+    page.evaluate((id) =>
+      (window as any).listsApp.repository.getListSnapshot(id)
+        .map((item: { id: string; pos: unknown }) => ({ id: item.id, pos: item.pos })), listId);
+  try {
+    await Promise.all([
+      pageA.waitForResponse((r) => r.url().includes("/sync/bootstrap")),
+      pageA.goto("/?sync=1&resetStorage=1"),
+    ]);
+    await Promise.all([
+      pageB.waitForResponse((r) => r.url().includes("/sync/bootstrap")),
+      pageB.goto("/?sync=1&resetStorage=1"),
+    ]);
+    const title = `Task order ${Date.now()}`;
+    await createList(pageA, title);
+    await selectList(pageB, title);
+    const listId = await pageA.evaluate(
+      (name) =>
+        (window as any).listsApp.repository
+          .getRegistrySnapshot()
+          .find((entry: { id: string; title: string }) => entry.title === name)
+          .id,
+      title
+    );
+    await pageA.evaluate(async (id) => {
+      const repo = (window as any).listsApp.repository;
+      await repo.insertTask(id, { itemId: "alpha", text: "Alpha" });
+      await repo.insertTask(id, {
+        itemId: "beta",
+        text: "Beta",
+        afterId: "alpha",
+      });
+      await repo.insertTask(id, {
+        itemId: "gamma",
+        text: "Gamma",
+        afterId: "beta",
+      });
+      await repo.insertTask(id, {
+        itemId: "removed",
+        text: "Removed",
+        afterId: "gamma",
+      });
+      await repo.updateTask(id, "gamma", { done: true });
+      await repo.removeTask(id, "removed");
+    }, listId);
+    await expect.poll(() => readTasks(pageB, listId)).toEqual([
+      { id: "alpha", text: "Alpha", done: false, note: "" },
+      { id: "beta", text: "Beta", done: false, note: "" },
+      { id: "gamma", text: "Gamma", done: true, note: "" },
+    ]);
+
+    await contextA.setOffline(true);
+    await contextB.setOffline(true);
+    await pageA.evaluate(async (id) => {
+      await (window as any).listsApp.repository.moveTaskWithinList(id, "beta", {
+        beforeId: "alpha",
+      });
+      await (window as any).listsApp.repository.updateTask(id, "beta", {
+        text: "Beta edited",
+        note: "From desktop",
+      });
+    }, listId);
+    await pageB.evaluate(async (id) => {
+      await (window as any).listsApp.repository.updateTask(id, "beta", { done: true });
+    }, listId);
+    await contextA.setOffline(false);
+    await contextB.setOffline(false);
+
+    const expected = [
+      { id: "beta", text: "Beta edited", done: true, note: "From desktop" },
+      { id: "alpha", text: "Alpha", done: false, note: "" },
+      { id: "gamma", text: "Gamma", done: true, note: "" },
+    ];
+    await expect.poll(() => readTasks(pageA, listId), { timeout: 15_000 }).toEqual(expected);
+    await expect.poll(() => readTasks(pageB, listId), { timeout: 15_000 }).toEqual(expected);
+    await expect.poll(async () => {
+      const [a, b] = await Promise.all([readPositions(pageA, listId), readPositions(pageB, listId)]);
+      return JSON.stringify(a) === JSON.stringify(b);
+    }).toBe(true);
+    await pageB.goto("/?sync=1");
+    await pageB.waitForFunction(() => Boolean((window as any).listsApp?.repository));
+    await expect.poll(() => readTasks(pageB, listId), { timeout: 15_000 }).toEqual(expected);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
+test("an offline edit syncs after its client closes and restarts", async ({ browser }) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    await Promise.all([
+      pageA.waitForResponse((r) => r.url().includes("/sync/bootstrap")),
+      pageA.goto("/?sync=1&resetStorage=1"),
+    ]);
+    await Promise.all([
+      pageB.waitForResponse((r) => r.url().includes("/sync/bootstrap")),
+      pageB.goto("/?sync=1&resetStorage=1"),
+    ]);
+    const title = `Restart ${Date.now()}`;
+    const itemId = crypto.randomUUID();
+    await createList(pageA, title);
+    await selectList(pageB, title);
+    const listId = await pageA.evaluate((name) =>
+      (window as any).listsApp.repository.getRegistrySnapshot()
+        .find((entry: { id: string; title: string }) => entry.title === name).id, title);
+
+    await contextB.setOffline(true);
+    await pageB.evaluate(async ({ listId, itemId }) => {
+      await (window as any).listsApp.repository.insertTask(listId, {
+        itemId,
+        text: "Edited while offline",
+        note: "Survives restart",
+      });
+    }, { listId, itemId });
+    await pageB.close();
+    await contextB.setOffline(false);
+
+    const restarted = await contextB.newPage();
+    await restarted.goto("/?sync=1");
+    await expect.poll(() => restarted.evaluate((id) =>
+      (window as any).listsApp?.repository?.getListSnapshot(id)
+        .map((item: { id: string }) => item.id) ?? [], listId),
+    { timeout: 15_000 }).toContain(itemId);
+    await expect.poll(() => pageA.evaluate((id) =>
+      (window as any).listsApp.repository.getListSnapshot(id)
+        .map((item: { id: string; text: string; note: string }) => ({
+          id: item.id,
+          text: item.text,
+          note: item.note,
+        })), listId),
+    { timeout: 15_000 }).toContainEqual({
+      id: itemId,
+      text: "Edited while offline",
+      note: "Survives restart",
+    });
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
 test.afterAll(async ({ request }) => {
   const response = await request.post("/sync/reset", {
     data: {

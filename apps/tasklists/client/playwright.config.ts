@@ -6,7 +6,7 @@ const webServerCommand = `bash -lc "cd .. && ./scripts/run-go-server-docker.sh"`
 
 const config: PlaywrightTestConfig = {
   testDir: "tests",
-  testIgnore: ["**/dist/**", "oidc.spec.ts"],
+  testIgnore: ["**/dist/**", "oidc.spec.ts", "cross-browser-smoke.spec.ts"],
   globalTeardown: "./tests/global-teardown.ts",
   use: {
     baseURL,
