@@ -28,6 +28,8 @@ CID=$(docker run -d --rm \
   --name "${CONTAINER_NAME}" \
   -p "${PORT}:${PORT}" \
   -v "${MONOREPO_ROOT}":/work \
+  -v a4-tasklists-go-mod-cache:/go/pkg/mod \
+  -v a4-tasklists-go-build-cache:/root/.cache/go-build \
   -w /work/apps/tasklists/client \
   "${IMAGE}" \
   bash -lc "set -euo pipefail; export PATH=$PATH:/usr/local/go/bin; cd /work/apps/tasklists/server; rm -f /work/apps/tasklists/server/test.db; ${SERVER_COMMAND}")
