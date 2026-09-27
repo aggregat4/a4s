@@ -65,10 +65,6 @@ const createMemoryStorage = (): ListStorage => {
   };
 };
 
-const waitForQueueFlush = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 5));
-};
-
 test("queues registry ops into outbox when sync is disabled", async () => {
   const storage = createMemoryStorage();
   const repository = new ListRepository({
@@ -77,7 +73,6 @@ test("queues registry ops into outbox when sync is disabled", async () => {
   });
 
   await repository.createList({ listId: "list-1", title: "Inbox" });
-  await waitForQueueFlush();
 
   const outbox = await storage.loadOutbox();
   assert.equal(outbox.some((op) => op.scope === "registry"), true);
@@ -98,8 +93,25 @@ test("queues list ops into outbox when sync is disabled", async () => {
     text: "Hello",
     done: false,
   });
-  await waitForQueueFlush();
 
   const outbox = await storage.loadOutbox();
   assert.equal(outbox.some((op) => op.scope === "list"), true);
+});
+
+test("a completed edit has a durable outbox entry before a client restart", async () => {
+  const storage = createMemoryStorage();
+  const repository = new ListRepository({
+    storageFactory: async () => storage,
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+  });
+  await repository.createList({ listId: "list-1", title: "Inbox" });
+  await repository.insertTask("list-1", { itemId: "task-1", text: "Offline" });
+  repository.dispose();
+
+  const queued = await storage.loadOutbox();
+  assert.deepEqual(queued.map(({ scope, payload }) => [scope, payload.type]), [
+    ["registry", "createList"],
+    ["list", "renameList"],
+    ["list", "insert"],
+  ]);
 });

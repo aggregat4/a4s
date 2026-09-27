@@ -248,6 +248,65 @@ test("SyncEngine applies remote ops", async () => {
   assert.equal(received[0].scope, "registry");
 });
 
+test("a failed remote apply keeps the pull cursor so the operation can be retried", async () => {
+  const { storage, getState } = createStorage();
+  await storage.persistSyncState({ clientId: "client-1", lastServerSeq: 4, datasetGenerationKey: "d1" });
+  const pulls: string[] = [];
+  let attempts = 0;
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    clientId: "client-1",
+    fetchFn: async (url) => {
+      pulls.push(String(url));
+      return new Response(JSON.stringify({ serverSeq: 5, datasetGenerationKey: "d1", ops: [
+        { scope: "list", resourceId: "list-1", actor: "other", clock: 1,
+          payload: { type: "insert", itemId: "item-1" } },
+      ] }), { status: 200 });
+    },
+    onRemoteOps: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("storage write failed");
+    },
+  });
+  await engine.initialize();
+  await assert.rejects(engine.syncOnce(), /storage write failed/);
+  assert.equal(getState().lastServerSeq, 4);
+  await engine.syncOnce();
+  assert.equal(attempts, 2);
+  assert.equal(getState().lastServerSeq, 5);
+  assert.ok(pulls.every((url) => url.includes("since=4")));
+});
+
+test("a failed snapshot apply retains the previous dataset and pending outbox", async () => {
+  const { storage, getState, getOutbox } = createStorage();
+  await storage.persistSyncState({ clientId: "client-1", lastServerSeq: 4, datasetGenerationKey: "old" });
+  await storage.persistOutbox([{
+    scope: "list",
+    resourceId: "list-1",
+    actor: "me",
+    clock: 5,
+    payload: { type: "update", itemId: "task-1", actor: "me", clock: 5,
+      payload: { done: true } },
+  }]);
+  const engine = new SyncEngine({
+    storage,
+    baseUrl: "http://localhost:8080",
+    clientId: "client-1",
+    fetchFn: async () => new Response(JSON.stringify({
+      datasetGenerationKey: "new",
+      serverSeq: 0,
+      snapshot: "broken snapshot",
+    }), { status: 409 }),
+    onSnapshot: async () => { throw new Error("snapshot failed"); },
+  });
+  await engine.initialize();
+  await assert.rejects(engine.syncOnce(), /snapshot failed/);
+  assert.equal(getState().datasetGenerationKey, "old");
+  assert.equal(getState().lastServerSeq, 4);
+  assert.equal(getOutbox().length, 1);
+});
+
 test("SyncEngine syncs when EventSource receives ops event", async () => {
   const { storage } = createStorage();
   const fetchCalls: string[] = [];

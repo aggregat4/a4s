@@ -320,7 +320,9 @@ export class ListRepository {
       baseUrl: normalized,
       onRemoteOps: async (ops) => this.applyRemoteOps(ops),
       onSnapshot: async ({ snapshot }) => {
-        await this.applySnapshotBlob(snapshot);
+        if (!(await this.applySnapshotBlob(snapshot))) {
+          throw new Error("Server snapshot could not be applied");
+        }
       },
       onConnectionError: (error) => {
         this._syncErrorHandler?.(error);
@@ -1423,9 +1425,9 @@ export class ListRepository {
     const snapshot = crdt.exportState();
     const persist = Promise.resolve(
       this._storage.persistOperations(listId, operations, { snapshot })
-    ).catch(() => {});
+    );
     if (options.origin !== "remote" && operations.length > 0) {
-      persist.then(() => this.queueOpsForSync("list", listId, operations));
+      return persist.then(() => this.queueOpsForSync("list", listId, operations));
     }
     return persist;
   }
@@ -1439,9 +1441,9 @@ export class ListRepository {
     const snapshot = this._listsCrdt.exportState();
     const persist = Promise.resolve(
       this._storage.persistRegistry({ operations, snapshot })
-    ).catch(() => {});
+    );
     if (options.origin !== "remote" && operations.length > 0) {
-      persist.then(() =>
+      return persist.then(() =>
         this.queueOpsForSync("registry", "registry", operations)
       );
     }
@@ -1457,7 +1459,7 @@ export class ListRepository {
       return;
     }
     if (this._sync) {
-      this._sync.enqueueOps(
+      return this._sync.enqueueOps(
         scope,
         resourceId,
         operations as (ListsOperation | TaskListOperation)[]
@@ -1487,18 +1489,17 @@ export class ListRepository {
     if (pendingOps.length === 0) {
       return;
     }
-    this._outboxPersistQueue = this._outboxPersistQueue
+    const persist = this._outboxPersistQueue
       .then(async () => {
         if (!this._storage) {
           return;
         }
-        const existing = await this._storage.loadOutbox().catch((): SyncOp[] => []);
+        const existing = await this._storage.loadOutbox();
         const outbox = Array.isArray(existing) ? existing : [];
-        await this._storage
-          .persistOutbox([...outbox, ...pendingOps])
-          .catch(() => {});
-      })
-      .catch(() => {});
+        await this._storage.persistOutbox([...outbox, ...pendingOps]);
+      });
+    this._outboxPersistQueue = persist.catch(() => {});
+    return persist;
   }
 
   private enqueueHistoryAction<T>(action: () => Promise<T>) {

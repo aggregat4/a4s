@@ -47,6 +47,7 @@ export class SyncEngine {
   private onStatusChange: ((status: SyncStatus) => void) | null;
   private state: SyncState;
   private outbox: SyncOp[];
+  private outboxPersistQueue: Promise<void>;
   private eventSource: EventSource | null;
   private isActive: boolean;
   private syncQueue: Promise<void>;
@@ -74,6 +75,7 @@ export class SyncEngine {
     this.onStatusChange = options.onStatusChange ?? null;
     this.state = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
     this.outbox = [];
+    this.outboxPersistQueue = Promise.resolve();
     this.eventSource = null;
     this.syncQueue = Promise.resolve();
     this.defaultClientId = options.clientId ?? null;
@@ -102,6 +104,7 @@ export class SyncEngine {
       await this.storage.persistSyncState(this.state);
     }
     this.outbox = Array.isArray(outbox) ? outbox : [];
+    this.outboxPersistQueue = Promise.resolve();
     this.emitStatus(this.isOnline() ? "connected" : "disconnected");
   }
 
@@ -132,17 +135,12 @@ export class SyncEngine {
         payload.datasetGenerationKey
       );
       if (datasetGenerationKey) {
-        this.state.datasetGenerationKey = datasetGenerationKey;
-        const nextSeq = parseServerSeq(payload.serverSeq);
-        if (nextSeq >= this.state.lastServerSeq) {
-          this.state.lastServerSeq = nextSeq;
-        }
-        await this.storage.persistSyncState(this.state);
         const snapshot =
           typeof payload.snapshot === "string" ? payload.snapshot : "";
         if (snapshot && this.onSnapshot) {
           await this.onSnapshot({ datasetGenerationKey, snapshot });
         }
+        this.state.datasetGenerationKey = datasetGenerationKey;
       }
     }
     if (hadDatasetGenerationKey) {
@@ -272,7 +270,7 @@ export class SyncEngine {
   }
 
   enqueueOps(scope: SyncScope, resourceId: string, ops: (ListsOperation | TaskListOperation)[]) {
-    if (!Array.isArray(ops) || ops.length === 0) return;
+    if (!Array.isArray(ops) || ops.length === 0) return Promise.resolve();
     const nextOps = ops.map((op) => ({
       scope,
       resourceId,
@@ -281,7 +279,10 @@ export class SyncEngine {
       payload: op,
     }));
     this.outbox.push(...nextOps);
-    void this.storage.persistOutbox(this.outbox);
+    const pending = this.outboxPersistQueue.catch(() => {}).then(() =>
+      this.storage.persistOutbox(this.outbox.slice())
+    );
+    this.outboxPersistQueue = pending;
     if (this.isActive && (!this.pauseWhenOffline || this.isOnline())) {
       if (this.flushTimer != null) {
         clearTimeout(this.flushTimer);
@@ -291,6 +292,7 @@ export class SyncEngine {
         void this.flushOnce();
       }, this.flushDebounceMs);
     }
+    return pending;
   }
 
   async flushOnce() {
@@ -309,6 +311,7 @@ export class SyncEngine {
   }
 
   private async flushOutbox() {
+    await this.outboxPersistQueue;
     if (this.outbox.length === 0) return;
     const sentOps = this.outbox.slice();
     const response = await this.safeFetch(`${this.baseUrl}/sync/push`, {
@@ -341,6 +344,7 @@ export class SyncEngine {
     // from other clients that this client has not pulled yet. The next pull
     // advances the cursor to the highest op actually received.
     this.outbox = this.outbox.slice(sentOps.length);
+    await this.outboxPersistQueue;
     await this.storage.persistOutbox(this.outbox);
     await this.storage.persistSyncState(this.state);
     this.emitStatus("connected");
@@ -369,14 +373,14 @@ export class SyncEngine {
     if (payload.datasetGenerationKey) {
       this.state.datasetGenerationKey = payload.datasetGenerationKey;
     }
+    const ops = Array.isArray(payload.ops) ? payload.ops : [];
+    if (ops.length > 0 && this.onRemoteOps) {
+      await this.onRemoteOps(ops);
+    }
     const nextSeq = parseServerSeq(payload.serverSeq);
     if (nextSeq >= this.state.lastServerSeq) {
       this.state.lastServerSeq = nextSeq;
       await this.storage.persistSyncState(this.state);
-    }
-    const ops = Array.isArray(payload.ops) ? payload.ops : [];
-    if (ops.length > 0 && this.onRemoteOps) {
-      await this.onRemoteOps(ops);
     }
     this.emitStatus("connected");
   }
@@ -435,17 +439,18 @@ export class SyncEngine {
       return false;
     }
     const changed = datasetGenerationKey !== this.state.datasetGenerationKey;
-    if (changed) {
-      this.state.datasetGenerationKey = datasetGenerationKey;
-      this.state.lastServerSeq = parseServerSeq(payload?.serverSeq);
-      this.outbox = [];
-      await this.storage.persistOutbox(this.outbox);
-      await this.storage.persistSyncState(this.state);
-    }
-    if (!snapshot || !this.onSnapshot || !changed) {
+    if (!changed) {
       return false;
     }
+    if (!snapshot || !this.onSnapshot) {
+      throw new Error("Server dataset changed without an applicable snapshot");
+    }
     await this.onSnapshot({ datasetGenerationKey, snapshot });
+    this.state.datasetGenerationKey = datasetGenerationKey;
+    this.state.lastServerSeq = parseServerSeq(payload?.serverSeq);
+    this.outbox = [];
+    await this.storage.persistOutbox(this.outbox);
+    await this.storage.persistSyncState(this.state);
     return true;
   }
 
