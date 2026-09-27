@@ -10,6 +10,17 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.5.5] - 2026-09-27
+
+### Fixed
+
+- Update other clients immediately after a snapshot is imported on one device.
+  The server now notifies connected clients, and each client checks for a
+  replaced dataset on startup because a stale generation key prevents its event
+  stream from opening.
+- Report when an imported snapshot was applied only on this device because sync
+  is unavailable, instead of silently leaving other devices unchanged.
+
 ## [v1.5.4] - 2026-09-27
 
 ### Fixed
