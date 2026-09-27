@@ -35,6 +35,9 @@ const serviceWorkerOptions = {
   platform: "browser",
   target: "es2020",
   sourcemap: true,
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
 };
 
 const watch = process.argv.includes("--watch");

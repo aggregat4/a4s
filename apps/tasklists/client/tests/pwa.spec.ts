@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures";
+import { openSidebarOptions } from "./helpers/sidebar";
 
 test.describe("PWA", () => {
   test("manifest is served with correct display mode", async ({ page }) => {
@@ -39,6 +40,21 @@ test.describe("PWA", () => {
     });
     expect(swState.supported).toBe(true);
     expect(swState.active).toContain("sw.js");
+  });
+
+  test("service worker cache name tracks the client version", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => {
+      if (!("serviceWorker" in navigator)) return false;
+      return navigator.serviceWorker.controller !== null;
+    });
+    await openSidebarOptions(page);
+    const clientVersion = (
+      await page.locator("[data-role='app-versions'] dd").nth(1).textContent()
+    )?.trim();
+    expect(clientVersion).toBeTruthy();
+    const cacheNames = await page.evaluate(() => caches.keys());
+    expect(cacheNames).toContain(`a4-tasklists-${clientVersion}`);
   });
 
   test("connectivity indicator reflects online/offline state", async ({ page }) => {

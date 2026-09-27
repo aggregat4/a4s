@@ -2,7 +2,13 @@
 
 declare const self: ServiceWorkerGlobalScope;
 
-const CACHE_NAME = "a4-tasklists-v3";
+// Injected by esbuild at build time (see tools/build/esbuild.mjs).
+declare const __APP_VERSION__: string;
+
+// Versioning the cache per build makes each release install a fresh cache and
+// lets the activate handler drop the previous one, so a new deployment cannot
+// keep serving the old app shell.
+const CACHE_NAME = `a4-tasklists-${__APP_VERSION__}`;
 const ASSET_MANIFEST_URL = "./asset-manifest.json";
 
 const API_PATH_PREFIXES = ["/sync/", "/healthz", "/version"];
