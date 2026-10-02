@@ -185,3 +185,22 @@ func TestHandleDeleteFeed_CrossUserDenied(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, feeds, "user1 should have no feeds left after deleting their own")
 }
+
+func TestMoveFeed_EdgesAndForeignFeeds(t *testing.T) {
+	f := newServerAuthFixture(t)
+	params := func(id int64) map[string]string { return map[string]string{"feedId": strconv.FormatInt(id, 10)} }
+
+	// user1 has a single feed: it cannot move in either direction, which is
+	// a no-op redirect instead of an internal error.
+	req, w := requestAs(f.server, "POST", "/", f.user1, params(f.feed1))
+	f.server.handleMoveFeedUp(w, req)
+	assert.Equal(t, http.StatusSeeOther, w.Code)
+	req, w = requestAs(f.server, "POST", "/", f.user1, params(f.feed1))
+	f.server.handleMoveFeedDown(w, req)
+	assert.Equal(t, http.StatusSeeOther, w.Code)
+
+	// Moving another user's feed is not found.
+	req, w = requestAs(f.server, "POST", "/", f.user1, params(f.feed2))
+	f.server.handleMoveFeedUp(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}

@@ -153,12 +153,18 @@ func (store *Store) MoveFeedUp(userID int64, feedID int64) error {
 	return store.swapWithNeighbour(userID, feedID, true)
 }
 
+// ErrNoAdjacentFeed is returned when a feed is already at the top or bottom
+// and cannot be moved further in that direction.
+var ErrNoAdjacentFeed = errors.New("no adjacent feed to swap with")
+
 // swapWithNeighbour swaps the grid position of a user's feed with the feed
-// directly above (up) or below it.
+// directly above (up) or below it. It returns sql.ErrNoRows when the user is
+// not subscribed to the feed and ErrNoAdjacentFeed when there is no feed in
+// that direction.
 func (store *Store) swapWithNeighbour(userID, feedID int64, up bool) error {
-	comparison, order, noNeighbour := ">", "ASC", "no feed below to move down to"
+	comparison, order, direction := ">", "ASC", "below"
 	if up {
-		comparison, order, noNeighbour = "<", "DESC", "no feed above to move up to"
+		comparison, order, direction = "<", "DESC", "above"
 	}
 
 	tx, err := store.db.Begin()
@@ -175,7 +181,7 @@ func (store *Store) swapWithNeighbour(userID, feedID int64, up bool) error {
 	`, userID, feedID).Scan(&currentPosition)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("feed not found for user")
+			return sql.ErrNoRows
 		}
 		return fmt.Errorf("error getting current position: %w", err)
 	}
@@ -191,7 +197,7 @@ func (store *Store) swapWithNeighbour(userID, feedID int64, up bool) error {
 	`, userID, currentPosition).Scan(&neighbourFeedID, &neighbourPosition)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.New(noNeighbour)
+			return fmt.Errorf("no feed %s: %w", direction, ErrNoAdjacentFeed)
 		}
 		return fmt.Errorf("error getting neighbouring feed: %w", err)
 	}

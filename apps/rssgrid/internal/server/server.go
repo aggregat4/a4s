@@ -645,6 +645,20 @@ func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleMoveError maps store errors from moving a feed to a response. Moving
+// past the first or last position is a no-op rather than an error, since the
+// settings page may be stale.
+func (s *Server) handleMoveError(w http.ResponseWriter, r *http.Request, err error, direction string, feedID, userID int64) {
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		http.Error(w, "Feed not found", http.StatusNotFound)
+	case errors.Is(err, db.ErrNoAdjacentFeed):
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+	default:
+		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error moving feed "+direction, "Error moving feed "+direction+" for user", err, "feedId", feedID, "userId", userID)
+	}
+}
+
 func (s *Server) handleMoveFeedUp(w http.ResponseWriter, r *http.Request) {
 	feedId, ok := pathID(w, r, "feedId", "feed")
 	if !ok {
@@ -653,7 +667,7 @@ func (s *Server) handleMoveFeedUp(w http.ResponseWriter, r *http.Request) {
 	userId := userIDFrom(r)
 
 	if err := s.store.MoveFeedUp(userId, feedId); err != nil {
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error moving feed up", "Error moving feed up for user", err, "feedId", feedId, "userId", userId)
+		s.handleMoveError(w, r, err, "up", feedId, userId)
 		return
 	}
 
@@ -668,7 +682,7 @@ func (s *Server) handleMoveFeedDown(w http.ResponseWriter, r *http.Request) {
 	userId := userIDFrom(r)
 
 	if err := s.store.MoveFeedDown(userId, feedId); err != nil {
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error moving feed down", "Error moving feed down for user", err, "feedId", feedId, "userId", userId)
+		s.handleMoveError(w, r, err, "down", feedId, userId)
 		return
 	}
 

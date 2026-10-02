@@ -31,3 +31,6 @@ Release notes for a tag are taken from the matching version section, so the
   date formats are accepted in `Expires`.
 - Pruning keeps posts that are still in the feed, so they no longer reappear
   as unread on every update.
+- Moving a feed up or down past the first or last position is now a no-op
+  instead of an internal server error, and moving a feed that is not in the
+  user's list returns 404.
