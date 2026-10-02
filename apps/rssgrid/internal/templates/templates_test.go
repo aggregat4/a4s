@@ -2,6 +2,8 @@ package templates
 
 import (
 	"bytes"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -291,6 +293,26 @@ func TestTemplatesHaveNoInlineStyles(t *testing.T) {
 			if contains(string(raw), banned) {
 				t.Errorf("%s contains %q; styles belong in styles.css", entry.Name(), banned)
 			}
+		}
+	}
+}
+
+// Colours are design tokens: they may only be defined as custom properties in
+// the :root block.
+func TestStylesheetColorsAreTokens(t *testing.T) {
+	raw, err := staticFS.ReadFile("styles.css")
+	if err != nil {
+		t.Fatalf("Failed to read styles.css: %v", err)
+	}
+	css := string(raw)
+	end := strings.Index(css, "\n}\n")
+	if !strings.HasPrefix(css, ":root {") || end < 0 {
+		t.Fatal("styles.css must start with the :root token block")
+	}
+	literal := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|rgba?\(|\bwhite\b|\bblack\b`)
+	for i, line := range strings.Split(css[end:], "\n") {
+		if literal.MatchString(line) {
+			t.Errorf("colour literal outside :root (line %d after the token block): %s", i+1, strings.TrimSpace(line))
 		}
 	}
 }

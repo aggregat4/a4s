@@ -1,8 +1,23 @@
 :root {
     --primary-color: #2563eb;
+    --on-primary-color: #ffffff;
+    --on-accent-color: #ffffff;
+    --secondary-color: #6b7280;
     --text-color: #1f2937;
+    --muted-color: #6b7280;
     --bg-color: #f3f4f6;
+    --surface-color: #ffffff;
     --border-color: #e5e7eb;
+    --code-bg-color: #f3f4f6;
+    --danger-color: #dc2626;
+    --danger-text-color: #991b1b;
+    --danger-bg-color: #fee2e2;
+    --danger-border-color: #fca5a5;
+    --success-text-color: #065f46;
+    --success-bg-color: #d1fae5;
+    --success-border-color: #a7f3d0;
+    --backdrop-color: rgba(0, 0, 0, 0.5);
+    --dialog-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 body {
@@ -24,7 +39,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 1rem;
-    background-color: white;
+    background-color: var(--surface-color);
     border-bottom: 1px solid var(--border-color);
 
     h1 {
@@ -72,7 +87,7 @@ body {
 }
 
 .widget {
-    background-color: white;
+    background-color: var(--surface-color);
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     padding: 1rem;
@@ -142,7 +157,7 @@ body {
     }
 
     &.seen {
-        color: #6b7280;
+        color: var(--muted-color);
     }
 }
 
@@ -157,6 +172,8 @@ body {
     input {
         width: 100%;
         padding: 0.5rem;
+        color: var(--text-color);
+        background-color: var(--surface-color);
         border: 1px solid var(--border-color);
         border-radius: 0.25rem;
     }
@@ -164,7 +181,7 @@ body {
     small {
         display: block;
         margin-top: 0.25rem;
-        color: #6b7280;
+        color: var(--muted-color);
         font-size: 0.875rem;
     }
 }
@@ -173,7 +190,7 @@ body {
     display: inline-block;
     padding: 0.5rem 1rem;
     background-color: var(--primary-color);
-    color: white;
+    color: var(--on-primary-color);
     border: none;
     border-radius: 0.25rem;
     cursor: pointer;
@@ -184,11 +201,13 @@ body {
     }
 
     &.btn-secondary {
-        background-color: #6b7280;
+        background-color: var(--secondary-color);
+        color: var(--on-accent-color);
     }
 
     &.btn-danger {
-        background-color: #dc2626;
+        background-color: var(--danger-color);
+        color: var(--on-accent-color);
     }
 
     &.btn-icon {
@@ -242,7 +261,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 1rem;
-    background-color: white;
+    background-color: var(--surface-color);
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     margin-bottom: 1rem;
@@ -260,7 +279,7 @@ body {
 
     p {
         margin: 0.5rem 0 0;
-        color: #6b7280;
+        color: var(--muted-color);
         font-size: 0.9rem;
     }
 }
@@ -281,7 +300,7 @@ body {
 }
 
 .feed-reorder-hint {
-    color: #6b7280;
+    color: var(--muted-color);
     font-size: 0.875rem;
     margin-bottom: 1rem;
     font-style: italic;
@@ -293,7 +312,7 @@ body {
     gap: 0.25rem;
     margin-top: 0.25rem;
     font-size: 0.8rem;
-    color: #991b1b;
+    color: var(--danger-text-color);
 }
 
 .feed-health-badge {
@@ -303,8 +322,8 @@ body {
     width: 1.25rem;
     height: 1.25rem;
     border-radius: 50%;
-    background-color: #fee2e2;
-    color: #991b1b;
+    background-color: var(--danger-bg-color);
+    color: var(--danger-text-color);
     font-weight: bold;
     font-size: 0.75rem;
     flex-shrink: 0;
@@ -313,7 +332,7 @@ body {
 .feed-last-fetched {
     margin-top: 0.25rem;
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--muted-color);
 }
 
 .widget-health-dot {
@@ -321,7 +340,7 @@ body {
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 50%;
-    background-color: #dc2626;
+    background-color: var(--danger-color);
     margin-left: 0.5rem;
     flex-shrink: 0;
 }
@@ -336,15 +355,15 @@ body {
     margin-bottom: 0.5rem;
 
     &.flash-success {
-        background-color: #d1fae5;
-        color: #065f46;
-        border: 1px solid #a7f3d0;
+        background-color: var(--success-bg-color);
+        color: var(--success-text-color);
+        border: 1px solid var(--success-border-color);
     }
 
     &.flash-error {
-        background-color: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fca5a5;
+        background-color: var(--danger-bg-color);
+        color: var(--danger-text-color);
+        border: 1px solid var(--danger-border-color);
     }
 }
 
@@ -354,14 +373,14 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--backdrop-color);
     z-index: 1000;
     border: none;
     padding: 0;
     margin: 0;
 
     &::backdrop {
-        background-color: rgba(0, 0, 0, 0.5);
+        background-color: var(--backdrop-color);
     }
 
     /* Only show flex layout when dialog is open */
@@ -376,7 +395,7 @@ body {
 
 /* The post page is rendered inside the dialog's iframe. */
 .post-page {
-    background-color: white;
+    background-color: var(--surface-color);
 
     .post-dialog {
         display: flex;
@@ -391,7 +410,7 @@ body {
 }
 
 .post-dialog-content {
-    background-color: white;
+    background-color: var(--surface-color);
     border-radius: 0.5rem;
     width: 90%;
     max-width: 800px;
@@ -400,7 +419,7 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--dialog-shadow);
 }
 
 .post-iframe {
@@ -436,7 +455,7 @@ body {
 }
 
 .post-date {
-    color: #6b7280;
+    color: var(--muted-color);
     font-size: 0.875rem;
 }
 
@@ -484,11 +503,11 @@ body {
         margin: 1rem 0;
         padding-left: 1rem;
         font-style: italic;
-        color: #6b7280;
+        color: var(--muted-color);
     }
 
     pre {
-        background-color: #f3f4f6;
+        background-color: var(--code-bg-color);
         padding: 1rem;
         border-radius: 0.25rem;
         overflow-x: auto;
@@ -496,7 +515,7 @@ body {
     }
 
     code {
-        background-color: #f3f4f6;
+        background-color: var(--code-bg-color);
         padding: 0.125rem 0.25rem;
         border-radius: 0.125rem;
         font-family: monospace;
