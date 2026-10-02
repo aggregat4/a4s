@@ -169,6 +169,25 @@ func TestPruneFeedPostsKeepsProtectedGUIDs(t *testing.T) {
 	assert.Equal(t, []string{"newer", "newest", "oldest"}, guids)
 }
 
+func TestGetOrCreateUserIsStable(t *testing.T) {
+	store, err := NewStore(tempDBPath(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+
+	first, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	other, err := store.GetOrCreateUser("sub", "other-iss")
+	require.NoError(t, err)
+	again, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+
+	assert.Equal(t, first, again)
+	assert.NotEqual(t, first, other)
+	var n int
+	require.NoError(t, store.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&n))
+	assert.Equal(t, 2, n)
+}
+
 func TestPostsIndexExists(t *testing.T) {
 	store, err := NewStore(tempDBPath(t))
 	require.NoError(t, err)

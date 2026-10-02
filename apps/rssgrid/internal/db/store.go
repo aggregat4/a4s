@@ -246,28 +246,18 @@ func (store *Store) InitAndVerifyDb(dbPath string) error {
 }
 
 func (store *Store) GetOrCreateUser(oidcSubject, oidcIssuer string) (int64, error) {
+	// A single upsert avoids the race between looking the user up and
+	// inserting them when two logins for a new user arrive concurrently.
+	// The no-op update makes RETURNING yield the existing row's id.
 	var userId int64
-	err := store.db.QueryRow(
-		"SELECT id FROM users WHERE oidc_subject = ? AND oidc_issuer = ?",
-		oidcSubject, oidcIssuer,
-	).Scan(&userId)
-
-	if err == sql.ErrNoRows {
-		result, err := store.db.Exec(
-			"INSERT INTO users (oidc_subject, oidc_issuer) VALUES (?, ?)",
-			oidcSubject, oidcIssuer,
-		)
-		if err != nil {
-			return 0, fmt.Errorf("error creating user: %w", err)
-		}
-		userId, err = result.LastInsertId()
-		if err != nil {
-			return 0, fmt.Errorf("error getting last insert id: %w", err)
-		}
-	} else if err != nil {
-		return 0, fmt.Errorf("error querying user: %w", err)
+	err := store.db.QueryRow(`
+		INSERT INTO users (oidc_subject, oidc_issuer) VALUES (?, ?)
+		ON CONFLICT(oidc_subject, oidc_issuer) DO UPDATE SET oidc_subject = excluded.oidc_subject
+		RETURNING id
+	`, oidcSubject, oidcIssuer).Scan(&userId)
+	if err != nil {
+		return 0, fmt.Errorf("error getting or creating user: %w", err)
 	}
-
 	return userId, nil
 }
 
