@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aggregat4/a4s/pkg/migrations"
@@ -102,6 +103,34 @@ ALTER TABLE feeds ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE feeds ADD COLUMN last_success_at DATETIME;
 `,
 	},
+	{
+		SequenceId: 5,
+		Sql: `
+-- Foreign keys used to be enabled only on the connection that ran the first
+-- migration, so ON DELETE CASCADE did not fire on later connections. Clean up
+-- the rows that were left behind.
+DELETE FROM posts WHERE feed_id NOT IN (SELECT id FROM feeds);
+DELETE FROM user_post_states
+WHERE post_id NOT IN (SELECT id FROM posts) OR user_id NOT IN (SELECT id FROM users);
+DELETE FROM user_feeds
+WHERE feed_id NOT IN (SELECT id FROM feeds) OR user_id NOT IN (SELECT id FROM users);
+DELETE FROM user_preferences WHERE user_id NOT IN (SELECT id FROM users);
+`,
+	},
+}
+
+// connectionParams are applied by the sqlite3 driver to every connection in
+// the pool. PRAGMAs executed through db.Exec only affect a single connection,
+// so per-connection settings such as foreign key enforcement must live here.
+const connectionParams = "_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
+
+// dsn appends the per-connection parameters to a database path.
+func dsn(dbPath string) string {
+	sep := "?"
+	if strings.Contains(dbPath, "?") {
+		sep = "&"
+	}
+	return dbPath + sep + connectionParams
 }
 
 type Store struct {
@@ -255,7 +284,7 @@ func (store *Store) Close() error {
 
 func (store *Store) InitAndVerifyDb(dbPath string) error {
 	var err error
-	store.db, err = sql.Open("sqlite3", dbPath)
+	store.db, err = sql.Open("sqlite3", dsn(dbPath))
 	if err != nil {
 		return fmt.Errorf("error opening database: %w", err)
 	}
