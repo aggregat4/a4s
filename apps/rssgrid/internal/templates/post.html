@@ -1,11 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Post.Title}} - RSSGrid</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="stylesheet" href="/static/styles.css">
+    {{template "head" (printf "%s - RSSGrid" .Post.Title)}}
     <style>
         body {
             margin: 0;

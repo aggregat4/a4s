@@ -146,6 +146,13 @@ func TestTemplatesIncludeFaviconLink(t *testing.T) {
 				if readErr != nil {
 					t.Fatalf("failed to read template %s: %v", name, readErr)
 				}
+				// Pages include the shared <head> from layout.html.
+				if contains(string(raw), `{{template "head"`) {
+					raw, readErr = templateFS.ReadFile("layout.html")
+					if readErr != nil {
+						t.Fatalf("failed to read layout.html: %v", readErr)
+					}
+				}
 				if !contains(string(raw), `rel="icon"`) || !contains(string(raw), `/favicon.svg`) {
 					t.Errorf("template %s must reference /favicon.svg via a rel=icon link", name)
 				}
@@ -235,5 +242,37 @@ func TestSettingsTemplate_TitleFallbackToHost(t *testing.T) {
 	out := buf.String()
 	if !contains(out, "blog.example.com") {
 		t.Errorf("expected the feed URL host 'blog.example.com' to appear as a title fallback, got:\n%s", out)
+	}
+}
+
+func TestPagesShareLayout(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("Failed to load templates: %v", err)
+	}
+
+	pages := map[string]any{
+		"dashboard.html": struct {
+			Columns     [][]struct{}
+			ColumnCount int
+		}{},
+		"settings.html": struct {
+			Feeds         []struct{}
+			FlashMessages []struct{ Type, Message string }
+			PostsPerFeed  int
+			Columns       int
+		}{},
+	}
+	for name, data := range pages {
+		var buf bytes.Buffer
+		if err := tmpl.Lookup(name).Execute(&buf, data); err != nil {
+			t.Fatalf("Failed to execute %s: %v", name, err)
+		}
+		out := buf.String()
+		for _, want := range []string{`<link rel="stylesheet" href="/static/styles.css">`, `<nav class="nav">`, `href="/settings"`} {
+			if !contains(out, want) {
+				t.Errorf("%s: expected shared layout markup %q", name, want)
+			}
+		}
 	}
 }
