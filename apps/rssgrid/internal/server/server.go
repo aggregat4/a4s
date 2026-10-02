@@ -226,19 +226,6 @@ func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, 
 	}, nil
 }
 
-// panicRecoveryMiddleware is a custom middleware that logs panics with full stack traces
-func panicRecoveryMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Printf("PANIC: %v\nStack trace:\n%s", err, debug.Stack())
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
 // logErrorAndRespond logs an error with stack trace and context, then sends an HTTP error response
 func (s *Server) logErrorAndRespond(w http.ResponseWriter, statusCode int, userMessage, logMessage string, err error, context ...interface{}) {
 	log.Printf("%s: %v\nContext: %v\nStack trace:\n%s", logMessage, err, context, debug.Stack())
@@ -310,11 +297,11 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 
 	r := chi.NewRouter()
 
-	// Middleware
-	r.Use(panicRecoveryMiddleware) // Add our custom panic recovery first
-	r.Use(oidcAuthenticationMiddleware)
+	// Log every request (including authentication redirects), then recover
+	// panics in anything below, including the authentication middleware.
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(oidcAuthenticationMiddleware)
 
 	// Public routes
 	r.Get("/auth/callback", oidcCallbackHandler)
