@@ -591,16 +591,6 @@ func TestMoveFeedHandlers(t *testing.T) {
 	}
 }
 
-// Test logout functionality
-func TestLogout(t *testing.T) {
-	server := testServer(t, mockStoreEmpty())
-	req, w := testRequest(server, "POST", "/logout", 1)
-
-	server.handleLogout(w, req)
-	assertRedirect(t, w, "/")
-}
-
-// Test post template rendering
 func TestPostTemplateRendering(t *testing.T) {
 	templates, err := templates.LoadTemplates()
 	if err != nil {

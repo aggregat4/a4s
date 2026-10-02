@@ -278,7 +278,6 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 		r.Get("/", s.handleDashboard)
 		r.Get("/settings", s.handleSettings)
 		r.Get("/posts/{postId}", s.handleGetPost)
-		r.Post("/logout", s.handleLogout)
 		r.Post("/settings/feeds", s.handleAddFeed)
 		r.Post("/settings/feeds/{feedId}/delete", s.handleDeleteFeed)
 		r.Post("/settings/preferences", s.handleUpdatePreferences)
@@ -665,24 +664,6 @@ func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
 		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error rendering template", "Error rendering post template", err, "postId", postId)
 		return
 	}
-}
-
-func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	session, err := s.sessions.Get(r, "user_session")
-	if err != nil {
-		log.Printf("Error getting session for logout: %v\nStack trace:\n%s", err, debug.Stack())
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	session.Values["user_id"] = nil
-	if err := session.Save(r, w); err != nil {
-		log.Printf("Error saving session for logout: %v\nStack trace:\n%s", err, debug.Stack())
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (s *Server) handleMoveFeedUp(w http.ResponseWriter, r *http.Request) {
