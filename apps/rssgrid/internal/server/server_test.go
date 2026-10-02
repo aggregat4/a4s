@@ -104,6 +104,7 @@ func testRequest(server *Server, method, path string, userID int64) (*http.Reque
 	// Create a session with a user ID
 	session, _ := server.sessions.Get(req, "user_session")
 	session.Values["user_id"] = userID
+	req = withUserID(req, userID)
 
 	// Create response recorder
 	w := httptest.NewRecorder()
@@ -388,6 +389,7 @@ func TestUserPreferences(t *testing.T) {
 
 	session, _ := server.sessions.Get(req, "user_session")
 	session.Values["user_id"] = userID
+	req = withUserID(req, userID)
 	session.Save(req, w)
 
 	server.handleUpdatePreferences(w, req)
@@ -400,6 +402,7 @@ func TestUserPreferences(t *testing.T) {
 
 	session, _ = server.sessions.Get(req, "user_session")
 	session.Values["user_id"] = userID
+	req = withUserID(req, userID)
 	session.Save(req, w)
 
 	server.handleUpdatePreferences(w, req)
@@ -578,6 +581,7 @@ func TestMoveFeedHandlers(t *testing.T) {
 
 			session, _ := server.sessions.Get(req, "user_session")
 			session.Values["user_id"] = int64(1)
+			req = withUserID(req, int64(1))
 			session.Save(req, w)
 
 			rctx := chi.NewRouteContext()

@@ -116,19 +116,53 @@ func (s *Server) getFlashMessages(w http.ResponseWriter, r *http.Request) []Flas
 	return flashMessages
 }
 
-// getUserID extracts the user ID from the session
-func (s *Server) getUserID(r *http.Request) int64 {
-	session, err := s.sessions.Get(r, "user_session")
-	if err != nil {
-		log.Printf("Error getting session: %v\nStack trace:\n%s", err, debug.Stack())
-		return 0
-	}
-	userID, ok := session.Values["user_id"].(int64)
-	if !ok {
-		log.Printf("Error: user_id not found in session or wrong type\nStack trace:\n%s", debug.Stack())
-		return 0
-	}
+type contextKey int
+
+const userIDKey contextKey = 0
+
+// requireUser resolves the signed-in user's ID from the session and stores it
+// in the request context for the protected handlers. The OIDC middleware has
+// already redirected unauthenticated requests, so a missing ID means the
+// session is unusable.
+func (s *Server) requireUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session, err := s.sessions.Get(r, "user_session")
+		if err != nil {
+			log.Printf("Error getting session: %v", err)
+		}
+		var userID int64
+		if session != nil {
+			userID, _ = session.Values["user_id"].(int64)
+		}
+		if userID == 0 {
+			http.Error(w, "User not authenticated", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, withUserID(r, userID))
+	})
+}
+
+// withUserID returns a copy of r carrying the given user ID.
+func withUserID(r *http.Request, userID int64) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), userIDKey, userID))
+}
+
+// userIDFrom returns the user ID stored by requireUser. Handlers behind
+// requireUser can rely on it being set.
+func userIDFrom(r *http.Request) int64 {
+	userID, _ := r.Context().Value(userIDKey).(int64)
 	return userID
+}
+
+// pathID parses the named URL parameter as an int64 ID. On failure it writes
+// a 400 response mentioning the kind of resource and returns false.
+func pathID(w http.ResponseWriter, r *http.Request, param, kind string) (int64, bool) {
+	id, err := strconv.ParseInt(chi.URLParam(r, param), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid "+kind+" ID", http.StatusBadRequest)
+		return 0, false
+	}
+	return id, true
 }
 
 func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, sessionKey string, secureCookies bool) (*Server, error) {
@@ -278,6 +312,7 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
+		r.Use(s.requireUser)
 		r.Get("/", s.handleDashboard)
 		r.Get("/settings", s.handleSettings)
 		r.Get("/posts/{postId}", s.handleGetPost)
@@ -335,7 +370,7 @@ func splitFeedsIntoColumns[T any](feeds []T, numCols int) [][]T {
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	feeds, err := s.store.GetUserFeeds(userId)
 	if err != nil {
@@ -390,7 +425,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	feeds, err := s.store.GetUserFeeds(userId)
 	if err != nil {
@@ -435,11 +470,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
-	userId := s.getUserID(r)
-	if userId == 0 {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
-		return
-	}
+	userId := userIDFrom(r)
 
 	url := r.FormValue("url")
 	if url == "" {
@@ -482,19 +513,11 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
-	feedIdStr := chi.URLParam(r, "feedId")
-	if feedIdStr == "" {
-		http.Error(w, "Invalid feed ID", http.StatusBadRequest)
+	feedId, ok := pathID(w, r, "feedId", "feed")
+	if !ok {
 		return
 	}
-
-	feedId, err := strconv.ParseInt(feedIdStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid feed ID format", http.StatusBadRequest)
-		return
-	}
-
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	if err := s.store.DeleteFeedForUser(userId, feedId); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -509,19 +532,11 @@ func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMarkPostSeen(w http.ResponseWriter, r *http.Request) {
-	postIdStr := chi.URLParam(r, "postId")
-	if postIdStr == "" {
-		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+	postId, ok := pathID(w, r, "postId", "post")
+	if !ok {
 		return
 	}
-
-	postId, err := strconv.ParseInt(postIdStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid post ID format", http.StatusBadRequest)
-		return
-	}
-
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	if err := s.store.MarkPostAsSeenForUser(userId, postId); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -536,19 +551,11 @@ func (s *Server) handleMarkPostSeen(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMarkAllSeen(w http.ResponseWriter, r *http.Request) {
-	feedIdStr := chi.URLParam(r, "feedId")
-	if feedIdStr == "" {
-		http.Error(w, "Invalid feed ID", http.StatusBadRequest)
+	feedId, ok := pathID(w, r, "feedId", "feed")
+	if !ok {
 		return
 	}
-
-	feedId, err := strconv.ParseInt(feedIdStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid feed ID format", http.StatusBadRequest)
-		return
-	}
-
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	if err := s.store.MarkAllFeedPostsAsSeenForUser(userId, feedId); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -563,16 +570,7 @@ func (s *Server) handleMarkAllSeen(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	userId := s.getUserID(r)
-	if userId == 0 {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
-		return
-	}
+	userId := userIDFrom(r)
 
 	postsPerFeed, err := strconv.Atoi(r.FormValue("postsPerFeed"))
 	if err != nil || postsPerFeed < MinPostsPerFeed || postsPerFeed > MaxPostsPerFeed {
@@ -600,19 +598,11 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
-	postIdStr := chi.URLParam(r, "postId")
-	if postIdStr == "" {
-		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+	postId, ok := pathID(w, r, "postId", "post")
+	if !ok {
 		return
 	}
-
-	postId, err := strconv.ParseInt(postIdStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid post ID format", http.StatusBadRequest)
-		return
-	}
-
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	post, err := s.store.GetPostForUser(userId, postId)
 	if err != nil {
@@ -656,19 +646,11 @@ func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMoveFeedUp(w http.ResponseWriter, r *http.Request) {
-	feedIdStr := chi.URLParam(r, "feedId")
-	if feedIdStr == "" {
-		http.Error(w, "Invalid feed ID", http.StatusBadRequest)
+	feedId, ok := pathID(w, r, "feedId", "feed")
+	if !ok {
 		return
 	}
-
-	feedId, err := strconv.ParseInt(feedIdStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid feed ID format", http.StatusBadRequest)
-		return
-	}
-
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	if err := s.store.MoveFeedUp(userId, feedId); err != nil {
 		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error moving feed up", "Error moving feed up for user", err, "feedId", feedId, "userId", userId)
@@ -679,19 +661,11 @@ func (s *Server) handleMoveFeedUp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMoveFeedDown(w http.ResponseWriter, r *http.Request) {
-	feedIdStr := chi.URLParam(r, "feedId")
-	if feedIdStr == "" {
-		http.Error(w, "Invalid feed ID", http.StatusBadRequest)
+	feedId, ok := pathID(w, r, "feedId", "feed")
+	if !ok {
 		return
 	}
-
-	feedId, err := strconv.ParseInt(feedIdStr, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid feed ID format", http.StatusBadRequest)
-		return
-	}
-
-	userId := s.getUserID(r)
+	userId := userIDFrom(r)
 
 	if err := s.store.MoveFeedDown(userId, feedId); err != nil {
 		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error moving feed down", "Error moving feed down for user", err, "feedId", feedId, "userId", userId)

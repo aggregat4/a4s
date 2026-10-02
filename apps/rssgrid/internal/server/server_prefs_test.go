@@ -16,6 +16,7 @@ func postForm(t *testing.T, server *Server, path, body string, userID int64) (*h
 	w := httptest.NewRecorder()
 	session, _ := server.sessions.Get(req, "user_session")
 	session.Values["user_id"] = userID
+	req = withUserID(req, userID)
 	return req, w
 }
 
@@ -50,4 +51,27 @@ func TestUpdatePreferences_AcceptsBounds(t *testing.T) {
 	assert.True(t, store.preferencesSet)
 	assert.Equal(t, 50, store.postsPerFeed)
 	assert.Equal(t, 5, store.columns)
+}
+
+func TestRequireUser(t *testing.T) {
+	server := testServer(t, mockStoreEmpty())
+	var seen int64
+	handler := server.requireUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = userIDFrom(r)
+	}))
+
+	// No user in the session: rejected before reaching the handler.
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Zero(t, seen)
+
+	// User in the session: the handler sees the ID in the context.
+	req := httptest.NewRequest("GET", "/", nil)
+	session, _ := server.sessions.Get(req, "user_session")
+	session.Values["user_id"] = int64(42)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(42), seen)
 }

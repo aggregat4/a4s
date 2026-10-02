@@ -72,6 +72,7 @@ func requestAs(server *Server, method, path string, userID int64, params map[str
 	w := httptest.NewRecorder()
 	session, _ := server.sessions.Get(req, "user_session")
 	session.Values["user_id"] = userID
+	req = withUserID(req, userID)
 	_ = session.Save(req, w)
 
 	if len(params) > 0 {
