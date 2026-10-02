@@ -143,87 +143,36 @@ type Store struct {
 	db *sql.DB
 }
 
-func (store *Store) MoveFeedDown(userID int64, i int64) error {
-	// Start a transaction
-	tx, err := store.db.Begin()
-	if err != nil {
-		return fmt.Errorf("error starting transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	// Get the current feed's grid position
-	var currentPosition int
-	err = tx.QueryRow(`
-		SELECT grid_position 
-		FROM user_feeds 
-		WHERE user_id = ? AND feed_id = ?
-	`, userID, i).Scan(&currentPosition)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("feed not found for user")
-		}
-		return fmt.Errorf("error getting current position: %w", err)
-	}
-
-	// Get the next feed's ID and position
-	var nextFeedID int64
-	var nextPosition int
-	err = tx.QueryRow(`
-		SELECT feed_id, grid_position 
-		FROM user_feeds 
-		WHERE user_id = ? AND grid_position > ? 
-		ORDER BY grid_position ASC 
-		LIMIT 1
-	`, userID, currentPosition).Scan(&nextFeedID, &nextPosition)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("no feed below to move down to")
-		}
-		return fmt.Errorf("error getting next feed: %w", err)
-	}
-
-	// Swap the positions
-	_, err = tx.Exec(`
-		UPDATE user_feeds 
-		SET grid_position = ? 
-		WHERE user_id = ? AND feed_id = ?
-	`, nextPosition, userID, i)
-	if err != nil {
-		return fmt.Errorf("error updating current feed position: %w", err)
-	}
-
-	_, err = tx.Exec(`
-		UPDATE user_feeds 
-		SET grid_position = ? 
-		WHERE user_id = ? AND feed_id = ?
-	`, currentPosition, userID, nextFeedID)
-	if err != nil {
-		return fmt.Errorf("error updating next feed position: %w", err)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("error committing transaction: %w", err)
-	}
-
-	return nil
+// MoveFeedDown swaps the feed's grid position with the next feed of the user.
+func (store *Store) MoveFeedDown(userID int64, feedID int64) error {
+	return store.swapWithNeighbour(userID, feedID, false)
 }
 
-func (store *Store) MoveFeedUp(userID int64, i int64) error {
-	// Start a transaction
+// MoveFeedUp swaps the feed's grid position with the previous feed of the user.
+func (store *Store) MoveFeedUp(userID int64, feedID int64) error {
+	return store.swapWithNeighbour(userID, feedID, true)
+}
+
+// swapWithNeighbour swaps the grid position of a user's feed with the feed
+// directly above (up) or below it.
+func (store *Store) swapWithNeighbour(userID, feedID int64, up bool) error {
+	comparison, order, noNeighbour := ">", "ASC", "no feed below to move down to"
+	if up {
+		comparison, order, noNeighbour = "<", "DESC", "no feed above to move up to"
+	}
+
 	tx, err := store.db.Begin()
 	if err != nil {
 		return fmt.Errorf("error starting transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Get the current feed's grid position
 	var currentPosition int
 	err = tx.QueryRow(`
-		SELECT grid_position 
-		FROM user_feeds 
+		SELECT grid_position
+		FROM user_feeds
 		WHERE user_id = ? AND feed_id = ?
-	`, userID, i).Scan(&currentPosition)
+	`, userID, feedID).Scan(&currentPosition)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("feed not found for user")
@@ -231,47 +180,33 @@ func (store *Store) MoveFeedUp(userID int64, i int64) error {
 		return fmt.Errorf("error getting current position: %w", err)
 	}
 
-	// Get the previous feed's ID and position
-	var prevFeedID int64
-	var prevPosition int
+	var neighbourFeedID int64
+	var neighbourPosition int
 	err = tx.QueryRow(`
-		SELECT feed_id, grid_position 
-		FROM user_feeds 
-		WHERE user_id = ? AND grid_position < ? 
-		ORDER BY grid_position DESC 
+		SELECT feed_id, grid_position
+		FROM user_feeds
+		WHERE user_id = ? AND grid_position `+comparison+` ?
+		ORDER BY grid_position `+order+`
 		LIMIT 1
-	`, userID, currentPosition).Scan(&prevFeedID, &prevPosition)
+	`, userID, currentPosition).Scan(&neighbourFeedID, &neighbourPosition)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("no feed above to move up to")
+			return errors.New(noNeighbour)
 		}
-		return fmt.Errorf("error getting previous feed: %w", err)
+		return fmt.Errorf("error getting neighbouring feed: %w", err)
 	}
 
-	// Swap the positions
-	_, err = tx.Exec(`
-		UPDATE user_feeds 
-		SET grid_position = ? 
-		WHERE user_id = ? AND feed_id = ?
-	`, prevPosition, userID, i)
-	if err != nil {
+	const setPosition = `UPDATE user_feeds SET grid_position = ? WHERE user_id = ? AND feed_id = ?`
+	if _, err := tx.Exec(setPosition, neighbourPosition, userID, feedID); err != nil {
 		return fmt.Errorf("error updating current feed position: %w", err)
 	}
-
-	_, err = tx.Exec(`
-		UPDATE user_feeds 
-		SET grid_position = ? 
-		WHERE user_id = ? AND feed_id = ?
-	`, currentPosition, userID, prevFeedID)
-	if err != nil {
-		return fmt.Errorf("error updating previous feed position: %w", err)
+	if _, err := tx.Exec(setPosition, currentPosition, userID, neighbourFeedID); err != nil {
+		return fmt.Errorf("error updating neighbouring feed position: %w", err)
 	}
 
-	// Commit the transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error committing transaction: %w", err)
 	}
-
 	return nil
 }
 
