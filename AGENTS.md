@@ -19,6 +19,11 @@
 - Preserve application behavior while changing structure. Keep refactors,
   dependency upgrades, and deployment changes in distinct commits.
 
+## Commits and pull requests
+
+- Do not add `Co-Authored-By` trailers, AI session links, or other
+  assistant attribution to commit messages or pull request descriptions.
+
 ## Tooling and validation
 
 - Use the root Taskfile for repository orchestration: `task build`,
