@@ -105,26 +105,32 @@ func TestHandleGetPost_CrossUserDenied(t *testing.T) {
 	assert.Len(t, posts, 1, "user2's post must still be present")
 }
 
-func TestHandleMarkPostSeen_CrossUserDenied(t *testing.T) {
+func TestHandleGetPost_MarksOnlyOwnPostSeen(t *testing.T) {
 	f := newServerAuthFixture(t)
 
-	// user1 marks own post: 200 and the post becomes seen
-	req, w := requestAs(f.server, "POST", "/posts/"+strconv.FormatInt(f.post1, 10)+"/seen", f.user1,
+	// Opening their own post marks it read for user1.
+	req, w := requestAs(f.server, "GET", "/posts/"+strconv.FormatInt(f.post1, 10), f.user1,
 		map[string]string{"postId": strconv.FormatInt(f.post1, 10)})
-	f.server.handleMarkPostSeen(w, req)
+	f.server.handleGetPost(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	seen, err := f.store.GetFeedPosts(f.feed1, f.user1, 10)
 	require.NoError(t, err)
 	require.Len(t, seen, 1)
-	assert.True(t, seen[0].Seen, "user1's own post should be marked seen")
+	assert.True(t, seen[0].Seen, "opening a post marks it seen")
 
-	// user1 marks user2's post: 404. Because the store returns ErrNoRows only
-	// when no row was inserted, this also proves no seen-state was recorded.
-	req, w = requestAs(f.server, "POST", "/posts/"+strconv.FormatInt(f.post2, 10)+"/seen", f.user1,
+	// Trying to open user2's post is 404 and records no read state.
+	req, w = requestAs(f.server, "GET", "/posts/"+strconv.FormatInt(f.post2, 10), f.user1,
 		map[string]string{"postId": strconv.FormatInt(f.post2, 10)})
-	f.server.handleMarkPostSeen(w, req)
+	f.server.handleGetPost(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	// GetFeedPosts does not check the subscription, so it reveals whether a
+	// read state was recorded for user1 on user2's post.
+	other, err := f.store.GetFeedPosts(f.feed2, f.user1, 10)
+	require.NoError(t, err)
+	require.Len(t, other, 1)
+	assert.False(t, other[0].Seen)
 }
 
 func TestHandleMarkAllSeen_CrossUserDenied(t *testing.T) {

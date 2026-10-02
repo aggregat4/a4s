@@ -316,7 +316,6 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 		r.Post("/settings/preferences", s.handleUpdatePreferences)
 		r.Post("/settings/feeds/{feedId}/move-up", s.handleMoveFeedUp)
 		r.Post("/settings/feeds/{feedId}/move-down", s.handleMoveFeedDown)
-		r.Post("/posts/{postId}/seen", s.handleMarkPostSeen)
 		r.Post("/feeds/{feedId}/seen", s.handleMarkAllSeen)
 	})
 
@@ -523,25 +522,6 @@ func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
-func (s *Server) handleMarkPostSeen(w http.ResponseWriter, r *http.Request) {
-	postId, ok := pathID(w, r, "postId", "post")
-	if !ok {
-		return
-	}
-	userId := userIDFrom(r)
-
-	if err := s.store.MarkPostAsSeenForUser(userId, postId); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "Post not found", http.StatusNotFound)
-			return
-		}
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error marking post as seen", "Error marking post as seen for user", err, "postId", postId, "userId", userId)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
 func (s *Server) handleMarkAllSeen(w http.ResponseWriter, r *http.Request) {
 	feedId, ok := pathID(w, r, "feedId", "feed")
 	if !ok {
@@ -604,6 +584,12 @@ func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
 		}
 		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error fetching post", "Error fetching post for user", err, "postId", postId, "userId", userId)
 		return
+	}
+
+	// Opening a post is what makes it read, however it was opened (dialog,
+	// new tab, or without JavaScript). A failure here must not hide the post.
+	if err := s.store.MarkPostAsSeenForUser(userId, postId); err != nil {
+		slog.Error("Error marking post as seen", "postId", postId, "userId", userId, "err", err)
 	}
 
 	data := struct {

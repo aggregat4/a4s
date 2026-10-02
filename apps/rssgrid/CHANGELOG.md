@@ -16,6 +16,9 @@ Release notes for a tag are taken from the matching version section, so the
   cycle, so slow or unreachable feeds no longer delay the others.
 - The dashboard loads the posts of all feeds in a single query, and posts are
   indexed by feed and publication date.
+- A post is marked as read when it is opened, on the server, instead of by a
+  separate request from the dashboard script. This also covers posts opened
+  in a new tab. The `POST /posts/{id}/seen` endpoint is removed.
 - Logs are written with `log/slog` as key/value text lines without stack
   traces. Per-feed update progress is logged at debug level.
 
