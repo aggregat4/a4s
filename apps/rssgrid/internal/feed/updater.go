@@ -84,7 +84,6 @@ func (u *Updater) Stop() {
 func (u *Updater) updateFeeds(ctx context.Context) error {
 	log.Printf("Starting feed update cycle")
 
-	// Get all unique feed URLs
 	feeds, err := u.store.GetAllFeeds()
 	if err != nil {
 		return err
@@ -92,61 +91,74 @@ func (u *Updater) updateFeeds(ctx context.Context) error {
 
 	log.Printf("Found %d feeds to update", len(feeds))
 
-	now := time.Now()
 	for _, feed := range feeds {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if shouldBackOff(feed, now, u.interval) {
-			log.Printf("Skipping feed %s (%s): backing off after %d consecutive failures",
-				feed.Title, feed.URL, feed.ConsecutiveFailures)
-			continue
-		}
-
-		log.Printf("Updating feed: %s (%s)", feed.Title, feed.URL)
-
-		// Fetch and parse feed with cache awareness
-		content, err := u.fetcher.FetchFeed(ctx, feed.URL)
-		if err != nil {
-			if ctx.Err() != nil {
-				// Shutting down; the feed itself is not at fault.
-				return ctx.Err()
-			}
-			log.Printf("Error fetching feed %s: %v", feed.URL, err)
-			if recordErr := u.store.RecordFeedFailure(feed.ID, err, time.Now()); recordErr != nil {
-				log.Printf("Error recording feed failure for %s: %v", feed.URL, recordErr)
-			}
-			continue
-		}
-
-		// A successful fetch (whether or not it returned new content) clears
-		// the failure state and records the success time.
-		if recordErr := u.store.RecordFeedSuccess(feed.ID, time.Now()); recordErr != nil {
-			log.Printf("Error recording feed success for %s: %v", feed.URL, recordErr)
-		}
-
-		// If no content returned, feed was cached or not modified
-		if content == nil {
-			log.Printf("Feed %s was cached or not modified, skipping", feed.URL)
-		} else {
-			if n := IngestContent(u.store, feed.ID, feed.Title, content); n > 0 {
-				log.Printf("Added %d new posts from feed: %s", n, feed.URL)
-			}
-		}
-
-		// Prune old posts to prevent unbounded database growth
-		if err := u.store.PruneFeedPosts(feed.ID, u.maxPostsPerFeed); err != nil {
-			log.Printf("Error pruning posts for feed %s: %v", feed.Title, err)
-		}
-
-		// Update last fetched timestamp
-		if err := u.store.UpdateFeedLastFetched(feed.ID, time.Now()); err != nil {
-			log.Printf("Error updating feed last fetched: %v", err)
-		}
+		u.updateFeed(ctx, feed, time.Now())
 	}
 
 	log.Printf("Feed update cycle completed")
 	return nil
+}
+
+// updateFeed fetches a single feed if it is due and records the outcome.
+func (u *Updater) updateFeed(ctx context.Context, feed db.Feed, now time.Time) {
+	if shouldBackOff(feed, now, u.interval) {
+		log.Printf("Skipping feed %s (%s): backing off after %d consecutive failures",
+			feed.Title, feed.URL, feed.ConsecutiveFailures)
+		return
+	}
+	if cacheFresh(feed, now) {
+		// Not fetched at all, so neither success nor last-fetched is recorded.
+		log.Printf("Skipping feed %s (%s): cached until %s", feed.Title, feed.URL, feed.CacheUntil.Format(time.RFC3339))
+		return
+	}
+
+	log.Printf("Updating feed: %s (%s)", feed.Title, feed.URL)
+
+	content, err := u.fetcher.FetchFeed(ctx, feed.URL)
+	if err != nil {
+		if ctx.Err() != nil {
+			// Shutting down; the feed itself is not at fault.
+			return
+		}
+		log.Printf("Error fetching feed %s: %v", feed.URL, err)
+		if recordErr := u.store.RecordFeedFailure(feed.ID, err, time.Now()); recordErr != nil {
+			log.Printf("Error recording feed failure for %s: %v", feed.URL, recordErr)
+		}
+		return
+	}
+
+	// A completed fetch (new content or 304 Not Modified) clears the failure
+	// state and records the success time.
+	fetchedAt := time.Now()
+	if recordErr := u.store.RecordFeedSuccess(feed.ID, fetchedAt); recordErr != nil {
+		log.Printf("Error recording feed success for %s: %v", feed.URL, recordErr)
+	}
+	if err := u.store.UpdateFeedLastFetched(feed.ID, fetchedAt); err != nil {
+		log.Printf("Error updating feed last fetched: %v", err)
+	}
+
+	if content == nil {
+		log.Printf("Feed %s not modified", feed.URL)
+		return
+	}
+
+	if n := IngestContent(u.store, feed.ID, feed.Title, content); n > 0 {
+		log.Printf("Added %d new posts from feed: %s", n, feed.URL)
+	}
+
+	// Prune old posts to prevent unbounded database growth
+	if err := u.store.PruneFeedPosts(feed.ID, u.maxPostsPerFeed); err != nil {
+		log.Printf("Error pruning posts for feed %s: %v", feed.URL, err)
+	}
+}
+
+// cacheFresh reports whether the feed's HTTP cache lifetime has not yet expired,
+// in which case it does not need to be fetched this cycle.
+func cacheFresh(feed db.Feed, now time.Time) bool {
+	return !feed.CacheUntil.IsZero() && now.Before(feed.CacheUntil)
 }
 
 // shouldBackOff reports whether a feed should be skipped this cycle because it

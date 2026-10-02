@@ -286,3 +286,36 @@ func TestUpdater_StopAfterParentContextCancelled(t *testing.T) {
 		t.Fatal("Stop blocked after the parent context was cancelled")
 	}
 }
+
+func TestUpdateFeeds_SkipsFreshCacheWithoutRecordingAFetch(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+	f := addTestFeed(t, store)
+	require.NoError(t, store.UpdateFeedCacheInfo(f.ID, "", "", time.Now().Add(time.Hour)))
+
+	stub := &stubFetcher{content: &FeedContent{Title: "Should Not Be Called"}}
+	updater := NewUpdaterWithFetcher(store, 30*time.Minute, 100, stub)
+	require.NoError(t, updater.updateFeeds(context.Background()))
+
+	assert.Equal(t, int32(0), stub.calls.Load(), "fetcher must not be called while the cache is fresh")
+	feeds, err := store.GetAllFeeds()
+	require.NoError(t, err)
+	assert.True(t, feeds[0].LastFetchedAt.IsZero(), "a skipped feed must not update last_fetched_at")
+	assert.True(t, feeds[0].LastSuccessAt.IsZero(), "a skipped feed must not record a success")
+}
+
+func TestUpdateFeeds_FetchesWhenCacheExpired(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+	f := addTestFeed(t, store)
+	require.NoError(t, store.UpdateFeedCacheInfo(f.ID, "", "", time.Now().Add(-time.Minute)))
+
+	stub := &stubFetcher{content: nil}
+	updater := NewUpdaterWithFetcher(store, 30*time.Minute, 100, stub)
+	require.NoError(t, updater.updateFeeds(context.Background()))
+
+	assert.Equal(t, int32(1), stub.calls.Load())
+	feeds, err := store.GetAllFeeds()
+	require.NoError(t, err)
+	assert.False(t, feeds[0].LastFetchedAt.IsZero())
+}

@@ -4,36 +4,7 @@ import (
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/aggregat4/a4s/apps/rssgrid/internal/db"
 )
-
-func TestFetcher_ShouldSkipFetch(t *testing.T) {
-	// Create a mock feed with cache info
-	feed := &db.Feed{
-		ID:         1,
-		URL:        "http://example.com/feed",
-		CacheUntil: time.Now().Add(1 * time.Hour), // Cache valid for 1 hour
-	}
-
-	// Should skip fetch when cache is still valid
-	fetcher := &Fetcher{}
-	if !fetcher.shouldSkipFetch(feed) {
-		t.Error("Expected shouldSkipFetch to return true when cache is still valid")
-	}
-
-	// Should not skip fetch when cache has expired
-	feed.CacheUntil = time.Now().Add(-1 * time.Hour) // Cache expired 1 hour ago
-	if fetcher.shouldSkipFetch(feed) {
-		t.Error("Expected shouldSkipFetch to return false when cache has expired")
-	}
-
-	// Should not skip fetch when no cache info
-	feed.CacheUntil = time.Time{} // Zero time
-	if fetcher.shouldSkipFetch(feed) {
-		t.Error("Expected shouldSkipFetch to return false when no cache info")
-	}
-}
 
 func TestFetcher_ExtractCacheInfo(t *testing.T) {
 	fetcher := &Fetcher{}
@@ -81,5 +52,30 @@ func TestFetcher_ParseMaxAge(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("parseMaxAge(%q) = %d, expected %d", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestFetcher_ExtractCacheInfo_MaxAgeBeatsExpires(t *testing.T) {
+	fetcher := &Fetcher{}
+	headers := http.Header{}
+	headers.Set("Cache-Control", "max-age=60")
+	headers.Set("Expires", time.Now().Add(48*time.Hour).UTC().Format(http.TimeFormat))
+
+	info := fetcher.extractCacheInfo(headers)
+	if info.cacheUntil.After(time.Now().Add(2 * time.Minute)) {
+		t.Errorf("max-age should take precedence over Expires, got %v", info.cacheUntil)
+	}
+}
+
+func TestFetcher_ExtractCacheInfo_ParsesExpiresFormats(t *testing.T) {
+	fetcher := &Fetcher{}
+	// RFC 850 format is a valid HTTP date that time.RFC1123 cannot parse.
+	headers := http.Header{}
+	headers.Set("Expires", "Sunday, 06-Nov-44 08:49:37 GMT")
+
+	info := fetcher.extractCacheInfo(headers)
+	want := time.Date(2044, time.November, 6, 8, 49, 37, 0, time.UTC)
+	if !info.cacheUntil.Equal(want) {
+		t.Errorf("Expected CacheUntil %v, got %v", want, info.cacheUntil)
 	}
 }

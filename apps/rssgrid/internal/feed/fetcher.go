@@ -57,6 +57,12 @@ type cacheInfo struct {
 	cacheUntil   time.Time
 }
 
+// FetchFeed fetches and parses the feed at url. When the feed is already known,
+// conditional request headers (ETag / Last-Modified) are sent; if the server
+// answers 304 Not Modified, FetchFeed returns (nil, nil). Callers must handle
+// a nil result. Whether a fetch is due at all (cache_until) is decided by the
+// caller, not here, so explicit fetches such as adding a feed always hit the
+// network.
 func (f *Fetcher) FetchFeed(ctx context.Context, url string) (*FeedContent, error) {
 	result, err := f.fetchFeedWithCache(ctx, url)
 	if err != nil {
@@ -80,21 +86,10 @@ func (f *Fetcher) FetchFeed(ctx context.Context, url string) (*FeedContent, erro
 
 // fetchFeedWithCache is the internal method that handles caching logic
 func (f *Fetcher) fetchFeedWithCache(ctx context.Context, url string) (*fetchResult, error) {
-	// Check if we have cached information for this feed
+	// Look up stored validators for a conditional request
 	feed, err := f.store.GetFeedByURL(url)
 	if err != nil {
 		return nil, fmt.Errorf("error checking feed cache: %w", err)
-	}
-
-	// If we have cache info, check if we should skip fetching
-	if feed != nil {
-		if f.shouldSkipFetch(feed) {
-			return &fetchResult{
-				content:     nil,
-				shouldCache: false,
-				error:       nil,
-			}, nil
-		}
 	}
 
 	// Create request with cache headers if available
@@ -208,16 +203,11 @@ func (f *Fetcher) extractCacheInfo(headers http.Header) *cacheInfo {
 		info.lastModified = lastModified
 	}
 
-	// Parse Cache-Control header
-	if cacheControl := headers.Get("Cache-Control"); cacheControl != "" {
-		if maxAge := f.parseMaxAge(cacheControl); maxAge > 0 {
-			info.cacheUntil = time.Now().Add(time.Duration(maxAge) * time.Second)
-		}
-	}
-
-	// Parse Expires header (takes precedence over Cache-Control)
-	if expires := headers.Get("Expires"); expires != "" {
-		if parsedTime, err := time.Parse(time.RFC1123, expires); err == nil {
+	// Cache-Control max-age takes precedence over Expires (RFC 9111 5.3)
+	if maxAge := f.parseMaxAge(headers.Get("Cache-Control")); maxAge > 0 {
+		info.cacheUntil = time.Now().Add(time.Duration(maxAge) * time.Second)
+	} else if expires := headers.Get("Expires"); expires != "" {
+		if parsedTime, err := http.ParseTime(expires); err == nil {
 			info.cacheUntil = parsedTime
 		}
 	}
@@ -238,14 +228,6 @@ func (f *Fetcher) parseMaxAge(cacheControl string) int {
 		}
 	}
 	return 0
-}
-
-func (f *Fetcher) shouldSkipFetch(feed *db.Feed) bool {
-	// Check if cache hasn't expired yet
-	if !feed.CacheUntil.IsZero() && time.Now().Before(feed.CacheUntil) {
-		return true
-	}
-	return false
 }
 
 // updateFeedCache is internal to the fetcher
