@@ -178,12 +178,15 @@ func (m *mockStore) GetUserFeeds(userID int64) ([]db.Feed, error) {
 	return m.feeds, nil
 }
 
-func (m *mockStore) GetFeedPosts(feedID, userID int64, limit int) ([]db.Post, error) {
-	posts, exists := m.posts[feedID]
-	if !exists {
-		return []db.Post{}, nil
+func (m *mockStore) GetUserLatestPosts(userID int64, limit int) (map[int64][]db.Post, error) {
+	latest := make(map[int64][]db.Post, len(m.posts))
+	for feedID, posts := range m.posts {
+		if len(posts) > limit {
+			posts = posts[:limit]
+		}
+		latest[feedID] = posts
 	}
-	return posts, nil
+	return latest, nil
 }
 
 func (m *mockStore) GetOrCreateUser(subject, issuer string) (int64, error) {

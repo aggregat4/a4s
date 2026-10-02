@@ -33,7 +33,7 @@ type Server struct {
 // StoreInterface defines the interface that the server needs
 type StoreInterface interface {
 	GetUserFeeds(userID int64) ([]db.Feed, error)
-	GetFeedPosts(feedID, userID int64, limit int) ([]db.Post, error)
+	GetUserLatestPosts(userID int64, limit int) (map[int64][]db.Post, error)
 	GetPostForUser(userID, postID int64) (*db.Post, error)
 	GetOrCreateUser(subject, issuer string) (int64, error)
 	AddFeedForUser(userID int64, url string) (int64, error)
@@ -392,14 +392,15 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Posts []db.Post
 	}
 
-	var feedData []FeedData
+	posts, err := s.store.GetUserLatestPosts(userId, postsPerFeed)
+	if err != nil {
+		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error fetching posts", "Error fetching posts for user", err, "userId", userId)
+		return
+	}
+
+	feedData := make([]FeedData, 0, len(feeds))
 	for _, f := range feeds {
-		posts, err := s.store.GetFeedPosts(f.ID, userId, postsPerFeed)
-		if err != nil {
-			s.logErrorAndRespond(w, http.StatusInternalServerError, "Error fetching posts", "Error fetching posts for feed", err, "feedId", f.ID, "userId", userId)
-			return
-		}
-		feedData = append(feedData, FeedData{Feed: f, Posts: posts})
+		feedData = append(feedData, FeedData{Feed: f, Posts: posts[f.ID]})
 	}
 
 	columnsData := splitFeedsIntoColumns(feedData, columns)

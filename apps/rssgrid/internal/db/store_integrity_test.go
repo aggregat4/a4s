@@ -206,3 +206,48 @@ func TestPostsIndexExists(t *testing.T) {
 	assert.Contains(t, plan, "idx_posts_feed_published")
 	assert.NotContains(t, plan, "TEMP B-TREE", "ordering should come from the index")
 }
+
+func TestGetUserLatestPostsMatchesPerFeedQueries(t *testing.T) {
+	store, err := NewStore(tempDBPath(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+
+	user, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	other, err := store.GetOrCreateUser("other", "iss")
+	require.NoError(t, err)
+
+	feedA, err := store.AddFeedForUser(user, "https://example.com/a.xml")
+	require.NoError(t, err)
+	feedB, err := store.AddFeedForUser(user, "https://example.com/b.xml")
+	require.NoError(t, err)
+	feedOther, err := store.AddFeedForUser(other, "https://example.com/other.xml")
+	require.NoError(t, err)
+
+	base := time.Now().Add(-time.Hour)
+	for i := 0; i < 5; i++ {
+		at := base.Add(time.Duration(i) * time.Minute)
+		require.NoError(t, store.AddPost(feedA, "a"+string(rune('0'+i)), "A", "https://example.com/a", at, "content"))
+		require.NoError(t, store.AddPost(feedOther, "o"+string(rune('0'+i)), "O", "https://example.com/o", at, ""))
+	}
+	require.NoError(t, store.AddPost(feedB, "b0", "B", "https://example.com/b", base, ""))
+	require.NoError(t, store.MarkAllFeedPostsAsSeenForUser(user, feedB))
+
+	latest, err := store.GetUserLatestPosts(user, 3)
+	require.NoError(t, err)
+
+	assert.NotContains(t, latest, feedOther, "feeds of other users must not be returned")
+	for _, feedID := range []int64{feedA, feedB} {
+		want, err := store.GetFeedPosts(feedID, user, 3)
+		require.NoError(t, err)
+		got := latest[feedID]
+		require.Len(t, got, len(want))
+		for i := range want {
+			assert.Equal(t, want[i].ID, got[i].ID)
+			assert.Equal(t, want[i].Seen, got[i].Seen)
+			assert.True(t, want[i].PublishedAt.Equal(got[i].PublishedAt))
+		}
+	}
+	assert.Len(t, latest[feedA], 3)
+	assert.True(t, latest[feedB][0].Seen)
+}

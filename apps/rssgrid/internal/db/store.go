@@ -479,6 +479,41 @@ func (store *Store) GetFeedPosts(feedId int64, userId int64, limit int) ([]Post,
 	return posts, nil
 }
 
+// GetUserLatestPosts returns, for every feed the user is subscribed to, the
+// user's `limit` most recent posts of that feed, keyed by feed ID and ordered
+// by descending publication date. Post content is not loaded. It replaces one
+// GetFeedPosts query per feed when rendering the dashboard.
+func (store *Store) GetUserLatestPosts(userId int64, limit int) (map[int64][]Post, error) {
+	rows, err := store.db.Query(`
+		SELECT feed_id, id, title, link, published_at, seen
+		FROM (
+			SELECT p.feed_id, p.id, p.title, p.link, p.published_at,
+			       COALESCE(ups.seen, 0) AS seen,
+			       ROW_NUMBER() OVER (PARTITION BY p.feed_id ORDER BY p.published_at DESC) AS rn
+			FROM posts p
+			JOIN user_feeds uf ON uf.feed_id = p.feed_id AND uf.user_id = ?
+			LEFT JOIN user_post_states ups ON ups.post_id = p.id AND ups.user_id = ?
+		)
+		WHERE rn <= ?
+		ORDER BY feed_id, rn
+	`, userId, userId, limit)
+	if err != nil {
+		return nil, fmt.Errorf("error querying latest posts: %w", err)
+	}
+	defer rows.Close()
+
+	posts := make(map[int64][]Post)
+	for rows.Next() {
+		var feedID int64
+		var p Post
+		if err := rows.Scan(&feedID, &p.ID, &p.Title, &p.Link, &p.PublishedAt, &p.Seen); err != nil {
+			return nil, fmt.Errorf("error scanning post: %w", err)
+		}
+		posts[feedID] = append(posts[feedID], p)
+	}
+	return posts, rows.Err()
+}
+
 type Post struct {
 	ID          int64
 	Title       string
