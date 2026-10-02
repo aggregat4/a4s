@@ -374,6 +374,22 @@ body {
     }
 }
 
+/* The post page is rendered inside the dialog's iframe. */
+.post-page {
+    background-color: white;
+
+    .post-dialog {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+}
+
+/* Forms that only wrap a button sit inline with their siblings. */
+.feed-actions form {
+    display: inline;
+}
+
 .post-dialog-content {
     background-color: white;
     border-radius: 0.5rem;

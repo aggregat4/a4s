@@ -2,20 +2,8 @@
 <html lang="en">
 <head>
     {{template "head" (printf "%s - RSSGrid" .Post.Title)}}
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: white;
-        }
-        .post-dialog {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-    </style>
 </head>
-<body>
+<body class="post-page">
     <div class="post-dialog">
         <div class="post-dialog-header">
             <div class="post-header-content">

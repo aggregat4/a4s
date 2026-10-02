@@ -276,3 +276,21 @@ func TestPagesShareLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestTemplatesHaveNoInlineStyles(t *testing.T) {
+	entries, err := templateFS.ReadDir(".")
+	if err != nil {
+		t.Fatalf("Failed to list templates: %v", err)
+	}
+	for _, entry := range entries {
+		raw, err := templateFS.ReadFile(entry.Name())
+		if err != nil {
+			t.Fatalf("Failed to read %s: %v", entry.Name(), err)
+		}
+		for _, banned := range []string{"style=", "<style"} {
+			if contains(string(raw), banned) {
+				t.Errorf("%s contains %q; styles belong in styles.css", entry.Name(), banned)
+			}
+		}
+	}
+}
