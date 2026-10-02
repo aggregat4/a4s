@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -165,6 +166,25 @@ func pathID(w http.ResponseWriter, r *http.Request, param, kind string) (int64, 
 	return id, true
 }
 
+// requiredTemplates are the page templates the handlers render.
+var requiredTemplates = []string{"dashboard.html", "settings.html", "post.html"}
+
+// render executes the named template into a buffer and only writes it to the
+// response when rendering succeeded, so a template error yields a clean 500
+// instead of a partial page followed by an error message.
+func (s *Server) render(w http.ResponseWriter, name string, data any) {
+	var buf bytes.Buffer
+	if err := s.templates.ExecuteTemplate(&buf, name, data); err != nil {
+		log.Printf("Error rendering template %s: %v", name, err)
+		http.Error(w, "Error rendering page", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := buf.WriteTo(w); err != nil {
+		log.Printf("Error writing %s response: %v", name, err)
+	}
+}
+
 func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, sessionKey string, secureCookies bool) (*Server, error) {
 	sessionStore := sessions.NewCookieStore([]byte(sessionKey))
 
@@ -185,17 +205,11 @@ func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, 
 		return nil, fmt.Errorf("error loading templates: %w", err)
 	}
 
-	// Validate that required templates exist
-	requiredTemplates := []string{"dashboard.html", "settings.html", "post.html"}
-	for _, tmplName := range requiredTemplates {
-		if tmpl := templates.Lookup(tmplName); tmpl == nil {
-			log.Printf("Warning: Required template '%s' not found", tmplName)
-		} else {
-			log.Printf("Template '%s' loaded successfully", tmplName)
+	for _, name := range requiredTemplates {
+		if templates.Lookup(name) == nil {
+			return nil, fmt.Errorf("required template %q not found", name)
 		}
 	}
-
-	log.Printf("Successfully loaded templates")
 
 	// Create fetcher only if store is a concrete db.Store type
 	var fetcher feed.FeedFetcher
@@ -417,11 +431,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		ColumnCount: columns,
 	}
 
-	log.Printf("Rendering dashboard template with %d feeds in %d columns", len(feedData), columns)
-	if err := s.templates.ExecuteTemplate(w, "dashboard.html", data); err != nil {
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error rendering template", "Error rendering dashboard template", err, "templateData", data)
-		return
-	}
+	s.render(w, "dashboard.html", data)
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -462,11 +472,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		Columns:       columns,
 	}
 
-	log.Printf("Rendering settings template with %d feeds", len(feeds))
-	if err := s.templates.ExecuteTemplate(w, "settings.html", data); err != nil {
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error rendering template", "Error rendering settings template", err, "templateData", data)
-		return
-	}
+	s.render(w, "settings.html", data)
 }
 
 func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
@@ -638,11 +644,7 @@ func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	log.Printf("Rendering post template with post ID %d", postId)
-	if err := s.templates.ExecuteTemplate(w, "post.html", data); err != nil {
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error rendering template", "Error rendering post template", err, "postId", postId)
-		return
-	}
+	s.render(w, "post.html", data)
 }
 
 // handleMoveError maps store errors from moving a feed to a response. Moving
