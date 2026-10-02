@@ -133,6 +133,10 @@ func dsn(dbPath string) string {
 	return dbPath + sep + connectionParams
 }
 
+// sanitizer is the HTML policy applied to post content before it is stored.
+// Policies are safe for concurrent use and expensive to build, so build once.
+var sanitizer = bluemonday.UGCPolicy()
+
 type Store struct {
 	db *sql.DB
 }
@@ -458,17 +462,29 @@ type Feed struct {
 	LastSuccessAt       time.Time
 }
 
-// AddPost adds a post to the database but makes sure that the contents of the post are sanitized using the UGC policy of bluemonday
+// AddPost adds a post to the database, ignoring posts that already exist. See
+// InsertPost.
 func (store *Store) AddPost(feedId int64, guid, title, link string, publishedAt time.Time, content string) error {
-	sanitizedContent := bluemonday.UGCPolicy().Sanitize(content)
-	_, err := store.db.Exec(`
+	_, err := store.InsertPost(feedId, guid, title, link, publishedAt, content)
+	return err
+}
+
+// InsertPost adds a post to the database after sanitizing its content with the
+// bluemonday UGC policy. Posts whose (feed, guid) already exists are left
+// untouched. It reports whether a new row was inserted.
+func (store *Store) InsertPost(feedId int64, guid, title, link string, publishedAt time.Time, content string) (bool, error) {
+	res, err := store.db.Exec(`
 		INSERT OR IGNORE INTO posts (feed_id, guid, title, link, published_at, content)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, feedId, guid, title, link, publishedAt, sanitizedContent)
+	`, feedId, guid, title, link, publishedAt, sanitizer.Sanitize(content))
 	if err != nil {
-		return fmt.Errorf("error adding post: %w", err)
+		return false, fmt.Errorf("error adding post: %w", err)
 	}
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("error getting rows affected: %w", err)
+	}
+	return n > 0, nil
 }
 
 // PruneFeedPosts deletes old posts for a feed, keeping only the most recent `keep` posts.

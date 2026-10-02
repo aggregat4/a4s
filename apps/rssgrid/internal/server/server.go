@@ -25,7 +25,7 @@ import (
 type Server struct {
 	store      StoreInterface
 	sessions   *sessions.CookieStore
-	fetcher    *feed.Fetcher
+	fetcher    feed.FeedFetcher
 	templates  *template.Template
 	oidcConfig *baseliboidc.OidcConfiguration
 }
@@ -39,7 +39,7 @@ type StoreInterface interface {
 	AddFeed(url string) (int64, error)
 	AddFeedForUser(userID int64, url string) (int64, error)
 	UpdateFeedTitle(feedID int64, title string) error
-	AddPost(feedID int64, guid, title, link string, publishedAt time.Time, content string) error
+	InsertPost(feedID int64, guid, title, link string, publishedAt time.Time, content string) (bool, error)
 	DeleteFeedForUser(userID, feedID int64) error
 	MarkPostAsSeenForUser(userID, postID int64) error
 	MarkAllFeedPostsAsSeenForUser(userID, feedID int64) error
@@ -165,7 +165,7 @@ func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, 
 	log.Printf("Successfully loaded templates")
 
 	// Create fetcher only if store is a concrete db.Store type
-	var fetcher *feed.Fetcher
+	var fetcher feed.FeedFetcher
 	if concreteStore, ok := store.(*db.Store); ok {
 		fetcher = feed.NewFetcher(concreteStore)
 	}
@@ -454,12 +454,17 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.fetcher == nil {
+		s.logErrorAndRespond(w, http.StatusInternalServerError, "Feed fetching is not available", "No fetcher configured", nil)
+		return
+	}
+
+	// FetchFeed returns nil content without an error when the feed is already
+	// known and the server answers 304 Not Modified. The feed is valid in
+	// that case and its posts are already stored, so only subscribe.
 	content, err := s.fetcher.FetchFeed(r.Context(), url)
 	if err != nil {
-		// Log the error for debugging
-		log.Printf("Error fetching feed from URL: %v\nContext: [url %s]\nStack trace:\n%s", err, url, debug.Stack())
-
-		// Set error message and redirect
+		log.Printf("Error fetching feed from URL %s: %v", url, err)
 		s.addErrorFlash(w, r, "Invalid feed URL or unable to fetch feed")
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
@@ -467,30 +472,13 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 
 	feedId, err := s.store.AddFeedForUser(userId, url)
 	if err != nil {
-		// Log the error for debugging
-		log.Printf("Error adding feed with URL: %v\nContext: [url %s]\nStack trace:\n%s", err, url, debug.Stack())
-
-		// Set error message and redirect
+		log.Printf("Error adding feed with URL %s for user %d: %v", url, userId, err)
 		s.addErrorFlash(w, r, "Error adding feed. Please try again.")
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
 
-	// Update feed title
-	if content.Title != "" {
-		if err := s.store.UpdateFeedTitle(feedId, content.Title); err != nil {
-			log.Printf("Error updating feed title for feed: %v\nContext: [feedId %d]\nStack trace:\n%s", err, feedId, debug.Stack())
-			// Don't fail the entire operation for title update errors
-		}
-	}
-
-	// Add posts
-	for _, item := range content.Items {
-		if err := s.store.AddPost(feedId, item.GUID, item.Title, item.Link, item.PublishedAt, item.Content); err != nil {
-			log.Printf("Error adding post with GUID to feed: %v\nContext: [guid %s, feedId %d]\nStack trace:\n%s", err, item.GUID, feedId, debug.Stack())
-			// Continue adding other posts even if one fails
-		}
-	}
+	feed.IngestContent(s.store, feedId, "", content)
 
 	// Set a success message in the session
 	s.addSuccessFlash(w, r, "Feed added successfully!")

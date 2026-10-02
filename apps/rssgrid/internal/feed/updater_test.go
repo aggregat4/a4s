@@ -199,3 +199,43 @@ func TestUpdateFeeds_SkipsFeedUnderBackoff(t *testing.T) {
 	require.Len(t, feeds, 1)
 	assert.Equal(t, 5, feeds[0].ConsecutiveFailures)
 }
+
+func addTestFeed(t *testing.T, store *db.Store) db.Feed {
+	t.Helper()
+	userID, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	_, err = store.AddFeedForUser(userID, "https://example.com/feed.xml")
+	require.NoError(t, err)
+	feeds, err := store.GetAllFeeds()
+	require.NoError(t, err)
+	require.Len(t, feeds, 1)
+	return feeds[0]
+}
+
+func TestUpdateFeeds_EmptyTitleDoesNotOverwrite(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+	f := addTestFeed(t, store)
+	require.NoError(t, store.UpdateFeedTitle(f.ID, "Original"))
+
+	updater := NewUpdaterWithFetcher(store, 30*time.Minute, 100, &stubFetcher{content: &FeedContent{Title: ""}})
+	require.NoError(t, updater.updateFeeds(context.Background()))
+
+	feeds, err := store.GetAllFeeds()
+	require.NoError(t, err)
+	assert.Equal(t, "Original", feeds[0].Title)
+}
+
+func TestIngestContent_CountsOnlyNewPosts(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+	f := addTestFeed(t, store)
+
+	content := &FeedContent{Items: []FeedItem{
+		{GUID: "1", Title: "One", Link: "https://example.com/1", PublishedAt: time.Now()},
+		{GUID: "2", Title: "Two", Link: "https://example.com/2", PublishedAt: time.Now()},
+	}}
+	assert.Equal(t, 2, IngestContent(store, f.ID, f.Title, content))
+	assert.Equal(t, 0, IngestContent(store, f.ID, f.Title, content))
+	assert.Equal(t, 0, IngestContent(store, f.ID, f.Title, nil))
+}

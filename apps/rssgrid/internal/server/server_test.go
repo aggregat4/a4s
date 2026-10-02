@@ -197,8 +197,8 @@ func (m *mockStore) UpdateFeedTitle(feedID int64, title string) error {
 	return nil
 }
 
-func (m *mockStore) AddPost(feedID int64, guid, title, link string, publishedAt time.Time, content string) error {
-	return nil
+func (m *mockStore) InsertPost(feedID int64, guid, title, link string, publishedAt time.Time, content string) (bool, error) {
+	return true, nil
 }
 
 func (m *mockStore) DeleteFeedForUser(userID, feedID int64) error {

@@ -121,3 +121,21 @@ func TestSetUserPreferences(t *testing.T) {
 	assert.Equal(t, 25, posts)
 	assert.Equal(t, 3, cols)
 }
+
+func TestInsertPostReportsWhetherNew(t *testing.T) {
+	store, err := NewStore(tempDBPath(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+
+	userID, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	feedID, err := store.AddFeedForUser(userID, "https://example.com/feed.xml")
+	require.NoError(t, err)
+
+	inserted, err := store.InsertPost(feedID, "g", "t", "https://example.com/p", time.Now(), "")
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	inserted, err = store.InsertPost(feedID, "g", "t", "https://example.com/p", time.Now(), "")
+	require.NoError(t, err)
+	assert.False(t, inserted)
+}

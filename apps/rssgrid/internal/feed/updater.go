@@ -119,7 +119,9 @@ func (u *Updater) updateFeeds(ctx context.Context) error {
 		if content == nil {
 			log.Printf("Feed %s was cached or not modified, skipping", feed.URL)
 		} else {
-			u.ingestContent(feed, content)
+			if n := IngestContent(u.store, feed.ID, feed.Title, content); n > 0 {
+				log.Printf("Added %d new posts from feed: %s", n, feed.URL)
+			}
 		}
 
 		// Prune old posts to prevent unbounded database growth
@@ -135,31 +137,6 @@ func (u *Updater) updateFeeds(ctx context.Context) error {
 
 	log.Printf("Feed update cycle completed")
 	return nil
-}
-
-// ingestContent updates the feed title if it changed and adds any new posts.
-func (u *Updater) ingestContent(feed db.Feed, content *FeedContent) {
-	// Update feed title if it has changed
-	if content.Title != feed.Title {
-		log.Printf("Updating feed title from '%s' to '%s'", feed.Title, content.Title)
-		if err := u.store.UpdateFeedTitle(feed.ID, content.Title); err != nil {
-			log.Printf("Error updating feed title: %v", err)
-		}
-	}
-
-	// Add new posts
-	newPostsCount := 0
-	for _, item := range content.Items {
-		if err := u.store.AddPost(feed.ID, item.GUID, item.Title, item.Link, item.PublishedAt, item.Content); err != nil {
-			log.Printf("Error adding post: %v", err)
-		} else {
-			newPostsCount++
-		}
-	}
-
-	if newPostsCount > 0 {
-		log.Printf("Added %d new posts from feed: %s", newPostsCount, feed.Title)
-	}
 }
 
 // shouldBackOff reports whether a feed should be skipped this cycle because it
