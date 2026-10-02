@@ -21,6 +21,9 @@ type FeedFetcher interface {
 // updater starts backing off before retrying a feed.
 const backoffThreshold = 5
 
+// fetchConcurrency is the number of feeds fetched in parallel per cycle.
+const fetchConcurrency = 4
+
 // maxBackoff caps the exponential backoff window applied to failing feeds.
 const maxBackoff = 24 * time.Hour
 
@@ -91,11 +94,26 @@ func (u *Updater) updateFeeds(ctx context.Context) error {
 
 	slog.Info("Found feeds to update", "count", len(feeds))
 
+	// Fetch up to fetchConcurrency feeds at a time so that a few slow or
+	// timing-out feeds do not hold up the whole cycle.
+	sem := make(chan struct{}, fetchConcurrency)
+	var wg sync.WaitGroup
 	for _, feed := range feeds {
-		if err := ctx.Err(); err != nil {
-			return err
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
 		}
-		u.updateFeed(ctx, feed, time.Now())
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Go(func() {
+			defer func() { <-sem }()
+			u.updateFeed(ctx, feed, time.Now())
+		})
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	slog.Info("Feed update cycle completed")

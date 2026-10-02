@@ -409,3 +409,55 @@ func TestUpdateFeeds_SendsValidatorsAndStoresCacheInfo(t *testing.T) {
 	assert.Equal(t, "Thu, 22 Oct 2015 07:28:00 GMT", feeds[0].LastModified)
 	assert.True(t, feeds[0].CacheUntil.Equal(cacheUntil), "cache_until should be stored, got %v", feeds[0].CacheUntil)
 }
+
+// concurrencyFetcher records how many fetches run at the same time.
+type concurrencyFetcher struct {
+	active atomic.Int32
+	max    atomic.Int32
+	calls  atomic.Int32
+}
+
+func (c *concurrencyFetcher) FetchFeed(ctx context.Context, _ string, _ Validators) (*FetchResult, error) {
+	c.calls.Add(1)
+	n := c.active.Add(1)
+	defer c.active.Add(-1)
+	for {
+		m := c.max.Load()
+		if n <= m || c.max.CompareAndSwap(m, n) {
+			break
+		}
+	}
+	select {
+	case <-time.After(50 * time.Millisecond):
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return &FetchResult{}, nil
+}
+
+func TestUpdateFeeds_FetchesInParallelWithLimit(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+
+	userID, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	const feedCount = 3 * fetchConcurrency
+	for i := 0; i < feedCount; i++ {
+		_, err := store.AddFeedForUser(userID, "https://example.com/feed-"+string(rune('a'+i))+".xml")
+		require.NoError(t, err)
+	}
+
+	fetcher := &concurrencyFetcher{}
+	updater := NewUpdaterWithFetcher(store, 30*time.Minute, 100, fetcher)
+	require.NoError(t, updater.updateFeeds(context.Background()))
+
+	assert.Equal(t, int32(feedCount), fetcher.calls.Load(), "every feed is fetched")
+	assert.Greater(t, fetcher.max.Load(), int32(1), "feeds are fetched in parallel")
+	assert.LessOrEqual(t, fetcher.max.Load(), int32(fetchConcurrency), "parallelism is bounded")
+
+	feeds, err := store.GetAllFeeds()
+	require.NoError(t, err)
+	for _, f := range feeds {
+		assert.False(t, f.LastSuccessAt.IsZero(), "feed %s must have been recorded", f.URL)
+	}
+}
