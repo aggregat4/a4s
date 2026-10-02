@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +16,8 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
 	var configPath string
 	flag.StringVar(&configPath, "config", "", "Path to configuration file (default: ~/.config/rssgrid/rssgrid.json)")
 	flag.Parse()
@@ -30,16 +32,16 @@ func main() {
 	}
 
 	if err != nil {
-		log.Fatalf("Error loading configuration: %v", err)
+		fatal("Error loading configuration", err)
 	}
 
 	store, err := db.NewStore(cfg.DBPath)
 	if err != nil {
-		log.Fatalf("Error initializing database: %v", err)
+		fatal("Error initializing database", err)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("Invalid configuration: %v", err)
+		fatal("Invalid configuration", err)
 	}
 
 	oidcConfig := baseliboidc.CreateOidcConfiguration(
@@ -51,7 +53,7 @@ func main() {
 
 	srv, err := server.NewServer(store, oidcConfig, cfg.SessionKey, cfg.SecureCookies)
 	if err != nil {
-		log.Fatalf("Error initializing server: %v", err)
+		fatal("Error initializing server", err)
 	}
 
 	updater := feed.NewUpdater(store, cfg.UpdateInterval, cfg.MaxPostsPerFeed)
@@ -67,7 +69,7 @@ func main() {
 
 	go func() {
 		<-sigChan
-		log.Println("Shutting down...")
+		slog.Info("Shutting down")
 		cancel()
 	}()
 
@@ -76,10 +78,16 @@ func main() {
 	// Wait for an in-flight feed update to finish before closing the store.
 	updater.Stop()
 	if err := store.Close(); err != nil {
-		log.Printf("Error closing database: %v", err)
+		slog.Error("Error closing database", "err", err)
 	}
 
 	if serverErr != nil {
-		log.Fatalf("Error starting server: %v", serverErr)
+		fatal("Error running server", serverErr)
 	}
+}
+
+// fatal logs an error and exits with a non-zero status.
+func fatal(msg string, err error) {
+	slog.Error(msg, "err", err)
+	os.Exit(1)
 }

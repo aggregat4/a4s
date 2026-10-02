@@ -1,7 +1,7 @@
 package feed
 
 import (
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -22,7 +22,7 @@ func IngestContent(store ContentStore, feedID int64, currentTitle string, conten
 
 	if content.Title != "" && content.Title != currentTitle {
 		if err := store.UpdateFeedTitle(feedID, content.Title); err != nil {
-			log.Printf("Error updating title of feed %d: %v", feedID, err)
+			slog.Error("Error updating feed title", "feedId", feedID, "err", err)
 		}
 	}
 
@@ -30,7 +30,7 @@ func IngestContent(store ContentStore, feedID int64, currentTitle string, conten
 	for _, item := range content.Items {
 		inserted, err := store.InsertPost(feedID, item.GUID, item.Title, item.Link, item.PublishedAt, item.Content)
 		if err != nil {
-			log.Printf("Error adding post %q to feed %d: %v", item.GUID, feedID, err)
+			slog.Error("Error adding post", "feedId", feedID, "guid", item.GUID, "err", err)
 			continue
 		}
 		if inserted {

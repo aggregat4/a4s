@@ -3,7 +3,7 @@ package feed
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"math"
 	"sync"
 	"time"
@@ -60,7 +60,7 @@ func (u *Updater) Start(ctx context.Context) {
 		defer ticker.Stop()
 		for {
 			if err := u.updateFeeds(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				log.Printf("Error updating feeds: %v", err)
+				slog.Error("Error updating feeds", "err", err)
 			}
 			select {
 			case <-ticker.C:
@@ -82,14 +82,14 @@ func (u *Updater) Stop() {
 }
 
 func (u *Updater) updateFeeds(ctx context.Context) error {
-	log.Printf("Starting feed update cycle")
+	slog.Info("Starting feed update cycle")
 
 	feeds, err := u.store.GetAllFeeds()
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Found %d feeds to update", len(feeds))
+	slog.Info("Found feeds to update", "count", len(feeds))
 
 	for _, feed := range feeds {
 		if err := ctx.Err(); err != nil {
@@ -98,24 +98,24 @@ func (u *Updater) updateFeeds(ctx context.Context) error {
 		u.updateFeed(ctx, feed, time.Now())
 	}
 
-	log.Printf("Feed update cycle completed")
+	slog.Info("Feed update cycle completed")
 	return nil
 }
 
 // updateFeed fetches a single feed if it is due and records the outcome.
 func (u *Updater) updateFeed(ctx context.Context, feed db.Feed, now time.Time) {
 	if shouldBackOff(feed, now, u.interval) {
-		log.Printf("Skipping feed %s (%s): backing off after %d consecutive failures",
-			feed.Title, feed.URL, feed.ConsecutiveFailures)
+		slog.Info("Skipping feed: backing off after consecutive failures",
+			"url", feed.URL, "failures", feed.ConsecutiveFailures)
 		return
 	}
 	if cacheFresh(feed, now) {
 		// Not fetched at all, so neither success nor last-fetched is recorded.
-		log.Printf("Skipping feed %s (%s): cached until %s", feed.Title, feed.URL, feed.CacheUntil.Format(time.RFC3339))
+		slog.Debug("Skipping feed: cache still fresh", "url", feed.URL, "cacheUntil", feed.CacheUntil)
 		return
 	}
 
-	log.Printf("Updating feed: %s (%s)", feed.Title, feed.URL)
+	slog.Debug("Updating feed", "url", feed.URL)
 
 	result, err := u.fetcher.FetchFeed(ctx, feed.URL, Validators{ETag: feed.ETag, LastModified: feed.LastModified})
 	if err != nil {
@@ -123,9 +123,9 @@ func (u *Updater) updateFeed(ctx context.Context, feed db.Feed, now time.Time) {
 			// Shutting down; the feed itself is not at fault.
 			return
 		}
-		log.Printf("Error fetching feed %s: %v", feed.URL, err)
+		slog.Warn("Error fetching feed", "url", feed.URL, "err", err)
 		if recordErr := u.store.RecordFeedFailure(feed.ID, err, time.Now()); recordErr != nil {
-			log.Printf("Error recording feed failure for %s: %v", feed.URL, recordErr)
+			slog.Error("Error recording feed failure", "url", feed.URL, "err", recordErr)
 		}
 		return
 	}
@@ -134,31 +134,31 @@ func (u *Updater) updateFeed(ctx context.Context, feed db.Feed, now time.Time) {
 	// state and records the success time.
 	fetchedAt := time.Now()
 	if recordErr := u.store.RecordFeedSuccess(feed.ID, fetchedAt); recordErr != nil {
-		log.Printf("Error recording feed success for %s: %v", feed.URL, recordErr)
+		slog.Error("Error recording feed success", "url", feed.URL, "err", recordErr)
 	}
 	if err := u.store.UpdateFeedLastFetched(feed.ID, fetchedAt); err != nil {
-		log.Printf("Error updating feed last fetched: %v", err)
+		slog.Error("Error updating feed last fetched", "url", feed.URL, "err", err)
 	}
 
 	if result.NotModified() {
-		log.Printf("Feed %s not modified", feed.URL)
+		slog.Debug("Feed not modified", "url", feed.URL)
 		return
 	}
 	content := result.Content
 
 	if err := u.store.UpdateFeedCacheInfo(feed.ID, result.Cache.ETag, result.Cache.LastModified, result.Cache.CacheUntil); err != nil {
-		log.Printf("Error updating cache info for feed %s: %v", feed.URL, err)
+		slog.Error("Error updating cache info", "url", feed.URL, "err", err)
 	}
 
 	if n := IngestContent(u.store, feed.ID, feed.Title, content); n > 0 {
-		log.Printf("Added %d new posts from feed: %s", n, feed.URL)
+		slog.Info("Added new posts", "url", feed.URL, "count", n)
 	}
 
 	// Prune old posts to prevent unbounded database growth. Items still in
 	// the feed document are kept so they are not re-inserted as unread on
 	// the next fetch.
 	if err := u.store.PruneFeedPosts(feed.ID, u.maxPostsPerFeed, content.GUIDs()...); err != nil {
-		log.Printf("Error pruning posts for feed %s: %v", feed.URL, err)
+		slog.Error("Error pruning posts", "url", feed.URL, "err", err)
 	}
 }
 

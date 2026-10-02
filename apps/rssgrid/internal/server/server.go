@@ -7,9 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"log"
+	"log/slog"
 	"net/http"
-	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -69,13 +68,13 @@ type FlashMessage struct {
 func (s *Server) addFlashMessage(w http.ResponseWriter, r *http.Request, message, flashType string) {
 	session, err := s.sessions.Get(r, "user_session")
 	if err != nil {
-		log.Printf("Error getting session for flash message: %v", err)
+		slog.Error("Error getting session for flash message", "err", err)
 		return
 	}
 
 	session.AddFlash(message, flashType)
 	if err := session.Save(r, w); err != nil {
-		log.Printf("Error saving session with flash message: %v\nStack trace:\n%s", err, debug.Stack())
+		slog.Error("Error saving session with flash message", "err", err)
 	}
 }
 
@@ -94,7 +93,7 @@ func (s *Server) getFlashMessages(w http.ResponseWriter, r *http.Request) []Flas
 	session, err := s.sessions.Get(r, "user_session")
 	var flashMessages []FlashMessage
 	if err != nil {
-		log.Printf("Error getting session for flash messages: %v", err)
+		slog.Error("Error getting session for flash messages", "err", err)
 		return flashMessages
 	}
 
@@ -112,7 +111,7 @@ func (s *Server) getFlashMessages(w http.ResponseWriter, r *http.Request) []Flas
 
 	// Save the session after consuming flash messages to remove them from the session
 	if err := session.Save(r, w); err != nil {
-		log.Printf("Error saving session: %v\nStack trace:\n%s", err, debug.Stack())
+		slog.Error("Error saving session", "err", err)
 	}
 
 	return flashMessages
@@ -130,7 +129,7 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, err := s.sessions.Get(r, "user_session")
 		if err != nil {
-			log.Printf("Error getting session: %v", err)
+			slog.Warn("Error getting session", "err", err)
 		}
 		var userID int64
 		if session != nil {
@@ -176,13 +175,13 @@ var requiredTemplates = []string{"dashboard.html", "settings.html", "post.html"}
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	var buf bytes.Buffer
 	if err := s.templates.ExecuteTemplate(&buf, name, data); err != nil {
-		log.Printf("Error rendering template %s: %v", name, err)
+		slog.Error("Error rendering template", "template", name, "err", err)
 		http.Error(w, "Error rendering page", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := buf.WriteTo(w); err != nil {
-		log.Printf("Error writing %s response: %v", name, err)
+		slog.Warn("Error writing response", "template", name, "err", err)
 	}
 }
 
@@ -202,7 +201,6 @@ func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, 
 
 	templates, err := templates.LoadTemplates()
 	if err != nil {
-		log.Printf("Error loading templates: %v\nStack trace:\n%s", err, debug.Stack())
 		return nil, fmt.Errorf("error loading templates: %w", err)
 	}
 
@@ -221,9 +219,10 @@ func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, 
 	}, nil
 }
 
-// logErrorAndRespond logs an error with stack trace and context, then sends an HTTP error response
-func (s *Server) logErrorAndRespond(w http.ResponseWriter, statusCode int, userMessage, logMessage string, err error, context ...interface{}) {
-	log.Printf("%s: %v\nContext: %v\nStack trace:\n%s", logMessage, err, context, debug.Stack())
+// logErrorAndRespond logs an error with additional key/value attributes, then
+// sends an HTTP error response
+func (s *Server) logErrorAndRespond(w http.ResponseWriter, statusCode int, userMessage, logMessage string, err error, attrs ...any) {
+	slog.Error(logMessage, append([]any{"err", err, "status", statusCode}, attrs...)...)
 	http.Error(w, userMessage, statusCode)
 }
 
@@ -240,7 +239,7 @@ func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	if _, err := w.Write(templates.Favicon()); err != nil {
-		log.Printf("Error writing favicon: %v", err)
+		slog.Warn("Error writing favicon", "err", err)
 	}
 }
 
@@ -249,7 +248,7 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 		func(r *http.Request) bool {
 			session, err := s.sessions.Get(r, "user_session")
 			if err != nil {
-				log.Printf("Error getting session in auth middleware: %v\nStack trace:\n%s", err, debug.Stack())
+				slog.Warn("Error getting session in auth middleware", "err", err)
 				return false
 			}
 			return session.Values["user_id"] != nil
@@ -264,8 +263,8 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 			func(w http.ResponseWriter, r *http.Request, idToken *oidc.IDToken) error {
 				userId, err := s.store.GetOrCreateUser(idToken.Subject, idToken.Issuer)
 				if err != nil {
-					log.Printf("Error getting or creating user for subject %s, issuer %s: %v\nStack trace:\n%s",
-						idToken.Subject, idToken.Issuer, err, debug.Stack())
+					slog.Error("Error getting or creating user",
+						"subject", idToken.Subject, "issuer", idToken.Issuer, "err", err)
 					return fmt.Errorf("error getting or creating user: %w", err)
 				}
 				session, err := s.sessions.Get(r, "user_session")
@@ -274,14 +273,14 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 					// rotation) must not fail the login. gorilla returns a
 					// fresh session in that case, which we populate and save
 					// to replace the invalid cookie.
-					log.Printf("Discarding invalid session for user %d: %v", userId, err)
+					slog.Info("Discarding invalid session", "userId", userId, "err", err)
 					if session == nil {
 						return fmt.Errorf("error getting session: %w", err)
 					}
 				}
 				session.Values["user_id"] = userId
 				if err := session.Save(r, w); err != nil {
-					log.Printf("Error saving session for user %d: %v\nStack trace:\n%s", userId, err, debug.Stack())
+					slog.Error("Error saving session", "userId", userId, "err", err)
 					return fmt.Errorf("error saving session: %w", err)
 				}
 				return nil
@@ -326,30 +325,30 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 		Handler: r,
 	}
 
-	log.Printf("Starting server on %s", addr)
+	slog.Info("Starting server", "addr", addr)
 
 	// Start server in a goroutine
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
+			slog.Error("HTTP server error", "err", err)
 		}
 	}()
 
 	// Wait for context cancellation
 	<-ctx.Done()
 
-	log.Printf("Shutting down HTTP server...")
+	slog.Info("Shutting down HTTP server")
 
 	// Create a context with timeout for graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Error during server shutdown: %v", err)
+		slog.Error("Error during server shutdown", "err", err)
 		return err
 	}
 
-	log.Printf("HTTP server shutdown complete")
+	slog.Info("HTTP server shutdown complete")
 	return nil
 }
 
@@ -477,7 +476,7 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 	// initial posts and cache information.
 	result, err := s.fetcher.FetchFeed(r.Context(), url, feed.Validators{})
 	if err != nil {
-		log.Printf("Error fetching feed from URL %s: %v", url, err)
+		slog.Warn("Error fetching feed to add", "url", url, "err", err)
 		s.addErrorFlash(w, r, "Invalid feed URL or unable to fetch feed")
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
@@ -485,7 +484,7 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 
 	feedId, err := s.store.AddFeedForUser(userId, url)
 	if err != nil {
-		log.Printf("Error adding feed with URL %s for user %d: %v", url, userId, err)
+		slog.Error("Error adding feed", "url", url, "userId", userId, "err", err)
 		s.addErrorFlash(w, r, "Error adding feed. Please try again.")
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
@@ -493,7 +492,7 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 
 	if !result.NotModified() {
 		if err := s.store.UpdateFeedCacheInfo(feedId, result.Cache.ETag, result.Cache.LastModified, result.Cache.CacheUntil); err != nil {
-			log.Printf("Error storing cache info for feed %d: %v", feedId, err)
+			slog.Error("Error storing cache info", "feedId", feedId, "err", err)
 		}
 		feed.IngestContent(s.store, feedId, "", result.Content)
 	}
