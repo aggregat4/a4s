@@ -149,8 +149,10 @@ func (u *Updater) updateFeed(ctx context.Context, feed db.Feed, now time.Time) {
 		log.Printf("Added %d new posts from feed: %s", n, feed.URL)
 	}
 
-	// Prune old posts to prevent unbounded database growth
-	if err := u.store.PruneFeedPosts(feed.ID, u.maxPostsPerFeed); err != nil {
+	// Prune old posts to prevent unbounded database growth. Items still in
+	// the feed document are kept so they are not re-inserted as unread on
+	// the next fetch.
+	if err := u.store.PruneFeedPosts(feed.ID, u.maxPostsPerFeed, content.GUIDs()...); err != nil {
 		log.Printf("Error pruning posts for feed %s: %v", feed.URL, err)
 	}
 }

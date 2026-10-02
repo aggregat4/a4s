@@ -319,3 +319,65 @@ func TestUpdateFeeds_FetchesWhenCacheExpired(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, feeds[0].LastFetchedAt.IsZero())
 }
+
+// When a feed document carries more items than maxPostsPerFeed, the items
+// still present in the feed must not be pruned, otherwise they come back as
+// new unread posts on every cycle.
+func TestUpdateFeeds_PruningDoesNotResurrectPostsAsUnread(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+
+	userID, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	feedID, err := store.AddFeedForUser(userID, "https://example.com/feed.xml")
+	require.NoError(t, err)
+
+	base := time.Now().Add(-24 * time.Hour)
+	content := &FeedContent{Title: "Big Feed"}
+	for i := 0; i < 5; i++ {
+		content.Items = append(content.Items, FeedItem{
+			GUID:        string(rune('a' + i)),
+			Title:       "Post",
+			Link:        "https://example.com/p",
+			PublishedAt: base.Add(time.Duration(i) * time.Hour),
+		})
+	}
+
+	updater := NewUpdaterWithFetcher(store, 30*time.Minute, 2, &stubFetcher{content: content})
+	require.NoError(t, updater.updateFeeds(context.Background()))
+	require.NoError(t, store.MarkAllFeedPostsAsSeenForUser(userID, feedID))
+
+	require.NoError(t, updater.updateFeeds(context.Background()))
+
+	posts, err := store.GetFeedPosts(feedID, userID, 100)
+	require.NoError(t, err)
+	assert.Len(t, posts, 5, "items still in the feed must be kept")
+	for _, p := range posts {
+		assert.True(t, p.Seen, "post %d must stay seen", p.ID)
+	}
+}
+
+func TestUpdateFeeds_PrunesItemsNoLongerInFeed(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+
+	userID, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	feedID, err := store.AddFeedForUser(userID, "https://example.com/feed.xml")
+	require.NoError(t, err)
+
+	base := time.Now().Add(-24 * time.Hour)
+	for i := 0; i < 5; i++ {
+		require.NoError(t, store.AddPost(feedID, "old-"+string(rune('a'+i)), "Old", "https://example.com/o", base.Add(time.Duration(i)*time.Minute), ""))
+	}
+	content := &FeedContent{Items: []FeedItem{
+		{GUID: "new", Title: "New", Link: "https://example.com/n", PublishedAt: time.Now()},
+	}}
+
+	updater := NewUpdaterWithFetcher(store, 30*time.Minute, 2, &stubFetcher{content: content})
+	require.NoError(t, updater.updateFeeds(context.Background()))
+
+	posts, err := store.GetFeedPosts(feedID, userID, 100)
+	require.NoError(t, err)
+	assert.Len(t, posts, 2)
+}

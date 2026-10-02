@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -487,17 +488,29 @@ func (store *Store) InsertPost(feedId int64, guid, title, link string, published
 	return n > 0, nil
 }
 
-// PruneFeedPosts deletes old posts for a feed, keeping only the most recent `keep` posts.
-func (store *Store) PruneFeedPosts(feedId int64, keep int) error {
-	_, err := store.db.Exec(`
+// PruneFeedPosts deletes old posts for a feed, keeping only the most recent
+// `keep` posts by published date. Posts whose GUID is listed in keepGUIDs are
+// never deleted: these are the items still present in the feed document, and
+// deleting them would cause them to be re-inserted (as unread) on the next
+// fetch.
+func (store *Store) PruneFeedPosts(feedId int64, keep int, keepGUIDs ...string) error {
+	if keepGUIDs == nil {
+		keepGUIDs = []string{}
+	}
+	protected, err := json.Marshal(keepGUIDs)
+	if err != nil {
+		return fmt.Errorf("error encoding protected guids: %w", err)
+	}
+	_, err = store.db.Exec(`
 		DELETE FROM posts
 		WHERE id IN (
 			SELECT id FROM posts
 			WHERE feed_id = ?
-			ORDER BY published_at DESC
+			ORDER BY published_at DESC, id DESC
 			LIMIT -1 OFFSET ?
 		)
-	`, feedId, keep)
+		AND guid NOT IN (SELECT value FROM json_each(?))
+	`, feedId, keep, string(protected))
 	if err != nil {
 		return fmt.Errorf("error pruning feed posts: %w", err)
 	}

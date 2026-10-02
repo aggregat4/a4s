@@ -139,3 +139,32 @@ func TestInsertPostReportsWhetherNew(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, inserted)
 }
+
+func TestPruneFeedPostsKeepsProtectedGUIDs(t *testing.T) {
+	store, err := NewStore(tempDBPath(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+
+	userID, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+	feedID, err := store.AddFeedForUser(userID, "https://example.com/feed.xml")
+	require.NoError(t, err)
+
+	base := time.Now()
+	for i, guid := range []string{"oldest", "older", "newer", "newest"} {
+		require.NoError(t, store.AddPost(feedID, guid, guid, "https://example.com/"+guid, base.Add(time.Duration(i)*time.Hour), ""))
+	}
+
+	require.NoError(t, store.PruneFeedPosts(feedID, 2, "oldest"))
+
+	rows, err := store.db.Query("SELECT guid FROM posts WHERE feed_id = ? ORDER BY guid", feedID)
+	require.NoError(t, err)
+	defer rows.Close()
+	var guids []string
+	for rows.Next() {
+		var g string
+		require.NoError(t, rows.Scan(&g))
+		guids = append(guids, g)
+	}
+	assert.Equal(t, []string{"newer", "newest", "oldest"}, guids)
+}

@@ -39,3 +39,15 @@ func IngestContent(store ContentStore, feedID int64, currentTitle string, conten
 	}
 	return newPosts
 }
+
+// GUIDs returns the GUIDs of all items in the content.
+func (c *FeedContent) GUIDs() []string {
+	if c == nil {
+		return nil
+	}
+	guids := make([]string, 0, len(c.Items))
+	for _, item := range c.Items {
+		guids = append(guids, item.GUID)
+	}
+	return guids
+}
