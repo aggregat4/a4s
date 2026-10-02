@@ -24,7 +24,7 @@
                             <li class="post-item">
                                 <a href="/posts/{{.ID}}" class="post-link{{if .Seen}} seen{{end}}">{{.Title}}</a>
                                 {{if not .PublishedAt.IsZero}}
-                                <div class="post-date">{{.PublishedAt.Format "January 2, 2006 at 3:04 PM"}}</div>
+                                <time class="post-date" datetime="{{datetime .PublishedAt}}" title="{{longdate .PublishedAt}}">{{reltime .PublishedAt}}</time>
                                 {{end}}
                             </li>
                             {{end}}

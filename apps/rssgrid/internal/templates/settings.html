@@ -56,7 +56,8 @@
                                 <span>Failing: {{$feed.LastError}} ({{$feed.ConsecutiveFailures}}x)</span>
                             </div>
                             {{end}}
-                            <div class="feed-last-fetched">Last fetched: {{reltime (orTime $feed.LastSuccessAt $feed.LastFetchedAt)}}</div>
+                            {{$fetched := orTime $feed.LastSuccessAt $feed.LastFetchedAt}}
+                            <div class="feed-last-fetched">Last fetched: {{if $fetched.IsZero}}never{{else}}<time datetime="{{datetime $fetched}}" title="{{longdate $fetched}}">{{reltime $fetched}}</time>{{end}}</div>
                         </div>
                         <div class="feed-actions">
                             <div class="feed-reorder-buttons">

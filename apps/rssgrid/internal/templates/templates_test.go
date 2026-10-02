@@ -358,3 +358,41 @@ func TestDashboardPostTitlesAreLinks(t *testing.T) {
 		t.Error("post links must not use href=\"#\"")
 	}
 }
+
+func TestDashboardDatesUseTimeElements(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("Failed to load templates: %v", err)
+	}
+	published := time.Now().Add(-3 * time.Hour).Truncate(time.Second)
+	type post struct {
+		ID          int64
+		Title       string
+		PublishedAt time.Time
+		Seen        bool
+	}
+	type feedData struct {
+		Feed struct {
+			ID                  int64
+			Title, URL          string
+			ConsecutiveFailures int
+			LastError           string
+		}
+		Posts []post
+	}
+	fd := feedData{Posts: []post{{ID: 1, Title: "One", PublishedAt: published}}}
+	data := struct {
+		Columns     [][]feedData
+		ColumnCount int
+	}{[][]feedData{{fd}}, 1}
+
+	var buf bytes.Buffer
+	if err := tmpl.Lookup("dashboard.html").Execute(&buf, data); err != nil {
+		t.Fatalf("Failed to execute dashboard template: %v", err)
+	}
+	want := `<time class="post-date" datetime="` + published.Format(time.RFC3339) +
+		`" title="` + published.Format("January 2, 2006 at 3:04 PM") + `">3 hours ago</time>`
+	if out := buf.String(); !contains(out, want) {
+		t.Errorf("expected %s in dashboard output, got:\n%s", want, out)
+	}
+}

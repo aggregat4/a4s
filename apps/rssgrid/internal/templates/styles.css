@@ -132,6 +132,7 @@ body {
     margin-bottom: 0.5rem;
 
     .post-date {
+        display: block;
         margin-top: 0.125rem;
         margin-bottom: 0.25rem;
         font-style: italic;

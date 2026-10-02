@@ -10,7 +10,7 @@
                 <h1 class="post-title">{{.Post.Title}}</h1>
                 <div class="post-meta">
                     {{if not .Post.PublishedAt.IsZero}}
-                    <span class="post-date">{{.Post.PublishedAt.Format "January 2, 2006 at 3:04 PM"}}</span>
+                    <time class="post-date" datetime="{{datetime .Post.PublishedAt}}">{{longdate .Post.PublishedAt}}</time>
                     {{end}}
                 </div>
             </div>
