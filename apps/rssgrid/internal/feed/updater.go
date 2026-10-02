@@ -2,8 +2,10 @@ package feed
 
 import (
 	"context"
+	"errors"
 	"log"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/aggregat4/a4s/apps/rssgrid/internal/db"
@@ -26,56 +28,57 @@ type Updater struct {
 	store           *db.Store
 	fetcher         FeedFetcher
 	interval        time.Duration
-	ticker          *time.Ticker
-	done            chan bool
 	maxPostsPerFeed int
+
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 func NewUpdater(store *db.Store, interval time.Duration, maxPostsPerFeed int) *Updater {
-	return &Updater{
-		store:           store,
-		fetcher:         NewFetcher(store),
-		interval:        interval,
-		ticker:          time.NewTicker(interval),
-		done:            make(chan bool),
-		maxPostsPerFeed: maxPostsPerFeed,
-	}
+	return NewUpdaterWithFetcher(store, interval, maxPostsPerFeed, NewFetcher(store))
 }
 
 // NewUpdaterWithFetcher constructs an Updater that uses the given fetcher,
-// primarily for tests. The ticker is not started by this constructor.
+// primarily for tests. Nothing runs until Start is called.
 func NewUpdaterWithFetcher(store *db.Store, interval time.Duration, maxPostsPerFeed int, fetcher FeedFetcher) *Updater {
 	return &Updater{
 		store:           store,
 		fetcher:         fetcher,
 		interval:        interval,
-		ticker:          time.NewTicker(interval),
-		done:            make(chan bool),
 		maxPostsPerFeed: maxPostsPerFeed,
 	}
 }
 
+// Start runs an update cycle immediately and then once per interval until ctx
+// is cancelled or Stop is called.
 func (u *Updater) Start(ctx context.Context) {
+	ctx, u.cancel = context.WithCancel(ctx)
+	u.wg.Add(1)
 	go func() {
+		defer u.wg.Done()
+		ticker := time.NewTicker(u.interval)
+		defer ticker.Stop()
 		for {
+			if err := u.updateFeeds(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Printf("Error updating feeds: %v", err)
+			}
 			select {
-			case <-u.ticker.C:
-				if err := u.updateFeeds(ctx); err != nil {
-					log.Printf("Error updating feeds: %v", err)
-				}
-			case <-u.done:
-				u.ticker.Stop()
-				return
+			case <-ticker.C:
 			case <-ctx.Done():
-				u.ticker.Stop()
 				return
 			}
 		}
 	}()
 }
 
+// Stop cancels the updater and waits for an in-flight update cycle to finish,
+// so the store can be closed safely afterwards. It is safe to call more than
+// once and after the parent context has been cancelled.
 func (u *Updater) Stop() {
-	u.done <- true
+	if u.cancel != nil {
+		u.cancel()
+	}
+	u.wg.Wait()
 }
 
 func (u *Updater) updateFeeds(ctx context.Context) error {
@@ -91,6 +94,9 @@ func (u *Updater) updateFeeds(ctx context.Context) error {
 
 	now := time.Now()
 	for _, feed := range feeds {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if shouldBackOff(feed, now, u.interval) {
 			log.Printf("Skipping feed %s (%s): backing off after %d consecutive failures",
 				feed.Title, feed.URL, feed.ConsecutiveFailures)
@@ -102,6 +108,10 @@ func (u *Updater) updateFeeds(ctx context.Context) error {
 		// Fetch and parse feed with cache awareness
 		content, err := u.fetcher.FetchFeed(ctx, feed.URL)
 		if err != nil {
+			if ctx.Err() != nil {
+				// Shutting down; the feed itself is not at fault.
+				return ctx.Err()
+			}
 			log.Printf("Error fetching feed %s: %v", feed.URL, err)
 			if recordErr := u.store.RecordFeedFailure(feed.ID, err, time.Now()); recordErr != nil {
 				log.Printf("Error recording feed failure for %s: %v", feed.URL, recordErr)

@@ -69,10 +69,17 @@ func main() {
 		<-sigChan
 		log.Println("Shutting down...")
 		cancel()
-		updater.Stop()
 	}()
 
-	if err := srv.StartWithContext(ctx, cfg.Addr); err != nil {
-		log.Fatalf("Error starting server: %v", err)
+	serverErr := srv.StartWithContext(ctx, cfg.Addr)
+
+	// Wait for an in-flight feed update to finish before closing the store.
+	updater.Stop()
+	if err := store.Close(); err != nil {
+		log.Printf("Error closing database: %v", err)
+	}
+
+	if serverErr != nil {
+		log.Fatalf("Error starting server: %v", serverErr)
 	}
 }

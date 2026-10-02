@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -64,11 +65,11 @@ func TestShouldBackOff(t *testing.T) {
 type stubFetcher struct {
 	content *FeedContent
 	err     error
-	calls   int
+	calls   atomic.Int32
 }
 
 func (s *stubFetcher) FetchFeed(_ context.Context, _ string) (*FeedContent, error) {
-	s.calls++
+	s.calls.Add(1)
 	return s.content, s.err
 }
 
@@ -191,7 +192,7 @@ func TestUpdateFeeds_SkipsFeedUnderBackoff(t *testing.T) {
 
 	require.NoError(t, updater.updateFeeds(context.Background()))
 
-	assert.Equal(t, 0, stub.calls, "fetcher must not be called for a feed under backoff")
+	assert.Equal(t, int32(0), stub.calls.Load(), "fetcher must not be called for a feed under backoff")
 
 	// Failure state is unchanged by the skipped cycle.
 	feeds, err = store.GetAllFeeds()
@@ -238,4 +239,50 @@ func TestIngestContent_CountsOnlyNewPosts(t *testing.T) {
 	assert.Equal(t, 2, IngestContent(store, f.ID, f.Title, content))
 	assert.Equal(t, 0, IngestContent(store, f.ID, f.Title, content))
 	assert.Equal(t, 0, IngestContent(store, f.ID, f.Title, nil))
+}
+
+func TestUpdater_StartRunsImmediatelyAndStopWaits(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+	addTestFeed(t, store)
+
+	stub := &stubFetcher{content: nil}
+	updater := NewUpdaterWithFetcher(store, time.Hour, 100, stub)
+	updater.Start(context.Background())
+
+	require.Eventually(t, func() bool { return stub.calls.Load() > 0 }, 5*time.Second, 10*time.Millisecond,
+		"the first update cycle must run at startup, not after one interval")
+
+	done := make(chan struct{})
+	go func() {
+		updater.Stop()
+		updater.Stop() // idempotent
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not return")
+	}
+}
+
+func TestUpdater_StopAfterParentContextCancelled(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+
+	updater := NewUpdaterWithFetcher(store, time.Hour, 100, &stubFetcher{})
+	ctx, cancel := context.WithCancel(context.Background())
+	updater.Start(ctx)
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		updater.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop blocked after the parent context was cancelled")
+	}
 }
