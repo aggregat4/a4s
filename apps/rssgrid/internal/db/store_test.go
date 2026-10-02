@@ -211,7 +211,7 @@ func TestUserPreferences(t *testing.T) {
 
 	// Test 2: Set custom posts per feed
 	customPostsPerFeed := 15
-	err = store.SetUserPostsPerFeed(userID, customPostsPerFeed)
+	err = store.SetUserPreferences(userID, customPostsPerFeed, 2)
 	if err != nil {
 		t.Fatalf("Failed to set posts per feed: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestUserPreferences(t *testing.T) {
 
 	// Test 4: Update the setting
 	newPostsPerFeed := 25
-	err = store.SetUserPostsPerFeed(userID, newPostsPerFeed)
+	err = store.SetUserPreferences(userID, newPostsPerFeed, 2)
 	if err != nil {
 		t.Fatalf("Failed to update posts per feed: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestUserPreferences(t *testing.T) {
 	}
 
 	// Test 7: Set different preference for second user
-	err = store.SetUserPostsPerFeed(user2ID, 5)
+	err = store.SetUserPreferences(user2ID, 5, 2)
 	if err != nil {
 		t.Fatalf("Failed to set posts per feed for second user: %v", err)
 	}

@@ -36,7 +36,6 @@ type StoreInterface interface {
 	GetFeedPosts(feedID, userID int64, limit int) ([]db.Post, error)
 	GetPostForUser(userID, postID int64) (*db.Post, error)
 	GetOrCreateUser(subject, issuer string) (int64, error)
-	AddFeed(url string) (int64, error)
 	AddFeedForUser(userID int64, url string) (int64, error)
 	UpdateFeedTitle(feedID int64, title string) error
 	InsertPost(feedID int64, guid, title, link string, publishedAt time.Time, content string) (bool, error)
@@ -213,10 +212,6 @@ func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(templates.Favicon()); err != nil {
 		log.Printf("Error writing favicon: %v", err)
 	}
-}
-
-func (s *Server) Start(addr string) error {
-	return s.StartWithContext(context.Background(), addr)
 }
 
 func (s *Server) StartWithContext(ctx context.Context, addr string) error {

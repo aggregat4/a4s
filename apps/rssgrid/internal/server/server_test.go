@@ -189,10 +189,6 @@ func (m *mockStore) GetOrCreateUser(subject, issuer string) (int64, error) {
 	return 1, nil
 }
 
-func (m *mockStore) AddFeed(url string) (int64, error) {
-	return 1, nil
-}
-
 func (m *mockStore) UpdateFeedTitle(feedID int64, title string) error {
 	return nil
 }

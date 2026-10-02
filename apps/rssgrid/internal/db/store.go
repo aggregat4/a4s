@@ -323,17 +323,6 @@ func (store *Store) GetOrCreateUser(oidcSubject, oidcIssuer string) (int64, erro
 	return userId, nil
 }
 
-func (store *Store) AddFeed(url string) (int64, error) {
-	result, err := store.db.Exec(
-		"INSERT INTO feeds (url) VALUES (?)",
-		url,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("error adding feed: %w", err)
-	}
-	return result.LastInsertId()
-}
-
 // AddFeedForUser adds a feed for a specific user, handling duplicates gracefully
 func (store *Store) AddFeedForUser(userId int64, url string) (int64, error) {
 	// Start a transaction
@@ -772,19 +761,6 @@ func (store *Store) GetUserPostsPerFeed(userId int64) (int, error) {
 	return postsPerFeed, nil
 }
 
-// SetUserPostsPerFeed sets the number of posts per feed for a user
-func (store *Store) SetUserPostsPerFeed(userId int64, postsPerFeed int) error {
-	_, err := store.db.Exec(`
-		INSERT INTO user_preferences (user_id, posts_per_feed) 
-		VALUES (?, ?) 
-		ON CONFLICT(user_id) DO UPDATE SET posts_per_feed = ?
-	`, userId, postsPerFeed, postsPerFeed)
-	if err != nil {
-		return fmt.Errorf("error setting user posts per feed preference: %w", err)
-	}
-	return nil
-}
-
 // SetUserPreferences stores both display preferences for a user in a single
 // statement.
 func (store *Store) SetUserPreferences(userId int64, postsPerFeed, columns int) error {
@@ -837,17 +813,4 @@ func (store *Store) GetUserColumns(userId int64) (int, error) {
 	}
 
 	return columns, nil
-}
-
-// SetUserColumns sets the number of columns for a user
-func (store *Store) SetUserColumns(userId int64, columns int) error {
-	_, err := store.db.Exec(`
-		INSERT INTO user_preferences (user_id, columns) 
-		VALUES (?, ?) 
-		ON CONFLICT(user_id) DO UPDATE SET columns = ?
-	`, userId, columns, columns)
-	if err != nil {
-		return fmt.Errorf("error setting user columns preference: %w", err)
-	}
-	return nil
 }
