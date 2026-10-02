@@ -10,6 +10,15 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Changed
+
+- Feeds are fetched in parallel (up to four at a time) during an update
+  cycle, so slow or unreachable feeds no longer delay the others.
+- The dashboard loads the posts of all feeds in a single query, and posts are
+  indexed by feed and publication date.
+- Logs are written with `log/slog` as key/value text lines without stack
+  traces. Per-feed update progress is logged at debug level.
+
 ### Removed
 
 - The logout button and `POST /logout` route. Logging out only cleared the
@@ -34,3 +43,7 @@ Release notes for a tag are taken from the matching version section, so the
 - Moving a feed up or down past the first or last position is now a no-op
   instead of an internal server error, and moving a feed that is not in the
   user's list returns 404.
+- A template error no longer sends a partial page with a 200 status; the
+  page is rendered completely before it is written.
+- Two simultaneous first logins of the same user no longer fail on a
+  duplicate user row.
