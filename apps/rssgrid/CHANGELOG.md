@@ -16,6 +16,9 @@ Release notes for a tag are taken from the matching version section, so the
   cycle, so slow or unreachable feeds no longer delay the others.
 - The dashboard loads the posts of all feeds in a single query, and posts are
   indexed by feed and publication date.
+- Post titles on the dashboard are real links to the post page. A plain click
+  still opens the post in the dialog; middle and modified clicks open it in a
+  new tab, and the dashboard works without JavaScript.
 - A post is marked as read when it is opened, on the server, instead of by a
   separate request from the dashboard script. This also covers posts opened
   in a new tab. The `POST /posts/{id}/seen` endpoint is removed.

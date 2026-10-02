@@ -16,7 +16,7 @@
             </div>
             <div class="post-actions">
                 <a href="{{.Post.Link}}" target="_blank" class="btn btn-primary" title="View original post">View</a>
-                <button class="btn btn-secondary" onclick="window.parent.postMessage({type: 'closeDialog'}, '*')">Close</button>
+                <a href="/" class="btn btn-secondary" id="closePost">Close</a>
             </div>
         </div>
         <div class="post-content">
@@ -29,12 +29,20 @@
     </div>
 
     <script>
-        // Handle Escape key inside the iframe
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                window.parent.postMessage({type: 'closeDialog'}, '*');
-            }
-        });
+        // Inside the dashboard's dialog, closing hands control back to the
+        // dashboard. Opened on its own, Close is a link to the dashboard.
+        if (window.parent !== window) {
+            const close = () => window.parent.postMessage({ type: 'closeDialog' }, location.origin);
+            document.getElementById('closePost').addEventListener('click', (e) => {
+                e.preventDefault();
+                close();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    close();
+                }
+            });
+        }
     </script>
 </body>
 </html> 

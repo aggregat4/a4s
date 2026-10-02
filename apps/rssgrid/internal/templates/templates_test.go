@@ -316,3 +316,45 @@ func TestStylesheetColorsAreTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestDashboardPostTitlesAreLinks(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("Failed to load templates: %v", err)
+	}
+	type post struct {
+		ID          int64
+		Title       string
+		PublishedAt time.Time
+		Seen        bool
+	}
+	type feedData struct {
+		Feed struct {
+			ID                  int64
+			Title, URL          string
+			ConsecutiveFailures int
+			LastError           string
+		}
+		Posts []post
+	}
+	fd := feedData{Posts: []post{{ID: 7, Title: "Seven", Seen: true}, {ID: 8, Title: "Eight"}}}
+	fd.Feed.ID, fd.Feed.Title = 1, "Feed"
+	data := struct {
+		Columns     [][]feedData
+		ColumnCount int
+	}{[][]feedData{{fd}}, 1}
+
+	var buf bytes.Buffer
+	if err := tmpl.Lookup("dashboard.html").Execute(&buf, data); err != nil {
+		t.Fatalf("Failed to execute dashboard template: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{`<a href="/posts/7" class="post-link seen">Seven</a>`, `<a href="/posts/8" class="post-link">Eight</a>`} {
+		if !contains(out, want) {
+			t.Errorf("expected %q in dashboard output", want)
+		}
+	}
+	if contains(out, `href="#"`) {
+		t.Error("post links must not use href=\"#\"")
+	}
+}

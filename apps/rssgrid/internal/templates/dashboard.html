@@ -22,9 +22,7 @@
                         <ul class="post-list">
                             {{range .Posts}}
                             <li class="post-item">
-                                <a href="#" role="button" class="post-link {{if .Seen}}seen{{end}}" data-post-id="{{.ID}}" data-post-title="{{.Title}}">
-                                    {{.Title}}
-                                </a>
+                                <a href="/posts/{{.ID}}" class="post-link{{if .Seen}} seen{{end}}">{{.Title}}</a>
                                 {{if not .PublishedAt.IsZero}}
                                 <div class="post-date">{{.PublishedAt.Format "January 2, 2006 at 3:04 PM"}}</div>
                                 {{end}}
@@ -47,57 +45,44 @@
     </dialog>
 
     <script>
-        let lastOpenedPostButton = null;
+        // Progressive enhancement: post titles are links to the post page.
+        // A plain left click opens the post in the dialog instead; modified
+        // and middle clicks keep the browser's default (new tab or window).
+        const dialog = document.getElementById('postDialog');
+        const frame = document.getElementById('postIframe');
+        let openedLink = null;
 
-        // Mark post as seen when clicked
-        document.addEventListener('click', function(e) {
-            if (e.target.matches('.post-link')) {
-                e.preventDefault(); // Prevent navigation since href="#"
-                
-                const postId = e.target.dataset.postId;
-                if (postId) {
-                    // Remember the button for later styling
-                    lastOpenedPostButton = e.target;
-                    
-                    // Open post dialog
-                    openPostDialog(postId);
-                }
+        document.addEventListener('click', (e) => {
+            const link = e.target.closest('.post-link');
+            if (!link || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+                return;
             }
-        });
-
-        // Listen for dialog close event (triggered by Escape, clicking outside, or close button)
-        document.getElementById('postDialog').addEventListener('close', function() {
-            // Mark the last opened post as seen in the UI
-            if (lastOpenedPostButton) {
-                lastOpenedPostButton.classList.add('seen');
-                lastOpenedPostButton = null;
-            }
-            
-            // Clear the iframe source to prevent showing old content
-            const iframe = document.getElementById('postIframe');
-            iframe.src = 'about:blank';
-        });
-
-        // Handle clicking outside the dialog to dismiss it
-        document.getElementById('postDialog').addEventListener('click', function(e) {
-            if (e.target === this) {
-                this.close();
-            }
-        });
-
-        // Listen for messages from the iframe
-        window.addEventListener('message', function(event) {
-            if (event.data.type === 'closeDialog') {
-                document.getElementById('postDialog').close();
-            }
-        });
-
-        function openPostDialog(postId) {
-            const dialog = document.getElementById('postDialog');
-            const iframe = document.getElementById('postIframe');
-            iframe.src = `/posts/${postId}`;
+            e.preventDefault();
+            openedLink = link;
+            frame.src = link.href;
             dialog.showModal();
-        }
+        });
+
+        dialog.addEventListener('close', () => {
+            // The server marked the post read when it was opened.
+            openedLink?.classList.add('seen');
+            openedLink = null;
+            frame.src = 'about:blank';
+        });
+
+        // Clicking the backdrop closes the dialog.
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.close();
+            }
+        });
+
+        // The post page asks to be closed (Close button or Escape).
+        window.addEventListener('message', (e) => {
+            if (e.origin === location.origin && e.data?.type === 'closeDialog') {
+                dialog.close();
+            }
+        });
     </script>
 </body>
 </html> 
