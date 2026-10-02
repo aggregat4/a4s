@@ -16,3 +16,6 @@
         </nav>
     </header>
 {{end}}
+
+{{/* The feed's own title, or its host when the feed has no title. Takes a feed. */}}
+{{define "feed-title"}}{{if .Title}}{{.Title}}{{else}}{{host .URL}}{{end}}{{end}}

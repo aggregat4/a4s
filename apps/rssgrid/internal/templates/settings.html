@@ -48,7 +48,7 @@
                     {{range $index, $feed := .Feeds}}
                     <li class="feed-item">
                         <div class="feed-info">
-                            <h3>{{if $feed.Title}}{{$feed.Title}}{{else}}{{host $feed.URL}}{{end}}</h3>
+                            <h3>{{template "feed-title" $feed}}</h3>
                             <p>{{$feed.URL}}</p>
                             {{if gt $feed.ConsecutiveFailures 0}}
                             <div class="feed-health" title="{{$feed.LastError}}">

@@ -206,6 +206,9 @@ func TestDashboardTemplate_TitleFallbackToHost(t *testing.T) {
 	if !contains(out, "example.com") {
 		t.Errorf("expected the feed URL host 'example.com' to appear as a title fallback, got:\n%s", out)
 	}
+	if !contains(out, `title="Mark all posts for example.com as read"`) {
+		t.Errorf("expected the mark-all-read button title to fall back to the host, got:\n%s", out)
+	}
 }
 
 func TestSettingsTemplate_TitleFallbackToHost(t *testing.T) {
@@ -392,6 +395,37 @@ func TestDashboardDatesUseTimeElements(t *testing.T) {
 	}
 	want := `<time class="post-date" datetime="` + published.Format(time.RFC3339) +
 		`" title="` + published.Format("January 2, 2006 at 3:04 PM") + `">3 hours ago</time>`
+	if out := buf.String(); !contains(out, want) {
+		t.Errorf("expected %s in dashboard output, got:\n%s", want, out)
+	}
+}
+
+func TestFeedTitleIsEscapedInAttributes(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("Failed to load templates: %v", err)
+	}
+	type feedData struct {
+		Feed struct {
+			ID                  int64
+			Title, URL          string
+			ConsecutiveFailures int
+			LastError           string
+		}
+		Posts []struct{}
+	}
+	var fd feedData
+	fd.Feed.ID, fd.Feed.Title = 1, `Tom & "Jerry"`
+	data := struct {
+		Columns     [][]feedData
+		ColumnCount int
+	}{[][]feedData{{fd}}, 1}
+
+	var buf bytes.Buffer
+	if err := tmpl.Lookup("dashboard.html").Execute(&buf, data); err != nil {
+		t.Fatalf("Failed to execute dashboard template: %v", err)
+	}
+	want := `title="Mark all posts for Tom &amp; &#34;Jerry&#34; as read"`
 	if out := buf.String(); !contains(out, want) {
 		t.Errorf("expected %s in dashboard output, got:\n%s", want, out)
 	}
