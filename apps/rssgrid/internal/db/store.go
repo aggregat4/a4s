@@ -119,6 +119,13 @@ WHERE feed_id NOT IN (SELECT id FROM feeds) OR user_id NOT IN (SELECT id FROM us
 DELETE FROM user_preferences WHERE user_id NOT IN (SELECT id FROM users);
 `,
 	},
+	{
+		SequenceId: 6,
+		Sql: `
+-- Serves the per-feed "latest posts" queries and pruning without sorting.
+CREATE INDEX IF NOT EXISTS idx_posts_feed_published ON posts(feed_id, published_at DESC);
+`,
+	},
 }
 
 // connectionParams are applied by the sqlite3 driver to every connection in

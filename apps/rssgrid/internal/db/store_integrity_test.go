@@ -168,3 +168,22 @@ func TestPruneFeedPostsKeepsProtectedGUIDs(t *testing.T) {
 	}
 	assert.Equal(t, []string{"newer", "newest", "oldest"}, guids)
 }
+
+func TestPostsIndexExists(t *testing.T) {
+	store, err := NewStore(tempDBPath(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+
+	var plan string
+	rows, err := store.db.Query("EXPLAIN QUERY PLAN SELECT id FROM posts WHERE feed_id = 1 ORDER BY published_at DESC LIMIT 10")
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		require.NoError(t, rows.Scan(&id, &parent, &notused, &detail))
+		plan += detail + "\n"
+	}
+	assert.Contains(t, plan, "idx_posts_feed_published")
+	assert.NotContains(t, plan, "TEMP B-TREE", "ordering should come from the index")
+}
