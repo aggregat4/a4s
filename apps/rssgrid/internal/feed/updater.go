@@ -14,7 +14,7 @@ import (
 // FeedFetcher abstracts fetching a single feed by URL, so the updater can be
 // tested without hitting the network. *Fetcher satisfies it.
 type FeedFetcher interface {
-	FetchFeed(ctx context.Context, url string) (*FeedContent, error)
+	FetchFeed(ctx context.Context, url string, validators Validators) (*FetchResult, error)
 }
 
 // backoffThreshold is the number of consecutive failures after which the
@@ -35,7 +35,7 @@ type Updater struct {
 }
 
 func NewUpdater(store *db.Store, interval time.Duration, maxPostsPerFeed int) *Updater {
-	return NewUpdaterWithFetcher(store, interval, maxPostsPerFeed, NewFetcher(store))
+	return NewUpdaterWithFetcher(store, interval, maxPostsPerFeed, NewFetcher())
 }
 
 // NewUpdaterWithFetcher constructs an Updater that uses the given fetcher,
@@ -117,7 +117,7 @@ func (u *Updater) updateFeed(ctx context.Context, feed db.Feed, now time.Time) {
 
 	log.Printf("Updating feed: %s (%s)", feed.Title, feed.URL)
 
-	content, err := u.fetcher.FetchFeed(ctx, feed.URL)
+	result, err := u.fetcher.FetchFeed(ctx, feed.URL, Validators{ETag: feed.ETag, LastModified: feed.LastModified})
 	if err != nil {
 		if ctx.Err() != nil {
 			// Shutting down; the feed itself is not at fault.
@@ -140,9 +140,14 @@ func (u *Updater) updateFeed(ctx context.Context, feed db.Feed, now time.Time) {
 		log.Printf("Error updating feed last fetched: %v", err)
 	}
 
-	if content == nil {
+	if result.NotModified() {
 		log.Printf("Feed %s not modified", feed.URL)
 		return
+	}
+	content := result.Content
+
+	if err := u.store.UpdateFeedCacheInfo(feed.ID, result.Cache.ETag, result.Cache.LastModified, result.Cache.CacheUntil); err != nil {
+		log.Printf("Error updating cache info for feed %s: %v", feed.URL, err)
 	}
 
 	if n := IngestContent(u.store, feed.ID, feed.Title, content); n > 0 {

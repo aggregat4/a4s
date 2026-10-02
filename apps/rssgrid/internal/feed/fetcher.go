@@ -8,23 +8,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aggregat4/a4s/apps/rssgrid/internal/db"
 	"github.com/mmcdole/gofeed"
 )
 
+// Fetcher downloads and parses feeds over HTTP. It holds no state about
+// stored feeds: callers pass the validators for conditional requests and
+// persist the returned cache information themselves.
 type Fetcher struct {
 	client *http.Client
 	parser *gofeed.Parser
-	store  *db.Store
 }
 
-func NewFetcher(store *db.Store) *Fetcher {
+func NewFetcher() *Fetcher {
 	return &Fetcher{
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		parser: gofeed.NewParser(),
-		store:  store,
 	}
 }
 
@@ -42,74 +42,47 @@ type FeedItem struct {
 	Content     string
 }
 
-// fetchResult is internal to the fetcher - caching details are hidden from callers
-type fetchResult struct {
-	content     *FeedContent
-	shouldCache bool
-	cacheInfo   *cacheInfo
-	error       error
+// Validators are the values from a previous response used to make a
+// conditional request. The zero value makes an unconditional request.
+type Validators struct {
+	ETag         string
+	LastModified string
 }
 
-// cacheInfo is internal to the fetcher
-type cacheInfo struct {
-	etag         string
-	lastModified string
-	cacheUntil   time.Time
+// CacheInfo is the HTTP caching information of a successful response.
+type CacheInfo struct {
+	ETag         string
+	LastModified string
+	CacheUntil   time.Time
 }
 
-// FetchFeed fetches and parses the feed at url. When the feed is already known,
-// conditional request headers (ETag / Last-Modified) are sent; if the server
-// answers 304 Not Modified, FetchFeed returns (nil, nil). Callers must handle
-// a nil result. Whether a fetch is due at all (cache_until) is decided by the
-// caller, not here, so explicit fetches such as adding a feed always hit the
-// network.
-func (f *Fetcher) FetchFeed(ctx context.Context, url string) (*FeedContent, error) {
-	result, err := f.fetchFeedWithCache(ctx, url)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update cache if we should cache and have cache info
-	if result.shouldCache && result.cacheInfo != nil {
-		// We need to get the feed ID to update cache info
-		feed, err := f.store.GetFeedByURL(url)
-		if err == nil && feed != nil {
-			if err := f.updateFeedCache(feed.ID, result.cacheInfo); err != nil {
-				// Log error but don't fail the fetch
-				fmt.Printf("Error updating feed cache info: %v\n", err)
-			}
-		}
-	}
-
-	return result.content, nil
+// FetchResult is the outcome of a completed fetch. Content is nil when the
+// server answered 304 Not Modified, in which case Cache is not set.
+type FetchResult struct {
+	Content *FeedContent
+	Cache   CacheInfo
 }
 
-// fetchFeedWithCache is the internal method that handles caching logic
-func (f *Fetcher) fetchFeedWithCache(ctx context.Context, url string) (*fetchResult, error) {
-	// Look up stored validators for a conditional request
-	feed, err := f.store.GetFeedByURL(url)
-	if err != nil {
-		return nil, fmt.Errorf("error checking feed cache: %w", err)
-	}
+// NotModified reports whether the server answered 304 Not Modified.
+func (r *FetchResult) NotModified() bool {
+	return r.Content == nil
+}
 
-	// Create request with cache headers if available
+// FetchFeed fetches and parses the feed at url, sending the given validators
+// as If-None-Match / If-Modified-Since headers when they are set.
+func (f *Fetcher) FetchFeed(ctx context.Context, url string, validators Validators) (*FetchResult, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
-	// Add common headers
 	req.Header.Set("User-Agent", "RSSGrid/1.0")
 	req.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/json")
-
-	// Add cache headers if we have them
-	if feed != nil {
-		if feed.ETag != "" {
-			req.Header.Set("If-None-Match", feed.ETag)
-		}
-		if feed.LastModified != "" {
-			req.Header.Set("If-Modified-Since", feed.LastModified)
-		}
+	if validators.ETag != "" {
+		req.Header.Set("If-None-Match", validators.ETag)
+	}
+	if validators.LastModified != "" {
+		req.Header.Set("If-Modified-Since", validators.LastModified)
 	}
 
 	resp, err := f.client.Do(req)
@@ -118,13 +91,8 @@ func (f *Fetcher) fetchFeedWithCache(ctx context.Context, url string) (*fetchRes
 	}
 	defer resp.Body.Close()
 
-	// Handle 304 Not Modified
 	if resp.StatusCode == http.StatusNotModified {
-		return &fetchResult{
-			content:     nil,
-			shouldCache: false,
-			error:       nil,
-		}, nil
+		return &FetchResult{}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -177,38 +145,33 @@ func (f *Fetcher) fetchFeedWithCache(ctx context.Context, url string) (*fetchRes
 		})
 	}
 
-	// Extract cache information from response headers
-	cacheInfo := f.extractCacheInfo(resp.Header)
-
-	return &fetchResult{
-		content:     content,
-		shouldCache: true,
-		cacheInfo:   cacheInfo,
-		error:       nil,
+	return &FetchResult{
+		Content: content,
+		Cache:   f.extractCacheInfo(resp.Header),
 	}, nil
 }
 
-func (f *Fetcher) extractCacheInfo(headers http.Header) *cacheInfo {
-	info := &cacheInfo{
-		cacheUntil: time.Now().Add(1 * time.Hour), // Default to 1 hour
+func (f *Fetcher) extractCacheInfo(headers http.Header) CacheInfo {
+	info := CacheInfo{
+		CacheUntil: time.Now().Add(1 * time.Hour), // Default to 1 hour
 	}
 
 	// Extract ETag
 	if etag := headers.Get("ETag"); etag != "" {
-		info.etag = etag
+		info.ETag = etag
 	}
 
 	// Extract Last-Modified
 	if lastModified := headers.Get("Last-Modified"); lastModified != "" {
-		info.lastModified = lastModified
+		info.LastModified = lastModified
 	}
 
 	// Cache-Control max-age takes precedence over Expires (RFC 9111 5.3)
 	if maxAge := f.parseMaxAge(headers.Get("Cache-Control")); maxAge > 0 {
-		info.cacheUntil = time.Now().Add(time.Duration(maxAge) * time.Second)
+		info.CacheUntil = time.Now().Add(time.Duration(maxAge) * time.Second)
 	} else if expires := headers.Get("Expires"); expires != "" {
 		if parsedTime, err := http.ParseTime(expires); err == nil {
-			info.cacheUntil = parsedTime
+			info.CacheUntil = parsedTime
 		}
 	}
 
@@ -228,9 +191,4 @@ func (f *Fetcher) parseMaxAge(cacheControl string) int {
 		}
 	}
 	return 0
-}
-
-// updateFeedCache is internal to the fetcher
-func (f *Fetcher) updateFeedCache(feedID int64, cacheInfo *cacheInfo) error {
-	return f.store.UpdateFeedCacheInfo(feedID, cacheInfo.etag, cacheInfo.lastModified, cacheInfo.cacheUntil)
 }

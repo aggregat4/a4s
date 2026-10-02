@@ -194,6 +194,10 @@ func (m *mockStore) UpdateFeedTitle(feedID int64, title string) error {
 	return nil
 }
 
+func (m *mockStore) UpdateFeedCacheInfo(feedID int64, etag, lastModified string, cacheUntil time.Time) error {
+	return nil
+}
+
 func (m *mockStore) InsertPost(feedID int64, guid, title, link string, publishedAt time.Time, content string) (bool, error) {
 	return true, nil
 }

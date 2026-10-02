@@ -131,22 +131,3 @@ func TestGetAllFeeds_ReturnsHealthFields(t *testing.T) {
 	assert.Equal(t, "", feeds[0].LastError)
 	assert.True(t, feeds[0].LastSuccessAt.Equal(at), "last_success_at should match (got %v, want %v)", feeds[0].LastSuccessAt, at)
 }
-
-func TestGetFeedByURL_ReturnsHealthFields(t *testing.T) {
-	store, cleanup := newHealthTestStore(t)
-	t.Cleanup(cleanup)
-
-	userID, err := store.GetOrCreateUser("sub", "iss")
-	require.NoError(t, err)
-	feedURL := "https://example.com/feed.xml"
-	feedID, err := store.AddFeedForUser(userID, feedURL)
-	require.NoError(t, err)
-
-	require.NoError(t, store.RecordFeedFailure(feedID, errors.New("timeout"), time.Now()))
-
-	feed, err := store.GetFeedByURL(feedURL)
-	require.NoError(t, err)
-	require.NotNil(t, feed)
-	assert.Equal(t, 1, feed.ConsecutiveFailures)
-	assert.Equal(t, "timeout", feed.LastError)
-}

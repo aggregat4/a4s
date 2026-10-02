@@ -63,14 +63,20 @@ func TestShouldBackOff(t *testing.T) {
 
 // stubFetcher is a controllable FeedFetcher for updater tests.
 type stubFetcher struct {
-	content *FeedContent
-	err     error
-	calls   atomic.Int32
+	content        *FeedContent
+	cache          CacheInfo
+	err            error
+	calls          atomic.Int32
+	lastValidators Validators
 }
 
-func (s *stubFetcher) FetchFeed(_ context.Context, _ string) (*FeedContent, error) {
+func (s *stubFetcher) FetchFeed(_ context.Context, _ string, v Validators) (*FetchResult, error) {
 	s.calls.Add(1)
-	return s.content, s.err
+	s.lastValidators = v
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &FetchResult{Content: s.content, Cache: s.cache}, nil
 }
 
 func newUpdaterTestStore(t *testing.T) (*db.Store, func()) {
@@ -380,4 +386,26 @@ func TestUpdateFeeds_PrunesItemsNoLongerInFeed(t *testing.T) {
 	posts, err := store.GetFeedPosts(feedID, userID, 100)
 	require.NoError(t, err)
 	assert.Len(t, posts, 2)
+}
+
+func TestUpdateFeeds_SendsValidatorsAndStoresCacheInfo(t *testing.T) {
+	store, cleanup := newUpdaterTestStore(t)
+	t.Cleanup(cleanup)
+	f := addTestFeed(t, store)
+	require.NoError(t, store.UpdateFeedCacheInfo(f.ID, `"v1"`, "Wed, 21 Oct 2015 07:28:00 GMT", time.Now().Add(-time.Minute)))
+
+	cacheUntil := time.Now().Add(2 * time.Hour).Truncate(time.Second)
+	stub := &stubFetcher{
+		content: &FeedContent{Title: "T"},
+		cache:   CacheInfo{ETag: `"v2"`, LastModified: "Thu, 22 Oct 2015 07:28:00 GMT", CacheUntil: cacheUntil},
+	}
+	updater := NewUpdaterWithFetcher(store, 30*time.Minute, 100, stub)
+	require.NoError(t, updater.updateFeeds(context.Background()))
+
+	assert.Equal(t, Validators{ETag: `"v1"`, LastModified: "Wed, 21 Oct 2015 07:28:00 GMT"}, stub.lastValidators)
+	feeds, err := store.GetAllFeeds()
+	require.NoError(t, err)
+	assert.Equal(t, `"v2"`, feeds[0].ETag)
+	assert.Equal(t, "Thu, 22 Oct 2015 07:28:00 GMT", feeds[0].LastModified)
+	assert.True(t, feeds[0].CacheUntil.Equal(cacheUntil), "cache_until should be stored, got %v", feeds[0].CacheUntil)
 }

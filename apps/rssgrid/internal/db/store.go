@@ -668,20 +668,6 @@ func (store *Store) UpdateFeedCacheInfo(feedId int64, etag, lastModified string,
 	return nil
 }
 
-// GetFeedByURL returns the feed with the given URL, or nil when it does not
-// exist.
-func (store *Store) GetFeedByURL(url string) (*Feed, error) {
-	row := store.db.QueryRow(`SELECT `+feedColumns+` FROM feeds f WHERE f.url = ?`, url)
-	f, err := scanFeed(row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &f, nil
-}
-
 // GetUserPostsPerFeed gets the number of posts per feed for a user
 func (store *Store) GetUserPostsPerFeed(userId int64) (int, error) {
 	var postsPerFeed int

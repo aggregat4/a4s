@@ -12,16 +12,19 @@ import (
 
 type stubFetcher struct {
 	content *feed.FeedContent
+	cache   feed.CacheInfo
 	err     error
 }
 
-func (s *stubFetcher) FetchFeed(_ context.Context, _ string) (*feed.FeedContent, error) {
-	return s.content, s.err
+func (s *stubFetcher) FetchFeed(_ context.Context, _ string, _ feed.Validators) (*feed.FetchResult, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &feed.FetchResult{Content: s.content, Cache: s.cache}, nil
 }
 
-// A feed that is already known can come back as 304 Not Modified, in which
-// case the fetcher returns no content. Adding it must subscribe the user
-// instead of panicking.
+// A fetch result without content (304 Not Modified) must still subscribe the
+// user instead of panicking.
 func TestAddFeed_NotModifiedSubscribesUser(t *testing.T) {
 	store, cleanup := createTestStore(t)
 	defer cleanup()
@@ -74,4 +77,29 @@ func TestAddFeed_IngestsContent(t *testing.T) {
 	posts, err := store.GetFeedPosts(feeds[0].ID, userID, 10)
 	require.NoError(t, err)
 	assert.Len(t, posts, 2)
+}
+
+func TestAddFeed_StoresCacheInfo(t *testing.T) {
+	store, cleanup := createTestStore(t)
+	defer cleanup()
+
+	userID, err := store.GetOrCreateUser("user", "iss")
+	require.NoError(t, err)
+
+	server := createTestServerWithStore(t, store)
+	cacheUntil := time.Now().Add(time.Hour).Truncate(time.Second)
+	server.fetcher = &stubFetcher{
+		content: &feed.FeedContent{Title: "Example"},
+		cache:   feed.CacheInfo{ETag: `"abc"`, CacheUntil: cacheUntil},
+	}
+
+	req, w := postForm(t, server, "/settings/feeds", "url=https://example.com/feed.xml", userID)
+	server.handleAddFeed(w, req)
+	assertRedirect(t, w, "/settings")
+
+	feeds, err := store.GetUserFeeds(userID)
+	require.NoError(t, err)
+	require.Len(t, feeds, 1)
+	assert.Equal(t, `"abc"`, feeds[0].ETag)
+	assert.True(t, feeds[0].CacheUntil.Equal(cacheUntil))
 }

@@ -39,6 +39,7 @@ type StoreInterface interface {
 	GetOrCreateUser(subject, issuer string) (int64, error)
 	AddFeedForUser(userID int64, url string) (int64, error)
 	UpdateFeedTitle(feedID int64, title string) error
+	UpdateFeedCacheInfo(feedID int64, etag, lastModified string, cacheUntil time.Time) error
 	InsertPost(feedID int64, guid, title, link string, publishedAt time.Time, content string) (bool, error)
 	DeleteFeedForUser(userID, feedID int64) error
 	MarkPostAsSeenForUser(userID, postID int64) error
@@ -211,16 +212,10 @@ func NewServer(store StoreInterface, oidcConfig *baseliboidc.OidcConfiguration, 
 		}
 	}
 
-	// Create fetcher only if store is a concrete db.Store type
-	var fetcher feed.FeedFetcher
-	if concreteStore, ok := store.(*db.Store); ok {
-		fetcher = feed.NewFetcher(concreteStore)
-	}
-
 	return &Server{
 		store:      store,
 		sessions:   sessionStore,
-		fetcher:    fetcher,
+		fetcher:    feed.NewFetcher(),
 		templates:  templates,
 		oidcConfig: oidcConfig,
 	}, nil
@@ -478,10 +473,9 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// FetchFeed returns nil content without an error when the feed is already
-	// known and the server answers 304 Not Modified. The feed is valid in
-	// that case and its posts are already stored, so only subscribe.
-	content, err := s.fetcher.FetchFeed(r.Context(), url)
+	// Fetch unconditionally: this both validates the URL and provides the
+	// initial posts and cache information.
+	result, err := s.fetcher.FetchFeed(r.Context(), url, feed.Validators{})
 	if err != nil {
 		log.Printf("Error fetching feed from URL %s: %v", url, err)
 		s.addErrorFlash(w, r, "Invalid feed URL or unable to fetch feed")
@@ -497,7 +491,12 @@ func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	feed.IngestContent(s.store, feedId, "", content)
+	if !result.NotModified() {
+		if err := s.store.UpdateFeedCacheInfo(feedId, result.Cache.ETag, result.Cache.LastModified, result.Cache.CacheUntil); err != nil {
+			log.Printf("Error storing cache info for feed %d: %v", feedId, err)
+		}
+		feed.IngestContent(s.store, feedId, "", result.Content)
+	}
 
 	// Set a success message in the session
 	s.addSuccessFlash(w, r, "Feed added successfully!")
