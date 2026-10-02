@@ -102,3 +102,22 @@ func TestMigrationRemovesOrphanedRows(t *testing.T) {
 		assert.Equal(t, 0, n, "orphaned rows in %s must be removed", table)
 	}
 }
+
+func TestSetUserPreferences(t *testing.T) {
+	store, err := NewStore(tempDBPath(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+
+	userID, err := store.GetOrCreateUser("sub", "iss")
+	require.NoError(t, err)
+
+	require.NoError(t, store.SetUserPreferences(userID, 20, 4))
+	require.NoError(t, store.SetUserPreferences(userID, 25, 3))
+
+	posts, err := store.GetUserPostsPerFeed(userID)
+	require.NoError(t, err)
+	cols, err := store.GetUserColumns(userID)
+	require.NoError(t, err)
+	assert.Equal(t, 25, posts)
+	assert.Equal(t, 3, cols)
+}

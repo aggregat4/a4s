@@ -44,12 +44,20 @@ type StoreInterface interface {
 	MarkPostAsSeenForUser(userID, postID int64) error
 	MarkAllFeedPostsAsSeenForUser(userID, feedID int64) error
 	GetUserPostsPerFeed(userID int64) (int, error)
-	SetUserPostsPerFeed(userID int64, postsPerFeed int) error
 	MoveFeedUp(userID int64, feedID int64) error
 	MoveFeedDown(userID int64, feedID int64) error
 	GetUserColumns(userID int64) (int, error)
-	SetUserColumns(userID int64, columns int) error
+	SetUserPreferences(userID int64, postsPerFeed, columns int) error
 }
+
+// Bounds for the user display preferences. The column bound matches the
+// feed-column-N classes in styles.css.
+const (
+	MinPostsPerFeed = 1
+	MaxPostsPerFeed = 50
+	MinColumns      = 1
+	MaxColumns      = 5
+)
 
 type FlashMessage struct {
 	Message string
@@ -584,23 +592,21 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 	}
 
 	postsPerFeed, err := strconv.Atoi(r.FormValue("postsPerFeed"))
-	if err != nil {
-		s.logErrorAndRespond(w, http.StatusBadRequest, "Invalid posts per feed format", "Error parsing posts per feed", err)
+	if err != nil || postsPerFeed < MinPostsPerFeed || postsPerFeed > MaxPostsPerFeed {
+		s.addErrorFlash(w, r, fmt.Sprintf("Posts per feed must be a number between %d and %d", MinPostsPerFeed, MaxPostsPerFeed))
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
 
 	columns, err := strconv.Atoi(r.FormValue("columns"))
-	if err != nil || columns < 1 {
-		s.logErrorAndRespond(w, http.StatusBadRequest, "Invalid columns format", "Error parsing columns", err)
+	if err != nil || columns < MinColumns || columns > MaxColumns {
+		s.addErrorFlash(w, r, fmt.Sprintf("Number of columns must be a number between %d and %d", MinColumns, MaxColumns))
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
 
-	if err := s.store.SetUserPostsPerFeed(userId, postsPerFeed); err != nil {
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error updating posts per feed", "Error updating posts per feed for user", err, "userId", userId, "postsPerFeed", postsPerFeed)
-		return
-	}
-	if err := s.store.SetUserColumns(userId, columns); err != nil {
-		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error updating columns", "Error updating columns for user", err, "userId", userId, "columns", columns)
+	if err := s.store.SetUserPreferences(userId, postsPerFeed, columns); err != nil {
+		s.logErrorAndRespond(w, http.StatusInternalServerError, "Error updating preferences", "Error updating preferences for user", err, "userId", userId, "postsPerFeed", postsPerFeed, "columns", columns)
 		return
 	}
 

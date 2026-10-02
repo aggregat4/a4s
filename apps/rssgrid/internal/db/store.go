@@ -825,6 +825,20 @@ func (store *Store) SetUserPostsPerFeed(userId int64, postsPerFeed int) error {
 	return nil
 }
 
+// SetUserPreferences stores both display preferences for a user in a single
+// statement.
+func (store *Store) SetUserPreferences(userId int64, postsPerFeed, columns int) error {
+	_, err := store.db.Exec(`
+		INSERT INTO user_preferences (user_id, posts_per_feed, columns)
+		VALUES (?, ?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET posts_per_feed = excluded.posts_per_feed, columns = excluded.columns
+	`, userId, postsPerFeed, columns)
+	if err != nil {
+		return fmt.Errorf("error setting user preferences: %w", err)
+	}
+	return nil
+}
+
 // GetPostForUser retrieves a single post by its ID, but only if the post's feed
 // is subscribed to by the given user. It returns sql.ErrNoRows when the post
 // does not exist or the user has no subscription to its feed.

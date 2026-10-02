@@ -166,9 +166,11 @@ func assertRedirect(t *testing.T, w *httptest.ResponseRecorder, expectedLocation
 
 // Mock store for testing
 type mockStore struct {
-	feeds   []db.Feed
-	posts   map[int64][]db.Post
-	columns int
+	feeds          []db.Feed
+	posts          map[int64][]db.Post
+	columns        int
+	postsPerFeed   int
+	preferencesSet bool
 }
 
 func (m *mockStore) GetUserFeeds(userID int64) ([]db.Feed, error) {
@@ -219,10 +221,6 @@ func (m *mockStore) GetUserPostsPerFeed(userID int64) (int, error) {
 	return 10, nil
 }
 
-func (m *mockStore) SetUserPostsPerFeed(userID int64, postsPerFeed int) error {
-	return nil
-}
-
 func (m *mockStore) GetPostForUser(userID, postID int64) (*db.Post, error) {
 	// Search through all posts to find the one with matching ID
 	for _, posts := range m.posts {
@@ -250,11 +248,10 @@ func (m *mockStore) GetUserColumns(userID int64) (int, error) {
 	return m.columns, nil
 }
 
-func (m *mockStore) SetUserColumns(userID int64, columns int) error {
-	if columns < 1 {
-		columns = 1
-	}
+func (m *mockStore) SetUserPreferences(userID int64, postsPerFeed, columns int) error {
+	m.postsPerFeed = postsPerFeed
 	m.columns = columns
+	m.preferencesSet = true
 	return nil
 }
 
@@ -410,8 +407,19 @@ func TestUserPreferences(t *testing.T) {
 	session.Save(req, w)
 
 	server.handleUpdatePreferences(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("Expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	assertRedirect(t, w, "/settings")
+
+	// The invalid submission must not have changed the stored values.
+	postsPerFeed, err = store.GetUserPostsPerFeed(userID)
+	if err != nil {
+		t.Fatalf("Failed to get user posts per feed: %v", err)
+	}
+	columns, err := store.GetUserColumns(userID)
+	if err != nil {
+		t.Fatalf("Failed to get user columns: %v", err)
+	}
+	if postsPerFeed != 15 || columns != 3 {
+		t.Errorf("Expected preferences 15/3 to be kept, got %d/%d", postsPerFeed, columns)
 	}
 }
 
