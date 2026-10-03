@@ -81,6 +81,11 @@ export default class InlineTextEditor {
     // - Starting editing on `pointerdown` (capture) makes the target `contenteditable`
     //   before the browser's caret painting step for the pointer, which restores
     //   the expected visible caret on click.
+    // This only applies to mouse input. A touch `pointerdown` fires before the
+    // browser knows whether the gesture is a tap or a scroll, so starting edits
+    // there focuses tasks (and opens the on-screen keyboard) on every scroll.
+    // Touch and pen input fall through to `click`, which the browser suppresses
+    // when the gesture turns into a scroll.
     this.list.addEventListener("pointerdown", this.handlePointerDown, true);
   }
 
@@ -98,6 +103,7 @@ export default class InlineTextEditor {
     if (!e) return;
     if (e.button != null && e.button !== 0) return;
     if (e.isPrimary === false) return;
+    if (e.pointerType !== "mouse") return;
     if (!this.list) return;
     const text = (e.target as HTMLElement | null)?.closest(".text") as
       | HTMLElement

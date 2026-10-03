@@ -133,6 +133,12 @@ async function touchDragReorderTask(source: Locator, target: Locator) {
   );
 }
 
+// The swipe tray opens once the swipe passes half its measured width, and that
+// width is clamped to at most 180px. Swiping this far opens it regardless of the
+// measured width, which shifts while the tray's max-width/padding transition runs
+// (e.g. right after setViewportSize switches to the mobile layout).
+const SWIPE_OPEN_DISTANCE = 120;
+
 async function swipeLeftToOpenActions(target: Locator) {
   await target.scrollIntoViewIfNeeded();
   const box = await target.boundingBox();
@@ -143,7 +149,7 @@ async function swipeLeftToOpenActions(target: Locator) {
     x: box.x + box.width * 0.5,
     y: box.y + box.height * 0.5,
   };
-  const end = { x: start.x - 60, y: start.y };
+  const end = { x: start.x - SWIPE_OPEN_DISTANCE, y: start.y };
   await target.evaluate(
     (node, points) => {
       const createTouch = (point: { x: number; y: number }) =>
@@ -1685,7 +1691,7 @@ test.describe("tasklist flows", () => {
       const firstItem = page.locator(listItemsSelector).first();
       const firstText = firstItem.locator(".text");
 
-      const { move } = await startSwipeLeft(firstText, 72);
+      const { move } = await startSwipeLeft(firstText, SWIPE_OPEN_DISTANCE);
       await expect(firstItem).toHaveClass(/task-item-swiping/);
 
       const translateX = await firstItem.locator(".task-item-body").evaluate(
@@ -1700,6 +1706,54 @@ test.describe("tasklist flows", () => {
 
       await finishTouch(firstText, move);
       await expect(firstItem.locator(".task-move-button")).toBeVisible();
+    });
+
+    test("tapping task text starts editing on mobile", async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const firstText = page.locator(listItemsSelector).first().locator(".text");
+
+      await firstText.tap();
+
+      await expect(firstText).toHaveAttribute("contenteditable", "true");
+      await expect(firstText).toBeFocused();
+    });
+
+    test("touch-scrolling over task text does not start editing", async ({
+      page,
+      browserName,
+    }) => {
+      test.skip(
+        browserName !== "chromium",
+        "Real touch gestures are dispatched through CDP"
+      );
+      await page.setViewportSize({ width: 390, height: 844 });
+      const firstText = page.locator(listItemsSelector).first().locator(".text");
+      await firstText.scrollIntoViewIfNeeded();
+      const box = await firstText.boundingBox();
+      if (!box) {
+        throw new Error("Unable to resolve task text bounds");
+      }
+      const x = box.x + box.width * 0.5;
+      const startY = box.y + box.height * 0.5;
+
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x, y: startY }],
+      });
+      for (let step = 1; step <= 10; step += 1) {
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x, y: startY - step * 15 }],
+        });
+      }
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+
+      await expect(page.locator(".text[contenteditable='true']")).toHaveCount(0);
+      await expect(firstText).not.toBeFocused();
     });
   });
 
