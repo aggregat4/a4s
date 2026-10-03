@@ -367,7 +367,10 @@ func TestDashboardDatesUseTimeElements(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load templates: %v", err)
 	}
-	published := time.Now().Add(-3 * time.Hour).Truncate(time.Second)
+	// A zone ahead of UTC: a "+02:00" offset in the datetime attribute would
+	// be escaped by html/template.
+	cest := time.FixedZone("CEST", 2*60*60)
+	published := time.Now().Add(-3 * time.Hour).Truncate(time.Second).In(cest)
 	type post struct {
 		ID          int64
 		Title       string
@@ -393,7 +396,7 @@ func TestDashboardDatesUseTimeElements(t *testing.T) {
 	if err := tmpl.Lookup("dashboard.html").Execute(&buf, data); err != nil {
 		t.Fatalf("Failed to execute dashboard template: %v", err)
 	}
-	want := `<time class="post-date" datetime="` + published.Format(time.RFC3339) +
+	want := `<time class="post-date" datetime="` + published.UTC().Format(time.RFC3339) +
 		`" title="` + published.Format("January 2, 2006 at 3:04 PM") + `">3 hours ago</time>`
 	if out := buf.String(); !contains(out, want) {
 		t.Errorf("expected %s in dashboard output, got:\n%s", want, out)

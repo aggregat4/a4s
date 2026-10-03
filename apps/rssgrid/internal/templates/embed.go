@@ -39,8 +39,9 @@ func LoadTemplates() (*template.Template, error) {
 		},
 		"host":    host,
 		"reltime": reltime,
-		// datetime formats a time for the datetime attribute of <time>.
-		"datetime": func(t time.Time) string { return t.Format(time.RFC3339) },
+		// datetime formats a time for the datetime attribute of <time>. It
+		// uses UTC so the markup does not depend on the server's time zone.
+		"datetime": func(t time.Time) string { return t.UTC().Format(time.RFC3339) },
 		// longdate formats a time for people, e.g. "January 2, 2006 at 3:04 PM".
 		"longdate": func(t time.Time) string { return t.Format("January 2, 2006 at 3:04 PM") },
 	}
