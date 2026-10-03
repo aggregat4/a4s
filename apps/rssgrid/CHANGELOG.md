@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.6.0] - 2026-10-03
+
 ### Changed
 
 - Feeds are fetched in parallel (up to four at a time) during an update
