@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.6.2] - 2026-10-03
+
 ### Fixed
 
 - Scrolling the list on a touch screen no longer starts editing the task under
