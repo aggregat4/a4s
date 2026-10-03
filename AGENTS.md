@@ -1,8 +1,8 @@
-# A4S Develoment Guidelines
+# A4S Development Guidelines
 
 ## HTML
 
-- Write semantic concise HTML
+- Write semantic, accessible, concise HTML
 
 ## CSS
 
@@ -21,6 +21,13 @@
 
 ## Commits and pull requests
 
+- Write commit subjects as `type(app): summary`, for example
+  `fix(tasklists): …` or `refactor(rssgrid): …`. Use `deps: …` for
+  dependency upgrades.
+- Every user-visible change adds an entry under `## [Unreleased]` in the
+  affected app's `CHANGELOG.md`, in the same commit. Follow the Keep a
+  Changelog sections (`Added`, `Changed`, `Fixed`, …); `task lint` checks
+  the file format.
 - Do not add `Co-Authored-By` trailers, AI session links, or other
   assistant attribution to commit messages or pull request descriptions.
 
@@ -33,8 +40,20 @@
   required tooling.
 - `task modernize` is a pinned, report-only review tool. Modernization changes
   should be deliberate, separately reviewed work.
-- Tasklists uses the root pnpm workspace. Its browser suite must run through
-  `task tasklists:test`, which starts its Go server in Docker.
+- Direct Go commands need the `fts5` build tag to match the Taskfiles, for
+  example `go test -tags=fts5 ./...`.
+- Tasklists uses the root pnpm workspace. Its full browser suite must run
+  through `task tasklists:test`, which starts its Go server in Docker. To run
+  a single test, build the client and run from `apps/tasklists/client`:
+  `PLAYWRIGHT_USE_DOCKER=1 pnpm exec playwright test --project=chromium -g "<name>"`.
+  Only the `chromium` project is part of `task tasklists:test`; cross-browser
+  coverage comes from a separate smoke suite that runs in the
+  `mcr.microsoft.com/playwright` image. The `firefox` project in
+  `playwright.config.ts`, which runs when `--project` is omitted, is not
+  maintained and currently fails.
+- Keep tests deterministic: do not depend on the machine's timezone, locale,
+  or the current time. Pin them in the test, or compare parsed values rather
+  than formatted strings.
 
 ## Application-specific invariants
 
@@ -47,5 +66,3 @@
   events.
 - Comments and OpenID Provider use mtlog. Keep its curly-brace interpolation
   style and do not use `.With` metadata logging in those applications.
-- For UI work, prefer semantic accessible HTML, CSS custom properties for
-  reusable values, and CSS nesting where appropriate.
