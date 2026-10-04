@@ -909,6 +909,71 @@ test("sidebar drag to top works even when pointer is above first item", async ({
   ]);
 });
 
+test.describe("active list URL", () => {
+  // These tests reload the page, so they cannot use resetStorage (it would wipe
+  // the imported lists on reload). Each test gets a fresh browser context.
+  const activeListTitle = (page: Page) =>
+    page.locator("[data-role='active-list-title']");
+
+  async function selectList(page: Page, name: string) {
+    await page
+      .locator("[data-role='sidebar-list'] .sidebar-list-button")
+      .filter({ hasText: name })
+      .click();
+    await expect(activeListTitle(page)).toHaveText(name);
+  }
+
+  test("reloading keeps the selected list", async ({ page }) => {
+    await gotoWithSnapshot(page, "/?sync=0");
+    await selectList(page, "Weekend Projects");
+
+    await page.reload();
+
+    await expect(activeListTitle(page)).toHaveText("Weekend Projects");
+    expect(new URL(page.url()).searchParams.get("sync")).toBe("0");
+  });
+
+  test("back and forward move between selected lists", async ({ page }) => {
+    await gotoWithSnapshot(page, "/?sync=0");
+    await selectList(page, "Weekend Projects");
+    await selectList(page, "Work Follow-ups");
+
+    await page.goBack();
+    await expect(activeListTitle(page)).toHaveText("Weekend Projects");
+    await page.goBack();
+    await expect(activeListTitle(page)).toHaveText("Prototype Tasks");
+    await page.goForward();
+    await expect(activeListTitle(page)).toHaveText("Weekend Projects");
+  });
+
+  test("a URL for an unknown list falls back to the first list", async ({
+    page,
+  }) => {
+    await gotoWithSnapshot(page, "/?sync=0");
+    const firstListUrl = page.url();
+
+    await page.goto("/?sync=0&list=missing-list");
+
+    await expect(activeListTitle(page)).toHaveText("Prototype Tasks");
+    await expect(page).toHaveURL(firstListUrl);
+  });
+
+  test("deleting the active list points the URL at the fallback list", async ({
+    page,
+  }) => {
+    await gotoWithSnapshot(page, "/?sync=0");
+    await selectList(page, "Weekend Projects");
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await openSidebarOptions(page);
+    await page.getByRole("button", { name: "Delete list" }).click();
+    await expect(activeListTitle(page)).toHaveText("Work Follow-ups");
+
+    await page.reload();
+    await expect(activeListTitle(page)).toHaveText("Work Follow-ups");
+  });
+});
+
 test.describe("tasklist flows", () => {
   test.beforeEach(async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");

@@ -13,6 +13,11 @@ import { ListRegistry } from "../state/list-registry.js";
 import { RepositorySync } from "../state/repository-sync.js";
 import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
 import {
+  pushListIdToUrl,
+  readListIdFromUrl,
+  replaceListIdInUrl,
+} from "../state/list-url.js";
+import {
   buildExportSnapshot,
   parseExportSnapshotText,
   stringifyExportSnapshot,
@@ -103,6 +108,7 @@ class ListsAppShellElement extends HTMLElement {
   } | null;
   private mainRenderScheduled: boolean;
   private handleGlobalKeyDown: (event: KeyboardEvent) => void;
+  private handlePopState: () => void;
 
   constructor() {
     super();
@@ -126,6 +132,7 @@ class ListsAppShellElement extends HTMLElement {
     this.pendingMainRender = null;
     this.mainRenderScheduled = false;
     this.handleGlobalKeyDown = this.onGlobalKeyDown.bind(this);
+    this.handlePopState = this.onPopState.bind(this);
 
     this.handleStoreChange = this.handleStoreChange.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
@@ -157,6 +164,7 @@ class ListsAppShellElement extends HTMLElement {
 
   disconnectedCallback() {
     document.removeEventListener("keydown", this.handleGlobalKeyDown, true);
+    window.removeEventListener("popstate", this.handlePopState);
   }
 
   renderShell() {
@@ -288,6 +296,16 @@ class ListsAppShellElement extends HTMLElement {
     this.unsubscribeStore = this.store.subscribe(this.handleStoreChange);
     this.lastOrder = selectors.getListOrder(this.store.getState());
     this.lastActiveId = selectors.getActiveListId(this.store.getState());
+    // The list may not be loaded (or synced) yet, so it becomes active once the
+    // registry contains it.
+    const urlListId = readListIdFromUrl();
+    if (urlListId) {
+      this.store.dispatch({
+        type: APP_ACTIONS.setPendingActiveList,
+        payload: { id: urlListId },
+      });
+    }
+    window.addEventListener("popstate", this.handlePopState);
     await this.repositorySync.initialize();
     this.sidebarElement?.init?.();
     this.sidebarElement?.setDemoSeedEnabled?.(this.demoSeedEnabled);
@@ -350,6 +368,7 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   dispose() {
+    window.removeEventListener("popstate", this.handlePopState);
     this.unsubscribeStore?.();
     this.unsubscribeStore = null;
     this.repositorySync?.dispose?.();
@@ -371,6 +390,9 @@ class ListsAppShellElement extends HTMLElement {
     if (activeId !== this.lastActiveId) {
       this.registry.setActiveListId(activeId);
       this.lastActiveId = activeId;
+      if (activeId) {
+        replaceListIdInUrl(activeId);
+      }
     }
 
     this.renderMainLists({ activeId, searchMode, searchQuery });
@@ -402,10 +424,37 @@ class ListsAppShellElement extends HTMLElement {
 
   handleListSelection(listId: ListId) {
     if (!listId || !this.store) return;
+    if (!selectors.getList(this.store.getState(), listId)) return;
+    this.store.dispatch({
+      type: APP_ACTIONS.setPendingActiveList,
+      payload: { id: null },
+    });
+    pushListIdToUrl(listId);
     this.store.dispatch({
       type: APP_ACTIONS.setActiveList,
       payload: { id: listId },
     });
+  }
+
+  onPopState() {
+    if (!this.store) return;
+    const listId = readListIdFromUrl();
+    this.store.dispatch({
+      type: APP_ACTIONS.setPendingActiveList,
+      payload: { id: null },
+    });
+    if (listId && selectors.getList(this.store.getState(), listId)) {
+      this.store.dispatch({
+        type: APP_ACTIONS.setActiveList,
+        payload: { id: listId },
+      });
+      return;
+    }
+    // The entry points at a list that no longer exists: keep the current list.
+    const activeId = selectors.getActiveListId(this.store.getState());
+    if (activeId) {
+      replaceListIdInUrl(activeId);
+    }
   }
 
   handleAddList() {

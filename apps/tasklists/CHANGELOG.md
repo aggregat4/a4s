@@ -10,6 +10,12 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Fixed
+
+- Reloading the page keeps the selected list instead of returning to the first
+  list. The selected list is part of the URL, so a list can be bookmarked and
+  the browser's back and forward buttons move between the lists you opened.
+
 ## [v1.6.2] - 2026-10-03
 
 ### Fixed
