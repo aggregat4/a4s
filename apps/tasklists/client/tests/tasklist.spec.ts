@@ -2413,6 +2413,35 @@ test.describe("tasklist flows", () => {
     await expect(page.locator(listItemsSelector).first()).toBeVisible();
   });
 
+  test("deleting a newly added list returns to a working list", async ({
+    page,
+  }) => {
+    const listButtons = page.locator(".sidebar-list-button");
+    await expect(listButtons).toHaveCount(3);
+
+    page.on("dialog", (dialog) =>
+      dialog.type() === "prompt" ? dialog.accept("Short-lived") : dialog.accept()
+    );
+    await openSidebarOptions(page);
+    await page.getByRole("button", { name: "Add list" }).click();
+    await page.getByRole("button", { name: "Delete list" }).click();
+
+    await expect(listButtons).toHaveCount(3);
+    await expect(listButtons.filter({ hasText: "Short-lived" })).toHaveCount(0);
+    await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+      "Work Follow-ups"
+    );
+    await expect(page.locator(listItemsSelector).first()).toBeVisible();
+    await expect(
+      listButtons.filter({ hasText: "Work Follow-ups" })
+    ).toHaveAttribute("aria-current", "true");
+
+    await addTask(page, "Still works");
+    await expect(page.locator(listItemsSelector).first()).toContainText(
+      "Still works"
+    );
+  });
+
   test("multi-list search and move flow", async ({ page }) => {
     const listButtons = page.locator(".sidebar-list-button");
     await expect(listButtons).toHaveCount(3);
