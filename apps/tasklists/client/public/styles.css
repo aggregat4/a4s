@@ -589,7 +589,9 @@ a4-tasklist {
             box-shadow var(--transition-fast);
         outline: none;
 
-        &:empty {
+        /* Hidden only outside editing: hiding the title while it is being
+           edited (e.g. after deleting its text) drops focus and ends the edit. */
+        &:empty:not(.is-editing) {
             display: none;
         }
 

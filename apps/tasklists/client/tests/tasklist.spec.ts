@@ -1128,6 +1128,24 @@ test.describe("tasklist flows", () => {
     await expect(firstText).not.toContainText("Gamma");
   });
 
+  test("clearing the list title and typing renames the list", async ({
+    page,
+  }) => {
+    const title = page.locator(".tasklist-title").first();
+    await title.click();
+    await expect(title).toHaveAttribute("contenteditable", "true");
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("Renamed");
+
+    await expect(title).toBeFocused();
+    await expect(title).toHaveText("Renamed");
+    await page.keyboard.press("Enter");
+    await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+      "Renamed"
+    );
+  });
+
   test("ctrl+shift+backspace removes the current task", async ({ page }) => {
     const itemsBefore = page.locator(listItemsSelector);
     const initialCount = await itemsBefore.count();
