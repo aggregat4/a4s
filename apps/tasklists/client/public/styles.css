@@ -21,6 +21,9 @@
     --color-accent: #1c7ed6;
     --color-danger: #c92a2a;
     --color-focus-ring: #6d7dbd;
+
+    /* Disabled controls: dimmed but still about 3:1 against their fill. */
+    --color-disabled-text: #8a8a8a;
     --outline-color: #4d4d4d;
     --color-black-rgb: 0 0 0;
     --color-white-rgb: 255 255 255;
@@ -89,6 +92,14 @@ button {
     &:focus-visible {
         outline: 2px solid var(--outline-color);
         outline-offset: 2px;
+    }
+
+    &:disabled,
+    &:disabled:hover {
+        background-color: var(--color-surface-muted);
+        border-color: var(--color-border);
+        color: var(--color-disabled-text);
+        cursor: default;
     }
 }
 
@@ -671,7 +682,8 @@ a4-tasklist {
     color: var(--color-muted);
 }
 
-.tasklist-show-done-toggle {
+/* A checkbox drawn as an on/off switch: <input type="checkbox" role="switch">. */
+.switch {
     appearance: none;
     width: 36px;
     height: 20px;

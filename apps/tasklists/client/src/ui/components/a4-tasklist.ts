@@ -793,7 +793,7 @@ class A4TaskList extends HTMLElement {
           <span class="tasklist-show-done-label">Show done</span>
           <input
             type="checkbox"
-            class="tasklist-show-done-toggle"
+            class="tasklist-show-done-toggle switch"
             role="switch"
             aria-label="Show done tasks"
             ?checked=${showDoneChecked}
