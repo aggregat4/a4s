@@ -971,75 +971,93 @@ export class ListRepository {
       resolvePending = resolve;
     });
     this._pendingInserts.set(pendingKey, pendingPromise);
-    await this.initialize();
-    try {
-      const record = this._listMap.get(listId);
-      if (!record?.crdt) return null;
-      if (typeof itemId !== "string" || !itemId.length) return null;
-      const existing = record.crdt
-        .getSnapshot()
-        .find((entry) => entry.id === itemId);
-      if (!existing) return null;
-      const beforeText = sanitizeText(options.beforeText);
-      const afterText = sanitizeText(options.afterText);
-      const previousText = sanitizeText(options.previousText);
-      const update = record.crdt.generateUpdate({
-        itemId,
-        text: beforeText,
-      });
-      const insert = record.crdt.generateInsert({
-        itemId: newItemId,
-        text: afterText,
-        done: false,
-        note: "",
-        afterId: options.afterId ?? null,
-        beforeId: options.beforeId ?? null,
-        position: options.position ?? null,
-      });
-      await this._persistList(listId, record.crdt, [update.op, insert.op]);
-      this.emitListChange(listId);
-      this.recordHistory({
-        scope: { type: "list", listId },
-        forwardOps: [
-          {
-            type: "updateTask",
-            listId,
-            itemId,
-            payload: { text: beforeText },
-          },
-          {
-            type: "insertTask",
-            listId,
-            itemId: newItemId,
-            text: afterText,
-            done: false,
-            note: "",
-            afterId: options.afterId ?? null,
-            beforeId: options.beforeId ?? null,
-            position: options.position ?? null,
-          },
-        ],
-        inverseOps: [
-          {
-            type: "removeTask",
-            listId,
-            itemId: newItemId,
-          },
-          {
-            type: "updateTask",
-            listId,
-            itemId,
-            payload: { text: previousText },
-          },
-        ],
-        label: "split-task",
-        actor: record.crdt.actorId,
-      });
-      return { id: newItemId, state: record.crdt.toListState() };
-    } finally {
-      resolvePending();
-      this._pendingInserts.delete(pendingKey);
+    return this.enqueueTextUpdates(listId, [itemId, newItemId], async () => {
+      try {
+        return await this.splitTaskInternal(listId, itemId, newItemId, options);
+      } finally {
+        resolvePending();
+        this._pendingInserts.delete(pendingKey);
+      }
+    });
+  }
+
+  private async splitTaskInternal(
+    listId: ListId,
+    itemId: string,
+    newItemId: string,
+    options: {
+      beforeText: string;
+      afterText: string;
+      previousText: string;
+      afterId?: string | null;
+      beforeId?: string | null;
+      position?: Position | null;
     }
+  ) {
+    await this.initialize();
+    const record = this._listMap.get(listId);
+    if (!record?.crdt) return null;
+    if (typeof itemId !== "string" || !itemId.length) return null;
+    const existing = record.crdt
+      .getSnapshot()
+      .find((entry) => entry.id === itemId);
+    if (!existing) return null;
+    const beforeText = sanitizeText(options.beforeText);
+    const afterText = sanitizeText(options.afterText);
+    const previousText = sanitizeText(options.previousText);
+    const update = record.crdt.generateUpdate({
+      itemId,
+      text: beforeText,
+    });
+    const insert = record.crdt.generateInsert({
+      itemId: newItemId,
+      text: afterText,
+      done: false,
+      note: "",
+      afterId: options.afterId ?? null,
+      beforeId: options.beforeId ?? null,
+      position: options.position ?? null,
+    });
+    await this._persistList(listId, record.crdt, [update.op, insert.op]);
+    this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "updateTask",
+          listId,
+          itemId,
+          payload: { text: beforeText },
+        },
+        {
+          type: "insertTask",
+          listId,
+          itemId: newItemId,
+          text: afterText,
+          done: false,
+          note: "",
+          afterId: options.afterId ?? null,
+          beforeId: options.beforeId ?? null,
+          position: options.position ?? null,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "removeTask",
+          listId,
+          itemId: newItemId,
+        },
+        {
+          type: "updateTask",
+          listId,
+          itemId,
+          payload: { text: previousText },
+        },
+      ],
+      label: "split-task",
+      actor: record.crdt.actorId,
+    });
+    return { id: newItemId, state: record.crdt.toListState() };
   }
 
   async mergeTask(
@@ -1048,11 +1066,24 @@ export class ListRepository {
     currentItemId: string,
     options: { mergedText: string }
   ) {
+    if (!previousItemId || !currentItemId) return null;
+    if (previousItemId === currentItemId) return null;
+    return this.enqueueTextUpdates(
+      listId,
+      [previousItemId, currentItemId],
+      () => this.mergeTaskInternal(listId, previousItemId, currentItemId, options)
+    );
+  }
+
+  private async mergeTaskInternal(
+    listId: ListId,
+    previousItemId: string,
+    currentItemId: string,
+    options: { mergedText: string }
+  ) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
-    if (!previousItemId || !currentItemId) return null;
-    if (previousItemId === currentItemId) return null;
 
     const snapshot = record.crdt.getSnapshot();
     const previousItem = snapshot.find((entry) => entry.id === previousItemId);
@@ -1536,16 +1567,31 @@ export class ListRepository {
     itemId: string,
     action: () => Promise<T>
   ) {
-    const key = `${listId}:${itemId}`;
-    const chain = this._textUpdateQueue.get(key) ?? Promise.resolve();
-    const next = chain.then(action, action);
-    this._textUpdateQueue.set(
-      key,
-      next.then(
-        (): void => undefined,
-        (): void => undefined
-      )
+    return this.enqueueTextUpdates(listId, [itemId], action);
+  }
+
+  /**
+   * Runs an action that changes the text of these items after their queued
+   * text updates, and makes later text updates of them wait for it. Typed text
+   * is saved keystroke by keystroke, so on a slow device saves can still be
+   * queued when a task is split or merged; applied afterwards, they would
+   * overwrite its result.
+   */
+  private enqueueTextUpdates<T>(
+    listId: ListId,
+    itemIds: string[],
+    action: () => Promise<T>
+  ) {
+    const keys = itemIds.map((itemId) => `${listId}:${itemId}`);
+    const previous = Promise.all(
+      keys.map((key) => this._textUpdateQueue.get(key) ?? Promise.resolve())
     );
+    const next = previous.then(action, action);
+    const settled = next.then(
+      (): void => undefined,
+      (): void => undefined
+    );
+    keys.forEach((key) => this._textUpdateQueue.set(key, settled));
     return next;
   }
 

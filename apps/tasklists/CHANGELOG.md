@@ -19,6 +19,10 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- Splitting a task with Enter or joining two with Backspace right after typing
+  no longer saves the wrong text on slow devices: the split-off text was saved
+  twice, the joined text could be lost, and undo reverted a keystroke instead
+  of the split.
 - Reloading the page keeps the selected list instead of returning to the first
   list. The selected list is part of the URL, so a list can be bookmarked and
   the browser's back and forward buttons move between the lists you opened.

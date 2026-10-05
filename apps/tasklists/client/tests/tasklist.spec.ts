@@ -656,6 +656,83 @@ test("undo/redo combines split edits into one step", async ({ page }) => {
     .toBe(initialCount + 2);
   await expect(itemEditor).toHaveText("Split");
 });
+test.describe("on a slow device", () => {
+  // Typed text is saved keystroke by keystroke. On a slow device those saves
+  // lag behind the typing, so splitting or merging a task can happen while
+  // some of them are still waiting.
+  test.beforeEach(async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "CPU throttling uses CDP");
+    await gotoWithSnapshot(page, "/?sync=0");
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+  });
+
+  const taskTexts = (page: Page) =>
+    page.locator(listItemsSelector).locator(".text");
+
+  // Checks what was saved by opening the list in a second tab, so the saves
+  // still running in the first tab are not cut off by a reload.
+  async function expectSavedTexts(page: Page, expected: string[]) {
+    const viewer = await page.context().newPage();
+    await expect(async () => {
+      await viewer.goto(page.url());
+      const texts = await taskTexts(viewer).allTextContents();
+      expect(texts.slice(0, expected.length).map((t) => t.trim())).toEqual(
+        expected
+      );
+    }).toPass({ timeout: 30_000 });
+    await viewer.close();
+  }
+
+  async function typeNewTask(page: Page, text: string) {
+    await page.getByRole("button", { name: "Add task" }).click();
+    const editor = page.locator(listItemsSelector).first().locator(".text");
+    await expect(editor).toHaveAttribute("contenteditable", "true");
+    await page.keyboard.type(text);
+    return editor;
+  }
+
+  test("splitting a task right after typing keeps both halves", async ({
+    page,
+  }) => {
+    const editor = await typeNewTask(page, "SplitUndoXYZ");
+    await setCaretPosition(editor, 5);
+    await page.keyboard.press("Enter");
+    await expect(taskTexts(page).nth(1)).toHaveText("UndoXYZ");
+    await page.keyboard.press("Escape");
+
+    await expectSavedTexts(page, ["Split", "UndoXYZ"]);
+  });
+
+  test("undo right after splitting rejoins the task", async ({ page }) => {
+    const initialCount = await page.locator(listItemsSelector).count();
+    const editor = await typeNewTask(page, "SplitUndoXYZ");
+    await setCaretPosition(editor, 5);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 2);
+
+    await pressUndo(page);
+    await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1, {
+      timeout: 15_000,
+    });
+    await expect(taskTexts(page).nth(0)).toHaveText("SplitUndoXYZ");
+  });
+
+  test("merging a task right after typing keeps the joined text", async ({
+    page,
+  }) => {
+    const editor = await typeNewTask(page, "Alpha");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Beta");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Backspace");
+    await expect(editor).toHaveText("AlphaBeta");
+    await page.keyboard.press("Escape");
+
+    const secondTask = await page.locator(listItemsSelector).nth(1).locator(".text").textContent();
+    await expectSavedTexts(page, ["AlphaBeta", secondTask?.trim() ?? ""]);
+  });
+});
 
 test("undo merge after split keeps distinct tasks below", async ({ page }) => {
   await gotoWithSnapshot(page, "/?resetStorage=1");
