@@ -656,6 +656,7 @@ test("undo/redo combines split edits into one step", async ({ page }) => {
     .toBe(initialCount + 2);
   await expect(itemEditor).toHaveText("Split");
 });
+
 test.describe("on a slow device", () => {
   // Typed text is saved keystroke by keystroke. On a slow device those saves
   // lag behind the typing, so splitting or merging a task can happen while
@@ -1025,6 +1026,132 @@ test.describe("active list URL", () => {
 
     await page.reload();
     await expect(activeListTitle(page)).toHaveText("Work Follow-ups");
+  });
+});
+
+test.describe("links, tags and contexts in tasks", () => {
+  const searchField = (page: Page) =>
+    page.locator("[data-role='global-search']");
+  const searchParam = (page: Page) =>
+    new URL(page.url()).searchParams.get("q");
+
+  async function setTaskText(page: Page, index: number, text: string) {
+    const editor = page.locator(listItemsSelector).nth(index).locator(".text");
+    await editor.click();
+    await expect(editor).toHaveAttribute("contenteditable", "true");
+    await editor.fill(text);
+    await page.keyboard.press("Escape");
+    await expect(editor).not.toHaveAttribute("contenteditable", "true");
+    return editor;
+  }
+
+  test.beforeEach(async ({ page }) => {
+    // No resetStorage: some tests reload, which would wipe the lists.
+    await gotoWithSnapshot(page, "/?sync=0");
+  });
+
+  test("URLs open in a new tab without editing the task", async ({
+    page,
+    context,
+  }) => {
+    await context.route("https://example.com/**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<p>Docs</p>" })
+    );
+    const text = await setTaskText(page, 0, "Read https://example.com/docs.");
+    const link = text.getByRole("link", { name: "https://example.com/docs" });
+    await expect(link).toHaveAttribute("href", "https://example.com/docs");
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+
+    const popupPromise = page.waitForEvent("popup");
+    await link.click();
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL("https://example.com/docs");
+    await expect(text).not.toHaveAttribute("contenteditable", "true");
+  });
+
+  test("clicking tags and contexts toggles them in the search", async ({
+    page,
+  }) => {
+    const first = await setTaskText(page, 0, "Fix bike #garage @home");
+    await setTaskText(page, 1, "Sweep the #garage");
+    await setTaskText(page, 2, "Mail me@example.com");
+    await expect(
+      page.locator(listItemsSelector).nth(2).locator("[data-search-token]")
+    ).toHaveCount(0);
+
+    await first.getByRole("button", { name: "#garage" }).click();
+    await expect(searchField(page)).toHaveValue("#garage");
+    expect(searchParam(page)).toBe("#garage");
+    await expect(page.locator(listItemsSelector)).toHaveCount(2);
+    await expect(first).not.toHaveAttribute("contenteditable", "true");
+
+    await first.getByRole("button", { name: "@home" }).click();
+    await expect(searchField(page)).toHaveValue("#garage @home");
+    await expect(page.locator(listItemsSelector)).toHaveCount(1);
+
+    await expect(first.getByRole("button", { name: "#garage" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await first.getByRole("button", { name: "#garage" }).click();
+    await expect(searchField(page)).toHaveValue("@home");
+    expect(searchParam(page)).toBe("@home");
+    await expect(first.getByRole("button", { name: "#garage" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+
+    await first.getByRole("button", { name: "@home" }).click();
+    await expect(searchField(page)).toHaveValue("");
+    expect(searchParam(page)).toBeNull();
+  });
+
+  test("the search survives a reload and follows back and forward", async ({
+    page,
+  }) => {
+    const first = await setTaskText(page, 0, "Fix bike #garage @home");
+    await setTaskText(page, 1, "Sweep the #garage");
+    await first.getByRole("button", { name: "#garage" }).click();
+    await first.getByRole("button", { name: "@home" }).click();
+    await expect(page.locator(listItemsSelector)).toHaveCount(1);
+
+    await page.reload();
+    await expect(searchField(page)).toHaveValue("#garage @home");
+    await expect(page.locator(listItemsSelector)).toHaveCount(1);
+
+    await page.goBack();
+    await expect(searchField(page)).toHaveValue("#garage");
+    await expect(page.locator(listItemsSelector)).toHaveCount(2);
+
+    await page.goBack();
+    await expect(searchField(page)).toHaveValue("");
+    expect(searchParam(page)).toBeNull();
+
+    await page.goForward();
+    await expect(searchField(page)).toHaveValue("#garage");
+  });
+
+  test.describe("on touch screens", () => {
+    test.use({ hasTouch: true });
+
+    test("tapping a tag searches without editing the task", async ({
+      page,
+    }) => {
+      const first = await setTaskText(page, 0, "Fix bike #garage");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await first.getByRole("button", { name: "#garage" }).tap();
+      await expect(searchField(page)).toHaveValue("#garage");
+      await expect(first).not.toHaveAttribute("contenteditable", "true");
+      await expect(first).not.toBeFocused();
+    });
+  });
+
+  test("typing a search keeps it in the URL", async ({ page }) => {
+    await searchField(page).fill("umbrella");
+    await expect.poll(() => searchParam(page)).toBe("umbrella");
+    await searchField(page).fill("");
+    await expect.poll(() => searchParam(page)).toBeNull();
   });
 });
 

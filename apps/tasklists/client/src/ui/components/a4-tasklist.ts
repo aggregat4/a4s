@@ -11,10 +11,12 @@ import {
   generateItemId,
 } from "../state/list-store.js";
 import {
+  URL_PATTERN,
   evaluateSearchEntry,
   matchesSearchEntry,
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
+import type { PatternConfig, PatternKind } from "../state/highlight-utils.js";
 import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
@@ -29,15 +31,10 @@ type PatternDefinition = {
   regex: RegExp;
   className: string;
   priority?: number;
+  kind?: PatternKind;
 };
 
-type PatternConfigEntry = {
-  regexSource: string;
-  regexFlags: string;
-  className: string;
-  priority: number;
-  key: string;
-};
+type PatternConfigEntry = PatternConfig;
 
 const makeOffsetCaret = (value: number, bias?: CaretBias): CaretPreference => ({
   type: "offset",
@@ -265,16 +262,24 @@ class A4TaskList extends HTMLElement {
     this.suppressNameSync = false;
     this._initialState = null;
     this.shellRendered = false;
+    // Contexts and tags start a word, so "me@example.com" holds no context.
     this.patternConfig = this.normalizePatternDefs([
       {
-        regex: /@[A-Za-z0-9_]+/g,
-        className: "task-token-mention",
-        priority: 2,
+        regex: URL_PATTERN,
+        className: "task-token-link",
+        kind: "link",
       },
       {
-        regex: /#[A-Za-z0-9_]+/g,
+        regex: /(?<![\w@#])@[A-Za-z0-9_]+/g,
+        className: "task-token-mention",
+        priority: 2,
+        kind: "search",
+      },
+      {
+        regex: /(?<![\w@#])#[A-Za-z0-9_]+/g,
         className: "task-token-tag",
         priority: 2,
+        kind: "search",
       },
     ]);
 
@@ -337,6 +342,7 @@ class A4TaskList extends HTMLElement {
     this.handleTouchGestureCancel = this.handleTouchGestureCancel.bind(this);
     this.handleDragFinalize = this.handleDragFinalize.bind(this);
     this.handleListKeyDown = this.handleListKeyDown.bind(this);
+    this.handleTokenClick = this.handleTokenClick.bind(this);
     this.handleInlineInput = this.handleInlineInput.bind(this);
 
     this.editController = new EditController({
@@ -420,6 +426,8 @@ class A4TaskList extends HTMLElement {
     this.listEl.addEventListener("blur", this.handleItemBlur, true);
     this.listEl.removeEventListener("keydown", this.handleListKeyDown, true);
     this.listEl.addEventListener("keydown", this.handleListKeyDown, true);
+    this.listEl.removeEventListener("click", this.handleTokenClick);
+    this.listEl.addEventListener("click", this.handleTokenClick);
     this.listEl.removeEventListener("focusin", this.handleFocusIn);
     this.listEl.addEventListener("focusin", this.handleFocusIn);
     this.listEl.removeEventListener("focusout", this.handleFocusOut);
@@ -623,6 +631,7 @@ class A4TaskList extends HTMLElement {
     this.listEl?.removeEventListener("blur", this.handleItemBlur, true);
     this.listEl?.removeEventListener("focusin", this.handleFocusIn);
     this.listEl?.removeEventListener("keydown", this.handleListKeyDown, true);
+    this.listEl?.removeEventListener("click", this.handleTokenClick);
     this.listEl?.removeEventListener(
       "touchstart",
       this.handleTouchGestureStart
@@ -1034,7 +1043,7 @@ class A4TaskList extends HTMLElement {
   normalizePatternDefs(
     defs: Array<
       | PatternDefinition
-      | { regex: string; className?: string; priority?: number }
+      | { regex: string; className?: string; priority?: number; kind?: PatternKind }
       | null
       | undefined
     >
@@ -1046,6 +1055,8 @@ class A4TaskList extends HTMLElement {
     defs.forEach((def) => {
       if (!def) return;
       let { regex, className, priority } = def;
+      const kind =
+        def.kind === "link" || def.kind === "search" ? def.kind : undefined;
       if (typeof regex === "string") {
         try {
           regex = new RegExp(regex, "g");
@@ -1075,6 +1086,7 @@ class A4TaskList extends HTMLElement {
         className: safeClass,
         priority: prio,
         key: `pattern:${safeClass}`,
+        kind,
       });
     });
     return normalized;
@@ -1090,6 +1102,7 @@ class A4TaskList extends HTMLElement {
       regex: new RegExp(def.regexSource, def.regexFlags),
       className: def.className,
       priority: def.priority,
+      kind: def.kind,
     }));
   }
 
@@ -2459,6 +2472,26 @@ class A4TaskList extends HTMLElement {
       void promise;
     }
     this.editingShadowText.set(itemId, newText);
+  }
+
+  /**
+   * A tag or context in task text was clicked: ask the app to add it to the
+   * search. Links need no handling; they open in a new tab.
+   */
+  handleTokenClick(event: MouseEvent) {
+    const button = (event.target as Element | null)?.closest?.(
+      "[data-search-token]"
+    ) as HTMLElement | null;
+    const token = button?.dataset.searchToken;
+    if (!button || !token || !this.listEl?.contains(button)) return;
+    event.preventDefault();
+    this.dispatchEvent(
+      new CustomEvent("tokensearch", {
+        detail: { token },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   handleListKeyDown(event: KeyboardEvent) {

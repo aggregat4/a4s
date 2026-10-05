@@ -105,21 +105,28 @@ export default class InlineTextEditor {
     if (e.button != null && e.button !== 0) return;
     if (e.isPrimary === false) return;
     if (e.pointerType !== "mouse") return;
-    if (!this.list) return;
-    const text = (e.target as HTMLElement | null)?.closest(".text") as
-      | HTMLElement
-      | null;
-    if (!text || !this.list.contains(text)) return;
+    const text = this.editableTextFor(e.target);
+    if (!text) return;
     this.startEditing(text, e);
   }
 
   handleClick(e: Event) {
-    if (!this.list) return;
-    const text = (e.target as HTMLElement | null)?.closest(".text") as
-      | HTMLElement
-      | null;
-    if (!text || !this.list.contains(text)) return;
+    const text = this.editableTextFor(e.target);
+    if (!text) return;
     this.startEditing(text, e);
+  }
+
+  // The task text a pointer interaction should start editing. Links and
+  // buttons inside the text (URLs, tags, contexts) act on their own instead.
+  private editableTextFor(target: EventTarget | null) {
+    if (!this.list) return null;
+    const element = target as HTMLElement | null;
+    const text = element?.closest?.(".text") as HTMLElement | null;
+    if (!text || !this.list.contains(text)) return null;
+    if (text.getAttribute("contenteditable") !== "true") {
+      if (element?.closest?.("a[href], button")) return null;
+    }
+    return text;
   }
 
   startEditing(

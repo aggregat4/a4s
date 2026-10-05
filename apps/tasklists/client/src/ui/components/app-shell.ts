@@ -14,9 +14,12 @@ import { RepositorySync } from "../state/repository-sync.js";
 import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
 import {
   pushListIdToUrl,
+  pushSearchToUrl,
   readListIdFromUrl,
+  readSearchFromUrl,
   replaceListIdInUrl,
-} from "../state/list-url.js";
+  replaceSearchInUrl,
+} from "../state/app-url.js";
 import {
   buildExportSnapshot,
   parseExportSnapshotText,
@@ -150,6 +153,7 @@ class ListsAppShellElement extends HTMLElement {
     this.mainRenderScheduled = false;
     this.handleGlobalKeyDown = this.onGlobalKeyDown.bind(this);
     this.handlePopState = this.onPopState.bind(this);
+    this.handleTokenSearch = this.handleTokenSearch.bind(this);
 
     this.handleStoreChange = this.handleStoreChange.bind(this);
     this.handleSearchChange = this.handleSearchChange.bind(this);
@@ -345,9 +349,14 @@ class ListsAppShellElement extends HTMLElement {
       });
     }
     window.addEventListener("popstate", this.handlePopState);
+    this.addEventListener("tokensearch", this.handleTokenSearch);
     await this.repositorySync.initialize();
     this.sidebarElement?.init?.();
     this.sidebarElement?.setDemoSeedEnabled?.(this.demoSeedEnabled);
+    const urlSearch = readSearchFromUrl();
+    if (urlSearch) {
+      this.handleSearchChange(urlSearch);
+    }
     this.sidebarElement?.setSearchValue?.(this.store.getState().searchQuery);
     this.handleStoreChange();
     this.appInitialized = true;
@@ -408,6 +417,7 @@ class ListsAppShellElement extends HTMLElement {
 
   dispose() {
     window.removeEventListener("popstate", this.handlePopState);
+    this.removeEventListener("tokensearch", this.handleTokenSearch);
     this.unsubscribeHistory?.();
     this.unsubscribeHistory = null;
     this.unsubscribeStore?.();
@@ -468,7 +478,32 @@ class ListsAppShellElement extends HTMLElement {
       type: APP_ACTIONS.setSearchQuery,
       payload: { query: next },
     });
+    replaceSearchInUrl(next);
     this.applySearchToLists(next);
+  }
+
+  /** Shows the query in the search field and searches for it. */
+  setSearch(query: string) {
+    this.sidebarElement?.setSearchValue?.(query);
+    this.handleSearchChange(query);
+  }
+
+  /**
+   * A tag or context in a task was clicked: toggle it in the search. Adding it
+   * narrows the results, as each word must match; clicking it again removes it.
+   */
+  handleTokenSearch(event: Event) {
+    if (!this.store) return;
+    const token = (event as CustomEvent<{ token?: string }>).detail?.token;
+    if (!token) return;
+    const current = selectors.getSearchQuery(this.store.getState());
+    const words = current.trim().split(/\s+/).filter(Boolean);
+    const isToken = (word: string) => word.toLowerCase() === token.toLowerCase();
+    const next = words.some(isToken)
+      ? words.filter((word) => !isToken(word)).join(" ")
+      : [...words, token].join(" ");
+    pushSearchToUrl(next);
+    this.setSearch(next);
   }
 
   handleSearchClear() {
@@ -498,6 +533,10 @@ class ListsAppShellElement extends HTMLElement {
 
   onPopState() {
     if (!this.store) return;
+    const search = readSearchFromUrl();
+    if (search !== selectors.getSearchQuery(this.store.getState())) {
+      this.setSearch(search);
+    }
     const listId = readListIdFromUrl();
     this.listIdToPushToUrl = null;
     this.store.dispatch({

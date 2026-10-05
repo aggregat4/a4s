@@ -1181,6 +1181,45 @@ a4-tasklist {
     font-weight: 600;
 }
 
+/* Tags and contexts in task text are toggle buttons that add them to or
+   remove them from the search; they keep the look of the surrounding text
+   rather than of a button. */
+button.task-token-mention,
+button.task-token-tag {
+    display: inline;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    font: inherit;
+    font-weight: 600;
+    text-align: inherit;
+
+    &:hover {
+        background-color: transparent;
+        color: inherit;
+        text-decoration: underline;
+    }
+
+    /* Part of the current search. */
+    &[aria-pressed="true"] {
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 2px;
+    }
+}
+
+.task-token-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+
+    &:hover {
+        text-decoration-thickness: 2px;
+    }
+}
+
 .flip-animating {
     will-change: transform;
     transition: transform 140ms ease;

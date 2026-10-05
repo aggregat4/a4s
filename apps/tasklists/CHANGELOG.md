@@ -16,6 +16,12 @@ Release notes for a tag are taken from the matching version section, so the
   sidebar. On phones a toolbar at the bottom of the screen holds undo, redo,
   "Show done" and "Add" for the current list, within reach of the thumb, and
   shows a shadow while more tasks are hidden below it.
+- Links in tasks open in a new tab. Tags (#tag) and contexts (@context) in
+  tasks are clickable: clicking one adds it to the search, so each one clicked
+  narrows the results further, and clicking it again removes it.
+- The search is part of the URL, so it survives a reload, can be bookmarked,
+  and the browser's back and forward buttons step through searches made by
+  clicking tags and contexts.
 
 ### Fixed
 
