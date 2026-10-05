@@ -219,3 +219,28 @@ test("undo merges a task split into one history entry", async () => {
   assert.equal(stateAfter.items[0].text, "Alpha");
   assert.equal(stateAfter.items[1].text, "Beta");
 });
+
+test("subscribeHistory reports when undo and redo become available", async () => {
+  const repository = new ListRepository({
+    storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+  });
+  await repository.initialize();
+  const states: Array<{ canUndo: boolean; canRedo: boolean }> = [];
+  const unsubscribe = repository.subscribeHistory((state) => states.push(state));
+  assert.deepEqual(states, [{ canUndo: false, canRedo: false }]);
+
+  await repository.createList({ listId: "list-1", title: "List One" });
+  assert.deepEqual(states[states.length - 1], { canUndo: true, canRedo: false });
+
+  await repository.undo();
+  assert.deepEqual(states[states.length - 1], { canUndo: false, canRedo: true });
+
+  await repository.redo();
+  assert.deepEqual(states[states.length - 1], { canUndo: true, canRedo: false });
+
+  const count = states.length;
+  unsubscribe();
+  await repository.undo();
+  assert.equal(states.length, count);
+});

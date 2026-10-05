@@ -10,6 +10,13 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Added
+
+- Undo and redo buttons. On wide screens they sit next to the app title in the
+  sidebar. On phones a toolbar at the bottom of the screen holds undo, redo,
+  "Show done" and "Add" for the current list, within reach of the thumb, and
+  shows a shadow while more tasks are hidden below it.
+
 ### Fixed
 
 - Reloading the page keeps the selected list instead of returning to the first

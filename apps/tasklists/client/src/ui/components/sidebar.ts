@@ -4,6 +4,9 @@ import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
 import { APP_VERSION, fetchServerVersion } from "../../app/version.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
 import type { SyncStatus } from "../../types/sync.js";
+import type { HistoryAvailability } from "../../app/history-manager.js";
+import { SHORTCUTS, formatShortcutParts } from "../state/shortcuts.js";
+import { redoIcon, undoIcon } from "./history-icons.js";
 
 type SidebarListEntry = {
   id: ListId;
@@ -26,6 +29,8 @@ class SidebarElement extends HTMLElement {
     onSeedDemo: () => void;
     onSelectList: (listId: ListId) => void;
     onSearchChange: (value: string) => void;
+    onUndo: () => void;
+    onRedo: () => void;
     onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
     onReorderList: (payload: {
       movedId: ListId;
@@ -47,6 +52,7 @@ class SidebarElement extends HTMLElement {
   private actionsOpen: boolean;
   private isOnline: boolean;
   private syncStatus: SyncStatus | null;
+  private historyState: HistoryAvailability;
   private serverVersion: string | null;
   private serverVersionLoading: boolean;
   private handleOnlineChange: (() => void) | null;
@@ -71,6 +77,7 @@ class SidebarElement extends HTMLElement {
     this.actionsOpen = false;
     this.isOnline = true;
     this.syncStatus = null;
+    this.historyState = { canUndo: false, canRedo: false };
     this.serverVersion = null;
     this.serverVersionLoading = false;
     this.handleOnlineChange = null;
@@ -109,6 +116,8 @@ class SidebarElement extends HTMLElement {
       onSeedDemo: () => void;
       onSelectList: (listId: ListId) => void;
       onSearchChange: (value: string) => void;
+      onUndo: () => void;
+      onRedo: () => void;
       onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
       onReorderList: (payload: {
         movedId: ListId;
@@ -121,6 +130,22 @@ class SidebarElement extends HTMLElement {
 
   setDemoSeedEnabled(enabled: boolean) {
     this.showDemoSeed = Boolean(enabled);
+    if (this.isListDragging) {
+      this.pendingRender = true;
+      this.pendingRenderMode = "render";
+    } else {
+      this.renderView();
+    }
+  }
+
+  setHistoryState(state: HistoryAvailability) {
+    if (
+      this.historyState.canUndo === state.canUndo &&
+      this.historyState.canRedo === state.canRedo
+    ) {
+      return;
+    }
+    this.historyState = { ...state };
     if (this.isListDragging) {
       this.pendingRender = true;
       this.pendingRenderMode = "render";
@@ -257,6 +282,28 @@ class SidebarElement extends HTMLElement {
           <div class="sidebar-topbar">
             <div class="sidebar-title-row">
               <h1 class="sidebar-title sr-only">Lists</h1>
+              <div class="sidebar-history" role="group" aria-label="History">
+                <button
+                  type="button"
+                  class="icon-button"
+                  aria-label="Undo"
+                  title=${`Undo (${formatShortcutParts(SHORTCUTS.undo).join("+")})`}
+                  ?disabled=${!this.historyState.canUndo}
+                  @click=${() => this.handlers.onUndo?.()}
+                >
+                  ${undoIcon}
+                </button>
+                <button
+                  type="button"
+                  class="icon-button"
+                  aria-label="Redo"
+                  title=${`Redo (${formatShortcutParts(SHORTCUTS.redo).join("+")})`}
+                  ?disabled=${!this.historyState.canRedo}
+                  @click=${() => this.handlers.onRedo?.()}
+                >
+                  ${redoIcon}
+                </button>
+              </div>
             </div>
             <div class="sidebar-search-row">
               <label class="sidebar-field sidebar-field-inline">

@@ -482,46 +482,6 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   await expect(visibleTasks.first().locator(".text")).toContainText("umbrella");
 });
 
-test("tasklist header keeps controls below title on narrow screens", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 493, height: 500 });
-  await gotoWithSnapshot(page, "/?resetStorage=1");
-
-  const header = page.locator(
-    "[data-role='lists-container'] .list-section.is-active .tasklist-header"
-  );
-  await expect(header.locator(".tasklist-title")).toBeVisible();
-  await expect(header.locator(".tasklist-show-done")).toBeVisible();
-  await expect(header.locator("[data-role='tasklist-add']")).toBeVisible();
-
-  const layout = await header.evaluate((el) => {
-    const title = el.querySelector(".tasklist-title") as HTMLElement | null;
-    const add = el.querySelector(
-      "[data-role='tasklist-add']"
-    ) as HTMLElement | null;
-    const showDone = el.querySelector(
-      ".tasklist-show-done"
-    ) as HTMLElement | null;
-    if (!title || !add || !showDone) {
-      return { controlsBelow: false, addLeftOfToggle: false, sameControlRow: false };
-    }
-    const titleRect = title.getBoundingClientRect();
-    const addRect = add.getBoundingClientRect();
-    const showDoneRect = showDone.getBoundingClientRect();
-    const addCenter = (addRect.top + addRect.bottom) / 2;
-    const showDoneCenter = (showDoneRect.top + showDoneRect.bottom) / 2;
-    return {
-      controlsBelow: addRect.top > titleRect.bottom,
-      addLeftOfToggle: addRect.left < showDoneRect.left,
-      sameControlRow: Math.abs(addCenter - showDoneCenter) < 12,
-    };
-  });
-  expect(layout.controlsBelow).toBe(true);
-  expect(layout.addLeftOfToggle).toBe(true);
-  expect(layout.sameControlRow).toBe(true);
-});
-
 test("sidebar keeps lists visible and collapses options by default", async ({
   page,
 }) => {
@@ -988,6 +948,115 @@ test.describe("active list URL", () => {
 
     await page.reload();
     await expect(activeListTitle(page)).toHaveText("Work Follow-ups");
+  });
+});
+
+test.describe("undo and redo controls", () => {
+  const undoButton = (page: Page) =>
+    page.getByRole("button", { name: "Undo", exact: true });
+  const redoButton = (page: Page) =>
+    page.getByRole("button", { name: "Redo", exact: true });
+
+  async function completeFirstTask(page: Page) {
+    const items = page.locator(listItemsSelector);
+    const countBefore = await items.count();
+    await items.first().locator(".done-toggle").click();
+    await expect(items).toHaveCount(countBefore - 1);
+    return countBefore;
+  }
+
+  test("sidebar buttons undo and redo the last change", async ({ page }) => {
+    await gotoWithSnapshot(page, "/?resetStorage=1");
+    await expect(undoButton(page)).toBeDisabled();
+    await expect(redoButton(page)).toBeDisabled();
+    await expect(page.locator("[data-role='mobile-toolbar']")).toBeHidden();
+
+    const countBefore = await completeFirstTask(page);
+    await expect(undoButton(page)).toBeEnabled();
+
+    await undoButton(page).click();
+    await expect(page.locator(listItemsSelector)).toHaveCount(countBefore);
+    await expect(undoButton(page)).toBeDisabled();
+    await expect(redoButton(page)).toBeEnabled();
+
+    await redoButton(page).click();
+    await expect(page.locator(listItemsSelector)).toHaveCount(countBefore - 1);
+    await expect(redoButton(page)).toBeDisabled();
+  });
+
+  test.describe("mobile toolbar", () => {
+    const toolbar = (page: Page) =>
+      page.locator("[data-role='mobile-toolbar']");
+
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await gotoWithSnapshot(page, "/?resetStorage=1");
+    });
+
+    test("replaces the list header's Add and Show done", async ({ page }) => {
+      await expect(toolbar(page)).toBeVisible();
+      const activeHeader = page.locator(
+        "[data-role='lists-container'] .list-section.is-active .tasklist-header"
+      );
+      await expect(activeHeader.getByRole("button", { name: "Add task" })).toBeHidden();
+      await expect(showDoneToggle(page)).toBeHidden();
+      // The sidebar's copies are hidden: the toolbar holds the only ones.
+      await expect(undoButton(page)).toHaveCount(1);
+      await expect(toolbar(page).getByRole("button", { name: "Undo" })).toBeVisible();
+    });
+
+    test("adds a task to the active list", async ({ page }) => {
+      const items = page.locator(listItemsSelector);
+      const countBefore = await items.count();
+      await toolbar(page).getByRole("button", { name: "Add task" }).click();
+      await expect(items).toHaveCount(countBefore + 1);
+      const editor = items.first().locator(".text");
+      await expect(editor).toHaveAttribute("contenteditable", "true");
+      await expect(editor).toBeFocused();
+    });
+
+    test("undoes and redoes changes", async ({ page }) => {
+      const countBefore = await completeFirstTask(page);
+      await toolbar(page).getByRole("button", { name: "Undo" }).click();
+      await expect(page.locator(listItemsSelector)).toHaveCount(countBefore);
+      await toolbar(page).getByRole("button", { name: "Redo" }).click();
+      await expect(page.locator(listItemsSelector)).toHaveCount(countBefore - 1);
+    });
+
+    test("shows and hides done tasks of the active list", async ({ page }) => {
+      const countBefore = await completeFirstTask(page);
+      const showDone = toolbar(page).getByRole("switch", { name: "Show done" });
+      await expect(showDone).not.toBeChecked();
+
+      await showDone.click();
+      await expect(showDone).toBeChecked();
+      await expect(page.locator(listItemsSelector)).toHaveCount(countBefore);
+
+      await page
+        .locator(".sidebar-list-button")
+        .filter({ hasText: "Weekend Projects" })
+        .click();
+      await expect(showDone).not.toBeChecked();
+      await page
+        .locator(".sidebar-list-button")
+        .filter({ hasText: "Prototype Tasks" })
+        .click();
+      await expect(showDone).toBeChecked();
+    });
+
+    test("shows a shadow while tasks are hidden below it", async ({ page }) => {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(toolbar(page)).toHaveClass(/has-content-below/);
+
+      await page.evaluate(() =>
+        window.scrollTo(0, document.documentElement.scrollHeight)
+      );
+      await expect(toolbar(page)).not.toHaveClass(/has-content-below/);
+      // The last task scrolls clear of the toolbar.
+      const lastTask = await page.locator(listItemsSelector).last().boundingBox();
+      const bar = await toolbar(page).boundingBox();
+      expect(lastTask && bar && lastTask.y + lastTask.height <= bar.y).toBe(true);
+    });
   });
 });
 

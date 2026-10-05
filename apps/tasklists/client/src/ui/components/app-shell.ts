@@ -33,6 +33,9 @@ import "./sidebar.js";
 import "./main-pane.js";
 import "./move-dialog.js";
 import "./shortcuts-dialog.js";
+import "./mobile-toolbar.js";
+import type { HistoryAvailability } from "../../app/history-manager.js";
+import type { ToolbarHandlers, ToolbarState } from "./mobile-toolbar.js";
 import "./a4-tasklist.js";
 
 type SidebarElement = HTMLElement & {
@@ -40,6 +43,7 @@ type SidebarElement = HTMLElement & {
   setSearchValue?: (value: string) => void;
   setDemoSeedEnabled?: (enabled: boolean) => void;
   setSyncStatus?: (status: SyncStatus) => void;
+  setHistoryState?: (state: HistoryAvailability) => void;
   setLists?: (
     lists: Array<{
       id: ListId;
@@ -82,6 +86,11 @@ type ShortcutsDialogElement = HTMLElement & {
   toggle?: () => void;
 };
 
+type MobileToolbarElement = HTMLElement & {
+  setState?: (state: Partial<ToolbarState>) => void;
+  setHandlers?: (handlers: ToolbarHandlers) => void;
+};
+
 type Store = ReturnType<typeof createAppStore>;
 class ListsAppShellElement extends HTMLElement {
   private shellRendered: boolean;
@@ -90,6 +99,8 @@ class ListsAppShellElement extends HTMLElement {
   private mainElement: MainPaneElement | null;
   private moveDialogElement: MoveDialogElement | null;
   private shortcutsDialogElement: ShortcutsDialogElement | null;
+  private mobileToolbarElement: MobileToolbarElement | null;
+  private unsubscribeHistory: (() => void) | null;
   private repository: ListRepository | null;
   private store: Store | null;
   private registry: ListRegistry | null;
@@ -121,6 +132,8 @@ class ListsAppShellElement extends HTMLElement {
     this.mainElement = null;
     this.moveDialogElement = null;
     this.shortcutsDialogElement = null;
+    this.mobileToolbarElement = null;
+    this.unsubscribeHistory = null;
     this.repository = null;
     this.store = null;
     this.registry = null;
@@ -189,6 +202,10 @@ class ListsAppShellElement extends HTMLElement {
           data-role="shortcuts-dialog"
           hidden
         ></a4-shortcuts-dialog>
+        <a4-mobile-toolbar
+          class="mobile-toolbar"
+          data-role="mobile-toolbar"
+        ></a4-mobile-toolbar>
         <input
           type="file"
           accept="application/json"
@@ -214,6 +231,9 @@ class ListsAppShellElement extends HTMLElement {
     this.shortcutsDialogElement = this.querySelector(
       "[data-role='shortcuts-dialog']"
     ) as ShortcutsDialogElement | null;
+    this.mobileToolbarElement = this.querySelector(
+      "[data-role='mobile-toolbar']"
+    ) as MobileToolbarElement | null;
     this.importInput = this.querySelector(
       "[data-role='import-snapshot-input']"
     ) as HTMLInputElement | null;
@@ -245,6 +265,7 @@ class ListsAppShellElement extends HTMLElement {
       customElements.whenDefined("a4-main-pane"),
       customElements.whenDefined("a4-move-dialog"),
       customElements.whenDefined("a4-shortcuts-dialog"),
+      customElements.whenDefined("a4-mobile-toolbar"),
     ]);
     if (typeof customElements.upgrade === "function") {
       customElements.upgrade(this);
@@ -281,6 +302,7 @@ class ListsAppShellElement extends HTMLElement {
       onShowDoneChange: () => {
         if (!this.store) return;
         this.refreshSidebar(this.store.getState());
+        this.refreshMobileToolbar();
       },
     });
     this.sidebarElement?.setHandlers?.({
@@ -291,11 +313,24 @@ class ListsAppShellElement extends HTMLElement {
       onExportSnapshot: this.handleExportSnapshot,
       onImportSnapshot: this.handleImportSnapshot,
       onSeedDemo: this.handleSeedDemo,
+      onUndo: () => void this.repository?.undo(),
+      onRedo: () => void this.repository?.redo(),
       onItemDropped: (
         payload: { sourceListId?: ListId; itemId?: string; item?: TaskItem },
         targetListId: ListId
       ) => moveTasksController.handleSidebarDrop(payload, targetListId),
       onReorderList: this.handleSidebarReorder,
+    });
+    this.mobileToolbarElement?.setHandlers?.({
+      onUndo: () => void this.repository?.undo(),
+      onRedo: () => void this.repository?.redo(),
+      onAddTask: () => this.getActiveListElement()?.addTask?.(),
+      onShowDoneChange: (showDone) =>
+        this.getActiveListElement()?.setShowDone?.(showDone),
+    });
+    this.unsubscribeHistory = this.repository.subscribeHistory((state) => {
+      this.sidebarElement?.setHistoryState?.(state);
+      this.mobileToolbarElement?.setState?.(state);
     });
     this.unsubscribeStore = this.store.subscribe(this.handleStoreChange);
     this.lastOrder = selectors.getListOrder(this.store.getState());
@@ -373,6 +408,8 @@ class ListsAppShellElement extends HTMLElement {
 
   dispose() {
     window.removeEventListener("popstate", this.handlePopState);
+    this.unsubscribeHistory?.();
+    this.unsubscribeHistory = null;
     this.unsubscribeStore?.();
     this.unsubscribeStore = null;
     this.repositorySync?.dispose?.();
@@ -407,6 +444,21 @@ class ListsAppShellElement extends HTMLElement {
     this.refreshSidebar(state);
     this.updateMainHeading(state);
     this.updateMainSearchMode(searchMode);
+    this.refreshMobileToolbar();
+  }
+
+  getActiveListElement() {
+    if (!this.store || !this.registry) return null;
+    const activeId = selectors.getActiveListId(this.store.getState());
+    return activeId ? this.registry.getRecord(activeId)?.element ?? null : null;
+  }
+
+  refreshMobileToolbar() {
+    if (!this.store) return;
+    this.mobileToolbarElement?.setState?.({
+      showDone: Boolean(this.getActiveListElement()?.showDone),
+      searchMode: selectors.isSearchMode(this.store.getState()),
+    });
   }
 
   handleSearchChange(value: string) {

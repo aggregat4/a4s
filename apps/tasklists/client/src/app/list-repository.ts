@@ -22,6 +22,7 @@ import type { TaskListOperation, ListsOperation } from "../types/crdt.js";
 import type { SyncOp } from "../types/sync.js";
 import type { SyncStatus } from "../types/sync.js";
 import { HistoryManager } from "./history-manager.js";
+import type { HistoryAvailability } from "./history-manager.js";
 import type { HistoryOp, HistoryScope } from "./history-types.js";
 import { SyncEngine } from "./sync-engine.js";
 import { parseExportSnapshotText } from "./export-snapshot.js";
@@ -187,6 +188,12 @@ export class ListRepository {
 
   canRedo() {
     return this._history.canRedo();
+  }
+
+  /** Calls the handler now and whenever undo or redo availability changes. */
+  subscribeHistory(handler: (state: HistoryAvailability) => void) {
+    if (typeof handler !== "function") return () => {};
+    return this._history.subscribe(handler);
   }
 
   async undo() {

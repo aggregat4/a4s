@@ -33,6 +33,9 @@
     --field-focus-outline: 2px solid var(--color-editing-outline);
     --field-focus-outline-offset: 2px;
     --shadow-drag: 0 8px 24px rgb(var(--color-black-rgb) / 18%);
+    --shadow-toolbar: 0 -6px 12px rgb(var(--color-black-rgb) / 12%);
+    --touch-target: 44px;
+    --mobile-toolbar-height: calc(var(--touch-target) + 2 * var(--space-xs) + 1px);
     --radius-sm: 4px;
     --space-xs: 6px;
     --space-sm: 8px;
@@ -114,10 +117,40 @@ button {
     }
 }
 
+/* The main action in a group: filled instead of outlined. */
+.primary {
+    font-weight: 600;
+    background-color: var(--color-text);
+    border-color: var(--color-text);
+    color: var(--color-surface);
+
+    &:hover {
+        background-color: var(--color-border-strong);
+        border-color: var(--color-border-strong);
+    }
+}
+
 .iconlabel {
     display: inline-flex;
     align-items: center;
     gap: var(--space-xs);
+}
+
+/* A square button showing only an icon; give it an aria-label. */
+.icon-button {
+    --icon-button-size: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--icon-button-size);
+    height: var(--icon-button-size);
+    padding: 0;
+    flex-shrink: 0;
+
+    svg {
+        width: 18px;
+        height: 18px;
+    }
 }
 
 .sr-only {
@@ -181,6 +214,17 @@ button {
     align-items: center;
     gap: var(--space-xs);
     min-width: 0;
+}
+
+.sidebar-history {
+    display: flex;
+    gap: var(--space-xs);
+    margin-left: auto;
+}
+
+/* Narrow screens only (see the width <= 640px rules). */
+.mobile-toolbar {
+    display: none;
 }
 
 .sidebar-search-row {
@@ -1401,6 +1445,59 @@ a4-tasklist {
         background-color: var(--color-sidebar-mobile);
     }
 
+    /* Add, undo, redo and "Show done" for the active list, within reach of the
+       thumb. Fixed to the viewport; the main pane leaves room for it below the
+       last task. */
+    .mobile-toolbar {
+        position: fixed;
+        inset-inline: 0;
+        bottom: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-xs) calc(var(--space-md) + env(safe-area-inset-right, 0px))
+            calc(var(--space-xs) + env(safe-area-inset-bottom, 0px))
+            calc(var(--space-md) + env(safe-area-inset-left, 0px));
+        background-color: var(--color-surface);
+        border-top: 1px solid var(--color-border);
+        transition: box-shadow var(--transition-fast);
+
+        /* Tasks continue below the toolbar. */
+        &.has-content-below {
+            box-shadow: var(--shadow-toolbar);
+        }
+
+        [hidden] {
+            display: none;
+        }
+
+        .icon-button {
+            --icon-button-size: var(--touch-target);
+        }
+    }
+
+    .mobile-toolbar-show-done {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-sm);
+        min-height: var(--touch-target);
+        margin-left: auto;
+        padding: 0 var(--space-xs);
+        color: var(--color-muted);
+        cursor: pointer;
+    }
+
+    .mobile-toolbar-add {
+        height: var(--touch-target);
+        padding: 0 var(--space-lg) 0 var(--space-md);
+    }
+
+    /* Undo and redo live in the toolbar on narrow screens. */
+    .sidebar-history {
+        display: none;
+    }
+
     .lists-app {
         grid-template-columns: 1fr;
         align-content: start;
@@ -1422,6 +1519,9 @@ a4-tasklist {
     .lists-main {
         grid-column: 1;
         background-color: var(--color-main-mobile);
+        padding-bottom: calc(
+            var(--mobile-toolbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-lg)
+        );
     }
 
     .sidebar-content {
@@ -1492,6 +1592,11 @@ a4-tasklist {
         .tasklist-show-done {
             white-space: nowrap;
         }
+    }
+
+    /* The toolbar holds Add and "Show done" outside search mode. */
+    .lists-main:not(.search-mode) .tasklist-header .tasklist-controls {
+        display: none;
     }
 
     .lists-main.search-mode .tasklist-header {

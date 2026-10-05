@@ -1115,11 +1115,12 @@ class A4TaskList extends HTMLElement {
   }
 
   handleShowDoneChange(e: Event) {
-    const isChecked = Boolean(
-      (e.target as HTMLInputElement | null)?.checked
-    );
-    if (this.showDone === isChecked) return;
-    this.showDone = isChecked;
+    this.setShowDone(Boolean((e.target as HTMLInputElement | null)?.checked));
+  }
+
+  setShowDone(value: boolean) {
+    if (this.showDone === value) return;
+    this.showDone = value;
     this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
     this.renderCurrentState();
     this.dispatchEvent(
@@ -1143,6 +1144,11 @@ class A4TaskList extends HTMLElement {
   }
 
   handleAddButtonClick() {
+    this.addTask();
+  }
+
+  /** Inserts an empty task at the top of the list and starts editing it. */
+  addTask() {
     if (!this.store) return;
     this.ensureInlineEditor();
     this.clearSearch();
