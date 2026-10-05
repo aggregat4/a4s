@@ -20,6 +20,10 @@ import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
 import { isOffsetCaret } from "../../types/caret.js";
+import {
+  flattenToPlainText,
+  handlePlainTextPaste,
+} from "../../shared/plain-text-input.js";
 
 type PatternDefinition = {
   regex: RegExp;
@@ -758,6 +762,7 @@ class A4TaskList extends HTMLElement {
               title=${this.isTitleEditing ? null : "Click to rename"}
               @click=${this.handleTitleClick}
               @input=${this.handleTitleInput}
+              @paste=${handlePlainTextPaste}
               @keydown=${this.handleTitleKeyDown}
               @blur=${this.handleTitleBlur}
               .textContent=${live(titleText)}
@@ -945,6 +950,7 @@ class A4TaskList extends HTMLElement {
     const target = event.target as HTMLElement | null;
     if (!target?.classList?.contains("tasklist-title")) return;
     if (!this.store) return;
+    flattenToPlainText(target);
     const rawValue = target.textContent ?? "";
     const trimmed = rawValue.trim();
     const currentTitle = this.store.getState().title ?? "";

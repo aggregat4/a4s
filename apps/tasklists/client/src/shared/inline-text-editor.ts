@@ -3,6 +3,7 @@
 import type { CaretPreference } from "../types/caret.js";
 import { isOffsetCaret } from "../types/caret.js";
 import { SHORTCUTS, matchesShortcut, pickShortcut } from "../ui/state/shortcuts.js";
+import { flattenToPlainText, handlePlainTextPaste } from "./plain-text-input.js";
 type CaretColumnPreference = Extract<CaretPreference, { type: "caret-column" }>;
 
 export default class InlineTextEditor {
@@ -153,6 +154,7 @@ export default class InlineTextEditor {
     textEl.addEventListener("blur", this.handleBlur);
     textEl.addEventListener("keydown", this.handleKeyDown);
     textEl.addEventListener("input", this.handleInput);
+    textEl.addEventListener("paste", handlePlainTextPaste);
     textEl.focus();
     if (caretPreference) {
       // When we resume editing after merges/moves we honour the stored caret preference.
@@ -695,6 +697,7 @@ export default class InlineTextEditor {
     textEl.removeEventListener("blur", this.handleBlur);
     textEl.removeEventListener("keydown", this.handleKeyDown);
     textEl.removeEventListener("input", this.handleInput);
+    textEl.removeEventListener("paste", handlePlainTextPaste);
     textEl.removeAttribute("contenteditable");
     textEl.removeAttribute("spellcheck");
     textEl.dataset.originalText = textEl.textContent;
@@ -723,6 +726,7 @@ export default class InlineTextEditor {
   handleInput(e: Event) {
     const textEl = e.target as HTMLElement;
     if (!textEl || textEl !== this.editingEl) return;
+    flattenToPlainText(textEl);
     const nextText = textEl.textContent ?? "";
     if (nextText === this.lastInputText) return;
     const previousText = this.lastInputText;

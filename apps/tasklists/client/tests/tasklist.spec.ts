@@ -1146,6 +1146,96 @@ test.describe("tasklist flows", () => {
     );
   });
 
+  test.describe("pasting rich text", () => {
+    // Content as copied from a web page: block elements, inline formatting and
+    // a link, with the plain-text flavour the browser derives from it.
+    const RICH_HTML =
+      '<p><strong>Buy</strong> <a href="https://example.com">oat milk</a></p>' +
+      '<p style="color: red">and eggs</p>';
+    const RICH_PLAIN = "Buy oat milk\n\nand eggs\n";
+
+    test.beforeEach(async ({ context, browserName }) => {
+      test.skip(
+        browserName !== "chromium",
+        "Writing rich content to the clipboard requires Chromium permissions"
+      );
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    });
+
+    async function pasteRichText(page: Page) {
+      await page.evaluate(
+        async ({ html, plain }) => {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([html], { type: "text/html" }),
+              "text/plain": new Blob([plain], { type: "text/plain" }),
+            }),
+          ]);
+        },
+        { html: RICH_HTML, plain: RICH_PLAIN }
+      );
+      await page.keyboard.press("ControlOrMeta+V");
+    }
+
+    const childElementCount = (locator: Locator) =>
+      locator.evaluate((node) => node.childElementCount);
+
+    test("pasting into a task inserts plain text on one line", async ({
+      page,
+    }) => {
+      const items = page.locator(listItemsSelector);
+      const initialCount = await items.count();
+      const firstText = items.nth(0).locator(".text");
+
+      await firstText.click();
+      await expect(firstText).toHaveAttribute("contenteditable", "true");
+      await firstText.fill("Shopping: ");
+      await setCaretPosition(firstText, "Shopping: ".length);
+      await pasteRichText(page);
+
+      await expect(firstText).toHaveText("Shopping: Buy oat milk and eggs");
+      expect(await childElementCount(firstText)).toBe(0);
+      await expect(items).toHaveCount(initialCount);
+
+      await page.keyboard.press("Escape");
+      await expect(firstText).toHaveText("Shopping: Buy oat milk and eggs");
+      await expect(firstText.locator("a, strong, p")).toHaveCount(0);
+    });
+
+    test("pasting into the list title inserts plain text", async ({ page }) => {
+      const title = page.locator(".tasklist-title").first();
+      await title.click();
+      await expect(title).toHaveAttribute("contenteditable", "true");
+      await page.keyboard.press("ControlOrMeta+A");
+      await pasteRichText(page);
+
+      await expect(title).toHaveText("Buy oat milk and eggs");
+      expect(await childElementCount(title)).toBe(0);
+      await page.keyboard.press("Enter");
+      await expect(page.locator("[data-role='active-list-title']")).toHaveText(
+        "Buy oat milk and eggs"
+      );
+    });
+
+    test("markup inserted without a paste event is flattened", async ({
+      page,
+    }) => {
+      // Covers rich content arriving by other routes, such as drag and drop.
+      const firstText = page.locator(listItemsSelector).nth(0).locator(".text");
+      await firstText.click();
+      await firstText.fill("Start ");
+      await setCaretPosition(firstText, "Start ".length);
+      await page.evaluate(() =>
+        document.execCommand("insertHTML", false, "<b>bold</b><div>next</div>")
+      );
+
+      await expect(firstText).toHaveText("Start bold next");
+      expect(await childElementCount(firstText)).toBe(0);
+      await page.keyboard.type("!");
+      await expect(firstText).toHaveText("Start bold next!");
+    });
+  });
+
   test("ctrl+shift+backspace removes the current task", async ({ page }) => {
     const itemsBefore = page.locator(listItemsSelector);
     const initialCount = await itemsBefore.count();

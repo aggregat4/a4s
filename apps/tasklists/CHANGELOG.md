@@ -15,6 +15,9 @@ Release notes for a tag are taken from the matching version section, so the
 - Reloading the page keeps the selected list instead of returning to the first
   list. The selected list is part of the URL, so a list can be bookmarked and
   the browser's back and forward buttons move between the lists you opened.
+- Pasting formatted text, such as text copied from a web page, into a task or
+  a list title inserts it as plain text on one line instead of keeping its
+  formatting and running separate lines together.
 - Clearing a list title and typing a new one no longer ends editing and
   restores the old title.
 
