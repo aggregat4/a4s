@@ -101,6 +101,9 @@ class ListsAppShellElement extends HTMLElement {
   private unsubscribeStore: (() => void) | null;
   private lastOrder: ListId[];
   private lastActiveId: ListId | null;
+  // A list the user navigates to before it exists (a list being created). It
+  // gets its own history entry once it becomes active.
+  private listIdToPushToUrl: ListId | null;
   private pendingMainRender: {
     activeId: ListId | null;
     searchMode: boolean;
@@ -129,6 +132,7 @@ class ListsAppShellElement extends HTMLElement {
     this.unsubscribeStore = null;
     this.lastOrder = [];
     this.lastActiveId = null;
+    this.listIdToPushToUrl = null;
     this.pendingMainRender = null;
     this.mainRenderScheduled = false;
     this.handleGlobalKeyDown = this.onGlobalKeyDown.bind(this);
@@ -390,7 +394,10 @@ class ListsAppShellElement extends HTMLElement {
     if (activeId !== this.lastActiveId) {
       this.registry.setActiveListId(activeId);
       this.lastActiveId = activeId;
-      if (activeId) {
+      if (activeId && activeId === this.listIdToPushToUrl) {
+        this.listIdToPushToUrl = null;
+        pushListIdToUrl(activeId);
+      } else if (activeId) {
         replaceListIdInUrl(activeId);
       }
     }
@@ -425,6 +432,7 @@ class ListsAppShellElement extends HTMLElement {
   handleListSelection(listId: ListId) {
     if (!listId || !this.store) return;
     if (!selectors.getList(this.store.getState(), listId)) return;
+    this.listIdToPushToUrl = null;
     this.store.dispatch({
       type: APP_ACTIONS.setPendingActiveList,
       payload: { id: null },
@@ -439,6 +447,7 @@ class ListsAppShellElement extends HTMLElement {
   onPopState() {
     if (!this.store) return;
     const listId = readListIdFromUrl();
+    this.listIdToPushToUrl = null;
     this.store.dispatch({
       type: APP_ACTIONS.setPendingActiveList,
       payload: { id: null },
@@ -464,6 +473,7 @@ class ListsAppShellElement extends HTMLElement {
     const trimmed = response.trim();
     if (!trimmed.length) return;
     const id = generateListId("list");
+    this.listIdToPushToUrl = id;
     this.store.dispatch({
       type: APP_ACTIONS.setPendingActiveList,
       payload: { id },
@@ -472,6 +482,9 @@ class ListsAppShellElement extends HTMLElement {
     Promise.resolve(
       this.repository.createList({ listId: id, title: trimmed })
     ).catch(() => {
+      if (this.listIdToPushToUrl === id) {
+        this.listIdToPushToUrl = null;
+      }
       store.dispatch({
         type: APP_ACTIONS.setPendingActiveList,
         payload: { id: null },

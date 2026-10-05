@@ -946,6 +946,23 @@ test.describe("active list URL", () => {
     await expect(activeListTitle(page)).toHaveText("Weekend Projects");
   });
 
+  test("back after adding a list returns to the previous list", async ({
+    page,
+  }) => {
+    await gotoWithSnapshot(page, "/?sync=0");
+    await selectList(page, "Weekend Projects");
+
+    page.once("dialog", (dialog) => dialog.accept("Added List"));
+    await openSidebarOptions(page);
+    await page.getByRole("button", { name: "Add list" }).click();
+    await expect(activeListTitle(page)).toHaveText("Added List");
+
+    await page.goBack();
+    await expect(activeListTitle(page)).toHaveText("Weekend Projects");
+    await page.goForward();
+    await expect(activeListTitle(page)).toHaveText("Added List");
+  });
+
   test("a URL for an unknown list falls back to the first list", async ({
     page,
   }) => {
