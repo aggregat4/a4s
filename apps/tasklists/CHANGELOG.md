@@ -29,6 +29,9 @@ Release notes for a tag are taken from the matching version section, so the
   no longer saves the wrong text on slow devices: the split-off text was saved
   twice, the joined text could be lost, and undo reverted a keystroke instead
   of the split.
+- Deleting or moving a task right after typing waits for the typed text to be
+  saved first. On slow devices, undoing such a delete reverted a keystroke
+  instead and restored the task with only part of its text.
 - Reloading the page keeps the selected list instead of returning to the first
   list. The selected list is part of the URL, so a list can be bookmarked and
   the browser's back and forward buttons move between the lists you opened.

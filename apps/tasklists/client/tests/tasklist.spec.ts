@@ -659,8 +659,8 @@ test("undo/redo combines split edits into one step", async ({ page }) => {
 
 test.describe("on a slow device", () => {
   // Typed text is saved keystroke by keystroke. On a slow device those saves
-  // lag behind the typing, so splitting or merging a task can happen while
-  // some of them are still waiting.
+  // lag behind the typing, so splitting, merging, moving or deleting a task
+  // can happen while some of them are still waiting.
   test.beforeEach(async ({ page, browserName }) => {
     test.skip(browserName !== "chromium", "CPU throttling uses CDP");
     await gotoWithSnapshot(page, "/?sync=0");
@@ -673,16 +673,25 @@ test.describe("on a slow device", () => {
 
   // Checks what was saved by opening the list in a second tab, so the saves
   // still running in the first tab are not cut off by a reload.
-  async function expectSavedTexts(page: Page, expected: string[]) {
+  async function expectSaved(
+    page: Page,
+    listId: string,
+    check: (texts: string[]) => void
+  ) {
     const viewer = await page.context().newPage();
     await expect(async () => {
-      await viewer.goto(page.url());
+      await viewer.goto(`/?sync=0&list=${listId}`);
+      await expect(taskTexts(viewer).first()).toBeVisible();
       const texts = await taskTexts(viewer).allTextContents();
-      expect(texts.slice(0, expected.length).map((t) => t.trim())).toEqual(
-        expected
-      );
+      check(texts.map((t) => t.trim()));
     }).toPass({ timeout: 30_000 });
     await viewer.close();
+  }
+
+  async function expectSavedTexts(page: Page, expected: string[]) {
+    await expectSaved(page, "list-prototype", (texts) =>
+      expect(texts.slice(0, expected.length)).toEqual(expected)
+    );
   }
 
   async function typeNewTask(page: Page, text: string) {
@@ -732,6 +741,55 @@ test.describe("on a slow device", () => {
 
     const secondTask = await page.locator(listItemsSelector).nth(1).locator(".text").textContent();
     await expectSavedTexts(page, ["AlphaBeta", secondTask?.trim() ?? ""]);
+  });
+
+  test("moving a task right after typing keeps its full text", async ({
+    page,
+  }) => {
+    await typeNewTask(page, "Move me right away");
+    await page.keyboard.press("Control+Alt+M");
+    await page
+      .locator(".move-dialog-option")
+      .filter({ hasText: "Weekend Projects" })
+      .click();
+    await expect(page.locator(".move-dialog-content")).toBeHidden();
+
+    await expectSaved(page, "list-weekend", (texts) =>
+      expect(texts[0]).toBe("Move me right away")
+    );
+    await expectSaved(page, "list-prototype", (texts) =>
+      expect(texts.filter((t) => t.startsWith("Move me"))).toEqual([])
+    );
+  });
+
+  test("deleting a task right after typing keeps it deleted", async ({
+    page,
+  }) => {
+    const initialCount = await page.locator(listItemsSelector).count();
+    await typeNewTask(page, "Gone in a moment");
+    await page.keyboard.press("Control+Shift+Backspace");
+    await expect(page.locator(listItemsSelector)).toHaveCount(initialCount);
+
+    await expectSaved(page, "list-prototype", (texts) => {
+      expect(texts).toHaveLength(initialCount);
+      expect(texts.filter((t) => t.startsWith("Gone"))).toEqual([]);
+    });
+  });
+
+  test("undoing a delete right after typing restores the full text", async ({
+    page,
+  }) => {
+    const initialCount = await page.locator(listItemsSelector).count();
+    await typeNewTask(page, "Bring me back");
+    await page.keyboard.press("Control+Shift+Backspace");
+    await expect(page.locator(listItemsSelector)).toHaveCount(initialCount);
+
+    await pressUndo(page);
+    await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1, {
+      timeout: 15_000,
+    });
+    await expect(taskTexts(page).first()).toHaveText("Bring me back");
+    await expectSavedTexts(page, ["Bring me back"]);
   });
 });
 

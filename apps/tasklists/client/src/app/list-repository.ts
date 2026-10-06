@@ -971,7 +971,8 @@ export class ListRepository {
       resolvePending = resolve;
     });
     this._pendingInserts.set(pendingKey, pendingPromise);
-    return this.enqueueTextUpdates(listId, [itemId, newItemId], async () => {
+    const items = [itemId, newItemId].map((id) => ({ listId, itemId: id }));
+    return this.enqueueTextUpdates(items, async () => {
       try {
         return await this.splitTaskInternal(listId, itemId, newItemId, options);
       } finally {
@@ -1068,10 +1069,12 @@ export class ListRepository {
   ) {
     if (!previousItemId || !currentItemId) return null;
     if (previousItemId === currentItemId) return null;
-    return this.enqueueTextUpdates(
+    const items = [previousItemId, currentItemId].map((id) => ({
       listId,
-      [previousItemId, currentItemId],
-      () => this.mergeTaskInternal(listId, previousItemId, currentItemId, options)
+      itemId: id,
+    }));
+    return this.enqueueTextUpdates(items, () =>
+      this.mergeTaskInternal(listId, previousItemId, currentItemId, options)
     );
   }
 
@@ -1272,6 +1275,13 @@ export class ListRepository {
   }
 
   async removeTask(listId: ListId, itemId: string) {
+    // After the task's queued text updates, so undo restores the full text.
+    return this.enqueueTextUpdates([{ listId, itemId }], () =>
+      this.removeTaskInternal(listId, itemId)
+    );
+  }
+
+  private async removeTaskInternal(listId: ListId, itemId: string) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -1367,8 +1377,25 @@ export class ListRepository {
     itemId: string,
     options: TaskMoveInput & { snapshot?: TaskItem } = {}
   ) {
-    await this.initialize();
     if (!itemId || sourceListId === targetListId) return null;
+    // After the task's queued text updates in the source list, and before any
+    // made to it in the target list.
+    const items = [sourceListId, targetListId].map((listId) => ({
+      listId,
+      itemId,
+    }));
+    return this.enqueueTextUpdates(items, () =>
+      this.moveTaskInternal(sourceListId, targetListId, itemId, options)
+    );
+  }
+
+  private async moveTaskInternal(
+    sourceListId: ListId,
+    targetListId: ListId,
+    itemId: string,
+    options: TaskMoveInput & { snapshot?: TaskItem } = {}
+  ) {
+    await this.initialize();
     const source = this._listMap.get(sourceListId);
     const target = this._listMap.get(targetListId);
     if (!source?.crdt || !target?.crdt) return null;
@@ -1567,7 +1594,7 @@ export class ListRepository {
     itemId: string,
     action: () => Promise<T>
   ) {
-    return this.enqueueTextUpdates(listId, [itemId], action);
+    return this.enqueueTextUpdates([{ listId, itemId }], action);
   }
 
   /**
@@ -1578,11 +1605,10 @@ export class ListRepository {
    * overwrite its result.
    */
   private enqueueTextUpdates<T>(
-    listId: ListId,
-    itemIds: string[],
+    items: Array<{ listId: ListId; itemId: string }>,
     action: () => Promise<T>
   ) {
-    const keys = itemIds.map((itemId) => `${listId}:${itemId}`);
+    const keys = items.map(({ listId, itemId }) => `${listId}:${itemId}`);
     const previous = Promise.all(
       keys.map((key) => this._textUpdateQueue.get(key) ?? Promise.resolve())
     );
