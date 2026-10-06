@@ -870,7 +870,6 @@ test("sidebar list order updates after drag reorder", async ({ page }) => {
     "Weekend Projects",
     "Work Follow-ups",
   ]);
-  const initialNames = await getSidebarListNames(page);
 
   const sourceHandle = listItems.nth(2).locator(".sidebar-list-handle");
   const targetItem = listItems.nth(0);
@@ -881,8 +880,12 @@ test("sidebar list order updates after drag reorder", async ({ page }) => {
   await dragHandleToTarget(sourceHandle, targetItem, {
     targetPosition: { x: 10, y: 2 },
   });
-  const previewOrder = await getSidebarListNames(page);
-  expect(previewOrder).not.toEqual(initialNames);
+  // Compare against the intended order rather than a snapshot taken right
+  // after the drag: on a slow machine the drop may not have settled yet.
+  const reordered = ["Work Follow-ups", "Prototype Tasks", "Weekend Projects"];
+  await expect.poll(async () => getSidebarListNames(page)).toEqual(reordered);
+
+  // A sidebar refresh (here from a list's item count changing) keeps the order.
   await page.evaluate(() => {
     const list = document.querySelector("a4-tasklist");
     if (!list) return;
@@ -890,10 +893,7 @@ test("sidebar list order updates after drag reorder", async ({ page }) => {
       new CustomEvent("itemcountchange", { detail: { total: 99 } })
     );
   });
-
-  await expect
-    .poll(async () => getSidebarListNames(page))
-    .toEqual(previewOrder);
+  await expect.poll(async () => getSidebarListNames(page)).toEqual(reordered);
 });
 
 test("sidebar drag can move a middle list to the top", async ({ page }) => {
