@@ -1464,6 +1464,68 @@ test.describe("tasklist flows", () => {
     await expect(mergedTextLocator).toContainText(secondText);
   });
 
+  test.describe("next to hidden completed tasks", () => {
+    // With "Show done" off, completed tasks are in the list but hidden.
+    const visibleDoneToggles = (page: Page) =>
+      page.locator(`${listItemsSelector} .done-toggle:checked`);
+    const editingTask = (page: Page) =>
+      page.locator("[data-role='lists-container'] .text[contenteditable='true']");
+
+    async function completeTopTasks(page: Page, count: number) {
+      const items = page.locator(listItemsSelector);
+      const initialCount = await items.count();
+      for (let i = 0; i < count; i += 1) {
+        await items.first().locator(".done-toggle").click();
+        await expect(items).toHaveCount(initialCount - i - 1);
+      }
+    }
+
+    test("backspace in an empty task above them stays among visible tasks", async ({
+      page,
+    }) => {
+      await completeTopTasks(page, 2);
+      const items = page.locator(listItemsSelector);
+      const countBefore = await items.count();
+      for (let i = 0; i < 3; i += 1) {
+        await page.getByRole("button", { name: "Add task" }).first().click();
+        await expect(editingTask(page)).toHaveCount(1);
+        await page.keyboard.press("Escape");
+      }
+      await expect(items).toHaveCount(countBefore + 3);
+
+      // The lowest new task sits right above the hidden completed tasks.
+      const lowestNew = items.nth(2).locator(".text");
+      await expect(lowestNew).toHaveText("");
+      await lowestNew.click();
+      await expect(lowestNew).toHaveAttribute("contenteditable", "true");
+      await page.keyboard.press("Backspace");
+
+      await expect(items).toHaveCount(countBefore + 2);
+      await expect(visibleDoneToggles(page)).toHaveCount(0);
+      await expect(editingTask(page)).toHaveCount(1);
+      await expect(
+        page.locator(`${listItemsSelector}:has(.text[contenteditable='true']) .done-toggle`)
+      ).not.toBeChecked();
+    });
+
+    test("backspace at the start of the first visible task does not merge into them", async ({
+      page,
+    }) => {
+      await completeTopTasks(page, 1);
+      const items = page.locator(listItemsSelector);
+      const countBefore = await items.count();
+      const first = items.first().locator(".text");
+      const firstText = (await first.textContent())?.trim() ?? "";
+      await first.click();
+      await setCaretPosition(first, 0);
+      await page.keyboard.press("Backspace");
+
+      await expect(items).toHaveCount(countBefore);
+      await expect(items.first().locator(".text")).toHaveText(firstText);
+      await expect(visibleDoneToggles(page)).toHaveCount(0);
+    });
+  });
+
   test("backspace removes an empty new task", async ({ page }) => {
     const itemsBefore = page.locator(listItemsSelector);
     const initialCount = await itemsBefore.count();

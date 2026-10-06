@@ -10,6 +10,14 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Fixed
+
+- Backspace no longer reaches tasks hidden by "Show done" or the search.
+  Deleting an empty task above hidden completed tasks put the cursor inside a
+  completed task and showed it, and Backspace at the start of a task below
+  them merged it into the hidden completed task. The cursor now moves to the
+  visible task above.
+
 ## [v1.7.0] - 2026-10-06
 
 ### Added

@@ -2,7 +2,9 @@ import { html, render, noChange } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
 import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
-import InlineTextEditor from "../../shared/inline-text-editor.js";
+import InlineTextEditor, {
+  visibleSiblingTask,
+} from "../../shared/inline-text-editor.js";
 import {
   createStore,
   listReducer,
@@ -1315,19 +1317,26 @@ class A4TaskList extends HTMLElement {
   }
 
   // Redirects focus when a task is deleted so keyboard users land on a sensible neighbor instead of losing their place.
-  handleEditRemove({ element }: { element: HTMLElement }) {
+  handleEditRemove({
+    element,
+    reason,
+  }: {
+    element: HTMLElement;
+    reason?: string;
+  }) {
     if (!element || !this.store) return;
     const li = element.closest("li");
     const id = li?.dataset?.itemId;
-    if (!id) return;
+    if (!li || !id) return;
 
-    const state = this.store.getState();
-    const items = state?.items ?? [];
-    const currentIndex = items.findIndex((item) => item.id === id);
-    if (currentIndex === -1) return;
-
-    const nextItem = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
-    const focusTargetId = nextItem?.id ?? null;
+    // Continue editing a task the user can see: never one hidden by "Show
+    // done" or the search. Backspace in an empty task moves up, like deleting
+    // an empty line in a text editor; the delete shortcut prefers the next one.
+    const above = visibleSiblingTask(li, "up");
+    const below = visibleSiblingTask(li, "down");
+    const focusTarget =
+      reason === "empty-backspace" ? above ?? below : below ?? above;
+    const focusTargetId = focusTarget?.dataset?.itemId ?? null;
     if (focusTargetId) {
       this.editController.queue(focusTargetId, "end");
       this.schedulePendingEditFlush();

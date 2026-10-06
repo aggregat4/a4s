@@ -4,6 +4,29 @@ import type { CaretPreference } from "../types/caret.js";
 import { isOffsetCaret } from "../types/caret.js";
 import { SHORTCUTS, matchesShortcut, pickShortcut } from "../ui/state/shortcuts.js";
 import { flattenToPlainText, handlePlainTextPaste } from "./plain-text-input.js";
+
+/**
+ * The nearest task row above or below that is shown, skipping drag
+ * placeholders and rows hidden by "Show done" or the search. Keyboard
+ * navigation and editing act only on tasks the user can see.
+ */
+export function visibleSiblingTask(
+  li: Element,
+  direction: "up" | "down"
+): HTMLElement | null {
+  const step = (node: Element) =>
+    (direction === "down"
+      ? node.nextElementSibling
+      : node.previousElementSibling) as HTMLElement | null;
+  let sibling = step(li);
+  while (
+    sibling &&
+    (sibling.classList.contains("placeholder") || sibling.hidden)
+  ) {
+    sibling = step(sibling);
+  }
+  return sibling;
+}
 type CaretColumnPreference = Extract<CaretPreference, { type: "caret-column" }>;
 
 export default class InlineTextEditor {
@@ -368,11 +391,7 @@ export default class InlineTextEditor {
       fullText.length > 0
     ) {
       const li = textEl.closest("li");
-      let previousLi = (li?.previousElementSibling ?? null) as HTMLElement | null;
-      while (previousLi && previousLi.classList?.contains("placeholder")) {
-        previousLi =
-          (previousLi.previousElementSibling ?? null) as HTMLElement | null;
-      }
+      const previousLi = li ? visibleSiblingTask(li, "up") : null;
       const previousItemId = previousLi?.dataset?.itemId ?? null;
       if (previousItemId && typeof this.options.onMerge === "function") {
         e.preventDefault();
@@ -510,21 +529,7 @@ export default class InlineTextEditor {
       return false;
     const li = textEl.closest("li");
     if (!li) return false;
-    let sibling =
-      direction === "down"
-        ? (li.nextElementSibling as HTMLElement | null)
-        : (li.previousElementSibling as HTMLElement | null);
-    const isHidden = (node: HTMLElement) =>
-      node.hasAttribute("hidden") || node.hidden === true;
-    while (
-      sibling &&
-      (sibling.classList?.contains("placeholder") || isHidden(sibling))
-    ) {
-      sibling =
-        direction === "down"
-          ? (sibling.nextElementSibling as HTMLElement | null)
-          : (sibling.previousElementSibling as HTMLElement | null);
-    }
+    const sibling = visibleSiblingTask(li, direction);
     const targetText = sibling?.querySelector?.(".text") as HTMLElement | null;
     if (!targetText) return false;
     // Capture both the visual column (`x`) and the logical offset so we can restore
