@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.7.0] - 2026-10-06
+
 ### Added
 
 - Undo and redo buttons. On wide screens they sit next to the app title in the
