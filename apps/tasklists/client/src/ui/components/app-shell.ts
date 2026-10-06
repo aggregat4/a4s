@@ -95,6 +95,19 @@ type MobileToolbarElement = HTMLElement & {
 };
 
 type Store = ReturnType<typeof createAppStore>;
+
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "hidden",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
 class ListsAppShellElement extends HTMLElement {
   private shellRendered: boolean;
   private appInitialized: boolean;
@@ -402,11 +415,14 @@ class ListsAppShellElement extends HTMLElement {
     }
   }
 
+  // Whether the browser handles undo and typing for this element itself: text
+  // fields and contenteditable text. Checkboxes, buttons and the like are not,
+  // so Ctrl+Z right after ticking a task off undoes the tick.
   isEditableTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false;
-    const tag = target.tagName.toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select") {
-      return true;
+    if (target instanceof HTMLTextAreaElement) return true;
+    if (target instanceof HTMLInputElement) {
+      return !NON_TEXT_INPUT_TYPES.has(target.type);
     }
     return Boolean(target.closest("[contenteditable='true']"));
   }

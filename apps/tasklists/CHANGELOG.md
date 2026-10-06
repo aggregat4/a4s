@@ -32,6 +32,12 @@ Release notes for a tag are taken from the matching version section, so the
 - Deleting or moving a task right after typing waits for the typed text to be
   saved first. On slow devices, undoing such a delete reverted a keystroke
   instead and restored the task with only part of its text.
+- Undo always reverts the last change you made. Changes are saved one at a
+  time in the order you make them; on slow devices an undo pressed while a
+  change was still saving could revert an earlier change instead.
+- Ctrl+Z right after ticking a task off undoes it; it was ignored while the
+  checkbox had focus. A tick that is undone or changed on another device now
+  also updates a checkbox you clicked before.
 - Reloading the page keeps the selected list instead of returning to the first
   list. The selected list is part of the URL, so a list can be bookmarked and
   the browser's back and forward buttons move between the lists you opened.

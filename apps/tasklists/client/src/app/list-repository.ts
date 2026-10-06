@@ -65,14 +65,16 @@ function toListState(record?: ListRecord | null): TaskListState {
 
 export class ListRepository {
   /*
-    Text edits, inserts, and undo/redo are async and can interleave. The queues
-    below make ordering explicit so we don't drop keystrokes or corrupt history:
-    - _pendingInserts: when a new task is inserted, early text updates wait until
-      the CRDT entry exists.
-    - _textUpdateQueue: text edits for a given item are serialized so each update
-      applies in order.
-    - _historyQueue: undo/redo operations run sequentially to avoid overlapping
-      history replays.
+    Local changes are async: each one saves to storage before it records its
+    undo step, and on a slow device saving lags behind the user (typed text is
+    saved keystroke by keystroke). _changeQueue runs them one at a time, in the
+    order they were requested, with undo and redo in the same queue. So every
+    change sees the result of the ones before it, the undo history is in the
+    order of the user's actions, and an undo applies to the last change made
+    before it. Public methods queue the change; the matching *Internal methods
+    do the work, and undo and redo replay history through those directly.
+    Remote operations from sync and the bootstrap snapshot are merged by the
+    CRDTs and record no history, so they do not use the queue.
     Coalescing groups adjacent text edits into a single undo step based on time
     gaps and word boundaries for a native editor feel.
 
@@ -99,11 +101,9 @@ export class ListRepository {
   private _history: HistoryManager;
   private _historySuppressed: number;
   // Serializes undo/redo so history ops never interleave.
-  private _historyQueue: Promise<void>;
+  private _changeQueue: Promise<void>;
   // Serializes text updates per item so keystrokes apply in order.
-  private _textUpdateQueue: Map<string, Promise<void>>;
   // Tracks inserts so early text edits can wait until the item exists in CRDT.
-  private _pendingInserts: Map<string, Promise<void>>;
   private _textEditSessions: Map<
     string,
     { segmentId: number; lastAt: number; lastText: string }
@@ -142,9 +142,7 @@ export class ListRepository {
     this._globalListeners = new Set();
     this._history = new HistoryManager();
     this._historySuppressed = 0;
-    this._historyQueue = Promise.resolve();
-    this._textUpdateQueue = new Map();
-    this._pendingInserts = new Map();
+    this._changeQueue = Promise.resolve();
     this._textEditSessions = new Map();
     this._initialized = false;
     this._initializing = null;
@@ -197,9 +195,8 @@ export class ListRepository {
   }
 
   async undo() {
-    return this.enqueueHistoryAction(async () => {
+    return this.enqueueChange(async () => {
       await this.initialize();
-      await this.flushPendingEdits();
       const entry = this._history.undo();
       if (!entry) return false;
       await this.applyHistoryOps(entry.inverseOps);
@@ -209,9 +206,8 @@ export class ListRepository {
   }
 
   async redo() {
-    return this.enqueueHistoryAction(async () => {
+    return this.enqueueChange(async () => {
       await this.initialize();
-      await this.flushPendingEdits();
       const entry = this._history.redo();
       if (!entry) return false;
       await this.applyHistoryOps(entry.forwardOps);
@@ -295,8 +291,7 @@ export class ListRepository {
     this._history.clear();
     this._historySuppressed = 0;
     this._textEditSessions.clear();
-    this._textUpdateQueue.clear();
-    this._pendingInserts.clear();
+    this._changeQueue = Promise.resolve();
     this._initialized = false;
     this._initializing = null;
   }
@@ -366,6 +361,8 @@ export class ListRepository {
    * engine's debounce. Backs the Ctrl/Cmd+S "save now" shortcut.
    */
   async flushSync() {
+    // Changes still queued reach the outbox only once they are saved.
+    await this._changeQueue;
     if (this._sync) {
       await this._sync.flushOnce();
     }
@@ -409,7 +406,17 @@ export class ListRepository {
     return { registryState, lists };
   }
 
-  async replaceWithSnapshot({
+  async replaceWithSnapshot(snapshot: {
+    registryState: RegistryState;
+    lists: Array<{ listId: ListId; state: ListState }>;
+    snapshotText?: string;
+    publishSnapshot?: boolean;
+  }): Promise<{ published: boolean; error?: string } | null> {
+    // After the changes already queued, which it replaces.
+    return this.enqueueChange(() => this.replaceWithSnapshotInternal(snapshot));
+  }
+
+  private async replaceWithSnapshotInternal({
     registryState,
     lists,
     snapshotText,
@@ -421,7 +428,6 @@ export class ListRepository {
     publishSnapshot?: boolean;
   }): Promise<{ published: boolean; error?: string } | null> {
     await this.initialize();
-    await this.flushPendingEdits();
     if (!this._storage) return null;
 
     this._sync?.stop();
@@ -464,8 +470,6 @@ export class ListRepository {
     this._history.clear();
     this._historySuppressed = 0;
     this._textEditSessions.clear();
-    this._textUpdateQueue.clear();
-    this._pendingInserts.clear();
     this.emitRegistryChange();
     this._listMap.forEach((_record, listId) => this.emitListChange(listId));
 
@@ -617,8 +621,6 @@ export class ListRepository {
             if (payload.type === "removeList" && payload.listId) {
               this._listMap.delete(payload.listId);
               this.clearTextEditSessionsForList(payload.listId);
-              this.clearTextUpdateQueueForList(payload.listId);
-              this.clearPendingInsertsForList(payload.listId);
             }
           }
           continue;
@@ -665,6 +667,10 @@ export class ListRepository {
   }
 
   async createList(options: ListCreateInput = {}) {
+    return this.enqueueChange(() => this.createListInternal(options));
+  }
+
+  private async createListInternal(options: ListCreateInput = {}) {
     await this.initialize();
     const listId = ensureId(options.listId, "list");
     const title = sanitizeText(options.title);
@@ -767,6 +773,10 @@ export class ListRepository {
   }
 
   async removeList(listId: ListId) {
+    return this.enqueueChange(() => this.removeListInternal(listId));
+  }
+
+  private async removeListInternal(listId: ListId) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return false;
@@ -802,12 +812,14 @@ export class ListRepository {
       actor: this._listsCrdt.actorId,
     });
     this.clearTextEditSessionsForList(listId);
-    this.clearTextUpdateQueueForList(listId);
-    this.clearPendingInsertsForList(listId);
     return true;
   }
 
   async renameList(listId: ListId, title: string) {
+    return this.enqueueChange(() => this.renameListInternal(listId, title));
+  }
+
+  private async renameListInternal(listId: ListId, title: string) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -846,7 +858,11 @@ export class ListRepository {
     return record.crdt.toListState();
   }
 
-  async reorderList(
+  async reorderList(listId: ListId, options: ListReorderInput = {}) {
+    return this.enqueueChange(() => this.reorderListInternal(listId, options));
+  }
+
+  private async reorderListInternal(
     listId: ListId,
     { afterId = null, beforeId = null, position = null }: ListReorderInput = {}
   ) {
@@ -893,62 +909,57 @@ export class ListRepository {
   }
 
   async insertTask(listId: ListId, options: TaskInsertInput = {}) {
-    // Mark the insert as pending so updateTask can wait for the CRDT entry.
+    return this.enqueueChange(() => this.insertTaskInternal(listId, options));
+  }
+
+  private async insertTaskInternal(
+    listId: ListId,
+    options: TaskInsertInput = {}
+  ) {
     const itemId = ensureId(options.itemId, `${listId}-item`);
-    const pendingKey = `${listId}:${itemId}`;
-    let resolvePending = () => {};
-    const pendingPromise = new Promise<void>((resolve) => {
-      resolvePending = resolve;
-    });
-    this._pendingInserts.set(pendingKey, pendingPromise);
     await this.initialize();
-    try {
-      const record = this._listMap.get(listId);
-      if (!record?.crdt) return null;
-      const text = sanitizeText(options.text);
-      const done = options.done == null ? false : Boolean(options.done);
-      const note = sanitizeText(options.note);
-      const insert = record.crdt.generateInsert({
-        itemId,
-        text,
-        done,
-        note,
-        afterId: options.afterId,
-        beforeId: options.beforeId,
-        position: options.position,
-      });
-      await this._persistList(listId, record.crdt, [insert.op]);
-      this.emitListChange(listId);
-      this.recordHistory({
-        scope: { type: "list", listId },
-        forwardOps: [
-          {
-            type: "insertTask",
-            listId,
-            itemId,
-            text,
-            done,
-            note,
-            afterId: options.afterId ?? null,
-            beforeId: options.beforeId ?? null,
-            position: options.position ?? null,
-          },
-        ],
-        inverseOps: [
-          {
-            type: "removeTask",
-            listId,
-            itemId,
-          },
-        ],
-        label: "insert-task",
-        actor: record.crdt.actorId,
-      });
-      return { id: itemId, state: record.crdt.toListState() };
-    } finally {
-      resolvePending();
-      this._pendingInserts.delete(pendingKey);
-    }
+    const record = this._listMap.get(listId);
+    if (!record?.crdt) return null;
+    const text = sanitizeText(options.text);
+    const done = options.done == null ? false : Boolean(options.done);
+    const note = sanitizeText(options.note);
+    const insert = record.crdt.generateInsert({
+      itemId,
+      text,
+      done,
+      note,
+      afterId: options.afterId,
+      beforeId: options.beforeId,
+      position: options.position,
+    });
+    await this._persistList(listId, record.crdt, [insert.op]);
+    this.emitListChange(listId);
+    this.recordHistory({
+      scope: { type: "list", listId },
+      forwardOps: [
+        {
+          type: "insertTask",
+          listId,
+          itemId,
+          text,
+          done,
+          note,
+          afterId: options.afterId ?? null,
+          beforeId: options.beforeId ?? null,
+          position: options.position ?? null,
+        },
+      ],
+      inverseOps: [
+        {
+          type: "removeTask",
+          listId,
+          itemId,
+        },
+      ],
+      label: "insert-task",
+      actor: record.crdt.actorId,
+    });
+    return { id: itemId, state: record.crdt.toListState() };
   }
 
   async splitTask(
@@ -965,21 +976,9 @@ export class ListRepository {
     }
   ) {
     const newItemId = ensureId(options.newItemId, `${listId}-item`);
-    const pendingKey = `${listId}:${newItemId}`;
-    let resolvePending = () => {};
-    const pendingPromise = new Promise<void>((resolve) => {
-      resolvePending = resolve;
-    });
-    this._pendingInserts.set(pendingKey, pendingPromise);
-    const items = [itemId, newItemId].map((id) => ({ listId, itemId: id }));
-    return this.enqueueTextUpdates(items, async () => {
-      try {
-        return await this.splitTaskInternal(listId, itemId, newItemId, options);
-      } finally {
-        resolvePending();
-        this._pendingInserts.delete(pendingKey);
-      }
-    });
+    return this.enqueueChange(() =>
+      this.splitTaskInternal(listId, itemId, newItemId, options)
+    );
   }
 
   private async splitTaskInternal(
@@ -1069,11 +1068,7 @@ export class ListRepository {
   ) {
     if (!previousItemId || !currentItemId) return null;
     if (previousItemId === currentItemId) return null;
-    const items = [previousItemId, currentItemId].map((id) => ({
-      listId,
-      itemId: id,
-    }));
-    return this.enqueueTextUpdates(items, () =>
+    return this.enqueueChange(() =>
       this.mergeTaskInternal(listId, previousItemId, currentItemId, options)
     );
   }
@@ -1142,19 +1137,13 @@ export class ListRepository {
       actor: record.crdt.actorId,
     });
     this._textEditSessions.delete(`${listId}:${currentItemId}`);
-    this._textUpdateQueue.delete(`${listId}:${currentItemId}`);
     return record.crdt.toListState();
   }
 
   async updateTask(listId: ListId, itemId: string, payload: TaskUpdateInput = {}) {
-    await this.initialize();
-    if (Object.prototype.hasOwnProperty.call(payload, "text")) {
-      // Keep text updates ordered for this item.
-      return this.enqueueTextUpdate(listId, itemId, () =>
-        this.updateTaskInternal(listId, itemId, payload)
-      );
-    }
-    return this.updateTaskInternal(listId, itemId, payload);
+    return this.enqueueChange(() =>
+      this.updateTaskInternal(listId, itemId, payload)
+    );
   }
 
   private async updateTaskInternal(
@@ -1162,21 +1151,13 @@ export class ListRepository {
     itemId: string,
     payload: TaskUpdateInput = {}
   ) {
+    await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
     if (typeof itemId !== "string" || !itemId.length) return null;
-    let existing = record.crdt.getSnapshot().find((entry) => entry.id === itemId);
-    if (!existing) {
-      // If the task was just inserted, wait so we don't drop early edits.
-      const pending = this._pendingInserts.get(`${listId}:${itemId}`);
-      if (pending) {
-        await pending;
-        const refreshed = this._listMap.get(listId);
-        existing = refreshed?.crdt
-          ?.getSnapshot()
-          .find((entry) => entry.id === itemId);
-      }
-    }
+    const existing = record.crdt
+      .getSnapshot()
+      .find((entry) => entry.id === itemId);
     if (!existing) return null;
     const now = Date.now();
     let coalesceKey: string | undefined;
@@ -1240,7 +1221,21 @@ export class ListRepository {
     return record.crdt.toListState();
   }
 
-  async toggleTask(listId: ListId, itemId: string, explicitState: boolean | null = null) {
+  async toggleTask(
+    listId: ListId,
+    itemId: string,
+    explicitState: boolean | null = null
+  ) {
+    return this.enqueueChange(() =>
+      this.toggleTaskInternal(listId, itemId, explicitState)
+    );
+  }
+
+  private async toggleTaskInternal(
+    listId: ListId,
+    itemId: string,
+    explicitState: boolean | null = null
+  ) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -1275,10 +1270,7 @@ export class ListRepository {
   }
 
   async removeTask(listId: ListId, itemId: string) {
-    // After the task's queued text updates, so undo restores the full text.
-    return this.enqueueTextUpdates([{ listId, itemId }], () =>
-      this.removeTaskInternal(listId, itemId)
-    );
+    return this.enqueueChange(() => this.removeTaskInternal(listId, itemId));
   }
 
   private async removeTaskInternal(listId: ListId, itemId: string) {
@@ -1318,11 +1310,20 @@ export class ListRepository {
       actor: record.crdt.actorId,
     });
     this._textEditSessions.delete(`${listId}:${itemId}`);
-    this._textUpdateQueue.delete(`${listId}:${itemId}`);
     return result;
   }
 
   async moveTaskWithinList(
+    listId: ListId,
+    itemId: string,
+    options: TaskMoveInput = {}
+  ) {
+    return this.enqueueChange(() =>
+      this.moveTaskWithinListInternal(listId, itemId, options)
+    );
+  }
+
+  private async moveTaskWithinListInternal(
     listId: ListId,
     itemId: string,
     options: TaskMoveInput = {}
@@ -1378,13 +1379,7 @@ export class ListRepository {
     options: TaskMoveInput & { snapshot?: TaskItem } = {}
   ) {
     if (!itemId || sourceListId === targetListId) return null;
-    // After the task's queued text updates in the source list, and before any
-    // made to it in the target list.
-    const items = [sourceListId, targetListId].map((listId) => ({
-      listId,
-      itemId,
-    }));
-    return this.enqueueTextUpdates(items, () =>
+    return this.enqueueChange(() =>
       this.moveTaskInternal(sourceListId, targetListId, itemId, options)
     );
   }
@@ -1571,53 +1566,13 @@ export class ListRepository {
     return persist;
   }
 
-  private enqueueHistoryAction<T>(action: () => Promise<T>) {
-    const next = this._historyQueue.then(action, action);
-    this._historyQueue = next.then(
+  /** Runs a local change after the ones already requested; see the class comment. */
+  private enqueueChange<T>(change: () => Promise<T>): Promise<T> {
+    const next = this._changeQueue.then(change, change);
+    this._changeQueue = next.then(
       (): void => undefined,
       (): void => undefined
     );
-    return next;
-  }
-
-  private async flushPendingEdits() {
-    const pending = [
-      ...this._textUpdateQueue.values(),
-      ...this._pendingInserts.values(),
-    ];
-    if (pending.length === 0) return;
-    await Promise.allSettled(pending);
-  }
-
-  private enqueueTextUpdate<T>(
-    listId: ListId,
-    itemId: string,
-    action: () => Promise<T>
-  ) {
-    return this.enqueueTextUpdates([{ listId, itemId }], action);
-  }
-
-  /**
-   * Runs an action that changes the text of these items after their queued
-   * text updates, and makes later text updates of them wait for it. Typed text
-   * is saved keystroke by keystroke, so on a slow device saves can still be
-   * queued when a task is split or merged; applied afterwards, they would
-   * overwrite its result.
-   */
-  private enqueueTextUpdates<T>(
-    items: Array<{ listId: ListId; itemId: string }>,
-    action: () => Promise<T>
-  ) {
-    const keys = items.map(({ listId, itemId }) => `${listId}:${itemId}`);
-    const previous = Promise.all(
-      keys.map((key) => this._textUpdateQueue.get(key) ?? Promise.resolve())
-    );
-    const next = previous.then(action, action);
-    const settled = next.then(
-      (): void => undefined,
-      (): void => undefined
-    );
-    keys.forEach((key) => this._textUpdateQueue.set(key, settled));
     return next;
   }
 
@@ -1633,11 +1588,13 @@ export class ListRepository {
     }
   }
 
+  // Runs inside the change queue (from undo/redo), so it calls the internal
+  // methods: queueing would wait for the undo itself.
   private async applyHistoryOp(op: HistoryOp) {
     if (!op) return;
     switch (op.type) {
       case "createList":
-        await this.createList({
+        await this.createListInternal({
           listId: op.listId,
           title: op.title,
           items: op.items,
@@ -1647,20 +1604,20 @@ export class ListRepository {
         });
         return;
       case "removeList":
-        await this.removeList(op.listId);
+        await this.removeListInternal(op.listId);
         return;
       case "renameList":
-        await this.renameList(op.listId, op.title);
+        await this.renameListInternal(op.listId, op.title);
         return;
       case "reorderList":
-        await this.reorderList(op.listId, {
+        await this.reorderListInternal(op.listId, {
           afterId: op.afterId ?? null,
           beforeId: op.beforeId ?? null,
           position: op.position ?? null,
         });
         return;
       case "insertTask":
-        await this.insertTask(op.listId, {
+        await this.insertTaskInternal(op.listId, {
           itemId: op.itemId,
           text: op.text,
           done: op.done,
@@ -1671,20 +1628,20 @@ export class ListRepository {
         });
         return;
       case "removeTask":
-        await this.removeTask(op.listId, op.itemId);
+        await this.removeTaskInternal(op.listId, op.itemId);
         return;
       case "updateTask":
-        await this.updateTask(op.listId, op.itemId, op.payload);
+        await this.updateTaskInternal(op.listId, op.itemId, op.payload);
         return;
       case "moveTaskWithinList":
-        await this.moveTaskWithinList(op.listId, op.itemId, {
+        await this.moveTaskWithinListInternal(op.listId, op.itemId, {
           afterId: op.afterId ?? null,
           beforeId: op.beforeId ?? null,
           position: op.position ?? null,
         });
         return;
       case "moveTask":
-        await this.moveTask(op.sourceListId, op.targetListId, op.itemId, {
+        await this.moveTaskInternal(op.sourceListId, op.targetListId, op.itemId, {
           snapshot: op.snapshot,
           afterId: op.afterId ?? null,
           beforeId: op.beforeId ?? null,
@@ -1771,21 +1728,4 @@ export class ListRepository {
     }
   }
 
-  private clearTextUpdateQueueForList(listId: ListId) {
-    const prefix = `${listId}:`;
-    for (const key of this._textUpdateQueue.keys()) {
-      if (key.startsWith(prefix)) {
-        this._textUpdateQueue.delete(key);
-      }
-    }
-  }
-
-  private clearPendingInsertsForList(listId: ListId) {
-    const prefix = `${listId}:`;
-    for (const key of this._pendingInserts.keys()) {
-      if (key.startsWith(prefix)) {
-        this._pendingInserts.delete(key);
-      }
-    }
-  }
 }

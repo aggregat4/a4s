@@ -244,3 +244,68 @@ test("subscribeHistory reports when undo and redo become available", async () =>
   await repository.undo();
   assert.equal(states.length, count);
 });
+
+// Storage whose saves take a while, as on a slow device.
+const createSlowStorage = (delayMs: number): ListStorage => {
+  const wait = () => new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+  return {
+    ...createMemoryStorage(),
+    persistOperations: async () => wait(),
+    persistRegistry: async () => wait(),
+  };
+};
+
+const createSlowRepository = () =>
+  new ListRepository({
+    storageFactory: async () => createSlowStorage(20),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+  });
+
+test("undo requested while a change is still saving undoes that change", async () => {
+  const repository = createSlowRepository();
+  await repository.createList({ listId: "list-1", title: "Tasks" });
+  await repository.insertTask("list-1", { itemId: "a", text: "A" });
+  await repository.insertTask("list-1", { itemId: "b", text: "B" });
+
+  // Not awaited: the undo is requested while the toggle is still saving.
+  const toggle = repository.toggleTask("list-1", "b", true);
+  const undo = repository.undo();
+  await Promise.all([toggle, undo]);
+
+  const items = repository.getListState("list-1").items;
+  assert.deepEqual(
+    items.map((item) => [item.id, item.done]),
+    [
+      ["a", false],
+      ["b", false],
+    ]
+  );
+});
+
+test("changes requested while others are saving apply in request order", async () => {
+  const repository = createSlowRepository();
+  await repository.createList({ listId: "list-1", title: "Tasks" });
+  const insert = repository.insertTask("list-1", { itemId: "a", text: "" });
+  const typing = ["S", "Sp", "Split", "SplitMe"].map((text) =>
+    repository.updateTask("list-1", "a", { text })
+  );
+  const split = repository.splitTask("list-1", "a", {
+    beforeText: "Split",
+    afterText: "Me",
+    previousText: "SplitMe",
+    newItemId: "b",
+    afterId: "a",
+  });
+  const remove = repository.removeTask("list-1", "b");
+  await Promise.all([insert, ...typing, split, remove]);
+
+  assert.deepEqual(
+    repository.getListState("list-1").items.map((item) => item.text),
+    ["Split"]
+  );
+  await repository.undo();
+  assert.deepEqual(
+    repository.getListState("list-1").items.map((item) => item.text),
+    ["Split", "Me"]
+  );
+});

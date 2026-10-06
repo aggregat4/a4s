@@ -1588,7 +1588,7 @@ class A4TaskList extends HTMLElement {
             <input
               type="checkbox"
               class="done-toggle"
-              ?checked=${isDone}
+              .checked=${live(isDone)}
               @change=${this.handleToggle}
             />
             ${textSpan}
@@ -1899,18 +1899,19 @@ class A4TaskList extends HTMLElement {
     if (!id || !this.store) return;
     const nextDone = Boolean((target as HTMLInputElement).checked);
     const store = this.store;
-    const repository = this._repository;
-    const listId = this.listId;
-    // Defer state updates so click events settle before the list rerenders and hides completed items.
+    // Request the change right away so it is queued in the order of the
+    // user's actions: an undo pressed right after must find it.
+    if (this._repository && this.listId) {
+      const promise = this._repository.toggleTask(this.listId, id, nextDone);
+      this.runRepositoryOperation(promise);
+    }
+    // Defer the state update so click events settle before the list rerenders
+    // and hides completed items.
     setTimeout(() => {
       store?.dispatch({
         type: LIST_ACTIONS.setItemDone,
         payload: { id, done: nextDone },
       });
-      if (repository && listId) {
-        const promise = repository.toggleTask(listId, id, nextDone);
-        this.runRepositoryOperation(promise);
-      }
     }, 0);
   }
 

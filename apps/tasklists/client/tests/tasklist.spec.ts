@@ -585,6 +585,22 @@ test("undo/redo shortcuts revert task insertions", async ({ page }) => {
   await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1);
 });
 
+test("ctrl+z undoes ticking a task off while its checkbox has focus", async ({
+  page,
+}) => {
+  await gotoWithSnapshot(page, "/?resetStorage=1");
+  await setShowDone(page, true);
+  const toggle = page.locator(listItemsSelector).first().locator(".done-toggle");
+  await toggle.click();
+  await expect(toggle).toBeChecked();
+  await expect(toggle).toBeFocused();
+
+  await pressUndo(page);
+  await expect(toggle).not.toBeChecked();
+  await pressRedo(page);
+  await expect(toggle).toBeChecked();
+});
+
 test("undo/redo coalesces text edits with granular steps", async ({ page }) => {
   await gotoWithSnapshot(page, "/?resetStorage=1");
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
@@ -658,9 +674,9 @@ test("undo/redo combines split edits into one step", async ({ page }) => {
 });
 
 test.describe("on a slow device", () => {
-  // Typed text is saved keystroke by keystroke. On a slow device those saves
-  // lag behind the typing, so splitting, merging, moving or deleting a task
-  // can happen while some of them are still waiting.
+  // Changes are saved one at a time, and typed text keystroke by keystroke.
+  // On a slow device saving lags behind the user, so a task can be split,
+  // merged, moved, deleted or undone while earlier saves are still waiting.
   test.beforeEach(async ({ page, browserName }) => {
     test.skip(browserName !== "chromium", "CPU throttling uses CDP");
     await gotoWithSnapshot(page, "/?sync=0");
@@ -790,6 +806,32 @@ test.describe("on a slow device", () => {
     });
     await expect(taskTexts(page).first()).toHaveText("Bring me back");
     await expectSavedTexts(page, ["Bring me back"]);
+  });
+
+  test("undo right after ticking a task off reverts that tick", async ({
+    page,
+  }) => {
+    const items = page.locator(listItemsSelector);
+    const initialCount = await items.count();
+    // An earlier, fully saved step that a wrong undo would revert instead.
+    await items.nth(5).locator(".done-toggle").click();
+    await expect(items).toHaveCount(initialCount - 1);
+    const earlierStepSaved = items.nth(5);
+    await expectSaved(page, "list-prototype", (texts) =>
+      expect(texts).toHaveLength(initialCount - 1)
+    );
+
+    const firstText = (await items.first().locator(".text").textContent())?.trim();
+    await items.first().locator(".done-toggle").click();
+    await pressUndo(page);
+
+    await expect(items).toHaveCount(initialCount - 1, { timeout: 15_000 });
+    await expect(items.first().locator(".text")).toHaveText(firstText ?? "");
+    await expect(earlierStepSaved.locator(".done-toggle")).not.toBeChecked();
+    await expectSaved(page, "list-prototype", (texts) => {
+      expect(texts).toHaveLength(initialCount - 1);
+      expect(texts[0]).toBe(firstText);
+    });
   });
 });
 
