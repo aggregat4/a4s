@@ -48,6 +48,9 @@ Release notes for a tag are taken from the matching version section, so the
   formatting and running separate lines together.
 - Clearing a list title and typing a new one no longer ends editing and
   restores the old title.
+- Adding or editing a task no longer makes its text flash empty while the
+  change is still being saved. A stale snapshot could replace the text with
+  nothing until the save landed.
 
 ## [v1.6.2] - 2026-10-03
 

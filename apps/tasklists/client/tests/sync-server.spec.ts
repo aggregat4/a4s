@@ -301,11 +301,119 @@ test("new tasks go to the top of tasks added by an earlier actor", async ({
     });
     await addTask(pageB, "Newest task");
 
-    const texts = await pageB
+    await expect(
+      pageB.locator(listItemsSelector).locator(".text").first()
+    ).toHaveText("Newest task");
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
+test("a new task keeps its text while its save is still pending", async ({
+  browser,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "CPU throttling uses CDP");
+  const contextA = await browser.newContext();
+  await contextA.addInitScript(() => {
+    window.localStorage.setItem("prototypeLists.actorId", "actor-a");
+  });
+  const contextB = await browser.newContext();
+  await contextB.addInitScript(() => {
+    window.localStorage.setItem("prototypeLists.actorId", "actor-z");
+  });
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    await Promise.all([
+      pageA.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageA.goto("/?sync=1"),
+    ]);
+
+    const listTitle = `Pending ${Date.now()}`;
+    await createList(pageA, listTitle);
+
+    // Wait for the list and its tasks to reach the server before the second
+    // client bootstraps, so that client has data to merge while it saves.
+    const pushed = pageA.waitForResponse(
+      (response) =>
+        response.url().includes("/sync/push") &&
+        response.status() === 200 &&
+        (response.request().postData() ?? "").includes("Existing 12"),
+      { timeout: 15_000 }
+    );
+    for (let i = 1; i <= 12; i += 1) {
+      await addTask(pageA, `Existing ${i}`);
+    }
+    await pushed;
+
+    const cdp = await contextB.newCDPSession(pageB);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+    await Promise.all([
+      pageB.waitForResponse((response) =>
+        response.url().includes("/sync/bootstrap")
+      ),
+      pageB.goto("/?sync=1"),
+    ]);
+    await selectList(pageB, listTitle);
+    await expect(taskItem(pageB, "Existing 1")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await pageB.getByRole("button", { name: "Add task" }).click();
+    const editor = pageB
       .locator(listItemsSelector)
-      .locator(".text")
-      .allTextContents();
-    expect(texts[0]).toBe("Newest task");
+      .locator(".text[contenteditable='true']")
+      .first();
+    await expect(editor).toBeVisible({ timeout: 10_000 });
+    await editor.fill("Newest task");
+
+    // While the new task's insert is still queued, a stale repository echo
+    // must not blank the text the user typed.
+    await pageB.evaluate(() => {
+      const container = document.querySelector("[data-role='lists-container']");
+      if (!container) throw new Error("lists container not found");
+      const state = { sawText: false, blankFrames: 0 };
+      (window as unknown as { __pendingText: typeof state }).__pendingText =
+        state;
+      const sample = () => {
+        const first = container.querySelector(
+          "ol.tasklist li:not(.placeholder):not([hidden]) .text"
+        );
+        if (!first) return;
+        const text = (first.textContent ?? "").trim();
+        if (text.length > 0) {
+          state.sawText = true;
+        } else if (state.sawText) {
+          state.blankFrames += 1;
+        }
+      };
+      new MutationObserver(sample).observe(container, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
+      sample();
+    });
+
+    await pageB.keyboard.press("Escape");
+    await expect(taskItem(pageB, "Newest task")).toBeVisible({
+      timeout: 10_000,
+    });
+    await pageB.waitForTimeout(1500);
+
+    const blankFrames = await pageB.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __pendingText: { blankFrames: number };
+          }
+        ).__pendingText.blankFrames
+    );
+    expect(blankFrames).toBe(0);
   } finally {
     await contextA.close();
     await contextB.close();
