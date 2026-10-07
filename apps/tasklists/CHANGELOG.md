@@ -20,6 +20,10 @@ Release notes for a tag are taken from the matching version section, so the
 - Undo keeps working after undoing the deletion of a list: the restored list
   keeps each task's position, so undoing an earlier move of one of its tasks
   puts it back in the right place.
+- A list that is deleted and then restored with undo looks the same on every
+  device. Deleting a list now only hides it, keeping its tasks and history, so
+  undo shows it again exactly as it was instead of rebuilding it; a device
+  that had reloaded in between could show an old title or miss later changes.
 
 ## [v1.7.1] - 2026-10-07
 

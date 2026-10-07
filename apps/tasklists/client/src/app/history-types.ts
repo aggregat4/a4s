@@ -9,9 +9,7 @@ type HistoryOp =
       type: "createList";
       listId: ListId;
       title: string;
-      // Each item's position, when known, so a restored list keeps the exact
-      // positions that later undo steps (such as moves) refer to.
-      items?: Array<TaskItem & { position?: Position | null }>;
+      items?: TaskItem[];
       afterId?: ListId | null;
       beforeId?: ListId | null;
       position?: Position | null;
@@ -19,6 +17,15 @@ type HistoryOp =
   | {
       type: "removeList";
       listId: ListId;
+    }
+  | {
+      // Shows a deleted list again; the undo of removeList.
+      type: "restoreList";
+      listId: ListId;
+      title: string;
+      afterId?: ListId | null;
+      beforeId?: ListId | null;
+      position?: Position | null;
     }
   | {
       type: "renameList";

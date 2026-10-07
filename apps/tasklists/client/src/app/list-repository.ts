@@ -627,7 +627,7 @@ export class ListRepository {
               }
             }
             if (payload.type === "removeList" && payload.listId) {
-              this._listMap.delete(payload.listId);
+              // The list's data stays; see removeListInternal.
               this.clearTextEditSessionsForList(payload.listId);
             }
           }
@@ -729,15 +729,14 @@ export class ListRepository {
     }
     if (Array.isArray(options.items)) {
       let previousId: string | null = null;
-      options.items.forEach((item) => {
+      options.items.forEach((item: TaskItem) => {
         const itemId = ensureId(item?.id, `${listId}-item`);
         const insert = listCrdt.generateInsert({
           itemId,
           text: sanitizeText(item?.text),
           done: Boolean(item?.done),
           note: sanitizeText(item?.note),
-          afterId: item?.position ? null : previousId,
-          position: item?.position ?? null,
+          afterId: previousId,
         });
         ops.push(insert.op);
         previousId = itemId;
@@ -757,12 +756,12 @@ export class ListRepository {
     const createdRecord = this._listsCrdt.getRecord(listId);
     this.recordHistory({
       scope: { type: "registry" },
+      // Undo hides the new list and keeps its data, so redo shows it again.
       forwardOps: [
         {
-          type: "createList",
+          type: "restoreList",
           listId,
           title,
-          items: listCrdt.toListState().items,
           afterId,
           beforeId,
           position: createdRecord?.pos ?? null,
@@ -793,8 +792,9 @@ export class ListRepository {
     const listState = record.crdt.toListState();
     const registryOrder = this.getRegistrySnapshot().map((entry) => entry.id);
     const { afterId, beforeId } = this.getNeighborIds(registryOrder, listId);
+    // The list's tasks and history stay: deleting only hides the list in the
+    // registry, and undo shows it again with everything intact.
     const removeResult = this._listsCrdt.generateRemove(listId);
-    this._listMap.delete(listId);
     await this._persistRegistry([removeResult.op]);
     this.emitRegistryChange();
     this.emitListChange(listId);
@@ -808,16 +808,9 @@ export class ListRepository {
       ],
       inverseOps: [
         {
-          type: "createList",
+          type: "restoreList",
           listId,
           title: listState.title,
-          items: record.crdt.getSnapshot().map((entry) => ({
-            id: entry.id,
-            text: entry.text,
-            done: entry.done,
-            note: entry.note ?? "",
-            position: entry.pos ?? null,
-          })),
           afterId,
           beforeId,
           position: registryRecord?.pos ?? null,
@@ -827,6 +820,39 @@ export class ListRepository {
       actor: this._listsCrdt.actorId,
     });
     this.clearTextEditSessionsForList(listId);
+    return true;
+  }
+
+  /**
+   * Shows a deleted list again, at its previous place, with its tasks and
+   * history as they were. Only used to undo a deletion, so it records no
+   * undo step of its own.
+   */
+  private async restoreListInternal({
+    listId,
+    title,
+    afterId = null,
+    beforeId = null,
+    position = null,
+  }: {
+    listId: ListId;
+    title: string;
+    afterId?: ListId | null;
+    beforeId?: ListId | null;
+    position?: Position | null;
+  }) {
+    await this.initialize();
+    if (!this._listMap.has(listId)) return false;
+    const restore = this._listsCrdt.generateCreate({
+      listId,
+      title,
+      afterId,
+      beforeId,
+      position,
+    });
+    await this._persistRegistry([restore.op]);
+    this.emitRegistryChange();
+    this.emitListChange(listId);
     return true;
   }
 
@@ -1621,6 +1647,9 @@ export class ListRepository {
         return;
       case "removeList":
         await this.removeListInternal(op.listId);
+        return;
+      case "restoreList":
+        await this.restoreListInternal(op);
         return;
       case "renameList":
         await this.renameListInternal(op.listId, op.title);
