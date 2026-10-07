@@ -10,6 +10,13 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Fixed
+
+- A list no longer briefly shows an older state while its changes are being
+  saved. On slow devices a deleted task could reappear for a moment, and the
+  task being edited could lose the cursor, so the next Backspace or click
+  went nowhere and an empty task seemed impossible to delete.
+
 ## [v1.7.1] - 2026-10-07
 
 ### Fixed
@@ -19,10 +26,6 @@ Release notes for a tag are taken from the matching version section, so the
   completed task and showed it, and Backspace at the start of a task below
   them merged it into the hidden completed task. The cursor now moves to the
   visible task above.
-- A list no longer briefly shows an older state while its changes are being
-  saved. On slow devices a deleted task could reappear for a moment, and the
-  task being edited could lose the cursor, so the next Backspace or click
-  went nowhere and an empty task seemed impossible to delete.
 
 ## [v1.7.0] - 2026-10-06
 
