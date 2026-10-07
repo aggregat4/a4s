@@ -15,6 +15,7 @@ import {
   commands,
   createIdentityStorage,
   createRepository,
+  createSpacedClock,
   settle,
   type Model,
   type Real,
@@ -23,52 +24,45 @@ import {
 // --- Property ------------------------------------------------------------
 
 test("the repository matches the model for any sequence of changes", async () => {
-  // Far-apart timestamps, so text edits never merge into one undo step and
-  // every change is its own step, as in the model.
-  const realNow = Date.now;
-  let clock = 1_700_000_000_000;
   let runs = 0;
-  Date.now = () => (clock += 10_000);
-  try {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.scheduler(),
-        fc.commands(commands, { maxCommands: 60, size: "large" }),
-        async (scheduler, cmds) => {
-          const dbName = `repository-model-${runs++}`;
-          const openStorage = () => openScheduledStorage(dbName, scheduler);
-          const identity = createIdentityStorage();
-          const repository = createRepository(await openStorage(), identity);
-          await scheduler.waitFor(repository.initialize());
-          await scheduler.waitFor(
-            repository.createList({ listId: "list-0", title: "Inbox" })
-          );
-          const real: Real = {
-            repository,
-            openStorage,
-            identity,
-            scheduler,
-            pending: [],
-          };
-          // Creating the first list is an undo step like any other.
-          const model: Model = {
-            state: { lists: [{ id: "list-0", title: "Inbox", tasks: [] }] },
-            undo: [{ lists: [] }],
-            redo: [],
-            nextId: 1,
-          };
-          await fc.asyncModelRun(() => ({ model, real }), cmds);
-          await settle(real);
-          assertMatches(model, real, "at the end");
-          real.repository.dispose();
-        }
-      ),
-      {
-        numRuns: Number(process.env.MODEL_RUNS ?? 200),
-        includeErrorInReport: true,
+  await fc.assert(
+    fc.asyncProperty(
+      fc.scheduler(),
+      fc.commands(commands, { maxCommands: 60, size: "large" }),
+      async (scheduler, cmds) => {
+        const dbName = `repository-model-${runs++}`;
+        const openStorage = () => openScheduledStorage(dbName, scheduler);
+        const identity = createIdentityStorage();
+        const now = createSpacedClock();
+        const repository = createRepository(await openStorage(), identity, now);
+        await scheduler.waitFor(repository.initialize());
+        await scheduler.waitFor(
+          repository.createList({ listId: "list-0", title: "Inbox" })
+        );
+        const real: Real = {
+          repository,
+          openStorage,
+          identity,
+          now,
+          scheduler,
+          pending: [],
+        };
+        // Creating the first list is an undo step like any other.
+        const model: Model = {
+          state: { lists: [{ id: "list-0", title: "Inbox", tasks: [] }] },
+          undo: [{ lists: [] }],
+          redo: [],
+          nextId: 1,
+        };
+        await fc.asyncModelRun(() => ({ model, real }), cmds);
+        await settle(real);
+        assertMatches(model, real, "at the end");
+        real.repository.dispose();
       }
-    );
-  } finally {
-    Date.now = realNow;
-  }
+    ),
+    {
+      numRuns: Number(process.env.MODEL_RUNS ?? 200),
+      includeErrorInReport: true,
+    }
+  );
 });

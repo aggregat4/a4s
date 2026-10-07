@@ -63,6 +63,10 @@ function toListState(record?: ListRecord | null): TaskListState {
   return record.crdt.toListState();
 }
 
+// Text edits to the same task less than this far apart, within a word, merge
+// into one undo step.
+const TEXT_EDIT_MERGE_WINDOW_MS = 1000;
+
 export class ListRepository {
   /*
     Local changes are async: each one saves to storage before it records its
@@ -116,6 +120,7 @@ export class ListRepository {
   private _syncErrorHandler: ((error: unknown) => void) | null;
   private _syncStatusHandler: ((status: SyncStatus) => void) | null;
   private _outboxPersistQueue: Promise<void>;
+  private _now: () => number;
 
   constructor(
     options: {
@@ -125,8 +130,11 @@ export class ListRepository {
       storageFactory?: StorageFactory;
       storageOptions?: StorageOptions;
       sync?: SyncOptions | null;
+      /** Current time in ms; decides which text edits merge into one undo step. */
+      now?: () => number;
     } = {}
   ) {
+    this._now = options.now ?? Date.now;
     this._listsCrdt =
       options.listsCrdt ?? new ListsCRDT(options.listsCrdtOptions);
     this._createListCrdt = options.createListCrdt ?? defaultListFactory;
@@ -140,7 +148,7 @@ export class ListRepository {
     this._registryListeners = new Set();
     this._listListeners = new Map();
     this._globalListeners = new Set();
-    this._history = new HistoryManager();
+    this._history = new HistoryManager({ windowMs: TEXT_EDIT_MERGE_WINDOW_MS });
     this._historySuppressed = 0;
     this._changeQueue = Promise.resolve();
     this._textEditSessions = new Map();
@@ -176,7 +184,7 @@ export class ListRepository {
       label,
       actor,
       coalesceKey,
-      timestamp: Date.now(),
+      timestamp: this._now(),
     });
   }
 
@@ -1159,7 +1167,7 @@ export class ListRepository {
       .getSnapshot()
       .find((entry) => entry.id === itemId);
     if (!existing) return null;
-    const now = Date.now();
+    const now = this._now();
     let coalesceKey: string | undefined;
     if (Object.prototype.hasOwnProperty.call(payload, "text")) {
       const previousText = existing.text ?? "";
@@ -1683,7 +1691,7 @@ export class ListRepository {
     const boundaryChange =
       boundaryPattern.test(inserted) || boundaryPattern.test(removed);
     const longEdit = inserted.length > 1 || removed.length > 1;
-    if (gapMs > 1000 || boundaryChange || longEdit) {
+    if (gapMs > TEXT_EDIT_MERGE_WINDOW_MS || boundaryChange || longEdit) {
       session.segmentId += 1;
     }
     session.lastAt = timestamp;

@@ -39,6 +39,7 @@ export type Real = {
   /** Opens a new connection to the list's storage, as a page load does. */
   openStorage: () => Promise<ListStorage>;
   identity: Storage;
+  now: () => number;
   scheduler: fc.Scheduler;
   pending: Promise<unknown>[];
 };
@@ -62,10 +63,24 @@ export const createIdentityStorage = (): Storage => {
   };
 };
 
-export const createRepository = (storage: ListStorage, identity: Storage) =>
+/**
+ * A clock that moves 10 seconds per reading, so text edits never merge into
+ * one undo step and every change is its own step, as in the model.
+ */
+export function createSpacedClock() {
+  let time = 1_700_000_000_000;
+  return () => (time += 10_000);
+}
+
+export const createRepository = (
+  storage: ListStorage,
+  identity: Storage,
+  now: () => number
+) =>
   new ListRepository({
     storageFactory: async () => storage,
     listsCrdtOptions: { identityOptions: { storage: identity } },
+    now,
   });
 
 function request(real: Real, operation: Promise<unknown>) {
@@ -369,7 +384,7 @@ class Reload implements Cmd {
     await settle(r);
     assertMatches(m, r, "before reload");
     r.repository.dispose();
-    r.repository = createRepository(await r.openStorage(), r.identity);
+    r.repository = createRepository(await r.openStorage(), r.identity, r.now);
     await r.scheduler.waitFor(r.repository.initialize());
     // The undo history is not kept across reloads.
     m.undo = [];
