@@ -5,19 +5,32 @@ import type { TaskItem } from "../../../src/types/domain.js";
 import type { ListStorage } from "../../../src/types/storage.js";
 
 // --- Model ---------------------------------------------------------------
+//
+// Two devices, a and b, share one set of lists. Each device changes only the
+// lists it created, so each device's undo reverts its own last change and
+// leaves the other device's lists as they are.
+
+export type Device = "a" | "b";
+const DEVICES: Device[] = ["a", "b"];
 
 type ModelTask = { id: string; text: string; done: boolean; note: string };
-type ModelList = { id: string; title: string; tasks: ModelTask[] };
+type ModelList = { id: string; owner: Device; title: string; tasks: ModelTask[] };
 type ModelState = { lists: ModelList[] };
+/** One undo step: the device's own lists as they were before a change. */
+type OwnLists = ModelList[];
 export type Model = {
   state: ModelState;
-  undo: ModelState[];
-  redo: ModelState[];
+  undo: Record<Device, OwnLists[]>;
+  redo: Record<Device, OwnLists[]>;
   nextId: number;
 };
 
-const cloneState = (state: ModelState): ModelState =>
-  JSON.parse(JSON.stringify(state));
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+const ownLists = (state: ModelState, device: Device) =>
+  state.lists.filter((list) => list.owner === device);
+const restoreOwnLists = (state: ModelState, device: Device, lists: OwnLists) => {
+  state.lists = state.lists.filter((list) => list.owner !== device).concat(clone(lists));
+};
 
 const newId = (model: Model, prefix: string) => `${prefix}-${model.nextId++}`;
 
@@ -27,11 +40,18 @@ const pick = <T>(items: T[], n: number) => items[n % items.length];
 
 // --- Real system ---------------------------------------------------------
 
-export type Real = {
+export type DeviceReal = {
   repository: ListRepository;
-  /** Opens a new connection to the list's storage, as a page load does. */
+  storage: ListStorage;
+  /** Opens a new connection to the device's storage, as a page load does. */
   openStorage: () => Promise<ListStorage>;
   identity: Storage;
+  /** How many entries of the device's outbox were delivered to the other. */
+  delivered: number;
+};
+
+export type Real = {
+  devices: Record<Device, DeviceReal>;
   now: () => number;
   scheduler: fc.Scheduler;
   pending: Promise<unknown>[];
@@ -76,37 +96,76 @@ export const createRepository = (
     now,
   });
 
-/** Lets every requested change and its saves complete. */
-export async function settle(real: Real) {
-  while (real.pending.length) {
-    const pending = real.pending.splice(0);
-    await real.scheduler.waitFor(Promise.all(pending));
+/**
+ * Delivers what each device has saved to its outbox so far to the other
+ * device, as sync does. Returns whether anything was delivered.
+ */
+async function exchange(real: Real) {
+  let delivered = false;
+  for (const from of DEVICES) {
+    const sender = real.devices[from];
+    const receiver = real.devices[from === "a" ? "b" : "a"];
+    const outbox = await sender.storage.loadOutbox();
+    const fresh = outbox.slice(sender.delivered);
+    sender.delivered = outbox.length;
+    if (fresh.length) {
+      delivered = true;
+      real.pending.push(receiver.repository.applyRemoteOps(fresh));
+    }
   }
-  await real.scheduler.waitIdle();
+  return delivered;
 }
 
-function snapshot(repository: ListRepository): ModelState {
-  return {
-    lists: repository.getRegistrySnapshot().map((entry) => {
-      const state = repository.getListState(entry.id);
-      return {
-        id: entry.id,
-        title: state.title,
-        tasks: state.items.map((item: TaskItem) => ({
-          id: item.id,
-          text: item.text,
-          done: item.done,
-          note: item.note ?? "",
-        })),
-      };
-    }),
-  };
+/** Lets every requested change, its saves and its delivery complete. */
+export async function settle(real: Real) {
+  do {
+    while (real.pending.length) {
+      const pending = real.pending.splice(0);
+      await real.scheduler.waitFor(Promise.all(pending));
+    }
+    await real.scheduler.waitIdle();
+  } while (await exchange(real));
 }
 
+function snapshot(repository: ListRepository) {
+  return repository.getRegistrySnapshot().map((entry) => {
+    const state = repository.getListState(entry.id);
+    return {
+      id: entry.id,
+      title: state.title,
+      tasks: state.items.map((item: TaskItem) => ({
+        id: item.id,
+        text: item.text,
+        done: item.done,
+        note: item.note ?? "",
+      })),
+    };
+  });
+}
+
+/**
+ * Both devices show the same lists, in the same order; each device's lists
+ * match the model; and each device can undo and redo as the model says. The
+ * order of one device's lists relative to the other's is up to the CRDT.
+ */
 export function assertMatches(model: Model, real: Real, when: string) {
-  assert.deepStrictEqual(snapshot(real.repository), model.state, when);
-  assert.equal(real.repository.canUndo(), model.undo.length > 0, `${when}: canUndo`);
-  assert.equal(real.repository.canRedo(), model.redo.length > 0, `${when}: canRedo`);
+  const [a, b] = DEVICES.map((device) => snapshot(real.devices[device].repository));
+  assert.deepStrictEqual(b, a, `${when}: devices agree`);
+  const owner = new Map(model.state.lists.map((list) => [list.id, list.owner]));
+  assert.deepStrictEqual(
+    a.map((list) => list.id).sort(),
+    [...owner.keys()].sort(),
+    `${when}: lists`
+  );
+  for (const device of DEVICES) {
+    const shown = a
+      .filter((list) => owner.get(list.id) === device)
+      .map((list) => ({ id: list.id, owner: device, title: list.title, tasks: list.tasks }));
+    assert.deepStrictEqual(shown, ownLists(model.state, device), `${when}: ${device}'s lists`);
+    const { repository } = real.devices[device];
+    assert.equal(repository.canUndo(), model.undo[device].length > 0, `${when}: ${device} canUndo`);
+    assert.equal(repository.canRedo(), model.redo[device].length > 0, `${when}: ${device} canRedo`);
+  }
 }
 
 // --- Commands ------------------------------------------------------------
@@ -129,35 +188,41 @@ class Step implements fc.AsyncCommand<Model, Real> {
 }
 
 /**
- * Requests a change from the repository and makes the same change to the
- * model, as one undo step. The request is made first, so its arguments are
- * read before the model changes.
+ * Requests a change from the device's repository and makes the same change
+ * to the model, as one undo step of that device. The request is made first,
+ * so its arguments are read before the model changes.
  */
 function perform(
   m: Model,
   r: Real,
+  device: Device,
   request: (repository: ListRepository) => Promise<unknown>,
   mutate: (state: ModelState) => void
 ) {
-  r.pending.push(request(r.repository));
-  m.undo.push(cloneState(m.state));
-  m.redo = [];
+  r.pending.push(request(r.devices[device].repository));
+  m.undo[device].push(clone(ownLists(m.state, device)));
+  m.redo[device] = [];
   mutate(m.state);
 }
 
 const listIn = (state: ModelState, listId: string) =>
   state.lists.find((list) => list.id === listId)!;
 
-const hasList = (m: Readonly<Model>) => m.state.lists.length > 0;
+const hasLists =
+  (count = 1) =>
+  (device: Device) =>
+  (m: Readonly<Model>) =>
+    ownLists(m.state, device).length >= count;
 const hasTasks =
   (count = 1) =>
+  (device: Device) =>
   (m: Readonly<Model>) =>
-    m.state.lists.some((list) => list.tasks.length >= count);
+    ownLists(m.state, device).some((list) => list.tasks.length >= count);
 
-/** A task, from the lists that have at least `minTasks` tasks. */
-function pickTask(m: Model, list: number, task: number, minTasks = 1) {
+/** A task in one of the device's lists that have at least `minTasks` tasks. */
+function pickTask(m: Model, device: Device, list: number, task: number, minTasks = 1) {
   const l = pick(
-    m.state.lists.filter((x) => x.tasks.length >= minTasks),
+    ownLists(m.state, device).filter((x) => x.tasks.length >= minTasks),
     list
   );
   const index = task % l.tasks.length;
@@ -167,11 +232,12 @@ function pickTask(m: Model, list: number, task: number, minTasks = 1) {
 const quote = (value: string) => JSON.stringify(value);
 const text = fc.stringMatching(/^[a-z]{0,5}( [a-z]{1,4})?$/);
 const index = fc.nat(50);
+const device = fc.constantFrom<Device>(...DEVICES);
 
-const addTask = fc.tuple(index, index, text).map(
-  ([l, at, value]) =>
-    new Step(`AddTask(${l}, at ${at}, ${quote(value)})`, hasList, (m, r) => {
-      const list = pick(m.state.lists, l);
+const addTask = fc.tuple(device, index, index, text).map(
+  ([d, l, at, value]) =>
+    new Step(`${d}: AddTask(${l}, at ${at}, ${quote(value)})`, hasLists()(d), (m, r) => {
+      const list = pick(ownLists(m.state, d), l);
       const position = at % (list.tasks.length + 1);
       const id = newId(m, "task");
       const afterId = list.tasks[position - 1]?.id ?? null;
@@ -180,6 +246,7 @@ const addTask = fc.tuple(index, index, text).map(
       perform(
         m,
         r,
+        d,
         (repo) => repo.insertTask(list.id, { itemId: id, text: value, afterId, beforeId }),
         (s) => { listIn(s, list.id).tasks.splice(position, 0, task); }
       );
@@ -188,14 +255,15 @@ const addTask = fc.tuple(index, index, text).map(
 );
 
 const editField = (field: "text" | "note") =>
-  fc.tuple(index, index, text).map(
-    ([l, t, value]) =>
-      new Step(`Edit ${field}(${l}, ${t}, ${quote(value)})`, hasTasks(), (m, r) => {
-        const { list, index: i, task } = pickTask(m, l, t);
+  fc.tuple(device, index, index, text).map(
+    ([d, l, t, value]) =>
+      new Step(`${d}: Edit ${field}(${l}, ${t}, ${quote(value)})`, hasTasks()(d), (m, r) => {
+        const { list, index: i, task } = pickTask(m, d, l, t);
         if (task[field] === value) return;
         perform(
           m,
           r,
+          d,
           (repo) => repo.updateTask(list.id, task.id, { [field]: value }),
           (s) => { listIn(s, list.id).tasks[i][field] = value; }
         );
@@ -203,14 +271,15 @@ const editField = (field: "text" | "note") =>
       })
   );
 
-const toggle = fc.tuple(index, index).map(
-  ([l, t]) =>
-    new Step(`Toggle(${l}, ${t})`, hasTasks(), (m, r) => {
-      const { list, index: i, task } = pickTask(m, l, t);
+const toggle = fc.tuple(device, index, index).map(
+  ([d, l, t]) =>
+    new Step(`${d}: Toggle(${l}, ${t})`, hasTasks()(d), (m, r) => {
+      const { list, index: i, task } = pickTask(m, d, l, t);
       const done = !task.done;
       perform(
         m,
         r,
+        d,
         (repo) => repo.toggleTask(list.id, task.id, done),
         (s) => { listIn(s, list.id).tasks[i].done = done; }
       );
@@ -218,13 +287,14 @@ const toggle = fc.tuple(index, index).map(
     })
 );
 
-const removeTask = fc.tuple(index, index).map(
-  ([l, t]) =>
-    new Step(`RemoveTask(${l}, ${t})`, hasTasks(), (m, r) => {
-      const { list, index: i, task } = pickTask(m, l, t);
+const removeTask = fc.tuple(device, index, index).map(
+  ([d, l, t]) =>
+    new Step(`${d}: RemoveTask(${l}, ${t})`, hasTasks()(d), (m, r) => {
+      const { list, index: i, task } = pickTask(m, d, l, t);
       perform(
         m,
         r,
+        d,
         (repo) => repo.removeTask(list.id, task.id),
         (s) => { listIn(s, list.id).tasks.splice(i, 1); }
       );
@@ -232,10 +302,10 @@ const removeTask = fc.tuple(index, index).map(
     })
 );
 
-const split = fc.tuple(index, index, index).map(
-  ([l, t, cut]) =>
-    new Step(`Split(${l}, ${t}, cut ${cut})`, hasTasks(), (m, r) => {
-      const { list, index: i, task } = pickTask(m, l, t);
+const split = fc.tuple(device, index, index, index).map(
+  ([d, l, t, cut]) =>
+    new Step(`${d}: Split(${l}, ${t}, cut ${cut})`, hasTasks()(d), (m, r) => {
+      const { list, index: i, task } = pickTask(m, d, l, t);
       const at = cut % (task.text.length + 1);
       const beforeText = task.text.slice(0, at);
       const afterText = task.text.slice(at);
@@ -243,6 +313,7 @@ const split = fc.tuple(index, index, index).map(
       perform(
         m,
         r,
+        d,
         (repo) =>
           repo.splitTask(list.id, task.id, {
             beforeText,
@@ -262,16 +333,17 @@ const split = fc.tuple(index, index, index).map(
     })
 );
 
-const merge = fc.tuple(index, index).map(
-  ([l, t]) =>
-    new Step(`Merge(${l}, ${t})`, hasTasks(2), (m, r) => {
-      const { list, index: picked } = pickTask(m, l, t, 2);
+const merge = fc.tuple(device, index, index).map(
+  ([d, l, t]) =>
+    new Step(`${d}: Merge(${l}, ${t})`, hasTasks(2)(d), (m, r) => {
+      const { list, index: picked } = pickTask(m, d, l, t, 2);
       const i = Math.max(1, picked);
       const [previous, current] = [list.tasks[i - 1], list.tasks[i]];
       const mergedText = previous.text + current.text;
       perform(
         m,
         r,
+        d,
         (repo) => repo.mergeTask(list.id, previous.id, current.id, { mergedText }),
         (s) => {
           const tasks = listIn(s, list.id).tasks;
@@ -283,10 +355,10 @@ const merge = fc.tuple(index, index).map(
     })
 );
 
-const moveWithin = fc.tuple(index, index, index).map(
-  ([l, t, to]) =>
-    new Step(`MoveWithin(${l}, ${t} to ${to})`, hasTasks(2), (m, r) => {
-      const { list, index: from, task } = pickTask(m, l, t, 2);
+const moveWithin = fc.tuple(device, index, index, index).map(
+  ([d, l, t, to]) =>
+    new Step(`${d}: MoveWithin(${l}, ${t} to ${to})`, hasTasks(2)(d), (m, r) => {
+      const { list, index: from, task } = pickTask(m, d, l, t, 2);
       const rest = list.tasks.filter((x) => x.id !== task.id);
       const position = to % (rest.length + 1);
       if (position === from) return;
@@ -295,6 +367,7 @@ const moveWithin = fc.tuple(index, index, index).map(
       perform(
         m,
         r,
+        d,
         (repo) => repo.moveTaskWithinList(list.id, task.id, { afterId, beforeId }),
         (s) => {
           const tasks = listIn(s, list.id).tasks;
@@ -305,16 +378,21 @@ const moveWithin = fc.tuple(index, index, index).map(
     })
 );
 
-const hasTwoLists = (m: Readonly<Model>) => m.state.lists.length > 1 && hasTasks()(m);
-const moveToList = fc.tuple(index, index, index).map(
-  ([l, t, target]) =>
-    new Step(`MoveToList(${l}, ${t} to ${target})`, hasTwoLists, (m, r) => {
-      const { list, index: i, task } = pickTask(m, l, t);
-      const destination = pick(m.state.lists.filter((x) => x.id !== list.id), target);
+const canMoveToList = (d: Device) => (m: Readonly<Model>) =>
+  hasLists(2)(d)(m) && hasTasks()(d)(m);
+const moveToList = fc.tuple(device, index, index, index).map(
+  ([d, l, t, target]) =>
+    new Step(`${d}: MoveToList(${l}, ${t} to ${target})`, canMoveToList(d), (m, r) => {
+      const { list, index: i, task } = pickTask(m, d, l, t);
+      const destination = pick(
+        ownLists(m.state, d).filter((x) => x.id !== list.id),
+        target
+      );
       const beforeId = destination.tasks[0]?.id ?? null;
       perform(
         m,
         r,
+        d,
         (repo) =>
           repo.moveTask(list.id, destination.id, task.id, { snapshot: { ...task }, beforeId }),
         (s) => {
@@ -326,13 +404,14 @@ const moveToList = fc.tuple(index, index, index).map(
     })
 );
 
-const removeList = index.map(
-  (l) =>
-    new Step(`RemoveList(${l})`, hasList, (m, r) => {
-      const list = pick(m.state.lists, l);
+const removeList = fc.tuple(device, index).map(
+  ([d, l]) =>
+    new Step(`${d}: RemoveList(${l})`, hasLists()(d), (m, r) => {
+      const list = pick(ownLists(m.state, d), l);
       perform(
         m,
         r,
+        d,
         (repo) => repo.removeList(list.id),
         (s) => { s.lists = s.lists.filter((x) => x.id !== list.id); }
       );
@@ -340,12 +419,15 @@ const removeList = index.map(
     })
 );
 
-const moveList = fc.tuple(index, index).map(
-  ([l, to]) =>
-    new Step(`MoveList(${l} to ${to})`, (m) => m.state.lists.length > 1, (m, r) => {
-      const from = l % m.state.lists.length;
-      const list = m.state.lists[from];
-      const rest = m.state.lists.filter((x) => x.id !== list.id);
+// Reorders among the device's own lists; where the other device's lists end
+// up in between is up to the CRDT.
+const moveList = fc.tuple(device, index, index).map(
+  ([d, l, to]) =>
+    new Step(`${d}: MoveList(${l} to ${to})`, hasLists(2)(d), (m, r) => {
+      const own = ownLists(m.state, d);
+      const from = l % own.length;
+      const list = own[from];
+      const rest = own.filter((x) => x.id !== list.id);
       const position = to % (rest.length + 1);
       if (position === from) return;
       const afterId = rest[position - 1]?.id ?? null;
@@ -353,21 +435,25 @@ const moveList = fc.tuple(index, index).map(
       perform(
         m,
         r,
+        d,
         (repo) => repo.reorderList(list.id, { afterId, beforeId }),
-        (s) => { s.lists.splice(position, 0, s.lists.splice(from, 1)[0]); }
+        (s) => {
+          restoreOwnLists(s, d, [...rest.slice(0, position), list, ...rest.slice(position)]);
+        }
       );
       return `${list.id} to ${position}`;
     })
 );
 
-const renameList = fc.tuple(index, text).map(
-  ([l, title]) =>
-    new Step(`RenameList(${l}, ${quote(title)})`, hasList, (m, r) => {
-      const list = pick(m.state.lists, l);
+const renameList = fc.tuple(device, index, text).map(
+  ([d, l, title]) =>
+    new Step(`${d}: RenameList(${l}, ${quote(title)})`, hasLists()(d), (m, r) => {
+      const list = pick(ownLists(m.state, d), l);
       if (list.title === title) return;
       perform(
         m,
         r,
+        d,
         (repo) => repo.renameList(list.id, title),
         (s) => { listIn(s, list.id).title = title; }
       );
@@ -375,32 +461,45 @@ const renameList = fc.tuple(index, text).map(
     })
 );
 
-const createList = text.map(
-  (title) =>
-    new Step(`CreateList(${quote(title)})`, (m) => m.state.lists.length < 4, (m, r) => {
+const createList = fc.tuple(device, text).map(
+  ([d, title]) =>
+    new Step(`${d}: CreateList(${quote(title)})`, (m) => m.state.lists.length < 6, (m, r) => {
       const id = newId(m, "list");
       perform(
         m,
         r,
+        d,
         (repo) => repo.createList({ listId: id, title }),
-        (s) => { s.lists.push({ id, title, tasks: [] }); }
+        (s) => { s.lists.push({ id, owner: d, title, tasks: [] }); }
       );
       return id;
     })
 );
 
-/** Undo moves the current state to the redo stack and back; redo the reverse. */
+/** Undo puts the device's own lists back as they were; redo the reverse. */
 const history = (direction: "undo" | "redo") =>
-  new Step(
-    direction === "undo" ? "Undo" : "Redo",
-    (m) => m[direction].length > 0,
-    (m, r) => {
-      const other = direction === "undo" ? "redo" : "undo";
-      r.pending.push(r.repository[direction]());
-      m[other].push(cloneState(m.state));
-      m.state = m[direction].pop()!;
-    }
+  device.map(
+    (d) =>
+      new Step(
+        `${d}: ${direction === "undo" ? "Undo" : "Redo"}`,
+        (m) => m[direction][d].length > 0,
+        (m, r) => {
+          const other = direction === "undo" ? "redo" : "undo";
+          r.pending.push(r.devices[d].repository[direction]());
+          m[other][d].push(clone(ownLists(m.state, d)));
+          restoreOwnLists(m.state, d, m[direction][d].pop()!);
+        }
+      )
   );
+
+// Delivers what has been saved so far, while other changes may be in flight.
+const exchangeStep = new Step(
+  "Exchange",
+  () => true,
+  async (_m, r) => {
+    await exchange(r);
+  }
+);
 
 const settleStep = new Step(
   "Settle",
@@ -411,20 +510,21 @@ const settleStep = new Step(
   }
 );
 
-const reload = new Step(
-  "Reload",
-  () => true,
-  async (m, r) => {
-    await settle(r);
-    assertMatches(m, r, "before reload");
-    r.repository.dispose();
-    r.repository = createRepository(await r.openStorage(), r.identity, r.now);
-    await r.scheduler.waitFor(r.repository.initialize());
-    // The undo history is not kept across reloads.
-    m.undo = [];
-    m.redo = [];
-    assertMatches(m, r, "after reload");
-  }
+const reload = device.map(
+  (d) =>
+    new Step(`${d}: Reload`, () => true, async (m, r) => {
+      await settle(r);
+      assertMatches(m, r, "before reload");
+      const real = r.devices[d];
+      real.repository.dispose();
+      real.storage = await real.openStorage();
+      real.repository = createRepository(real.storage, real.identity, r.now);
+      await r.scheduler.waitFor(real.repository.initialize());
+      // The undo history is not kept across reloads.
+      m.undo[d] = [];
+      m.redo[d] = [];
+      assertMatches(m, r, "after reload");
+    })
 );
 
 export const commands = [
@@ -441,8 +541,9 @@ export const commands = [
   createList,
   removeList,
   moveList,
-  fc.constant(history("undo")),
-  fc.constant(history("redo")),
+  history("undo"),
+  history("redo"),
+  fc.constant(exchangeStep),
   fc.constant(settleStep),
-  fc.constant(reload),
+  reload,
 ];
