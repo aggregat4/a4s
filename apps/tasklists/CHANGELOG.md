@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.7.1] - 2026-10-07
+
 ### Fixed
 
 - Backspace no longer reaches tasks hidden by "Show done" or the search.
