@@ -833,6 +833,46 @@ test.describe("on a slow device", () => {
       expect(texts[0]).toBe(firstText);
     });
   });
+
+  test("a deleted task does not come back while earlier saves finish", async ({
+    page,
+  }) => {
+    const items = page.locator(listItemsSelector);
+    // B: an empty task that will be deleted.
+    await page.getByRole("button", { name: "Add task" }).click();
+    const emptyTask = items.first();
+    const emptyId = await emptyTask.getAttribute("data-item-id");
+    await page.keyboard.press("Escape");
+    // A: typed right before, so its keystroke saves are still queued.
+    await typeNewTask(page, "Typed just before the delete");
+    await page.keyboard.press("Escape");
+
+    await page.evaluate((id) => {
+      const w = window as unknown as { __reappeared: boolean };
+      w.__reappeared = false;
+      let removed = false;
+      new MutationObserver(() => {
+        const present = Boolean(document.querySelector(`li[data-item-id="${id}"]`));
+        if (!present) removed = true;
+        if (removed && present) w.__reappeared = true;
+      }).observe(document.body, { childList: true, subtree: true });
+    }, emptyId);
+
+    const countBefore = await items.count();
+    const emptyText = page.locator(`li[data-item-id="${emptyId}"] .text`);
+    await emptyText.click();
+    await expect(emptyText).toHaveAttribute("contenteditable", "true");
+    await page.keyboard.press("Backspace");
+    await expect(items).toHaveCount(countBefore - 1);
+
+    await expectSavedTexts(page, ["Typed just before the delete"]);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __reappeared: boolean }).__reappeared
+      )
+    ).toBe(false);
+    await expect(items).toHaveCount(countBefore - 1);
+  });
 });
 
 test("undo merge after split keeps distinct tasks below", async ({ page }) => {

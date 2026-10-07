@@ -586,14 +586,26 @@ class A4TaskList extends HTMLElement {
     }
   }
 
+  /**
+   * Tracks a change this list asked the repository for. The list shows its
+   * changes right away, but the repository applies them one at a time, and
+   * on a slow device it lags behind. Until all of this list's changes are
+   * saved, repository snapshots are held back: they predate changes the user
+   * already sees, so applying them would bring back a deleted task or
+   * re-render the task being edited. The latest one is applied afterwards.
+   */
   runRepositoryOperation(promise: Promise<unknown> | null) {
     if (!promise || typeof promise.then !== "function") return;
+    this.pauseRepositorySync();
     promise
+      .finally(() => {
+        this.resumeRepositorySync();
+        this.syncFromRepository();
+      })
       .then(() => {
         if (this.store) {
           this.store.dispatch({ type: LIST_ACTIONS.clearHeaderError });
         }
-        this.syncFromRepository();
       })
       .catch((err) => {
         if (this.store) {
@@ -968,7 +980,9 @@ class A4TaskList extends HTMLElement {
       payload: { title: trimmed },
     });
     if (this._repository && this.listId) {
-      void this._repository.renameList(this.listId, trimmed);
+      this.runRepositoryOperation(
+        this._repository.renameList(this.listId, trimmed)
+      );
     }
   }
 
@@ -1239,21 +1253,14 @@ class A4TaskList extends HTMLElement {
       const repository = this._repository;
       const listId = this.listId;
       const originalText = `${beforeText ?? ""}${afterText ?? ""}`;
-      this.pauseRepositorySync();
-      const promise = (async () => {
-        try {
-          await repository.splitTask(listId, id, {
-            beforeText: typeof beforeText === "string" ? beforeText : "",
-            afterText: typeof afterText === "string" ? afterText : "",
-            previousText: originalText,
-            newItemId: newId,
-            afterId: id,
-            beforeId: nextItemId ?? undefined,
-          });
-        } finally {
-          this.resumeRepositorySync();
-        }
-      })();
+      const promise = repository.splitTask(listId, id, {
+        beforeText: typeof beforeText === "string" ? beforeText : "",
+        afterText: typeof afterText === "string" ? afterText : "",
+        previousText: originalText,
+        newItemId: newId,
+        afterId: id,
+        beforeId: nextItemId ?? undefined,
+      });
       this.runRepositoryOperation(promise);
     }
   }
@@ -2019,9 +2026,9 @@ class A4TaskList extends HTMLElement {
       payload: { id: itemId, note: nextNote },
     });
     if (this._repository && this.listId) {
-      void this._repository.updateTask(this.listId, itemId, {
-        note: nextNote,
-      });
+      this.runRepositoryOperation(
+        this._repository.updateTask(this.listId, itemId, { note: nextNote })
+      );
     }
   }
 
@@ -2475,7 +2482,7 @@ class A4TaskList extends HTMLElement {
       const promise = this._repository.updateTask(this.listId, itemId, {
         text: newText,
       });
-      void promise;
+      this.runRepositoryOperation(promise);
     }
     this.editingShadowText.set(itemId, newText);
   }
