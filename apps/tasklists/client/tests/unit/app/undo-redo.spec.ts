@@ -309,3 +309,20 @@ test("changes requested while others are saving apply in request order", async (
     ["Split", "Me"]
   );
 });
+
+test("undoing a delete restores the task's note", async () => {
+  const repository = new ListRepository({
+    storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+  });
+  await repository.createList({ listId: "list-1", title: "Tasks" });
+  await repository.insertTask("list-1", { itemId: "a", text: "Call Ada" });
+  await repository.updateTask("list-1", "a", { note: "Number is on the card" });
+  await repository.removeTask("list-1", "a");
+
+  await repository.undo();
+
+  const [task] = repository.getListState("list-1").items;
+  assert.equal(task?.text, "Call Ada");
+  assert.equal(task?.note, "Number is on the card");
+});

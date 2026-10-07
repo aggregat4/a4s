@@ -16,6 +16,7 @@ Release notes for a tag are taken from the matching version section, so the
   saved. On slow devices a deleted task could reappear for a moment, and the
   task being edited could lose the cursor, so the next Backspace or click
   went nowhere and an empty task seemed impossible to delete.
+- Undoing the deletion of a task restores its note as well.
 
 ## [v1.7.1] - 2026-10-07
 

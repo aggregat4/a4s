@@ -1301,6 +1301,7 @@ export class ListRepository {
           itemId,
           text: existing.text,
           done: existing.done,
+          note: existing.note ?? "",
           afterId: neighbors.afterId,
           beforeId: neighbors.beforeId,
           position: existing.pos ?? null,
