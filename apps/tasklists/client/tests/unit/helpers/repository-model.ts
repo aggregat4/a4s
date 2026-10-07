@@ -326,6 +326,40 @@ const moveToList = fc.tuple(index, index, index).map(
     })
 );
 
+const removeList = index.map(
+  (l) =>
+    new Step(`RemoveList(${l})`, hasList, (m, r) => {
+      const list = pick(m.state.lists, l);
+      perform(
+        m,
+        r,
+        (repo) => repo.removeList(list.id),
+        (s) => { s.lists = s.lists.filter((x) => x.id !== list.id); }
+      );
+      return list.id;
+    })
+);
+
+const moveList = fc.tuple(index, index).map(
+  ([l, to]) =>
+    new Step(`MoveList(${l} to ${to})`, (m) => m.state.lists.length > 1, (m, r) => {
+      const from = l % m.state.lists.length;
+      const list = m.state.lists[from];
+      const rest = m.state.lists.filter((x) => x.id !== list.id);
+      const position = to % (rest.length + 1);
+      if (position === from) return;
+      const afterId = rest[position - 1]?.id ?? null;
+      const beforeId = rest[position]?.id ?? null;
+      perform(
+        m,
+        r,
+        (repo) => repo.reorderList(list.id, { afterId, beforeId }),
+        (s) => { s.lists.splice(position, 0, s.lists.splice(from, 1)[0]); }
+      );
+      return `${list.id} to ${position}`;
+    })
+);
+
 const renameList = fc.tuple(index, text).map(
   ([l, title]) =>
     new Step(`RenameList(${l}, ${quote(title)})`, hasList, (m, r) => {
@@ -405,6 +439,8 @@ export const commands = [
   moveToList,
   renameList,
   createList,
+  removeList,
+  moveList,
   fc.constant(history("undo")),
   fc.constant(history("redo")),
   fc.constant(settleStep),
