@@ -17,6 +17,9 @@ Release notes for a tag are taken from the matching version section, so the
   task being edited could lose the cursor, so the next Backspace or click
   went nowhere and an empty task seemed impossible to delete.
 - Undoing the deletion of a task restores its note as well.
+- Undo keeps working after undoing the deletion of a list: the restored list
+  keeps each task's position, so undoing an earlier move of one of its tasks
+  puts it back in the right place.
 
 ## [v1.7.1] - 2026-10-07
 

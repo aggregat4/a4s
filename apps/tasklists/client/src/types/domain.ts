@@ -63,7 +63,8 @@ export type ListState = OrderedSetState<{ text: string; done: boolean; note?: st
 export type ListCreateInput = {
   listId?: ListId | null;
   title?: string | null;
-  items?: TaskItem[] | null;
+  // Items keep their position when restoring a list, e.g. on undo.
+  items?: Array<TaskItem & { position?: Position | null }> | null;
   position?: Position | null;
   afterId?: ListId | null;
   beforeId?: ListId | null;

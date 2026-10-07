@@ -326,3 +326,20 @@ test("undoing a delete restores the task's note", async () => {
   assert.equal(task?.text, "Call Ada");
   assert.equal(task?.note, "Number is on the card");
 });
+
+test("undo keeps working after undoing the deletion of a list", async () => {
+  const repository = new ListRepository({
+    storageFactory: async () => createMemoryStorage(),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+  });
+  await repository.createList({ listId: "list-1", title: "Tasks" });
+  await repository.insertTask("list-1", { itemId: "a", text: "A" });
+  await repository.insertTask("list-1", { itemId: "b", text: "B", beforeId: "a" });
+  await repository.moveTaskWithinList("list-1", "a", { beforeId: "b" });
+  await repository.removeList("list-1");
+
+  await repository.undo(); // restores the list
+  assert.deepEqual(repository.getListState("list-1").items.map((i) => i.id), ["a", "b"]);
+  await repository.undo(); // reverts the move
+  assert.deepEqual(repository.getListState("list-1").items.map((i) => i.id), ["b", "a"]);
+});

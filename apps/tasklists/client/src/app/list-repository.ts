@@ -729,14 +729,15 @@ export class ListRepository {
     }
     if (Array.isArray(options.items)) {
       let previousId: string | null = null;
-      options.items.forEach((item: TaskItem) => {
+      options.items.forEach((item) => {
         const itemId = ensureId(item?.id, `${listId}-item`);
         const insert = listCrdt.generateInsert({
           itemId,
           text: sanitizeText(item?.text),
           done: Boolean(item?.done),
           note: sanitizeText(item?.note),
-          afterId: previousId,
+          afterId: item?.position ? null : previousId,
+          position: item?.position ?? null,
         });
         ops.push(insert.op);
         previousId = itemId;
@@ -810,7 +811,13 @@ export class ListRepository {
           type: "createList",
           listId,
           title: listState.title,
-          items: listState.items,
+          items: record.crdt.getSnapshot().map((entry) => ({
+            id: entry.id,
+            text: entry.text,
+            done: entry.done,
+            note: entry.note ?? "",
+            position: entry.pos ?? null,
+          })),
           afterId,
           beforeId,
           position: registryRecord?.pos ?? null,
