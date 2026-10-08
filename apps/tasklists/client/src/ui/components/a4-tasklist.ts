@@ -232,9 +232,6 @@ class A4TaskList extends HTMLElement {
       wasOpen: boolean;
     }
   >;
-  private pendingRestoreEdit: { id: string; caret: CaretPreference | null } | null;
-  private resumeEditOnBlur: { id: string; caret: CaretPreference | null } | null;
-  private resumeEditTimer: ReturnType<typeof setTimeout> | null;
   private lastDragReorderMove: ReorderMove | null;
   private dragStartOrder: string[] | null;
   private repositorySyncPaused: number;
@@ -299,9 +296,6 @@ class A4TaskList extends HTMLElement {
     this.pendingNoteFocusId = null;
     this.focusedItemId = null;
     this.touchGestureState = new Map();
-    this.pendingRestoreEdit = null;
-    this.resumeEditOnBlur = null;
-    this.resumeEditTimer = null;
     this.lastDragReorderMove = null;
     this.dragStartOrder = null;
     this.repositorySyncPaused = 0;
@@ -660,11 +654,6 @@ class A4TaskList extends HTMLElement {
     document.removeEventListener("pointerdown", this.handleDocumentPointerDown);
     this.touchGestureState.clear();
     this.openActionsItemId = null;
-    if (this.resumeEditTimer) {
-      clearTimeout(this.resumeEditTimer);
-      this.resumeEditTimer = null;
-    }
-    this.resumeEditOnBlur = null;
   }
 
   dispose() {
@@ -1370,11 +1359,9 @@ class A4TaskList extends HTMLElement {
   handleEditMove({
     element,
     direction,
-    selectionStart,
   }: {
     element: HTMLElement;
     direction: "up" | "down";
-    selectionStart?: number;
   }) {
     if (!element || !this.store) return;
     const li = element.closest("li");
@@ -1411,37 +1398,12 @@ class A4TaskList extends HTMLElement {
       direction === "down" ? targetIndexAfterRemoval + 1 : targetIndexAfterRemoval;
     order.splice(toIndex, 0, id);
 
-    const caretOffset =
-      typeof selectionStart === "number" ? Math.max(0, selectionStart) : 0;
-    const caretPreference = makeOffsetCaret(caretOffset);
-    this.editController.queue(id, caretPreference);
-    this.schedulePendingEditFlush();
-
+    // Rendering keeps the task in edit, the cursor where it was.
     this.store.dispatch({
       type: LIST_ACTIONS.reorderItems,
       payload: { order },
     });
-    this.pendingRestoreEdit = { id, caret: caretPreference };
     this.handleStoreChange();
-    if (this.resumeEditTimer) {
-      clearTimeout(this.resumeEditTimer);
-    }
-    this.resumeEditOnBlur = { id, caret: caretPreference };
-    this.resumeEditTimer = setTimeout(() => {
-      this.resumeEditOnBlur = null;
-      this.resumeEditTimer = null;
-    }, 500);
-    const startedEdit = this.startEditingItem(id, caretPreference);
-    if (!startedEdit && !this.focusItemImmediately(id, caretPreference)) {
-      this.editController.applyPendingEdit();
-    }
-    setTimeout(() => {
-      const retryStarted = this.startEditingItem(id, caretPreference);
-      if (!retryStarted && !this.focusItemImmediately(id, caretPreference)) {
-        this.editController.queue(id, caretPreference);
-        this.schedulePendingEditFlush();
-      }
-    }, 0);
 
     if (this._repository && this.listId) {
       const beforeNeighbor = order[toIndex - 1] ?? null;
@@ -1738,7 +1700,9 @@ class A4TaskList extends HTMLElement {
         });
       }
     );
-    render(html`${itemsTemplate}`, this.listEl);
+    const renderItems = () => render(html`${itemsTemplate}`, this.listEl!);
+    if (this.inlineEditor) this.inlineEditor.keepEditingThrough(renderItems);
+    else renderItems();
     this.dragCoordinator?.invalidateItemsCache();
 
     const totalCount = Array.isArray(state.items)
@@ -1865,14 +1829,6 @@ class A4TaskList extends HTMLElement {
         target.setSelectionRange(end, end);
         this.updateNoteScrollState(target);
       }
-    }
-
-    if (this.pendingRestoreEdit?.id) {
-      this.startEditingItem(
-        this.pendingRestoreEdit.id,
-        this.pendingRestoreEdit.caret ?? null
-      );
-      this.pendingRestoreEdit = null;
     }
 
     if (
@@ -2774,21 +2730,6 @@ class A4TaskList extends HTMLElement {
     }
     textEl.dataset.originalText = textEl.textContent;
     this.scheduleSearchRender(0);
-    if (
-      this.resumeEditOnBlur &&
-      textEl.closest("li")?.dataset?.itemId === this.resumeEditOnBlur.id
-    ) {
-      const targetId = this.resumeEditOnBlur.id;
-      const caretPreference = this.resumeEditOnBlur.caret ?? null;
-      this.resumeEditOnBlur = null;
-      if (this.resumeEditTimer) {
-        clearTimeout(this.resumeEditTimer);
-        this.resumeEditTimer = null;
-      }
-      setTimeout(() => {
-        this.startEditingItem(targetId, caretPreference);
-      }, 0);
-    }
   }
 
   applyFilter(query: string) {

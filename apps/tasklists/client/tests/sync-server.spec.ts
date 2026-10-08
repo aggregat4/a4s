@@ -778,3 +778,42 @@ test.afterAll(async ({ request }) => {
   });
   expect(response.ok()).toBe(true);
 });
+
+const taskTexts = (page: Page) => page.locator(listItemsSelector).locator(".text");
+
+test("the task being edited stays editable when another device moves it", async ({
+  browser,
+}) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    for (const page of [pageA, pageB]) {
+      await Promise.all([
+        page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),
+        page.goto("/?sync=1"),
+      ]);
+    }
+    const listTitle = `Moved while editing ${Date.now()}`;
+    await createList(pageA, listTitle);
+    await addTask(pageA, "First");
+    await addTask(pageA, "Second");
+    await selectList(pageB, listTitle);
+    await expect(taskTexts(pageB)).toHaveText(["Second", "First"]);
+
+    await taskItem(pageA, "Second").locator(".text").click();
+    await pageA.keyboard.press("End");
+    await taskItem(pageB, "Second").locator(".text").click();
+    await pageB.keyboard.press("ControlOrMeta+ArrowDown");
+    await pageB.keyboard.press("Escape");
+    await expect(taskTexts(pageA)).toHaveText(["First", "Second"]);
+
+    await pageA.keyboard.type(" task");
+    await expect(taskTexts(pageA)).toHaveText(["First", "Second task"]);
+    await expect(taskTexts(pageB)).toHaveText(["First", "Second task"]);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});

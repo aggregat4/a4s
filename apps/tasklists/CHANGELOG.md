@@ -12,6 +12,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- The task being edited stays in edit when another device moves it. It kept
+  the focus but could no longer be edited, so what was typed next was lost.
 - Spaces in tasks and list titles are shown and saved as typed. Spaces at the
   start or end of a task disappeared from view, the cursor could not be placed
   after them, and a trailing space was saved as a no-break space, so undoing

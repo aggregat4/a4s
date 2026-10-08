@@ -82,6 +82,8 @@ export default class InlineTextEditor {
   editingEl: HTMLElement | null;
   private initialTextValue: string;
   private lastInputText: string;
+  /** Set while an update may move the element being edited. */
+  private keepingEdit: boolean;
 
   constructor(list: HTMLElement, options: InlineTextEditor["options"] = {}) {
     this.list = list;
@@ -89,6 +91,7 @@ export default class InlineTextEditor {
     this.editingEl = null;
     this.initialTextValue = "";
     this.lastInputText = "";
+    this.keepingEdit = false;
     // Bind once so we can add/remove listeners without recreating closures.
     this.handleClick = this.handleClick.bind(this);
     this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -299,7 +302,32 @@ export default class InlineTextEditor {
     }
   }
 
+  /**
+   * Runs an update that may move the element being edited, such as rendering
+   * changes from another device. Moving a focused element blurs it, so editing
+   * continues afterwards, with the cursor where it was.
+   */
+  keepEditingThrough(update: () => void) {
+    const textEl = this.editingEl;
+    if (!textEl) {
+      update();
+      return;
+    }
+    const { start } = this.getSelectionOffsets(textEl);
+    this.keepingEdit = true;
+    try {
+      update();
+    } finally {
+      this.keepingEdit = false;
+    }
+    if (this.editingEl === textEl && textEl.isConnected && document.activeElement !== textEl) {
+      textEl.focus();
+      this.setSelectionAtOffset(textEl, start);
+    }
+  }
+
   handleBlur(e: FocusEvent) {
+    if (this.keepingEdit) return;
     const textEl = e.target as HTMLElement;
     const related = e.relatedTarget as HTMLElement | null;
     const noteInput = related?.classList?.contains("task-note-input")
