@@ -12,7 +12,7 @@
     "test:unit": "pnpm run build && pnpm run test:unit:built",
     "test:unit:built": "node --test dist/tests/unit/**/*.spec.js",
     "test:e2e": "pnpm run build && pnpm run test:e2e:built",
-    "test:e2e:built": "PLAYWRIGHT_USE_DOCKER=1 playwright test --project=chromium",
+    "test:e2e:built": "PLAYWRIGHT_USE_DOCKER=1 playwright test --project='chromium*'",
     "test:e2e:firefox": "pnpm run build && pnpm run test:e2e:firefox:built",
     "test:e2e:firefox:built": "PLAYWRIGHT_USE_DOCKER=1 playwright test --project=firefox",
     "test:e2e:cross-browser": "pnpm run build && pnpm run test:e2e:cross-browser:built",

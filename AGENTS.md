@@ -45,8 +45,10 @@
 - Tasklists uses the root pnpm workspace. Its full browser suite must run
   through `task tasklists:test`, which starts its Go server in Docker. To run
   a single test, build the client and run from `apps/tasklists/client`:
-  `PLAYWRIGHT_USE_DOCKER=1 pnpm exec playwright test --project=chromium -g "<name>"`.
-  Only the `chromium` project is part of `task tasklists:test`; cross-browser
+  `PLAYWRIGHT_USE_DOCKER=1 pnpm exec playwright test --project='chromium*' -g "<name>"`.
+  Only the `chromium` and `chromium-sync` projects are part of
+  `task tasklists:test`; `chromium-sync` holds the specs that use the sync
+  server's data and runs them one at a time. Cross-browser
   coverage comes from a separate smoke suite that runs in the
   `mcr.microsoft.com/playwright` image. The `firefox` project in
   `playwright.config.ts`, which runs when `--project` is omitted, is not
