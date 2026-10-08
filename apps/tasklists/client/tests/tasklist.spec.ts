@@ -1566,6 +1566,23 @@ test.describe("tasklist flows", () => {
     });
   });
 
+  test("a task emptied by deleting its text is empty and backspace removes it", async ({
+    page,
+  }) => {
+    const items = page.locator(listItemsSelector);
+    const initialCount = await items.count();
+    await page.getByRole("button", { name: "Add task" }).click();
+    const newTask = items.first().locator(".text");
+    await expect(newTask).toHaveAttribute("contenteditable", "true");
+    await page.keyboard.type("a");
+    await page.keyboard.press("Backspace");
+    await expect(newTask).toHaveText("");
+    expect(await newTask.evaluate((el) => el.textContent)).toBe("");
+
+    await page.keyboard.press("Backspace");
+    await expect(items).toHaveCount(initialCount);
+  });
+
   test("backspace removes an empty new task", async ({ page }) => {
     const itemsBefore = page.locator(listItemsSelector);
     const initialCount = await itemsBefore.count();

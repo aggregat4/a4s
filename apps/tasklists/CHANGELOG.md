@@ -12,6 +12,10 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- Deleting the last character of a task leaves it empty, so Backspace deletes
+  it. The browser's placeholder for an empty line was turned into a space and
+  saved, which made the task look empty but impossible to delete with
+  Backspace.
 - A list no longer briefly shows an older state while its changes are being
   saved. On slow devices a deleted task could reappear for a moment, and the
   task being edited could lose the cursor, so the next Backspace or click

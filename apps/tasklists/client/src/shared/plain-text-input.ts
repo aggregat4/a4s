@@ -10,6 +10,8 @@ const EDGE_LINE_BREAKS = new RegExp(
   `^\\s*${LINE_BREAK}\\s*|\\s*${LINE_BREAK}\\s*$`,
   "g"
 );
+// Line breaks at the start or end only, leaving spaces next to them alone.
+const OUTER_LINE_BREAKS = new RegExp(`^${LINE_BREAK}+|${LINE_BREAK}+$`, "g");
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000e-\u001f\u007f]/g;
 // Private-use character marking the caret while an element is flattened.
 const CARET_MARKER = "";
@@ -72,8 +74,10 @@ const flattenToPlainText = (element: HTMLElement) => {
     range.insertNode(document.createTextNode(CARET_MARKER));
   }
   // innerText (unlike textContent) turns block boundaries and <br> into line
-  // breaks, which toSingleLine then turns into spaces.
-  const marked = toSingleLine(element.innerText);
+  // breaks, which toSingleLine then turns into spaces. Line breaks at either
+  // end are dropped: browsers leave a <br> in an element whose last character
+  // was deleted, which must stay empty rather than become a space.
+  const marked = toSingleLine(element.innerText.replace(OUTER_LINE_BREAKS, ""));
   const caretOffset = marked.indexOf(CARET_MARKER);
   const text = marked.replace(CARET_MARKER, "");
   element.textContent = text;
