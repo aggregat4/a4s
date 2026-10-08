@@ -629,6 +629,7 @@ a4-tasklist {
     .tasklist-title {
         margin: 0;
         min-width: 0;
+        white-space: pre-wrap;
         max-width: 100%;
         font-size: var(--font-size-title);
         font-weight: 600;
@@ -837,6 +838,9 @@ a4-tasklist {
     /* Break long unbreakable strings (e.g. URLs) so they wrap instead of
        overflowing under the drag handle. */
     overflow-wrap: anywhere;
+
+    /* Show spaces as typed, so editing keeps them as regular spaces. */
+    white-space: pre-wrap;
     outline: none;
 }
 

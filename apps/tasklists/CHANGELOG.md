@@ -12,6 +12,10 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- Spaces in tasks and list titles are shown and saved as typed. Spaces at the
+  start or end of a task disappeared from view, the cursor could not be placed
+  after them, and a trailing space was saved as a no-break space, so undoing
+  a second word left that space behind.
 - Deleting the last character of a task leaves it empty, so Backspace deletes
   it. The browser's placeholder for an empty line was turned into a space and
   saved, which made the task look empty but impossible to delete with

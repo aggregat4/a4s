@@ -1404,6 +1404,32 @@ test.describe("undo and redo controls", () => {
   });
 });
 
+test.describe("saved task text", () => {
+  test("a trailing space is saved as a regular space", async ({ page }) => {
+    // No resetStorage: the saved text is read in a second tab.
+    await gotoWithSnapshot(page, "/?sync=0");
+    await page.getByRole("button", { name: "Add task" }).click();
+    const newTask = page.locator(listItemsSelector).first().locator(".text");
+    await expect(newTask).toBeFocused();
+    await page.keyboard.type("buy ");
+    await page.keyboard.press("Escape");
+
+    await expect
+      .poll(async () => {
+        const viewer = await page.context().newPage();
+        await viewer.goto(page.url());
+        const first = viewer.locator(listItemsSelector).first().locator(".text");
+        await first.waitFor();
+        const codes = await first.evaluate((el) =>
+          Array.from(el.textContent ?? "").map((c) => c.charCodeAt(0))
+        );
+        await viewer.close();
+        return codes;
+      })
+      .toEqual([98, 117, 121, 32]);
+  });
+});
+
 test.describe("tasklist flows", () => {
   test.beforeEach(async ({ page }) => {
     await gotoWithSnapshot(page, "/?resetStorage=1");
@@ -1564,6 +1590,18 @@ test.describe("tasklist flows", () => {
       await expect(items.first().locator(".text")).toHaveText(firstText);
       await expect(visibleDoneToggles(page)).toHaveCount(0);
     });
+  });
+
+  test("undo after typing a second word removes only that word", async ({ page }) => {
+    await page.getByRole("button", { name: "Add task" }).click();
+    const newTask = page.locator(listItemsSelector).first().locator(".text");
+    await expect(newTask).toBeFocused();
+    await page.keyboard.type("buy milk");
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    // Exact text: toHaveText would ignore a leftover space.
+    await expect.poll(() => newTask.evaluate((el) => el.textContent)).toBe("buy");
   });
 
   test("a task emptied by deleting its text is empty and backspace removes it", async ({
