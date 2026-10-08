@@ -23,7 +23,18 @@ export type Model = {
   undo: Record<Device, OwnLists[]>;
   redo: Record<Device, OwnLists[]>;
   nextId: number;
+  /** The time, in ms, as on the shared clock. */
+  time: number;
+  /**
+   * The task a device last edited the text of, and when, as long as the
+   * device did nothing else since. Typing into it merges into that undo step.
+   */
+  typing: Record<Device, { taskId: string; at: number } | null>;
 };
+
+/** Text edits this close together, within a word, merge into one undo step. */
+const MERGE_WINDOW_MS = 1000;
+const WORD_BOUNDARY = /[\s.,;:!?]/;
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const ownLists = (state: ModelState, device: Device) =>
@@ -52,7 +63,7 @@ export type DeviceReal = {
 
 export type Real = {
   devices: Record<Device, DeviceReal>;
-  now: () => number;
+  clock: Clock;
   scheduler: fc.Scheduler;
   pending: Promise<unknown>[];
 };
@@ -76,14 +87,21 @@ export const createIdentityStorage = (): Storage => {
   };
 };
 
-/**
- * A clock that moves 10 seconds per reading, so text edits never merge into
- * one undo step and every change is its own step, as in the model.
- */
-export function createSpacedClock() {
-  let time = 1_700_000_000_000;
-  return () => (time += 10_000);
+/** A clock the steps move forward; the repository reads it to merge edits. */
+type Clock = { time: number; now: () => number };
+export function createClock(start: number): Clock {
+  const clock: Clock = { time: start, now: () => clock.time };
+  return clock;
 }
+
+/** Moves the shared clock and the model's time forward together. */
+function wait(m: Model, r: Real, ms: number) {
+  m.time += ms;
+  r.clock.time = m.time;
+}
+
+// Ordinary changes are this far apart, so they never merge.
+const PAUSE_MS = 10_000;
 
 export const createRepository = (
   storage: ListStorage,
@@ -199,9 +217,11 @@ function perform(
   request: (repository: ListRepository) => Promise<unknown>,
   mutate: (state: ModelState) => void
 ) {
+  wait(m, r, PAUSE_MS);
   r.pending.push(request(r.devices[device].repository));
   m.undo[device].push(clone(ownLists(m.state, device)));
   m.redo[device] = [];
+  m.typing[device] = null;
   mutate(m.state);
 }
 
@@ -267,7 +287,52 @@ const editField = (field: "text" | "note") =>
           (repo) => repo.updateTask(list.id, task.id, { [field]: value }),
           (s) => { listIn(s, list.id).tasks[i][field] = value; }
         );
+        // Replacing the text is its own undo step, but typing right after it
+        // continues that step.
+        if (field === "text") m.typing[d] = { taskId: task.id, at: m.time };
         return task.id;
+      })
+  );
+
+/**
+ * Types a burst of keys at the end of a task's text: letters, a space, a
+ * period, or Backspace, each after a delay. A key merges into the previous
+ * undo step if that step edited the same task's text at most a second
+ * earlier and the key does not add or remove a space or punctuation.
+ */
+const keystroke = fc.record({
+  key: fc.constantFrom("a", "b", " ", ".", "Backspace"),
+  delay: fc.constantFrom(100, 999, 1000, 1001, 5000),
+});
+const describeKeys = (keys: Array<{ key: string; delay: number }>) =>
+  keys.map(({ key, delay }) => `${key === " " ? "Space" : key}+${delay}`).join(" ");
+
+const type = fc
+  .tuple(device, index, index, fc.array(keystroke, { minLength: 2, maxLength: 8 }))
+  .map(
+    ([d, l, t, keys]) =>
+      new Step(`${d}: Type(${l}, ${t}, ${describeKeys(keys)})`, hasTasks()(d), (m, r) => {
+        const { list, index: i, task } = pickTask(m, d, l, t);
+        let merged = 0;
+        for (const { key, delay } of keys) {
+          const text = listIn(m.state, list.id).tasks[i].text;
+          if (key === "Backspace" && !text.length) continue;
+          const changed = key === "Backspace" ? text.slice(-1) : key;
+          const value = key === "Backspace" ? text.slice(0, -1) : text + key;
+          wait(m, r, delay);
+          const last = m.typing[d];
+          const merges =
+            last?.taskId === task.id &&
+            m.time - last.at <= MERGE_WINDOW_MS &&
+            !WORD_BOUNDARY.test(changed);
+          r.pending.push(r.devices[d].repository.updateTask(list.id, task.id, { text: value }));
+          if (merges) merged += 1;
+          else m.undo[d].push(clone(ownLists(m.state, d)));
+          m.redo[d] = [];
+          listIn(m.state, list.id).tasks[i].text = value;
+          m.typing[d] = { taskId: task.id, at: m.time };
+        }
+        return `${task.id}, ${merged} merged`;
       })
   );
 
@@ -485,6 +550,8 @@ const history = (direction: "undo" | "redo") =>
         (m) => m[direction][d].length > 0,
         (m, r) => {
           const other = direction === "undo" ? "redo" : "undo";
+          wait(m, r, PAUSE_MS);
+          m.typing[d] = null;
           r.pending.push(r.devices[d].repository[direction]());
           m[other][d].push(clone(ownLists(m.state, d)));
           restoreOwnLists(m.state, d, m[direction][d].pop()!);
@@ -518,19 +585,25 @@ const reload = device.map(
       const real = r.devices[d];
       real.repository.dispose();
       real.storage = await real.openStorage();
-      real.repository = createRepository(real.storage, real.identity, r.now);
+      real.repository = createRepository(real.storage, real.identity, r.clock.now);
       await r.scheduler.waitFor(real.repository.initialize());
       // The undo history is not kept across reloads.
       m.undo[d] = [];
       m.redo[d] = [];
+      m.typing[d] = null;
       assertMatches(m, r, "after reload");
     })
 );
 
+// fast-check picks each entry equally often, so typing and undo, where
+// merging is decided and observed, are listed more than once.
 export const commands = [
   addTask,
   editField("text"),
   editField("note"),
+  type,
+  type,
+  type,
   toggle,
   removeTask,
   split,
@@ -541,6 +614,7 @@ export const commands = [
   createList,
   removeList,
   moveList,
+  history("undo"),
   history("undo"),
   history("redo"),
   fc.constant(exchangeStep),

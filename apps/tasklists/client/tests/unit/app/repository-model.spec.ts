@@ -17,8 +17,8 @@ import {
   assertMatches,
   commands,
   createIdentityStorage,
+  createClock,
   createRepository,
-  createSpacedClock,
   settle,
   type Device,
   type DeviceReal,
@@ -34,19 +34,20 @@ test("devices match the model for any sequence of changes", async () => {
       fc.commands(commands, { maxCommands: 60, size: "large" }),
       async (scheduler, cmds) => {
         const run = runs++;
-        const now = createSpacedClock();
+        const start = 1_700_000_000_000;
+        const clock = createClock(start);
         const openDevice = async (device: Device): Promise<DeviceReal> => {
           const openStorage = () =>
             openScheduledStorage(`repository-model-${run}-${device}`, scheduler);
           const storage = await openStorage();
           const identity = createIdentityStorage();
-          const repository = createRepository(storage, identity, now);
+          const repository = createRepository(storage, identity, clock.now);
           await scheduler.waitFor(repository.initialize());
           return { repository, storage, openStorage, identity, delivered: 0 };
         };
         const real: Real = {
           devices: { a: await openDevice("a"), b: await openDevice("b") },
-          now,
+          clock,
           scheduler,
           pending: [],
         };
@@ -60,6 +61,8 @@ test("devices match the model for any sequence of changes", async () => {
           undo: { a: [[]], b: [] },
           redo: { a: [], b: [] },
           nextId: 1,
+          time: start,
+          typing: { a: null, b: null },
         };
         await fc.asyncModelRun(() => ({ model, real }), cmds);
         await settle(real);
@@ -69,7 +72,7 @@ test("devices match the model for any sequence of changes", async () => {
       }
     ),
     {
-      numRuns: Number(process.env.MODEL_RUNS ?? 200),
+      numRuns: Number(process.env.MODEL_RUNS ?? 500),
       includeErrorInReport: true,
     }
   );
