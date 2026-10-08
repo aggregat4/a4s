@@ -343,3 +343,41 @@ test("undo keeps working after undoing the deletion of a list", async () => {
   await repository.undo(); // reverts the move
   assert.deepEqual(repository.getListState("list-1").items.map((i) => i.id), ["b", "a"]);
 });
+
+test("keystrokes a pause apart are separate undo steps even when saving lags", async () => {
+  let time = 1_700_000_000_000;
+  const repository = new ListRepository({
+    storageFactory: async () => createSlowStorage(20),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+    now: () => time,
+  });
+  await repository.createList({ listId: "list-1", title: "Tasks" });
+  await repository.insertTask("list-1", { itemId: "a", text: "" });
+
+  // Typed five seconds apart; neither has been saved when the second is typed.
+  const first = repository.updateTask("list-1", "a", { text: "a" });
+  time += 5_000;
+  const second = repository.updateTask("list-1", "a", { text: "ab" });
+  await Promise.all([first, second]);
+
+  await repository.undo();
+  assert.equal(repository.getListState("list-1").items[0]?.text, "a");
+});
+
+test("list renames a pause apart are separate undo steps even when saving lags", async () => {
+  let time = 1_700_000_000_000;
+  const repository = new ListRepository({
+    storageFactory: async () => createSlowStorage(20),
+    listsCrdtOptions: { identityOptions: { storage: createMockStorage() } },
+    now: () => time,
+  });
+  await repository.createList({ listId: "list-1", title: "Tasks" });
+
+  const first = repository.renameList("list-1", "Errands");
+  time += 5_000;
+  const second = repository.renameList("list-1", "Groceries");
+  await Promise.all([first, second]);
+
+  await repository.undo();
+  assert.equal(repository.getListState("list-1").title, "Errands");
+});

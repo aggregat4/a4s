@@ -168,6 +168,7 @@ export class ListRepository {
     label,
     actor,
     coalesceKey,
+    timestamp = this._now(),
   }: {
     scope: HistoryScope;
     forwardOps: HistoryOp[];
@@ -175,6 +176,8 @@ export class ListRepository {
     label?: string;
     actor?: string;
     coalesceKey?: string;
+    /** When the change was made; decides which text edits merge. */
+    timestamp?: number;
   }) {
     if (this._historySuppressed > 0) return;
     this._history.record({
@@ -184,7 +187,7 @@ export class ListRepository {
       label,
       actor,
       coalesceKey,
-      timestamp: this._now(),
+      timestamp,
     });
   }
 
@@ -857,10 +860,18 @@ export class ListRepository {
   }
 
   async renameList(listId: ListId, title: string) {
-    return this.enqueueChange(() => this.renameListInternal(listId, title));
+    // Renames typed live merge into one undo step; see updateTask.
+    const renamedAt = this._now();
+    return this.enqueueChange(() =>
+      this.renameListInternal(listId, title, renamedAt)
+    );
   }
 
-  private async renameListInternal(listId: ListId, title: string) {
+  private async renameListInternal(
+    listId: ListId,
+    title: string,
+    renamedAt = this._now()
+  ) {
     await this.initialize();
     const record = this._listMap.get(listId);
     if (!record?.crdt) return null;
@@ -894,6 +905,7 @@ export class ListRepository {
         label: "rename-list",
         actor: record.crdt.actorId,
         coalesceKey: `${listId}:rename`,
+        timestamp: renamedAt,
       });
     }
     return record.crdt.toListState();
@@ -1182,15 +1194,19 @@ export class ListRepository {
   }
 
   async updateTask(listId: ListId, itemId: string, payload: TaskUpdateInput = {}) {
+    // The time of the edit, not of saving it: queued edits can be saved in a
+    // burst, and keystrokes a pause apart must stay separate undo steps.
+    const editedAt = this._now();
     return this.enqueueChange(() =>
-      this.updateTaskInternal(listId, itemId, payload)
+      this.updateTaskInternal(listId, itemId, payload, editedAt)
     );
   }
 
   private async updateTaskInternal(
     listId: ListId,
     itemId: string,
-    payload: TaskUpdateInput = {}
+    payload: TaskUpdateInput = {},
+    editedAt = this._now()
   ) {
     await this.initialize();
     const record = this._listMap.get(listId);
@@ -1200,7 +1216,6 @@ export class ListRepository {
       .getSnapshot()
       .find((entry) => entry.id === itemId);
     if (!existing) return null;
-    const now = this._now();
     let coalesceKey: string | undefined;
     if (Object.prototype.hasOwnProperty.call(payload, "text")) {
       const previousText = existing.text ?? "";
@@ -1212,7 +1227,7 @@ export class ListRepository {
         itemId,
         previousText,
         nextText,
-        timestamp: now,
+        timestamp: editedAt,
       });
     }
     const result = record.crdt.generateUpdate({
@@ -1258,6 +1273,7 @@ export class ListRepository {
       label: "update-task",
       actor: record.crdt.actorId,
       coalesceKey: shouldCoalesce ? coalesceKey : undefined,
+      timestamp: editedAt,
     });
     return record.crdt.toListState();
   }

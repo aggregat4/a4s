@@ -24,6 +24,10 @@ Release notes for a tag are taken from the matching version section, so the
   device. Deleting a list now only hides it, keeping its tasks and history, so
   undo shows it again exactly as it was instead of rebuilding it; a device
   that had reloaded in between could show an old title or miss later changes.
+- Typing that pauses for more than a second is a separate undo step even on a
+  slow device. Whether edits merge into one undo step was decided when they
+  were saved instead of when they were made, so a burst of delayed saves could
+  merge keystrokes, or list renames, that were seconds apart.
 
 ## [v1.7.1] - 2026-10-07
 
