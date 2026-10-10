@@ -861,8 +861,7 @@ class A4TaskList extends HTMLElement {
     const preservedFocus = this.captureFocus();
     const tokens = tokenizeSearchQuery(this.searchQuery);
     const forceVisible = this.editController.getForceVisibleIds();
-    const editingId =
-      this.inlineEditor?.editingEl?.closest?.("li")?.dataset?.itemId ?? null;
+    const editingId = this.editingItemId();
 
     let visibleCount = 0;
     const itemsTemplate = repeat(
@@ -1581,6 +1580,10 @@ class A4TaskList extends HTMLElement {
     this.renderCurrentState();
   }
 
+  editingItemId() {
+    return this.inlineEditor?.editingEl?.closest("li")?.dataset.itemId ?? null;
+  }
+
   /** The list item of a task, if it is rendered. */
   itemElement(itemId: string) {
     return (
@@ -1667,11 +1670,22 @@ class A4TaskList extends HTMLElement {
 
   getSearchMatchCountForQuery(query: string) {
     const tokens = tokenizeSearchQuery(query);
-    return this.state.items.filter((item) => this.isShown(item, tokens)).length;
+    return this.state.items.filter((item) => this.matchesSearch(item, tokens)).length;
   }
 
-  /** Whether a task shows: it matches the search, and is not done or done tasks show. */
-  isShown(item: TaskItem, tokens = tokenizeSearchQuery(this.searchQuery)) {
+  /**
+   * Whether a task shows: the task being edited always does, also when it
+   * no longer matches, as when another device ticked it off.
+   */
+  isShown(item: TaskItem) {
+    return (
+      item.id === this.editingItemId() ||
+      this.matchesSearch(item, tokenizeSearchQuery(this.searchQuery))
+    );
+  }
+
+  /** Whether a task matches a search, and is not done or done tasks show. */
+  matchesSearch(item: TaskItem, tokens: string[]) {
     return matchesSearchEntry({
       originalText: item.text,
       noteText: item.note ?? "",

@@ -876,3 +876,39 @@ test("a task restored by redo is still there after a reload", async ({ page }) =
   await selectList(page, listTitle);
   await expect(taskTexts(page)).toHaveCount(1);
 });
+
+test("the task being edited moves after another device ticked it off", async ({ browser }) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    for (const page of [pageA, pageB]) {
+      await Promise.all([
+        page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),
+        page.goto("/?sync=1"),
+      ]);
+    }
+    const listTitle = `Ticked while editing ${Date.now()}`;
+    await createList(pageA, listTitle);
+    await addTask(pageA, "Other");
+    await addTask(pageA, "Mine");
+    await selectList(pageB, listTitle);
+    await expect(taskTexts(pageB)).toHaveText(["Mine", "Other"]);
+
+    await taskItem(pageA, "Mine").locator(".text").click();
+    await taskItem(pageB, "Mine").locator("input.done-toggle").click();
+    // The task being edited stays in view, ticked off.
+    await expect(taskItem(pageA, "Mine").locator("input.done-toggle")).toBeChecked();
+    await expect(taskItem(pageA, "Mine").locator(".text")).toHaveAttribute(
+      "contenteditable",
+      "true"
+    );
+
+    await pageA.keyboard.press("ControlOrMeta+ArrowDown");
+    await expect(taskTexts(pageA)).toHaveText(["Other", "Mine"]);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});

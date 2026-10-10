@@ -17,6 +17,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- The task being edited can be moved with the keyboard after another device
+  ticked it off. It stayed in view while edited, but did not move.
 - A task brought back by undo or redo stays after a reload, and every device
   keeps it. Reapplying its earlier deletion removed it again, depending on
   the order in which a device received the changes.
