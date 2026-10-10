@@ -29,14 +29,22 @@ import {
   handlePlainTextPaste,
 } from "../../shared/plain-text-input.js";
 
-type PatternDefinition = {
-  regex: RegExp;
-  className: string;
-  priority?: number;
-  kind?: PatternKind;
-};
+/** A highlighted kind of token in task text. */
+const pattern = (regex: RegExp, className: string, kind: PatternKind): PatternConfig => ({
+  regexSource: regex.source,
+  regexFlags: regex.flags.includes("g") ? regex.flags : `${regex.flags}g`,
+  className,
+  priority: 2,
+  key: `pattern:${className}`,
+  kind,
+});
 
-type PatternConfigEntry = PatternConfig;
+// Contexts and tags start a word, so "me@example.com" holds no context.
+const TASK_PATTERNS = [
+  pattern(URL_PATTERN, "task-token-link", "link"),
+  pattern(/(?<![\w@#])@[A-Za-z0-9_]+/g, "task-token-mention", "search"),
+  pattern(/(?<![\w@#])#[A-Za-z0-9_]+/g, "task-token-tag", "search"),
+];
 
 const makeOffsetCaret = (value: number, bias?: CaretBias): CaretPreference => ({
   type: "offset",
@@ -191,7 +199,6 @@ class A4TaskList extends HTMLElement {
   private inlineEditor: InlineEditor | null;
   private headerEl: HTMLElement | null;
   private titleEl: HTMLElement | null;
-  private searchInput: HTMLInputElement | null;
   private searchTimer: ReturnType<typeof setTimeout> | null;
   searchQuery: string;
   showDone: boolean;
@@ -208,7 +215,6 @@ class A4TaskList extends HTMLElement {
   /** Notes being typed, which are saved when the note loses focus. */
   private noteDrafts: Map<string, string>;
   private shellRendered: boolean;
-  private patternConfig: PatternConfigEntry[];
   private listIdentifier: ListId | null;
   private lastReportedMatches: number | null;
   private lastReportedTotal: number | null;
@@ -240,6 +246,8 @@ class A4TaskList extends HTMLElement {
   private pendingEditFlushRequested: boolean;
   private _repository: ListRepository | null;
   private repositoryUnsubscribe: (() => void) | null;
+  /** Aborted when the element is disconnected, removing its listeners. */
+  private connection: AbortController | null;
 
   constructor() {
     super();
@@ -248,7 +256,6 @@ class A4TaskList extends HTMLElement {
     this.inlineEditor = null;
     this.headerEl = null;
     this.titleEl = null;
-    this.searchInput = null;
     this.searchTimer = null;
     this.searchQuery = "";
     this.showDone = false;
@@ -260,26 +267,6 @@ class A4TaskList extends HTMLElement {
     this.pendingChanges = [];
     this.noteDrafts = new Map();
     this.shellRendered = false;
-    // Contexts and tags start a word, so "me@example.com" holds no context.
-    this.patternConfig = this.normalizePatternDefs([
-      {
-        regex: URL_PATTERN,
-        className: "task-token-link",
-        kind: "link",
-      },
-      {
-        regex: /(?<![\w@#])@[A-Za-z0-9_]+/g,
-        className: "task-token-mention",
-        priority: 2,
-        kind: "search",
-      },
-      {
-        regex: /(?<![\w@#])#[A-Za-z0-9_]+/g,
-        className: "task-token-tag",
-        priority: 2,
-        kind: "search",
-      },
-    ]);
 
     this.listIdentifier = this.dataset.listId ?? null;
     this.lastReportedMatches = null;
@@ -298,45 +285,6 @@ class A4TaskList extends HTMLElement {
     this.lastDragReorderMove = null;
     this.dragStartOrder = null;
 
-    this.handleSearchInput = this.handleSearchInput.bind(this);
-    this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
-    this.handleItemBlur = this.handleItemBlur.bind(this);
-    this.handleToggle = this.handleToggle.bind(this);
-    this.handleEditCommit = this.handleEditCommit.bind(this);
-    this.handleEditSplit = this.handleEditSplit.bind(this);
-    this.handleEditMerge = this.handleEditMerge.bind(this);
-    this.handleEditRemove = this.handleEditRemove.bind(this);
-    this.handleEditMove = this.handleEditMove.bind(this);
-    this.handleAddButtonClick = this.handleAddButtonClick.bind(this);
-    this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
-    this.scheduleReorderUpdate = this.scheduleReorderUpdate.bind(this);
-    this.handleMoveButtonClick = this.handleMoveButtonClick.bind(this);
-    this.handleDeleteButtonClick = this.handleDeleteButtonClick.bind(this);
-    this.handleActionToggleClick = this.handleActionToggleClick.bind(this);
-    this.handleNoteToggleClick = this.handleNoteToggleClick.bind(this);
-    this.handleNoteInput = this.handleNoteInput.bind(this);
-    this.handleNoteKeyDown = this.handleNoteKeyDown.bind(this);
-    this.handleNoteBlur = this.handleNoteBlur.bind(this);
-    this.handleNoteScroll = this.handleNoteScroll.bind(this);
-    this.handleItemKeyDown = this.handleItemKeyDown.bind(this);
-    this.handleFocusIn = this.handleFocusIn.bind(this);
-    this.handleFocusOut = this.handleFocusOut.bind(this);
-    this.handleListDragStart = this.handleListDragStart.bind(this);
-    this.handleTitleClick = this.handleTitleClick.bind(this);
-    this.handleTitleKeyDown = this.handleTitleKeyDown.bind(this);
-    this.handleTitleBlur = this.handleTitleBlur.bind(this);
-    this.handleTitleInput = this.handleTitleInput.bind(this);
-    this.handleHeaderErrorDismiss = this.handleHeaderErrorDismiss.bind(this);
-    this.handleDocumentPointerDown = this.handleDocumentPointerDown.bind(this);
-    this.handleTouchGestureStart = this.handleTouchGestureStart.bind(this);
-    this.handleTouchGestureMove = this.handleTouchGestureMove.bind(this);
-    this.handleTouchGestureEnd = this.handleTouchGestureEnd.bind(this);
-    this.handleTouchGestureCancel = this.handleTouchGestureCancel.bind(this);
-    this.handleDragFinalize = this.handleDragFinalize.bind(this);
-    this.handleListKeyDown = this.handleListKeyDown.bind(this);
-    this.handleTokenClick = this.handleTokenClick.bind(this);
-    this.handleInlineInput = this.handleInlineInput.bind(this);
-
     this.editController = new EditController({
       getListElement: () => this.listEl,
       getInlineEditor: () => this.inlineEditor,
@@ -347,6 +295,7 @@ class A4TaskList extends HTMLElement {
     this.pendingEditFlushRequested = false;
     this._repository = null;
     this.repositoryUnsubscribe = null;
+    this.connection = null;
   }
 
   static get observedAttributes() {
@@ -375,62 +324,41 @@ class A4TaskList extends HTMLElement {
         handleClass: "handle",
         animator: new FlipAnimator(),
         onReorder: (fromIndex, toIndex) => {
-          const detail = { fromIndex, toIndex };
-          this.lastDragReorderMove = detail;
-          listEl.dispatchEvent(new CustomEvent("reorder", { detail }));
-          this.dispatchEvent(
-            new CustomEvent("reorder", {
-              detail,
-              bubbles: true,
-              composed: true,
-            })
-          );
-
-          // Persist + store reconciliation happen on drop/dragend so the DOM stays in control while dragging.
+          // Saved on drop or drag end, so the DOM stays in control while dragging.
+          this.lastDragReorderMove = { fromIndex, toIndex };
         },
-        onDragStart: this.handleListDragStart,
-        onDragEnd: this.handleDragFinalize,
-        onDrop: this.handleDragFinalize,
+        onDragStart: (event) => this.handleListDragStart(event),
+        onDragEnd: () => this.handleDragFinalize(),
+        onDrop: () => this.handleDragFinalize(),
       });
       this.dragCoordinator.enable();
     }
 
     this.ensureInlineEditor();
 
-    this.listEl.removeEventListener("blur", this.handleItemBlur, true);
-    this.listEl.addEventListener("blur", this.handleItemBlur, true);
-    this.listEl.removeEventListener("keydown", this.handleListKeyDown, true);
-    this.listEl.addEventListener("keydown", this.handleListKeyDown, true);
-    this.listEl.removeEventListener("click", this.handleTokenClick);
-    this.listEl.addEventListener("click", this.handleTokenClick);
-    this.listEl.removeEventListener("focusin", this.handleFocusIn);
-    this.listEl.addEventListener("focusin", this.handleFocusIn);
-    this.listEl.removeEventListener("focusout", this.handleFocusOut);
-    this.listEl.addEventListener("focusout", this.handleFocusOut);
-    this.listEl.removeEventListener("touchstart", this.handleTouchGestureStart);
-    this.listEl.addEventListener("touchstart", this.handleTouchGestureStart, {
-      passive: true,
-    });
-    this.listEl.removeEventListener("touchmove", this.handleTouchGestureMove);
-    this.listEl.addEventListener("touchmove", this.handleTouchGestureMove, {
-      passive: false,
-    });
-    this.listEl.removeEventListener("touchend", this.handleTouchGestureEnd);
-    this.listEl.addEventListener("touchend", this.handleTouchGestureEnd, {
-      passive: true,
-    });
-    this.listEl.removeEventListener(
-      "touchcancel",
-      this.handleTouchGestureCancel
-    );
-    this.listEl.addEventListener("touchcancel", this.handleTouchGestureCancel, {
-      passive: true,
+    this.connection?.abort();
+    this.connection = new AbortController();
+    const { signal } = this.connection;
+    const on = <K extends keyof HTMLElementEventMap>(
+      type: K,
+      handler: (event: HTMLElementEventMap[K]) => void,
+      options: AddEventListenerOptions = {}
+    ) => listEl.addEventListener(type, handler, { ...options, signal });
+    on("blur", (event) => this.handleItemBlur(event), { capture: true });
+    on("keydown", (event) => this.handleListKeyDown(event), { capture: true });
+    on("click", (event) => this.handleTokenClick(event));
+    on("focusin", (event) => this.handleFocusIn(event));
+    on("focusout", (event) => this.handleFocusOut(event));
+    on("touchstart", (event) => this.handleTouchGestureStart(event), { passive: true });
+    on("touchmove", (event) => this.handleTouchGestureMove(event), { passive: false });
+    on("touchend", (event) => this.handleTouchGestureEnd(event), { passive: true });
+    on("touchcancel", (event) => this.handleTouchGestureCancel(event), { passive: true });
+    document.addEventListener("pointerdown", (event) => this.handleDocumentPointerDown(event), {
+      signal,
     });
     if (this.listIdentifier) {
       this.dataset.listId = this.listIdentifier;
     }
-    document.removeEventListener("pointerdown", this.handleDocumentPointerDown);
-    document.addEventListener("pointerdown", this.handleDocumentPointerDown);
   }
 
   refreshRepositorySubscription() {
@@ -537,11 +465,6 @@ class A4TaskList extends HTMLElement {
       });
   }
 
-  /** Reports the outcome of a change that is not shown before it is saved. */
-  reportSave(saved: Promise<unknown> | null) {
-    this.changeList([], saved);
-  }
-
   buildInitialState(): TaskListState {
     const fallback: TaskListState = {
       title: this.getAttribute("name") ?? "",
@@ -559,26 +482,13 @@ class A4TaskList extends HTMLElement {
   disconnectedCallback() {
     this.dragCoordinator?.destroy();
     this.dragCoordinator = null;
-    this.listEl?.removeEventListener("blur", this.handleItemBlur, true);
-    this.listEl?.removeEventListener("focusin", this.handleFocusIn);
-    this.listEl?.removeEventListener("keydown", this.handleListKeyDown, true);
-    this.listEl?.removeEventListener("click", this.handleTokenClick);
-    this.listEl?.removeEventListener(
-      "touchstart",
-      this.handleTouchGestureStart
-    );
-    this.listEl?.removeEventListener("touchmove", this.handleTouchGestureMove);
-    this.listEl?.removeEventListener("touchend", this.handleTouchGestureEnd);
-    this.listEl?.removeEventListener(
-      "touchcancel",
-      this.handleTouchGestureCancel
-    );
+    this.connection?.abort();
+    this.connection = null;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = null;
     this.repositoryUnsubscribe?.();
     this.repositoryUnsubscribe = null;
     this.classList.remove("tasklist-no-matches");
-    document.removeEventListener("pointerdown", this.handleDocumentPointerDown);
     this.touchGestureState.clear();
     this.openActionsItemId = null;
   }
@@ -614,11 +524,11 @@ class A4TaskList extends HTMLElement {
         <ol class="tasklist"></ol>
         <div class="tasklist-empty" hidden>No matching items</div>
       `,
-      this
+      this,
+      { host: this }
     );
     this.headerEl = this.querySelector(".tasklist-header");
     this.titleEl = this.querySelector(".tasklist-title");
-    this.searchInput = this.querySelector(".tasklist-search-input");
     this.listEl = this.querySelector("ol.tasklist");
     this.emptyStateEl = this.querySelector(".tasklist-empty");
     this.shellRendered = true;
@@ -626,16 +536,10 @@ class A4TaskList extends HTMLElement {
   }
 
   getHeaderRenderState(state?: TaskListState | null) {
-    const titleFromState =
-      typeof state?.title === "string" ? state.title : undefined;
-    const attrTitle = this.getAttribute("name");
     return {
-      title:
-        titleFromState ??
-        (typeof attrTitle === "string" ? attrTitle : "") ??
-        "",
-      searchQuery: typeof this.searchQuery === "string" ? this.searchQuery : "",
-      showDone: typeof this.showDone === "boolean" ? this.showDone : false,
+      title: state?.title ?? this.getAttribute("name") ?? "",
+      searchQuery: this.searchQuery,
+      showDone: this.showDone,
       searchMode: this._searchMode,
       headerError: state?.headerError ?? null,
     };
@@ -706,7 +610,7 @@ class A4TaskList extends HTMLElement {
                 class="iconlabel"
                 aria-label="Add task"
                 data-role="tasklist-add"
-                @click=${this.handleAddButtonClick}
+                @click=${this.addTask}
               >
                 <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                   <path fill="currentColor" d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"></path>
@@ -749,15 +653,12 @@ class A4TaskList extends HTMLElement {
         ${titleTemplate}
         ${controlsTemplate}
       `,
-      this.headerEl
+      this.headerEl,
+      { host: this }
     );
 
     this.titleEl =
       this.headerEl?.querySelector?.(".tasklist-title") ?? this.titleEl ?? null;
-    this.searchInput =
-      this.headerEl?.querySelector?.(".tasklist-search-input") ??
-      this.searchInput ??
-      null;
   }
 
   handleDragFinalize() {
@@ -777,12 +678,12 @@ class A4TaskList extends HTMLElement {
       return this.inlineEditor;
     }
     this.inlineEditor = new InlineTextEditor(this.listEl, {
-      onCommit: this.handleEditCommit,
-      onInput: this.handleInlineInput,
-      onSplit: this.handleEditSplit,
-      onMerge: this.handleEditMerge,
-      onRemove: this.handleEditRemove,
-      onMove: this.handleEditMove,
+      onCommit: (payload) => this.handleEditCommit(payload),
+      onInput: (payload) => this.handleInlineInput(payload),
+      onSplit: (payload) => this.handleEditSplit(payload),
+      onMerge: (payload) => this.handleEditMerge(payload),
+      onRemove: (payload) => this.handleEditRemove(payload),
+      onMove: (payload) => this.handleEditMove(payload),
     });
     return this.inlineEditor;
   }
@@ -846,13 +747,7 @@ class A4TaskList extends HTMLElement {
         this.save((repository, listId) => repository.renameList(listId, trimmed))
       );
 
-      this.dispatchEvent(
-        new CustomEvent("titlechange", {
-          detail: { title: trimmed },
-          bubbles: true,
-          composed: true,
-        })
-      );
+      this.emit("titlechange", { title: trimmed });
     }
 
     if (restoreFocus) {
@@ -932,93 +827,6 @@ class A4TaskList extends HTMLElement {
     this.setHeaderError(null);
   }
 
-  normalizePatternDefs(
-    defs: Array<
-      | PatternDefinition
-      | { regex: string; className?: string; priority?: number; kind?: PatternKind }
-      | null
-      | undefined
-    >
-  ): PatternConfigEntry[] {
-    // Accepts both literal regexes and plain objects so embedding pages can
-    // configure highlights without worrying about flag safety or class naming.
-    if (!Array.isArray(defs)) return [];
-    const normalized: PatternConfigEntry[] = [];
-    defs.forEach((def) => {
-      if (!def) return;
-      let { regex, className, priority } = def;
-      const kind =
-        def.kind === "link" || def.kind === "search" ? def.kind : undefined;
-      if (typeof regex === "string") {
-        try {
-          regex = new RegExp(regex, "g");
-        } catch (err) {
-          return;
-        }
-      } else if (regex instanceof RegExp) {
-        const flags = regex.flags.includes("g")
-          ? regex.flags
-          : regex.flags + "g";
-        regex = new RegExp(regex.source, flags);
-      } else {
-        return;
-      }
-
-      const safeClass =
-        typeof className === "string" && className.trim().length
-          ? className.trim()
-          : "task-token";
-      const prio =
-        typeof priority === "number" && Number.isFinite(priority)
-          ? priority
-          : 2;
-      normalized.push({
-        regexSource: regex.source,
-        regexFlags: regex.flags,
-        className: safeClass,
-        priority: prio,
-        key: `pattern:${safeClass}`,
-        kind,
-      });
-    });
-    return normalized;
-  }
-
-  setPatternHighlighters(defs: PatternDefinition[]) {
-    this.patternConfig = this.normalizePatternDefs(defs);
-    this.renderCurrentState();
-  }
-
-  get patternHighlighters() {
-    return this.patternConfig.map((def) => ({
-      regex: new RegExp(def.regexSource, def.regexFlags),
-      className: def.className,
-      priority: def.priority,
-      kind: def.kind,
-    }));
-  }
-
-  set patternHighlighters(defs: PatternDefinition[]) {
-    this.setPatternHighlighters(defs);
-  }
-
-  handleSearchInput(event: Event) {
-    const value =
-      typeof (event.target as HTMLInputElement | null)?.value === "string"
-        ? (event.target as HTMLInputElement).value
-        : "";
-    this.searchQuery = typeof value === "string" ? value : "";
-    this.scheduleSearchRender();
-  }
-
-  handleSearchKeyDown(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      this.clearSearch();
-      this.searchInput?.focus();
-    }
-  }
-
   handleShowDoneChange(e: Event) {
     this.setShowDone(Boolean((e.target as HTMLInputElement | null)?.checked));
   }
@@ -1028,13 +836,7 @@ class A4TaskList extends HTMLElement {
     this.showDone = value;
     this.renderHeader(this.getHeaderRenderState(this.state));
     this.renderCurrentState();
-    this.dispatchEvent(
-      new CustomEvent("showdonechange", {
-        detail: { showDone: this.showDone },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    this.emit("showdonechange", { showDone: this.showDone });
   }
 
   clearSearch() {
@@ -1043,24 +845,14 @@ class A4TaskList extends HTMLElement {
     this.searchQuery = "";
     this.renderHeader(this.getHeaderRenderState(this.state));
     this.renderCurrentState();
-    this.dispatchEvent(
-      new CustomEvent("clearsearch", { bubbles: true, composed: true })
-    );
-  }
-
-  handleAddButtonClick() {
-    this.addTask();
+    this.emit("clearsearch");
   }
 
   /** Inserts an empty task at the top of the list and starts editing it. */
   addTask() {
     this.ensureInlineEditor();
     this.clearSearch();
-    const stateBefore = this.state;
-    const firstItem =
-      Array.isArray(stateBefore?.items) && stateBefore.items.length
-        ? stateBefore.items[0].id
-        : null;
+    const firstItem = this.firstItemId();
     const newId = generateItemId();
     this.changeList(
       [
@@ -1089,12 +881,10 @@ class A4TaskList extends HTMLElement {
     element,
     beforeText,
     afterText,
-    previousText: _previousText,
   }: {
     element: HTMLElement;
     beforeText: string;
     afterText: string;
-    previousText: string;
   }) {
     if (!element) return;
     const li = element.closest("li");
@@ -1107,23 +897,21 @@ class A4TaskList extends HTMLElement {
     const nextItemId = state.items[currentIndex + 1]?.id ?? null;
 
     const newId = generateItemId();
-    const before = typeof beforeText === "string" ? beforeText : "";
-    const after = typeof afterText === "string" ? afterText : "";
     this.changeList(
       [
-        { type: "update", id, fields: { text: before } },
+        { type: "update", id, fields: { text: beforeText } },
         {
           type: "insert",
-          item: { id: newId, text: after, done: false, note: "" },
+          item: { id: newId, text: afterText, done: false, note: "" },
           afterId: id,
           beforeId: nextItemId,
         },
       ],
       this.save((repository, listId) =>
         repository.splitTask(listId, id, {
-          beforeText: before,
-          afterText: after,
-          previousText: `${before}${after}`,
+          beforeText,
+          afterText,
+          previousText: `${beforeText}${afterText}`,
           newItemId: newId,
           afterId: id,
           beforeId: nextItemId ?? undefined,
@@ -1151,24 +939,19 @@ class A4TaskList extends HTMLElement {
   }) {
     if (!currentItemId || !previousItemId) return false;
 
-    const state = this.state;
-    const items = Array.isArray(state?.items) ? state.items : [];
+    const items = this.state.items;
     const currentIndex = items.findIndex((item) => item.id === currentItemId);
     if (currentIndex <= 0) return false;
 
-    const previousIndex = currentIndex - 1;
-    const previousItem = items[previousIndex];
-    if (!previousItem || previousItem.id !== previousItemId) return false;
+    const previousItem = items[currentIndex - 1];
+    if (previousItem.id !== previousItemId) return false;
 
-    const prevText =
-      typeof previousItem.text === "string" ? previousItem.text : "";
-    const currentTextValue = typeof currentText === "string" ? currentText : "";
-    const mergedText = prevText + currentTextValue;
-
+    const mergedText = previousItem.text + currentText;
+    // The cursor goes where the merged task's text starts, or further in.
     const mergeOffset =
-      prevText.length +
+      previousItem.text.length +
       (typeof selectionStart === "number"
-        ? Math.max(0, Math.min(selectionStart, currentTextValue.length))
+        ? Math.max(0, Math.min(selectionStart, currentText.length))
         : 0);
 
     this.editController.queue(previousItem.id, makeOffsetCaret(mergeOffset));
@@ -1237,21 +1020,11 @@ class A4TaskList extends HTMLElement {
     const id = li?.dataset?.itemId;
     if (!id) return;
 
-    const state = this.state;
-    const items = Array.isArray(state?.items) ? state.items : [];
+    const items = this.state.items;
     const fromIndex = items.findIndex((item) => item.id === id);
     if (fromIndex === -1) return;
 
-    const tokens = tokenizeSearchQuery(this.searchQuery);
-    const visibleItems = items.filter((item) =>
-      matchesSearchEntry({
-        originalText: item?.text ?? "",
-        noteText: item?.note ?? "",
-        tokens,
-        showDone: this.showDone,
-        isDone: Boolean(item?.done),
-      })
-    );
+    const visibleItems = items.filter((item) => this.isShown(item));
     const visibleIndex = visibleItems.findIndex((item) => item.id === id);
     if (visibleIndex === -1) return;
     const targetVisibleIndex =
@@ -1315,13 +1088,7 @@ class A4TaskList extends HTMLElement {
   }
 
   getEditingTarget(itemId: string) {
-    if (!this.listEl || !itemId) return null;
-    const selectorId = escapeSelectorId(itemId);
-    if (!selectorId) return null;
-    const targetLi = this.listEl.querySelector(
-      `li[data-item-id="${selectorId}"]`
-    );
-    const textEl = targetLi?.querySelector(".text") as HTMLElement | null;
+    const textEl = this.itemElement(itemId)?.querySelector<HTMLElement>(".text");
     if (!textEl) return null;
     const snapshot = this.getItemSnapshot(itemId);
     if (snapshot && typeof snapshot.text === "string") {
@@ -1358,10 +1125,6 @@ class A4TaskList extends HTMLElement {
     return true;
   }
 
-  focusItemImmediately(itemId: string, caretPreference: CaretPreference | null = null) {
-    return this.startEditingItem(itemId, caretPreference);
-  }
-
   renderItemTemplate(
     item: TaskItem,
     {
@@ -1380,10 +1143,10 @@ class A4TaskList extends HTMLElement {
       isEditing?: boolean;
     } = {}
   ) {
-    const isDone = Boolean(item.done);
+    const isDone = item.done;
     const itemId = item.id;
-    const text = typeof item.text === "string" ? item.text : "";
-    const note = typeof item.note === "string" ? item.note : "";
+    const text = item.text;
+    const note = item.note ?? "";
     const notePresent = note.trim().length > 0;
     const noteOpen = this.openNoteItemIds.has(itemId);
     // Auto-expand a note while a search matches it. Ephemeral: it does not
@@ -1518,8 +1281,8 @@ class A4TaskList extends HTMLElement {
       state.items ?? [],
       (item) => item.id,
       (item) => {
-        const text = typeof item.text === "string" ? item.text : "";
-        const note = typeof item.note === "string" ? item.note : "";
+        const text = item.text;
+        const note = item.note ?? "";
         const isEditing = editingId === item.id;
         let hidden = false;
         let markup = null;
@@ -1530,7 +1293,7 @@ class A4TaskList extends HTMLElement {
             originalText: text,
             noteText: note,
             tokens,
-            patternConfig: this.patternConfig,
+            patternConfig: TASK_PATTERNS,
             showDone: this.showDone,
             isDone: item.done,
           });
@@ -1558,23 +1321,15 @@ class A4TaskList extends HTMLElement {
         });
       }
     );
-    const renderItems = () => render(html`${itemsTemplate}`, this.listEl!);
+    const renderItems = () => render(html`${itemsTemplate}`, this.listEl!, { host: this });
     if (this.inlineEditor) this.inlineEditor.keepEditingThrough(renderItems);
     else renderItems();
     this.dragCoordinator?.invalidateItemsCache();
 
-    const totalCount = Array.isArray(state.items)
-      ? state.items.filter((item) => !item?.done).length
-      : 0;
+    const totalCount = this.getTotalItemCount();
     if (totalCount !== this.lastReportedTotal) {
       this.lastReportedTotal = totalCount;
-      this.dispatchEvent(
-        new CustomEvent("itemcountchange", {
-          detail: { total: totalCount },
-          bubbles: true,
-          composed: true,
-        })
-      );
+      this.emit("itemcountchange", { total: totalCount });
     }
 
     const nextTitle = state.title ?? "";
@@ -1595,13 +1350,7 @@ class A4TaskList extends HTMLElement {
 
     if (nextTitle !== this.lastReportedTitle) {
       this.lastReportedTitle = nextTitle;
-      this.dispatchEvent(
-        new CustomEvent("titlechange", {
-          detail: { title: nextTitle },
-          bubbles: true,
-          composed: true,
-        })
-      );
+      this.emit("titlechange", { title: nextTitle });
     }
 
     if (this.isTitleEditing && this.titleEl) {
@@ -1620,7 +1369,7 @@ class A4TaskList extends HTMLElement {
     }
 
     if (editingId && this.inlineEditor?.editingEl) {
-      const stateItem = state.items?.find((item) => item.id === editingId) ?? null;
+      const stateItem = state.items.find((item) => item.id === editingId);
       // Another device changed the text being edited.
       if (stateItem) this.inlineEditor.replaceText(stateItem.text ?? "");
     }
@@ -1639,9 +1388,7 @@ class A4TaskList extends HTMLElement {
 
     if (this.openNoteItemIds.size > 0) {
       for (const itemId of this.openNoteItemIds) {
-        const noteInput = this.listEl.querySelector(
-          `li[data-item-id="${escapeSelectorId(itemId)}"] .task-note-input`
-        ) as HTMLTextAreaElement | null;
+        const noteInput = this.noteInput(itemId);
         if (noteInput) {
           this.updateNoteScrollState(noteInput);
         }
@@ -1650,11 +1397,11 @@ class A4TaskList extends HTMLElement {
 
     if (
       this.openActionsItemId &&
-      !state.items?.some((item) => item.id === this.openActionsItemId)
+      !state.items.some((item) => item.id === this.openActionsItemId)
     ) {
       this.openActionsItemId = null;
     }
-    if (this.openNoteItemIds.size && Array.isArray(state.items)) {
+    if (this.openNoteItemIds.size) {
       const validIds = new Set(state.items.map((item) => item.id));
       for (const id of this.openNoteItemIds) {
         if (!validIds.has(id)) {
@@ -1665,10 +1412,7 @@ class A4TaskList extends HTMLElement {
     if (this.pendingNoteFocusId) {
       const targetId = this.pendingNoteFocusId;
       this.pendingNoteFocusId = null;
-      const selectorId = escapeSelectorId(targetId);
-      const target = this.listEl?.querySelector(
-        `li[data-item-id="${selectorId}"] .task-note-input`
-      ) as HTMLTextAreaElement | null;
+      const target = this.noteInput(targetId);
       if (target) {
         target.focus();
         const end = target.value.length;
@@ -1683,16 +1427,10 @@ class A4TaskList extends HTMLElement {
     ) {
       this.lastReportedMatches = visibleCount;
       this.lastReportedQuery = this.searchQuery;
-      this.dispatchEvent(
-        new CustomEvent("searchresultschange", {
-          detail: {
-            matches: visibleCount,
-            query: this.searchQuery,
-          },
-          bubbles: true,
-          composed: true,
-        })
-      );
+      this.emit("searchresultschange", {
+        matches: visibleCount,
+        query: this.searchQuery,
+      });
     }
 
     const shouldShowEmpty =
@@ -1731,18 +1469,12 @@ class A4TaskList extends HTMLElement {
     if (!itemId) return;
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
-    this.dispatchEvent(
-      new CustomEvent("task-move-request", {
-        detail: {
-          itemId,
-          item: snapshot,
-          sourceListId: this.listId,
-          trigger: "button",
-        },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    this.emit("task-move-request", {
+      itemId,
+      item: snapshot,
+      sourceListId: this.listId,
+      trigger: "button",
+    });
     this.closeActionsForItem(itemId, { immediateRender: true });
   }
 
@@ -1760,8 +1492,7 @@ class A4TaskList extends HTMLElement {
       return;
     }
 
-    const state = this.state;
-    const items = Array.isArray(state?.items) ? state.items : [];
+    const items = this.state.items;
     const currentIndex = items.findIndex((item) => item.id === itemId);
     if (currentIndex === -1) return;
 
@@ -1818,10 +1549,6 @@ class A4TaskList extends HTMLElement {
     );
   }
 
-  flushNoteChange(itemId: string, nextNote: string) {
-    this.commitNoteChange(itemId, nextNote);
-  }
-
   updateNoteScrollState(textarea: HTMLTextAreaElement) {
     const wrap = textarea.closest(".task-note-scroll-wrap");
     if (!wrap) return;
@@ -1844,7 +1571,7 @@ class A4TaskList extends HTMLElement {
     const li = target?.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId || !target) return;
-    this.flushNoteChange(itemId, target.value ?? "");
+    this.commitNoteChange(itemId, target.value ?? "");
   }
 
   handleNoteToggleClick(event: Event) {
@@ -1887,7 +1614,7 @@ class A4TaskList extends HTMLElement {
       ".task-note-input"
     ) as HTMLTextAreaElement | null;
     if (noteInput) {
-      this.flushNoteChange(itemId, noteInput.value ?? "");
+      this.commitNoteChange(itemId, noteInput.value ?? "");
     }
     this.openNoteItemIds.delete(itemId);
     this.renderFromState(this.state);
@@ -1901,35 +1628,15 @@ class A4TaskList extends HTMLElement {
     const nextDone = !Boolean(snapshot.done);
     const shouldMoveFocus = nextDone && this.showDone === false;
     if (shouldMoveFocus) {
-      const state = this.state;
-      const items = Array.isArray(state?.items) ? state.items : [];
-      const tokens = tokenizeSearchQuery(this.searchQuery);
-      const isVisible = (item: TaskItem) =>
-        matchesSearchEntry({
-          originalText: item?.text ?? "",
-          noteText: item?.note ?? "",
-          tokens,
-          showDone: this.showDone,
-          isDone: Boolean(item?.done),
-        });
-      const currentIndex = items.findIndex((item) => item.id === itemId);
-      let focusTargetId: string | null = null;
-      if (currentIndex !== -1) {
-        for (let i = currentIndex + 1; i < items.length; i += 1) {
-          if (isVisible(items[i])) {
-            focusTargetId = items[i].id;
-            break;
-          }
-        }
-        if (!focusTargetId) {
-          for (let i = currentIndex - 1; i >= 0; i -= 1) {
-            if (isVisible(items[i])) {
-              focusTargetId = items[i].id;
-              break;
-            }
-          }
-        }
-      }
+      // Continue with the next shown task below, or else above.
+      const items = this.state.items;
+      const index = items.findIndex((item) => item.id === itemId);
+      const shown = (item: TaskItem) => this.isShown(item);
+      const focusTargetId =
+        index === -1
+          ? null
+          : (items.slice(index + 1).find(shown) ?? items.slice(0, index).reverse().find(shown))
+              ?.id ?? null;
       if (this.inlineEditor?.editingEl) {
         this.inlineEditor.finishEditing(this.inlineEditor.editingEl);
       }
@@ -1955,11 +1662,9 @@ class A4TaskList extends HTMLElement {
     if (!itemId) return;
     let restoreCaret: CaretPreference | null = null;
     if (this.openNoteItemIds.has(itemId)) {
-      const noteInput = this.listEl?.querySelector(
-        `li[data-item-id="${escapeSelectorId(itemId)}"] .task-note-input`
-      ) as HTMLTextAreaElement | null;
+      const noteInput = this.noteInput(itemId);
       if (noteInput) {
-        this.flushNoteChange(itemId, noteInput.value ?? "");
+        this.commitNoteChange(itemId, noteInput.value ?? "");
       }
       this.openNoteItemIds.delete(itemId);
       this.pendingNoteFocusId = null;
@@ -1999,10 +1704,7 @@ class A4TaskList extends HTMLElement {
     if (!this.openActionsItemId) return;
     const target = event.target as Node | null;
     if (!target) return;
-    const openLi = this.listEl?.querySelector(
-      `li[data-item-id="${escapeSelectorId(this.openActionsItemId)}"]`
-    );
-    if (openLi?.contains(target)) return;
+    if (this.itemElement(this.openActionsItemId)?.contains(target)) return;
     this.openActionsItemId = null;
     this.renderFromState(this.state);
   }
@@ -2040,9 +1742,7 @@ class A4TaskList extends HTMLElement {
       if (
         this.openActionsItemId &&
         element &&
-        element.closest(
-          `li[data-item-id="${escapeSelectorId(this.openActionsItemId)}"]`
-        ) == null
+        !this.itemElement(this.openActionsItemId)?.contains(element)
       ) {
         this.openActionsItemId = null;
         this.renderFromState(this.state);
@@ -2161,35 +1861,12 @@ class A4TaskList extends HTMLElement {
     ) {
       const target = event.target as HTMLElement | null;
       if (target?.classList?.contains("task-note-input")) return;
-      const items = this.state.items;
-      if (!items.length) return;
-      const tokens = tokenizeSearchQuery(this.searchQuery);
-      const isVisible = (item: TaskItem) =>
-        matchesSearchEntry({
-          originalText: item?.text ?? "",
-          noteText: item?.note ?? "",
-          tokens,
-          showDone: this.showDone,
-          isDone: Boolean(item?.done),
-        });
       const isEnd = matchesShortcut(event, SHORTCUTS.jumpToListEnd);
-      let targetItem: TaskItem | null = null;
-      if (isEnd) {
-        for (let i = items.length - 1; i >= 0; i -= 1) {
-          if (isVisible(items[i])) {
-            targetItem = items[i];
-            break;
-          }
-        }
-      } else {
-        for (let i = 0; i < items.length; i += 1) {
-          if (isVisible(items[i])) {
-            targetItem = items[i];
-            break;
-          }
-        }
-      }
-      if (!targetItem?.id) return;
+      const shown = (item: TaskItem) => this.isShown(item);
+      const targetItem = isEnd
+        ? this.state.items.slice().reverse().find(shown)
+        : this.state.items.find(shown);
+      if (!targetItem) return;
       event.preventDefault();
       this.startEditingItem(targetItem.id, isEnd ? "end" : "start");
       return;
@@ -2215,18 +1892,12 @@ class A4TaskList extends HTMLElement {
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
     event.preventDefault();
-    this.dispatchEvent(
-      new CustomEvent("task-move-request", {
-        detail: {
-          itemId,
-          item: snapshot,
-          sourceListId: this.listId,
-          trigger: "shortcut",
-        },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    this.emit("task-move-request", {
+      itemId,
+      item: snapshot,
+      sourceListId: this.listId,
+      trigger: "shortcut",
+    });
   }
 
   handleInlineInput({
@@ -2262,13 +1933,7 @@ class A4TaskList extends HTMLElement {
     const token = button?.dataset.searchToken;
     if (!button || !token || !this.listEl?.contains(button)) return;
     event.preventDefault();
-    this.dispatchEvent(
-      new CustomEvent("tokensearch", {
-        detail: { token },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    this.emit("tokensearch", { token });
   }
 
   handleListKeyDown(event: KeyboardEvent) {
@@ -2306,23 +1971,14 @@ class A4TaskList extends HTMLElement {
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
     if (this.focusedItemId && this.focusedItemId !== itemId) {
-      const previous = this.listEl?.querySelector(
-        `li[data-item-id="${escapeSelectorId(this.focusedItemId)}"]`
-      );
-      previous?.classList.remove("is-focused");
+      this.itemElement(this.focusedItemId)?.classList.remove("is-focused");
     }
     this.focusedItemId = itemId;
     li?.classList.add("is-focused");
-    this.dispatchEvent(
-      new CustomEvent("task-focus", {
-        detail: {
-          itemId,
-          sourceListId: this.listId,
-        },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    this.emit("task-focus", {
+      itemId,
+      sourceListId: this.listId,
+    });
   }
 
   handleFocusOut(event: FocusEvent) {
@@ -2340,8 +1996,7 @@ class A4TaskList extends HTMLElement {
 
   handleListDragStart(event: DragEvent) {
     this.lastDragReorderMove = null;
-    this.dragStartOrder =
-      this.state.items?.map((item) => item.id) ?? null;
+    this.dragStartOrder = this.state.items.map((item) => item.id);
     const li = (event.target as HTMLElement | null)?.closest?.("li") ?? null;
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
@@ -2391,8 +2046,7 @@ class A4TaskList extends HTMLElement {
       this.scheduleSearchRender(0);
       return;
     }
-    const currentState = this.state;
-    const stateItem = currentState?.items?.find((item) => item.id === id);
+    const stateItem = this.state.items.find((item) => item.id === id);
     if (!stateItem) {
       this.scheduleSearchRender(0);
       return;
@@ -2532,15 +2186,26 @@ class A4TaskList extends HTMLElement {
     this.renderCurrentState();
   }
 
-  clearFilter() {
-    this.applyFilter("");
+  /** The list item of a task, if it is rendered. */
+  itemElement(itemId: string) {
+    return (
+      this.listEl?.querySelector<HTMLLIElement>(
+        `li[data-item-id="${escapeSelectorId(itemId)}"]`
+      ) ?? null
+    );
+  }
+
+  noteInput(itemId: string) {
+    return this.itemElement(itemId)?.querySelector<HTMLTextAreaElement>(".task-note-input") ?? null;
+  }
+
+  /** Tells the app about something that happened: an event that bubbles out. */
+  emit(name: string, detail?: unknown) {
+    this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
   getItemSnapshot(itemId: string) {
-    if (!itemId) return null;
-    const state = this.state;
-    const items = Array.isArray(state?.items) ? state.items : [];
-    const found = items.find((item) => item.id === itemId);
+    const found = this.state.items.find((item) => item.id === itemId);
     return found ? { ...found } : null;
   }
 
@@ -2582,13 +2247,7 @@ class A4TaskList extends HTMLElement {
   }
 
   focusItem(itemId: string) {
-    if (!this.listEl || !itemId) return false;
-    const selectorId = escapeSelectorId(itemId);
-    const targetLi = this.listEl.querySelector(
-      `li[data-item-id="${selectorId}"]`
-    );
-    if (!targetLi) return false;
-    const textEl = targetLi.querySelector(".text") as HTMLElement | null;
+    const textEl = this.itemElement(itemId)?.querySelector<HTMLElement>(".text");
     if (textEl) {
       textEl.focus();
       return true;
@@ -2601,10 +2260,7 @@ class A4TaskList extends HTMLElement {
   }
 
   getTotalItemCount() {
-        const state = this.state;
-    return Array.isArray(state?.items)
-      ? state.items.filter((item) => !item?.done).length
-      : 0;
+    return this.state.items.filter((item) => !item.done).length;
   }
 
   getSearchMatchCount() {
@@ -2616,26 +2272,18 @@ class A4TaskList extends HTMLElement {
 
   getSearchMatchCountForQuery(query: string) {
     const tokens = tokenizeSearchQuery(query);
-    const state = this.state;
-    const items = Array.isArray(state?.items) ? state.items : [];
-    let count = 0;
-    items.forEach((item) => {
-      const text = typeof item?.text === "string" ? item.text : "";
-      const note = typeof item?.note === "string" ? item.note : "";
-      const isDone = Boolean(item?.done);
-      if (
-        matchesSearchEntry({
-          originalText: text,
-          noteText: note,
-          tokens,
-          showDone: this.showDone,
-          isDone,
-        })
-      ) {
-        count += 1;
-      }
+    return this.state.items.filter((item) => this.isShown(item, tokens)).length;
+  }
+
+  /** Whether a task shows: it matches the search, and is not done or done tasks show. */
+  isShown(item: TaskItem, tokens = tokenizeSearchQuery(this.searchQuery)) {
+    return matchesSearchEntry({
+      originalText: item.text,
+      noteText: item.note ?? "",
+      tokens,
+      showDone: this.showDone,
+      isDone: item.done,
     });
-    return count;
   }
 
   /**
@@ -2668,10 +2316,7 @@ class A4TaskList extends HTMLElement {
     { skip }: { skip?: boolean } = {}
   ) {
     if (skip || !preservedFocus) return;
-    const listEl = this.listEl;
-    if (!listEl) return;
-    const selectorId = escapeSelectorId(preservedFocus.itemId);
-    const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
+    const targetLi = this.itemElement(preservedFocus.itemId);
     if (!targetLi) return;
     const focusTarget =
       preservedFocus.role === "toggle"
