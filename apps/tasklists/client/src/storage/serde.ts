@@ -68,6 +68,7 @@ function encodeVersions(value: unknown): EntryVersions {
   const fields = versions?.fields && typeof versions.fields === "object" ? versions.fields : {};
   return {
     position: encodeVersion(versions?.position),
+    existence: encodeVersion(versions?.existence),
     fields: Object.fromEntries(
       Object.entries(fields).map(([field, version]) => [field, encodeVersion(version)])
     ),

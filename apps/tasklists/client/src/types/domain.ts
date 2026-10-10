@@ -34,6 +34,8 @@ export type Version = { clock: number; actor: string };
  */
 export type EntryVersions = {
   position: Version;
+  /** The insert or removal that last decided whether the item exists. */
+  existence: Version;
   fields: Record<string, Version>;
 };
 

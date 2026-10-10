@@ -223,6 +223,44 @@ test("equal positions sort identically after opposite insert arrival orders", ()
   assert.deepEqual(clientB.getSnapshot().map(({ id }) => id), ["a", "z"]);
 });
 
+test("an item brought back after its removal stays, in every arrival order and after reopening", () => {
+  const source = new OrderedSetCRDT({ actorId: "source" });
+  const ops = [
+    source.generateInsert({ itemId: "x", data: { label: "x" } }).op,
+    source.generateRemove("x").op,
+    source.generateInsert({ itemId: "x", data: { label: "x" } }).op,
+  ];
+  const view = (replica: OrderedSetCRDT) => replica.getSnapshot().map(({ id }) => id);
+  const orders = [
+    [0, 1, 2],
+    [0, 2, 1],
+    [2, 0, 1],
+    [2, 1, 0],
+  ];
+  for (const order of orders) {
+    const replica = new OrderedSetCRDT({ actorId: "reader" });
+    order.forEach((i) => replica.applyOperation(ops[i]));
+    assert.deepEqual(view(replica), ["x"], `order ${order}`);
+
+    // Reopening replays the stored operations on the saved state.
+    const reopened = new OrderedSetCRDT({ actorId: "reader" });
+    reopened.importRecords(
+      deserializeOrderedSetSnapshot(serializeOrderedSetSnapshot(replica.exportState().entries))
+    );
+    ops.forEach((op) => reopened.applyOperation(op));
+    assert.deepEqual(view(reopened), ["x"], `reopened after order ${order}`);
+  }
+});
+
+test("a removal after an item was brought back removes it", () => {
+  const source = new OrderedSetCRDT({ actorId: "source" });
+  source.generateInsert({ itemId: "x", data: {} });
+  source.generateRemove("x");
+  source.generateInsert({ itemId: "x", data: {} });
+  source.generateRemove("x");
+  assert.deepEqual(source.getSnapshot(), []);
+});
+
 test("exported state captures entries and clock", () => {
   const crdt = new OrderedSetCRDT({ actorId: "tester" });
   crdt.generateInsert({ itemId: "one", data: { value: 1 } });

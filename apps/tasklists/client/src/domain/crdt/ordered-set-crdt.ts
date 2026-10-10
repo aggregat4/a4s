@@ -97,6 +97,7 @@ function sanitizeVersion(value: unknown): Version {
 function cloneVersions(versions: EntryVersions): EntryVersions {
   return {
     position: { ...versions.position },
+    existence: { ...versions.existence },
     fields: Object.fromEntries(
       Object.entries(versions.fields).map(([field, version]) => [field, { ...version }])
     ),
@@ -207,6 +208,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       data: data as TData,
       versions: {
         position: sanitizeVersion(entry.versions?.position),
+        existence: sanitizeVersion(entry.versions?.existence),
         fields: Object.fromEntries(
           Object.keys(data ?? {}).map((field) => [
             field,
@@ -351,6 +353,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         data: payloadData,
         versions: {
           position: { clock, actor: operation.actor },
+          existence: { clock, actor: operation.actor },
           fields: Object.fromEntries(
             Object.keys(payloadData).map((field) => [field, { clock, actor: operation.actor }])
           ),
@@ -377,9 +380,14 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       mutated = true;
     }
 
-    if (existing.deletedAt != null && clock > existing.deletedAt) {
-      existing.deletedAt = null;
-      mutated = true;
+    // Whether the item exists is a part of its own: the latest insert or
+    // removal decides it, in whatever order they arrive.
+    if (wins(clock, operation.actor, existing.versions.existence)) {
+      existing.versions.existence = { clock, actor: operation.actor };
+      if (existing.deletedAt != null) {
+        existing.deletedAt = null;
+        mutated = true;
+      }
     }
 
     const winningData: Partial<TData> = {};
@@ -408,7 +416,8 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (record.deletedAt != null && clock <= record.deletedAt) return false;
+    if (!wins(clock, operation.actor, record.versions.existence)) return false;
+    record.versions.existence = { clock, actor: operation.actor };
     record.deletedAt = clock;
     return true;
   }

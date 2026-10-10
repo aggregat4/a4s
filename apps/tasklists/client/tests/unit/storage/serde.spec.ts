@@ -28,6 +28,7 @@ test("list state serialization round-trips entries and metadata", () => {
                 data: { text: "Task", done: true, note: "Context" },
                 versions: {
                     position: { clock: 1, actor: "writer-a" },
+                    existence: { clock: 1, actor: "writer-a" },
                     fields: {
                         text: { clock: 2, actor: "writer-a" },
                         done: { clock: 3, actor: "writer-b" },

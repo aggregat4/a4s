@@ -817,3 +817,24 @@ test("the task being edited stays editable when another device moves it", async 
     await contextB.close();
   }
 });
+
+test("a task restored by redo is still there after a reload", async ({ page }) => {
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),
+    page.goto("/?sync=1"),
+  ]);
+  const listTitle = `Redo ${Date.now()}`;
+  await createList(page, listTitle);
+  await page.getByRole("button", { name: "Add task" }).click();
+  await page.keyboard.press("Escape");
+  await expect(taskTexts(page)).toHaveCount(1);
+  const sidebar = page.locator("[data-role='sidebar']");
+  await sidebar.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(taskTexts(page)).toHaveCount(0);
+  await sidebar.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(taskTexts(page)).toHaveCount(1);
+
+  await page.reload();
+  await selectList(page, listTitle);
+  await expect(taskTexts(page)).toHaveCount(1);
+});
