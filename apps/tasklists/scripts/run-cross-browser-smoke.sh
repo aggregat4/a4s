@@ -33,5 +33,5 @@ docker run --rm --network host --ipc host \
   -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
   -v "${MONOREPO_ROOT}:/work" \
   -w /work/apps/tasklists/client \
-  mcr.microsoft.com/playwright:v1.59.1-noble \
+  mcr.microsoft.com/playwright:v1.64.0-noble \
   ./node_modules/.bin/playwright test -c playwright.smoke.config.ts
