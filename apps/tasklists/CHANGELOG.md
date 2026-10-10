@@ -20,6 +20,9 @@ Release notes for a tag are taken from the matching version section, so the
 - A task brought back by undo or redo stays after a reload, and every device
   keeps it. Reapplying its earlier deletion removed it again, depending on
   the order in which a device received the changes.
+- An edit made right after another device changed the task being edited is
+  saved. When it made the text what it was before that change, it was not
+  saved, and the other device kept its version.
 - The task being edited stays in edit when another device moves it. It kept
   the focus but could no longer be edited, so what was typed next was lost.
 - Spaces in tasks and list titles are shown and saved as typed. Spaces at the

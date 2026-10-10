@@ -818,6 +818,44 @@ test("the task being edited stays editable when another device moves it", async 
   }
 });
 
+test("an edit right after another device changed the task is saved", async ({ browser }) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    for (const page of [pageA, pageB]) {
+      await Promise.all([
+        page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),
+        page.goto("/?sync=1"),
+      ]);
+    }
+    const listTitle = `Changed while editing ${Date.now()}`;
+    await createList(pageA, listTitle);
+    await addTask(pageA, "Task");
+    await selectList(pageB, listTitle);
+    await expect(taskTexts(pageB)).toHaveText(["Task"]);
+
+    await taskItem(pageA, "Task").locator(".text").click();
+    await pageA.keyboard.press("End");
+    await taskItem(pageB, "Task").locator(".text").click();
+    await pageB.keyboard.press("End");
+    await pageB.keyboard.type("z");
+    await pageB.keyboard.press("Escape");
+    await expect(taskTexts(pageA)).toHaveText(["Taskz"]);
+
+    // Deleting the "z" makes the text what it was before the other device
+    // changed it.
+    await pageA.keyboard.press("End");
+    await pageA.keyboard.press("Backspace");
+    await expect(taskTexts(pageA)).toHaveText(["Task"]);
+    await expect(taskTexts(pageB)).toHaveText(["Task"]);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
 test("a task restored by redo is still there after a reload", async ({ page }) => {
   await Promise.all([
     page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),

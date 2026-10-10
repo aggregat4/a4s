@@ -326,6 +326,21 @@ export default class InlineTextEditor {
     }
   }
 
+  /**
+   * Shows text another device saved in the element being edited, the cursor
+   * where it was. Later input is compared with this text.
+   */
+  replaceText(text: string) {
+    const textEl = this.editingEl;
+    if (!textEl || (textEl.textContent ?? "") === text) return;
+    const { start } = this.getSelectionOffsets(textEl);
+    textEl.textContent = text;
+    textEl.dataset.originalText = text;
+    this.initialTextValue = text;
+    this.lastInputText = text;
+    this.setSelectionAtOffset(textEl, start);
+  }
+
   handleBlur(e: FocusEvent) {
     if (this.keepingEdit) return;
     const textEl = e.target as HTMLElement;
