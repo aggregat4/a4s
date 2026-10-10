@@ -5,11 +5,8 @@ import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
 import InlineTextEditor, {
   visibleSiblingTask,
 } from "../../shared/inline-text-editor.js";
-import {
-  cloneListState,
-  normalizeHeaderError,
-  generateItemId,
-} from "../state/list-store.js";
+import { generateItemId } from "../state/list-store.js";
+import { ListState } from "../state/list-state.js";
 import {
   URL_PATTERN,
   evaluateSearchEntry,
@@ -20,8 +17,6 @@ import type { PatternConfig, PatternKind } from "../state/highlight-utils.js";
 import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
-import { applyPendingChanges } from "../state/pending-changes.js";
-import type { PendingChange } from "../state/pending-changes.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
 import { isOffsetCaret } from "../../types/caret.js";
 import {
@@ -203,17 +198,9 @@ class A4TaskList extends HTMLElement {
   searchQuery: string;
   showDone: boolean;
   private _searchMode: boolean;
-  /** The list as it is shown: the confirmed state with pending changes. */
-  private state: TaskListState;
-  /** Why the last save failed, until one succeeds or it is dismissed. */
-  private headerError: TaskListState["headerError"];
+  /** The list as the repository has it, with the user's unsaved changes. */
+  private list: ListState;
   private suppressNameSync: boolean;
-  /** The list as the repository last reported it. */
-  private confirmedState: TaskListState | null;
-  /** The user's changes the repository has not saved yet, in order. */
-  private pendingChanges: PendingChange[][];
-  /** Notes being typed, which are saved when the note loses focus. */
-  private noteDrafts: Map<string, string>;
   private shellRendered: boolean;
   private listIdentifier: ListId | null;
   private lastReportedMatches: number | null;
@@ -245,7 +232,6 @@ class A4TaskList extends HTMLElement {
 
   private pendingEditFlushRequested: boolean;
   private _repository: ListRepository | null;
-  private repositoryUnsubscribe: (() => void) | null;
   /** Aborted when the element is disconnected, removing its listeners. */
   private connection: AbortController | null;
 
@@ -260,12 +246,11 @@ class A4TaskList extends HTMLElement {
     this.searchQuery = "";
     this.showDone = false;
     this._searchMode = false;
-    this.state = { title: "", items: [], headerError: null };
-    this.headerError = null;
+    this.list = new ListState(
+      () => this.getAttribute("name") ?? "",
+      () => this.renderCurrentState()
+    );
     this.suppressNameSync = false;
-    this.confirmedState = null;
-    this.pendingChanges = [];
-    this.noteDrafts = new Map();
     this.shellRendered = false;
 
     this.listIdentifier = this.dataset.listId ?? null;
@@ -294,7 +279,6 @@ class A4TaskList extends HTMLElement {
 
     this.pendingEditFlushRequested = false;
     this._repository = null;
-    this.repositoryUnsubscribe = null;
     this.connection = null;
   }
 
@@ -302,12 +286,17 @@ class A4TaskList extends HTMLElement {
     return ["name"];
   }
 
+  /** The list as it is shown. */
+  private get state() {
+    return this.list.shown;
+  }
+
   get initialState() {
-    return this.confirmedState;
+    return this.list.savedState;
   }
 
   set initialState(value: TaskListState | null) {
-    this.applyRepositoryState(value ?? { title: "", items: [] });
+    this.list.setSaved(value ?? { title: "", items: [] });
   }
 
   connectedCallback() {
@@ -315,8 +304,8 @@ class A4TaskList extends HTMLElement {
     if (!this.listEl) return;
     this.renderHeader(this.getHeaderRenderState());
 
-    this.showState();
-    this.refreshRepositorySubscription();
+    this.renderCurrentState();
+    this.list.connect(this._repository, this.listId);
 
     const listEl = this.listEl;
     if (!this.dragCoordinator) {
@@ -361,124 +350,6 @@ class A4TaskList extends HTMLElement {
     }
   }
 
-  refreshRepositorySubscription() {
-    this.repositoryUnsubscribe?.();
-    this.repositoryUnsubscribe = null;
-    if (!this._repository || !this.listId) {
-      return;
-    }
-    if (
-      typeof this._repository.isInitialized === "function" &&
-      !this._repository.isInitialized()
-    ) {
-      const maybePromise = this._repository.initialize?.();
-      if (maybePromise && typeof maybePromise.then === "function") {
-        maybePromise.then(() => {
-          if (this._repository && this.listId) {
-            this.refreshRepositorySubscription();
-          }
-        });
-      }
-      return;
-    }
-    const currentState = this._repository.getListState(this.listId);
-    if (currentState) {
-      this.applyRepositoryState(currentState);
-    }
-    this.repositoryUnsubscribe = this._repository.subscribeList(
-      this.listId,
-      (state) => this.applyRepositoryState(state),
-      { emitCurrent: false }
-    );
-  }
-
-  /** Shows the repository's state, with the user's unsaved changes on top. */
-  applyRepositoryState(state: TaskListState) {
-    this.confirmedState = cloneListState(state);
-    this.showState();
-  }
-
-  syncFromRepository() {
-    if (!this._repository || !this.listId) return;
-    const latest = this._repository.getListState(this.listId);
-    if (latest) {
-      this.applyRepositoryState(latest);
-    }
-  }
-
-  /** The list as the user should see it. */
-  shownState(): TaskListState {
-    const changes: PendingChange[] = this.pendingChanges.flat();
-    for (const [id, note] of this.noteDrafts) {
-      changes.push({ type: "update", id, fields: { note } });
-    }
-    return applyPendingChanges(this.confirmedState ?? this.buildInitialState(), changes);
-  }
-
-  showState() {
-    this.state = { ...this.shownState(), headerError: this.headerError };
-    this.renderCurrentState();
-  }
-
-  setHeaderError(error: unknown) {
-    this.headerError = normalizeHeaderError(error);
-    this.showState();
-  }
-
-  /** Asks the repository for a change to this list, if it has one. */
-  save(request: (repository: ListRepository, listId: ListId) => Promise<unknown>) {
-    return this._repository && this.listId ? request(this._repository, this.listId) : null;
-  }
-
-  /**
-   * A change of the user, shown right away. The repository saves changes one
-   * at a time, and on a slow device it lags behind: until it has saved this
-   * one, its snapshots predate it, so the change stays on top of them.
-   * Without a repository the change is final.
-   */
-  changeList(changes: PendingChange[], saved: Promise<unknown> | null) {
-    if (!saved) {
-      this.confirmedState = applyPendingChanges(
-        this.confirmedState ?? this.buildInitialState(),
-        changes
-      );
-      this.showState();
-      return;
-    }
-    this.pendingChanges.push(changes);
-    this.showState();
-    saved
-      .finally(() => {
-        this.pendingChanges = this.pendingChanges.filter((entry) => entry !== changes);
-        this.syncFromRepository();
-        this.showState();
-      })
-      .then(() => {
-        if (this.headerError) this.setHeaderError(null);
-      })
-      .catch((err) => {
-        this.setHeaderError({
-          message:
-            (err && err.message) ||
-            "Sync failed. Please check your connection and retry.",
-        });
-      });
-  }
-
-  buildInitialState(): TaskListState {
-    const fallback: TaskListState = {
-      title: this.getAttribute("name") ?? "",
-      items: [],
-    };
-    const source = this.confirmedState ?? fallback;
-    const baseState = cloneListState(source);
-    const attrTitle = this.getAttribute("name");
-    if (typeof attrTitle === "string" && attrTitle.length) {
-      baseState.title = attrTitle;
-    }
-    return baseState;
-  }
-
   disconnectedCallback() {
     this.dragCoordinator?.destroy();
     this.dragCoordinator = null;
@@ -486,8 +357,7 @@ class A4TaskList extends HTMLElement {
     this.connection = null;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = null;
-    this.repositoryUnsubscribe?.();
-    this.repositoryUnsubscribe = null;
+    this.list.disconnect();
     this.classList.remove("tasklist-no-matches");
     this.touchGestureState.clear();
     this.openActionsItemId = null;
@@ -496,8 +366,7 @@ class A4TaskList extends HTMLElement {
   dispose() {
     this.inlineEditor?.destroy();
     this.inlineEditor = null;
-    this.repositoryUnsubscribe?.();
-    this.repositoryUnsubscribe = null;
+    this.list.disconnect();
   }
 
   attributeChangedCallback(
@@ -508,9 +377,9 @@ class A4TaskList extends HTMLElement {
     if (name === "name" && oldValue !== newValue) {
       if (this.suppressNameSync) return;
       const nextTitle = typeof newValue === "string" ? newValue : "";
-      this.changeList(
+      this.list.change(
         [{ type: "rename", title: nextTitle }],
-        this.save((repository, listId) => repository.renameList(listId, nextTitle))
+        this.list.save((repository, listId) => repository.renameList(listId, nextTitle))
       );
       this.renderHeader(this.getHeaderRenderState(this.state));
     }
@@ -742,9 +611,9 @@ class A4TaskList extends HTMLElement {
     }
 
     if (!hadLiveUpdates) {
-      this.changeList(
+      this.list.change(
         [{ type: "rename", title: trimmed }],
-        this.save((repository, listId) => repository.renameList(listId, trimmed))
+        this.list.save((repository, listId) => repository.renameList(listId, trimmed))
       );
 
       this.emit("titlechange", { title: trimmed });
@@ -765,9 +634,9 @@ class A4TaskList extends HTMLElement {
     const currentTitle = this.state.title ?? "";
     if (!trimmed.length || trimmed === currentTitle) return;
     this.titleLiveUpdates = true;
-    this.changeList(
+    this.list.change(
       [{ type: "rename", title: trimmed }],
-      this.save((repository, listId) => repository.renameList(listId, trimmed))
+      this.list.save((repository, listId) => repository.renameList(listId, trimmed))
     );
   }
 
@@ -778,9 +647,9 @@ class A4TaskList extends HTMLElement {
     this.titleEl.textContent = previousValue;
     this.finishTitleEditing();
     if (hadLiveUpdates) {
-      this.changeList(
+      this.list.change(
         [{ type: "rename", title: previousValue }],
-        this.save((repository, listId) => repository.renameList(listId, previousValue))
+        this.list.save((repository, listId) => repository.renameList(listId, previousValue))
       );
     }
     if (restoreFocus) {
@@ -824,7 +693,7 @@ class A4TaskList extends HTMLElement {
   }
 
   handleHeaderErrorDismiss() {
-    this.setHeaderError(null);
+    this.list.dismissError();
   }
 
   handleShowDoneChange(e: Event) {
@@ -854,7 +723,7 @@ class A4TaskList extends HTMLElement {
     this.clearSearch();
     const firstItem = this.firstItemId();
     const newId = generateItemId();
-    this.changeList(
+    this.list.change(
       [
         {
           type: "insert",
@@ -863,7 +732,7 @@ class A4TaskList extends HTMLElement {
           beforeId: firstItem,
         },
       ],
-      this.save((repository, listId) =>
+      this.list.save((repository, listId) =>
         repository.insertTask(listId, {
           itemId: newId,
           text: "",
@@ -897,7 +766,7 @@ class A4TaskList extends HTMLElement {
     const nextItemId = state.items[currentIndex + 1]?.id ?? null;
 
     const newId = generateItemId();
-    this.changeList(
+    this.list.change(
       [
         { type: "update", id, fields: { text: beforeText } },
         {
@@ -907,7 +776,7 @@ class A4TaskList extends HTMLElement {
           beforeId: nextItemId,
         },
       ],
-      this.save((repository, listId) =>
+      this.list.save((repository, listId) =>
         repository.splitTask(listId, id, {
           beforeText,
           afterText,
@@ -956,12 +825,12 @@ class A4TaskList extends HTMLElement {
 
     this.editController.queue(previousItem.id, makeOffsetCaret(mergeOffset));
     this.schedulePendingEditFlush();
-    this.changeList(
+    this.list.change(
       [
         { type: "update", id: previousItem.id, fields: { text: mergedText } },
         { type: "remove", id: currentItemId },
       ],
-      this.save((repository, listId) =>
+      this.list.save((repository, listId) =>
         repository.mergeTask(listId, previousItem.id, currentItemId, { mergedText })
       )
     );
@@ -1001,9 +870,9 @@ class A4TaskList extends HTMLElement {
       this.closeActionsForItem(id);
     }
 
-    this.changeList(
+    this.list.change(
       [{ type: "remove", id }],
-      this.save((repository, listId) => repository.removeTask(listId, id))
+      this.list.save((repository, listId) => repository.removeTask(listId, id))
     );
   }
 
@@ -1043,9 +912,9 @@ class A4TaskList extends HTMLElement {
     // Rendering keeps the task in edit, the cursor where it was.
     const afterId = order[toIndex - 1] ?? null;
     const beforeId = order[toIndex + 1] ?? null;
-    this.changeList(
+    this.list.change(
       [{ type: "move", id, afterId, beforeId }],
-      this.save((repository, listId) =>
+      this.list.save((repository, listId) =>
         repository.moveTaskWithinList(listId, id, {
           afterId: afterId ?? undefined,
           beforeId: beforeId ?? undefined,
@@ -1452,13 +1321,13 @@ class A4TaskList extends HTMLElement {
     const nextDone = Boolean((target as HTMLInputElement).checked);
     // Request the change right away so it is queued in the order of the
     // user's actions: an undo pressed right after must find it.
-    const saved = this.save((repository, listId) =>
+    const saved = this.list.save((repository, listId) =>
       repository.toggleTask(listId, id, nextDone)
     );
     // Show it once click events settle, as the list then rerenders and hides
     // completed items.
     setTimeout(() => {
-      this.changeList([{ type: "update", id, fields: { done: nextDone } }], saved);
+      this.list.change([{ type: "update", id, fields: { done: nextDone } }], saved);
     }, 0);
   }
 
@@ -1508,9 +1377,9 @@ class A4TaskList extends HTMLElement {
     if (this.openActionsItemId === itemId) {
       this.closeActionsForItem(itemId);
     }
-    this.changeList(
+    this.list.change(
       [{ type: "remove", id: itemId }],
-      this.save((repository, listId) => repository.removeTask(listId, itemId))
+      this.list.save((repository, listId) => repository.removeTask(listId, itemId))
     );
   }
 
@@ -1528,25 +1397,6 @@ class A4TaskList extends HTMLElement {
     const activeElement = document.activeElement;
     if (!activeElement?.classList?.contains("task-note-input")) return false;
     return activeElement.closest("li")?.dataset?.itemId === itemId;
-  }
-
-  /** Saves a note that was typed, if it changed. */
-  commitNoteChange(itemId: string, nextNote: string) {
-    this.noteDrafts.delete(itemId);
-    const item = this.confirmedItem(itemId);
-    if (!item || (item.note ?? "") === nextNote) return;
-    this.changeList(
-      [{ type: "update", id: itemId, fields: { note: nextNote } }],
-      this.save((repository, listId) => repository.updateTask(listId, itemId, { note: nextNote }))
-    );
-  }
-
-  /** An item as the repository and the pending changes have it, without drafts. */
-  confirmedItem(itemId: string) {
-    const base = this.confirmedState ?? this.buildInitialState();
-    return applyPendingChanges(base, this.pendingChanges.flat()).items.find(
-      (item) => item.id === itemId
-    );
   }
 
   updateNoteScrollState(textarea: HTMLTextAreaElement) {
@@ -1571,7 +1421,7 @@ class A4TaskList extends HTMLElement {
     const li = target?.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId || !target) return;
-    this.commitNoteChange(itemId, target.value ?? "");
+    this.list.commitNote(itemId, target.value ?? "");
   }
 
   handleNoteToggleClick(event: Event) {
@@ -1589,7 +1439,7 @@ class A4TaskList extends HTMLElement {
     const li = target?.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId || !target) return;
-    this.noteDrafts.set(itemId, target.value ?? "");
+    this.list.draftNote(itemId, target.value ?? "");
     this.updateNoteScrollState(target);
   }
 
@@ -1614,7 +1464,7 @@ class A4TaskList extends HTMLElement {
       ".task-note-input"
     ) as HTMLTextAreaElement | null;
     if (noteInput) {
-      this.commitNoteChange(itemId, noteInput.value ?? "");
+      this.list.commitNote(itemId, noteInput.value ?? "");
     }
     this.openNoteItemIds.delete(itemId);
     this.renderFromState(this.state);
@@ -1648,9 +1498,9 @@ class A4TaskList extends HTMLElement {
       }
     }
     setTimeout(() => {
-      this.changeList(
+      this.list.change(
         [{ type: "update", id: itemId, fields: { done: nextDone } }],
-        this.save((repository, listId) => repository.toggleTask(listId, itemId, nextDone))
+        this.list.save((repository, listId) => repository.toggleTask(listId, itemId, nextDone))
       );
     }, 0);
   }
@@ -1664,7 +1514,7 @@ class A4TaskList extends HTMLElement {
     if (this.openNoteItemIds.has(itemId)) {
       const noteInput = this.noteInput(itemId);
       if (noteInput) {
-        this.commitNoteChange(itemId, noteInput.value ?? "");
+        this.list.commitNote(itemId, noteInput.value ?? "");
       }
       this.openNoteItemIds.delete(itemId);
       this.pendingNoteFocusId = null;
@@ -1916,9 +1766,9 @@ class A4TaskList extends HTMLElement {
     const stateItem = this.state.items.find((item) => item.id === itemId);
     if (!stateItem) return;
     if (stateItem.text === newText) return;
-    this.changeList(
+    this.list.change(
       [{ type: "update", id: itemId, fields: { text: newText } }],
-      this.save((repository, listId) => repository.updateTask(listId, itemId, { text: newText }))
+      this.list.save((repository, listId) => repository.updateTask(listId, itemId, { text: newText }))
     );
   }
 
@@ -2060,9 +1910,9 @@ class A4TaskList extends HTMLElement {
       this.scheduleSearchRender(0);
       return;
     }
-    this.changeList(
+    this.list.change(
       [{ type: "update", id, fields: { text: newText } }],
-      this.save((repository, listId) => repository.updateTask(listId, id, { text: newText }))
+      this.list.save((repository, listId) => repository.updateTask(listId, id, { text: newText }))
     );
   }
 
@@ -2156,9 +2006,9 @@ class A4TaskList extends HTMLElement {
       const targetIndex = order.indexOf(id);
       const afterId = order[targetIndex - 1] ?? null;
       const beforeId = order[targetIndex + 1] ?? null;
-      this.changeList(
+      this.list.change(
         [{ type: "move", id, afterId, beforeId }],
-        this.save((repository, listId) =>
+        this.list.save((repository, listId) =>
           repository.moveTaskWithinList(listId, id, {
             afterId: afterId ?? undefined,
             beforeId: beforeId ?? undefined,
@@ -2219,7 +2069,7 @@ class A4TaskList extends HTMLElement {
     if (!this.state.items.some((item) => item.id === itemId)) {
       return false;
     }
-    this.changeList([{ type: "remove", id: itemId }], saved);
+    this.list.change([{ type: "remove", id: itemId }], saved);
     return true;
   }
 
@@ -2227,7 +2077,7 @@ class A4TaskList extends HTMLElement {
   prependItem(item: TaskItem, saved: Promise<unknown> | null) {
     if (!item || !item.id) return false;
     const first = this.firstItemId();
-    this.changeList(
+    this.list.change(
       [
         {
           type: "insert",
@@ -2338,12 +2188,12 @@ class A4TaskList extends HTMLElement {
     if (value == null) {
       this.listIdentifier = null;
       delete this.dataset.listId;
-      this.refreshRepositorySubscription();
+      this.list.connect(this._repository, this.listId);
       return;
     }
     this.listIdentifier = String(value);
     this.dataset.listId = this.listIdentifier;
-    this.refreshRepositorySubscription();
+    this.list.connect(this._repository, this.listId);
   }
 
   get listRepository() {
@@ -2353,7 +2203,7 @@ class A4TaskList extends HTMLElement {
   set listRepository(value) {
     if (this._repository === value) return;
     this._repository = value ?? null;
-    this.refreshRepositorySubscription();
+    this.list.connect(this._repository, this.listId);
   }
 
   get searchMode() {
