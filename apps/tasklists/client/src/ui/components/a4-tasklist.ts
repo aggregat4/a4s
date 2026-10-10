@@ -7,6 +7,8 @@ import InlineTextEditor, {
 } from "../../shared/inline-text-editor.js";
 import { generateItemId } from "../state/list-store.js";
 import { ListState } from "../state/list-state.js";
+import "./tasklist-header.js";
+import type { TaskListHeaderElement } from "./tasklist-header.js";
 import {
   URL_PATTERN,
   evaluateSearchEntry,
@@ -19,10 +21,6 @@ import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
 import { isOffsetCaret } from "../../types/caret.js";
-import {
-  flattenToPlainText,
-  handlePlainTextPaste,
-} from "../../shared/plain-text-input.js";
 
 /** A highlighted kind of token in task text. */
 const pattern = (regex: RegExp, className: string, kind: PatternKind): PatternConfig => ({
@@ -192,8 +190,7 @@ class A4TaskList extends HTMLElement {
   private listEl: HTMLOListElement | null;
   private dragCoordinator: DraggableBehavior | null;
   private inlineEditor: InlineEditor | null;
-  private headerEl: HTMLElement | null;
-  private titleEl: HTMLElement | null;
+  private header: TaskListHeaderElement | null;
   private searchTimer: ReturnType<typeof setTimeout> | null;
   searchQuery: string;
   showDone: boolean;
@@ -208,9 +205,6 @@ class A4TaskList extends HTMLElement {
   private lastReportedQuery: string;
   private lastReportedTitle: string | null;
   private emptyStateEl: HTMLElement | null;
-  private isTitleEditing: boolean;
-  private titleOriginalValue: string;
-  private titleLiveUpdates: boolean;
   private openActionsItemId: string | null;
   private openNoteItemIds: Set<string>;
   private pendingNoteFocusId: string | null;
@@ -240,8 +234,7 @@ class A4TaskList extends HTMLElement {
     this.listEl = null;
     this.dragCoordinator = null;
     this.inlineEditor = null;
-    this.headerEl = null;
-    this.titleEl = null;
+    this.header = null;
     this.searchTimer = null;
     this.searchQuery = "";
     this.showDone = false;
@@ -259,9 +252,6 @@ class A4TaskList extends HTMLElement {
     this.lastReportedQuery = "";
     this.lastReportedTitle = null;
     this.emptyStateEl = null;
-    this.isTitleEditing = false;
-    this.titleOriginalValue = "";
-    this.titleLiveUpdates = false;
     this.openActionsItemId = null;
     this.openNoteItemIds = new Set();
     this.pendingNoteFocusId = null;
@@ -302,7 +292,6 @@ class A4TaskList extends HTMLElement {
   connectedCallback() {
     this.renderShell();
     if (!this.listEl) return;
-    this.renderHeader(this.getHeaderRenderState());
 
     this.renderCurrentState();
     this.list.connect(this._repository, this.listId);
@@ -376,12 +365,7 @@ class A4TaskList extends HTMLElement {
   ) {
     if (name === "name" && oldValue !== newValue) {
       if (this.suppressNameSync) return;
-      const nextTitle = typeof newValue === "string" ? newValue : "";
-      this.list.change(
-        [{ type: "rename", title: nextTitle }],
-        this.list.save((repository, listId) => repository.renameList(listId, nextTitle))
-      );
-      this.renderHeader(this.getHeaderRenderState(this.state));
+      this.rename(newValue ?? "");
     }
   }
 
@@ -389,145 +373,40 @@ class A4TaskList extends HTMLElement {
     if (this.shellRendered) return;
     render(
       html`
-        <div class="tasklist-header"></div>
+        <a4-tasklist-header></a4-tasklist-header>
         <ol class="tasklist"></ol>
         <div class="tasklist-empty" hidden>No matching items</div>
       `,
       this,
       { host: this }
     );
-    this.headerEl = this.querySelector(".tasklist-header");
-    this.titleEl = this.querySelector(".tasklist-title");
+    this.header = this.querySelector("a4-tasklist-header");
+    this.header?.setHandlers({
+      onRename: (title) => this.rename(title),
+      onAddTask: () => this.addTask(),
+      onShowDoneChange: (showDone) => this.setShowDone(showDone),
+      onDismissError: () => this.list.dismissError(),
+    });
     this.listEl = this.querySelector("ol.tasklist");
     this.emptyStateEl = this.querySelector(".tasklist-empty");
     this.shellRendered = true;
-    this.renderHeader(this.getHeaderRenderState());
+    this.renderHeader();
   }
 
-  getHeaderRenderState(state?: TaskListState | null) {
-    return {
-      title: state?.title ?? this.getAttribute("name") ?? "",
-      searchQuery: this.searchQuery,
+  renderHeader() {
+    this.header?.setState({
+      title: this.state.title,
       showDone: this.showDone,
       searchMode: this._searchMode,
-      headerError: state?.headerError ?? null,
-    };
+      error: this.state.headerError ?? null,
+    });
   }
 
-  renderHeader(
-    headerState: {
-      title?: string;
-      searchQuery?: string;
-      showDone?: boolean;
-      searchMode?: boolean;
-      headerError?: { message?: string; code?: string } | null;
-    } = {}
-  ) {
-    if (!this.headerEl) return;
-    const headerError =
-      headerState?.headerError &&
-      typeof headerState.headerError.message === "string"
-        ? headerState.headerError
-        : null;
-    const searchMode = Boolean(headerState?.searchMode);
-    const titleText =
-      this.isTitleEditing && this.titleEl
-        ? this.titleEl.textContent ?? ""
-        : typeof headerState.title === "string"
-        ? headerState.title
-        : "";
-    const showDoneChecked = Boolean(headerState.showDone);
-
-    // In search mode the title is a read-only label (no rename affordance)
-    // and the "Add task" button is hidden; "Show done" stays so matched-but-
-    // done items can be surfaced.
-    const titleTemplate = searchMode
-      ? html`
-          <div class="tasklist-title-wrapper">
-            <h2 class="tasklist-title" .textContent=${titleText}></h2>
-          </div>
-        `
-      : html`
-          <div class="tasklist-title-wrapper">
-            <h2
-              class=${`tasklist-title${this.isTitleEditing ? " is-editing" : ""}`}
-              tabindex="0"
-              contenteditable=${this.isTitleEditing ? "true" : null}
-              spellcheck=${this.isTitleEditing ? "false" : null}
-              role=${this.isTitleEditing ? "textbox" : null}
-              aria-multiline=${this.isTitleEditing ? "false" : null}
-              aria-label=${this.isTitleEditing ? "List title" : "Click to edit list title"}
-              title=${this.isTitleEditing ? null : "Click to rename"}
-              @click=${this.handleTitleClick}
-              @input=${this.handleTitleInput}
-              @paste=${handlePlainTextPaste}
-              @keydown=${this.handleTitleKeyDown}
-              @blur=${this.handleTitleBlur}
-              .textContent=${live(titleText)}
-            ></h2>
-            <span class="tasklist-title-edit-icon" aria-hidden="true"></span>
-          </div>
-        `;
-
-    const controlsTemplate = html`
-      <div class="tasklist-controls">
-        ${searchMode
-          ? null
-          : html`
-              <button
-                type="button"
-                class="iconlabel"
-                aria-label="Add task"
-                data-role="tasklist-add"
-                @click=${this.addTask}
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                  <path fill="currentColor" d="M7 1h2v6h6v2H9v6H7V9H1V7h6z"></path>
-                </svg>
-                <span>Add</span>
-              </button>
-            `}
-        <label class="tasklist-show-done">
-          <span class="tasklist-show-done-label">Show done</span>
-          <input
-            type="checkbox"
-            class="tasklist-show-done-toggle switch"
-            role="switch"
-            aria-label="Show done tasks"
-            ?checked=${showDoneChecked}
-            @change=${this.handleShowDoneChange}
-          />
-        </label>
-      </div>
-    `;
-
-    render(
-      html`
-        ${headerError
-          ? html`
-              <div class="tasklist-header-error" role="alert">
-                <span class="tasklist-header-error-message">
-                  ${headerError.message}
-                </span>
-                <button
-                  type="button"
-                  class="tasklist-header-error-dismiss"
-                  @click=${this.handleHeaderErrorDismiss}
-                >
-                  Dismiss
-                </button>
-              </div>
-            `
-          : null}
-        ${titleTemplate}
-        ${controlsTemplate}
-      `,
-      this.headerEl,
-      { host: this }
+  rename(title: string) {
+    this.list.change(
+      [{ type: "rename", title }],
+      this.list.save((repository, listId) => repository.renameList(listId, title))
     );
-
-    this.titleEl =
-      this.headerEl?.querySelector?.(".tasklist-title") ?? this.titleEl ?? null;
   }
 
   handleDragFinalize() {
@@ -557,153 +436,10 @@ class A4TaskList extends HTMLElement {
     return this.inlineEditor;
   }
 
-  startTitleEditing() {
-    if (this.isTitleEditing) return;
-    if (this._searchMode) return;
-    this.isTitleEditing = true;
-    // Capture current text before re-render so we can restore on cancel.
-    this.titleOriginalValue = this.titleEl?.textContent ?? "";
-    this.titleLiveUpdates = false;
-    this.isTitleEditing = true;
-    this.renderHeader(this.getHeaderRenderState(this.state));
-    this.titleEl?.focus();
-    const selection = document.getSelection();
-    if (selection && this.titleEl) {
-      const range = document.createRange();
-      range.selectNodeContents(this.titleEl);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  }
-
-  finishTitleEditing() {
-    if (!this.titleEl) return;
-    this.isTitleEditing = false;
-    this.titleOriginalValue = "";
-    this.titleLiveUpdates = false;
-    this.renderHeader(this.getHeaderRenderState(this.state));
-  }
-
-  commitTitleEditing({ restoreFocus = true } = {}) {
-    if (!this.titleEl || !this.isTitleEditing) return;
-    const rawValue = this.titleEl.textContent ?? "";
-    const trimmed = rawValue.trim();
-    const previousValue = this.titleOriginalValue ?? "";
-    const hadLiveUpdates = this.titleLiveUpdates;
-
-    if (!trimmed.length) {
-      this.titleEl.textContent = previousValue;
-      this.finishTitleEditing();
-      if (restoreFocus) {
-        this.titleEl.focus();
-      }
-      return;
-    }
-
-    this.titleEl.textContent = trimmed;
-    this.finishTitleEditing();
-
-    if (trimmed === previousValue) {
-      if (restoreFocus) {
-        this.titleEl.focus();
-      }
-      return;
-    }
-
-    if (!hadLiveUpdates) {
-      this.list.change(
-        [{ type: "rename", title: trimmed }],
-        this.list.save((repository, listId) => repository.renameList(listId, trimmed))
-      );
-
-      this.emit("titlechange", { title: trimmed });
-    }
-
-    if (restoreFocus) {
-      this.titleEl.focus();
-    }
-  }
-
-  handleTitleInput(event: Event) {
-    if (!this.isTitleEditing) return;
-    const target = event.target as HTMLElement | null;
-    if (!target?.classList?.contains("tasklist-title")) return;
-    flattenToPlainText(target);
-    const rawValue = target.textContent ?? "";
-    const trimmed = rawValue.trim();
-    const currentTitle = this.state.title ?? "";
-    if (!trimmed.length || trimmed === currentTitle) return;
-    this.titleLiveUpdates = true;
-    this.list.change(
-      [{ type: "rename", title: trimmed }],
-      this.list.save((repository, listId) => repository.renameList(listId, trimmed))
-    );
-  }
-
-  cancelTitleEditing({ restoreFocus = true } = {}) {
-    if (!this.titleEl || !this.isTitleEditing) return;
-    const previousValue = this.titleOriginalValue ?? "";
-    const hadLiveUpdates = this.titleLiveUpdates;
-    this.titleEl.textContent = previousValue;
-    this.finishTitleEditing();
-    if (hadLiveUpdates) {
-      this.list.change(
-        [{ type: "rename", title: previousValue }],
-        this.list.save((repository, listId) => repository.renameList(listId, previousValue))
-      );
-    }
-    if (restoreFocus) {
-      this.titleEl.focus();
-    }
-  }
-
-  handleTitleClick() {
-    if (this._searchMode) return;
-    if (this.isTitleEditing) return;
-    this.startTitleEditing();
-  }
-
-  handleTitleKeyDown(event: KeyboardEvent) {
-    if (this._searchMode) return;
-    if (!this.titleEl) return;
-    if (this.isTitleEditing) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        this.commitTitleEditing();
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        this.cancelTitleEditing();
-      }
-      return;
-    }
-
-    if (
-      event.key === "Enter" ||
-      event.key === " " ||
-      event.key === "Spacebar"
-    ) {
-      event.preventDefault();
-      this.startTitleEditing();
-    }
-  }
-
-  handleTitleBlur() {
-    if (!this.isTitleEditing) return;
-    this.commitTitleEditing({ restoreFocus: false });
-  }
-
-  handleHeaderErrorDismiss() {
-    this.list.dismissError();
-  }
-
-  handleShowDoneChange(e: Event) {
-    this.setShowDone(Boolean((e.target as HTMLInputElement | null)?.checked));
-  }
-
   setShowDone(value: boolean) {
     if (this.showDone === value) return;
     this.showDone = value;
-    this.renderHeader(this.getHeaderRenderState(this.state));
+    this.renderHeader();
     this.renderCurrentState();
     this.emit("showdonechange", { showDone: this.showDone });
   }
@@ -712,7 +448,7 @@ class A4TaskList extends HTMLElement {
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = null;
     this.searchQuery = "";
-    this.renderHeader(this.getHeaderRenderState(this.state));
+    this.renderHeader();
     this.renderCurrentState();
     this.emit("clearsearch");
   }
@@ -1136,7 +872,7 @@ class A4TaskList extends HTMLElement {
   renderFromState(state?: TaskListState) {
     if (!this.listEl || !state) return;
 
-    this.renderHeader(this.getHeaderRenderState(state));
+    this.renderHeader();
 
     const preservedFocus = this.captureFocus();
     const openActionsId = this.openActionsItemId;
@@ -1201,10 +937,7 @@ class A4TaskList extends HTMLElement {
       this.emit("itemcountchange", { total: totalCount });
     }
 
-    const nextTitle = state.title ?? "";
-    if (this.titleEl && !this.isTitleEditing) {
-      this.titleEl.textContent = nextTitle;
-    }
+    const nextTitle = state.title;
 
     const attrTitle = this.getAttribute("name");
     if (attrTitle !== nextTitle) {
@@ -1220,21 +953,6 @@ class A4TaskList extends HTMLElement {
     if (nextTitle !== this.lastReportedTitle) {
       this.lastReportedTitle = nextTitle;
       this.emit("titlechange", { title: nextTitle });
-    }
-
-    if (this.isTitleEditing && this.titleEl) {
-      const currentTitleText = this.titleEl.textContent ?? "";
-      if (currentTitleText !== nextTitle) {
-        this.titleEl.textContent = nextTitle;
-        const caretTarget = nextTitle.length;
-        if (this.inlineEditor) {
-          this.inlineEditor.setSelectionAtOffset(
-            this.titleEl,
-            caretTarget,
-            "end"
-          );
-        }
-      }
     }
 
     if (editingId && this.inlineEditor?.editingEl) {
@@ -2032,7 +1750,7 @@ class A4TaskList extends HTMLElement {
     if (!this.listEl) {
       this.renderShell();
     }
-    this.renderHeader(this.getHeaderRenderState(this.state));
+    this.renderHeader();
     this.renderCurrentState();
   }
 
@@ -2215,7 +1933,7 @@ class A4TaskList extends HTMLElement {
     if (next === this._searchMode) return;
     this._searchMode = next;
     if (this.shellRendered) {
-      this.renderHeader(this.getHeaderRenderState(this.state));
+      this.renderHeader();
     }
   }
 

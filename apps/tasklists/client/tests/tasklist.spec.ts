@@ -1676,6 +1676,53 @@ test.describe("tasklist flows", () => {
     );
   });
 
+  test.describe("list title", () => {
+    const title = (page: Page) => page.locator(".tasklist-title").first();
+    const listName = (page: Page) => page.locator("[data-role='active-list-title']");
+
+    async function editTitle(page: Page, text: string) {
+      await title(page).click();
+      await expect(title(page)).toHaveAttribute("contenteditable", "true");
+      await page.keyboard.press("ControlOrMeta+A");
+      await page.keyboard.type(text);
+    }
+
+    test("a title with spaces is kept as typed", async ({ page }) => {
+      await editTitle(page, "Two words and more");
+      await expect(title(page)).toHaveText("Two words and more");
+      await page.keyboard.press("Enter");
+      await expect(listName(page)).toHaveText("Two words and more");
+    });
+
+    test("Escape brings back the title from before editing", async ({ page }) => {
+      const original = (await title(page).textContent()) ?? "";
+      await editTitle(page, "Changed");
+      await expect(listName(page)).toHaveText("Changed");
+      await page.keyboard.press("Escape");
+      await expect(title(page)).not.toHaveAttribute("contenteditable", "true");
+      await expect(title(page)).toHaveText(original);
+      await expect(listName(page)).toHaveText(original);
+    });
+
+    test("an empty title keeps the title from before editing", async ({ page }) => {
+      const original = (await title(page).textContent()) ?? "";
+      await title(page).click();
+      await page.keyboard.press("ControlOrMeta+A");
+      await page.keyboard.press("Backspace");
+      await page.keyboard.press("Enter");
+      await expect(title(page)).toHaveText(original);
+      await expect(listName(page)).toHaveText(original);
+    });
+
+    test("leaving the title keeps what was typed", async ({ page }) => {
+      await editTitle(page, "Left behind");
+      await page.locator(listItemsSelector).first().locator(".text").click();
+      await expect(title(page)).not.toHaveAttribute("contenteditable", "true");
+      await expect(title(page)).toHaveText("Left behind");
+      await expect(listName(page)).toHaveText("Left behind");
+    });
+  });
+
   test.describe("pasting rich text", () => {
     // Content as copied from a web page: block elements, inline formatting and
     // a link, with the plain-text flavour the browser derives from it.
