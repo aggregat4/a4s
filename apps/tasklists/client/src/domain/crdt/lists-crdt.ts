@@ -117,14 +117,7 @@ export class ListsCRDT {
               (entry as { title?: string })?.title ?? entry.data?.title
             ),
           },
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt,
-          updatedBy: entry.updatedBy,
-          positionUpdatedAt: entry.positionUpdatedAt,
-          positionUpdatedBy: entry.positionUpdatedBy,
-          dataUpdatedAt: entry.dataUpdatedAt,
-          dataUpdatedBy: entry.dataUpdatedBy,
-          fieldVersions: entry.fieldVersions,
+          versions: entry.versions,
           deletedAt: entry.deletedAt,
         }))
       : [];
@@ -200,9 +193,6 @@ export class ListsCRDT {
       id: entry.id,
       title: entry.data.title,
       pos: entry.pos,
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt,
-      updatedBy: entry.updatedBy,
       deletedAt: entry.deletedAt,
     };
   }

@@ -4,6 +4,7 @@ import type {
   OrderedSetSnapshot,
   Position,
   OrderedSetEntry,
+  EntryVersions,
   TaskInsertInput,
   TaskMoveInput,
   TaskUpdateInput,
@@ -35,14 +36,7 @@ type TaskEntry = {
   text: string;
   done: boolean;
   note: string;
-  createdAt?: number | null;
-  updatedAt?: number | null;
-  updatedBy?: string | null;
-  positionUpdatedAt?: number | null;
-  positionUpdatedBy?: string | null;
-  dataUpdatedAt?: number | null;
-  dataUpdatedBy?: string | null;
-  fieldVersions?: Record<string, { clock: number; actor: string }>;
+  versions?: EntryVersions;
   deletedAt?: number | null;
 };
 
@@ -55,14 +49,7 @@ function cloneRecordEntry(
     text: entry.data.text,
     done: entry.data.done,
     note: entry.data.note,
-    createdAt: entry.createdAt,
-    updatedAt: entry.updatedAt,
-    updatedBy: entry.updatedBy,
-    positionUpdatedAt: entry.positionUpdatedAt,
-    positionUpdatedBy: entry.positionUpdatedBy,
-    dataUpdatedAt: entry.dataUpdatedAt,
-    dataUpdatedBy: entry.dataUpdatedBy,
-    fieldVersions: entry.fieldVersions,
+    versions: entry.versions,
     deletedAt: entry.deletedAt,
   };
 }
@@ -195,14 +182,7 @@ export class TaskListCRDT {
             done: sanitizeBoolean(item.data?.done, false),
             note: sanitizeText(item.data?.note),
           },
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-          updatedBy: item.updatedBy,
-          positionUpdatedAt: item.positionUpdatedAt,
-          positionUpdatedBy: item.positionUpdatedBy,
-          dataUpdatedAt: item.dataUpdatedAt,
-          dataUpdatedBy: item.dataUpdatedBy,
-          fieldVersions: item.fieldVersions,
+          versions: item.versions,
           deletedAt: item.deletedAt,
         }))
       : [];

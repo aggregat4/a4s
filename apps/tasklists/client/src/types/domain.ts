@@ -24,18 +24,24 @@ export type TaskListState = {
   } | null;
 };
 
+/** A write, ordered by its Lamport clock and then by its actor id. */
+export type Version = { clock: number; actor: string };
+
+/**
+ * The write that last set each part of an item. Each part is a register of
+ * its own, so concurrent changes to different parts all take effect, in
+ * whatever order they arrive. A missing version means no write yet.
+ */
+export type EntryVersions = {
+  position: Version;
+  fields: Record<string, Version>;
+};
+
 export type OrderedSetEntry<TData> = {
   id: string;
   pos: Position | null;
   data: TData;
-  createdAt?: number | null;
-  updatedAt?: number | null;
-  updatedBy?: string | null;
-  positionUpdatedAt?: number | null;
-  positionUpdatedBy?: string | null;
-  dataUpdatedAt?: number | null;
-  dataUpdatedBy?: string | null;
-  fieldVersions?: Record<string, { clock: number; actor: string }>;
+  versions?: EntryVersions;
   deletedAt?: number | null;
 };
 

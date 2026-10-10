@@ -6,9 +6,11 @@ import {
   normalizePosition,
 } from "./position.js";
 import type {
+  EntryVersions,
   OrderedSetEntry,
   OrderedSetSnapshot,
   Position,
+  Version,
 } from "../../types/domain.js";
 import type {
   OrderedSetExport,
@@ -34,7 +36,7 @@ function makeOperationKey(operation: { actor?: string; clock?: number }) {
  * Total order over writes: Lamport clock first, then actor id. Plain clock
  * comparison is not enough because two replicas commonly produce operations with
  * the same clock while partitioned. Without the actor tie-break each replica
- * keeps its own write (both reject the other as `clock <= updatedAt`) and they
+ * keeps its own write (both reject the other as not newer) and they
  * never converge.
  */
 function compareWrites(
@@ -82,35 +84,37 @@ function shallowEqual(a: Record<string, unknown> = {}, b: Record<string, unknown
   return true;
 }
 
-function cloneFieldVersions(
-  versions: Record<string, { clock: number; actor: string }> = {}
-) {
-  return Object.fromEntries(
-    Object.entries(versions).map(([field, version]) => [field, { ...version }])
-  );
+const NO_WRITE: Version = { clock: 0, actor: "" };
+
+function sanitizeVersion(value: unknown): Version {
+  const version = value as Partial<Version> | null | undefined;
+  return {
+    clock: Number.isFinite(version?.clock) ? Math.floor(version!.clock as number) : 0,
+    actor: typeof version?.actor === "string" ? version.actor : "",
+  };
 }
 
-function fieldVersionsForData<TData extends Record<string, unknown>>(
-  entry: OrderedSetEntry<TData>,
-  data: TData
-) {
-  const fallbackClock = Number.isFinite(entry.dataUpdatedAt)
-    ? Math.floor(entry.dataUpdatedAt as number)
-    : Number.isFinite(entry.updatedAt)
-      ? Math.floor(entry.updatedAt as number)
-      : 0;
-  const fallbackActor = entry.dataUpdatedBy ?? entry.updatedBy ?? "";
-  const saved = entry.fieldVersions ?? {};
-  return Object.fromEntries(
-    Object.keys(data ?? {}).map((field) => {
-      const version = saved[field];
-      return [field, {
-        clock: Number.isFinite(version?.clock) ? Math.floor(version.clock) : fallbackClock,
-        actor: typeof version?.actor === "string" ? version.actor : fallbackActor,
-      }];
-    })
-  );
+function cloneVersions(versions: EntryVersions): EntryVersions {
+  return {
+    position: { ...versions.position },
+    fields: Object.fromEntries(
+      Object.entries(versions.fields).map(([field, version]) => [field, { ...version }])
+    ),
+  };
 }
+
+/** Whether a write wins over the one that set a part of an item. */
+function wins(clock: number, actor: string, version: Version = NO_WRITE) {
+  return compareWrites(clock, actor, version.clock, version.actor) > 0;
+}
+
+type ItemRecord<TData> = {
+  id: string;
+  pos: Position;
+  data: TData;
+  versions: EntryVersions;
+  deletedAt: number | null;
+};
 
 /**
  * OrderedSetCRDT tracks a position-aware set of records that replicates across peers
@@ -133,7 +137,7 @@ function fieldVersionsForData<TData extends Record<string, unknown>>(
 export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<string, unknown>> {
   actorId: string;
   clock: LamportClock;
-  items: Map<string, OrderedSetEntry<TData>>;
+  items: Map<string, ItemRecord<TData>>;
   seenOps: Set<string>;
   _snapshotCache: OrderedSetSnapshot<TData> | null;
 
@@ -154,14 +158,6 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
 
   invalidateSnapshotCache() {
     this._snapshotCache = null;
-  }
-
-  private writeWins(
-    clock: number,
-    actor: string,
-    record: { updatedAt?: number | null; updatedBy?: string | null }
-  ) {
-    return compareWrites(clock, actor, record.updatedAt, record.updatedBy) > 0;
   }
 
   sanitizeInsertPayload(
@@ -200,7 +196,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     return shallowEqual(a, b);
   }
 
-  sanitizeSnapshotEntry(entry: OrderedSetEntry<TData>) {
+  sanitizeSnapshotEntry(entry: OrderedSetEntry<TData>): ItemRecord<TData> | null {
     if (!entry || typeof entry.id !== "string" || !entry.id.length) return null;
     const pos = normalizePosition(entry.pos);
     if (!pos.length) return null;
@@ -209,39 +205,15 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       id: entry.id,
       pos: pos as Position,
       data: data as TData,
-      createdAt: Number.isFinite(entry.createdAt)
-        ? Math.floor(entry.createdAt as number)
-        : 0,
-      updatedAt: Number.isFinite(entry.updatedAt)
-        ? Math.floor(entry.updatedAt as number)
-        : 0,
-      updatedBy:
-        typeof entry.updatedBy === "string" ? entry.updatedBy : "",
-      // Older snapshots only have an item-wide write marker. Preserve that
-      // ordering until a new position or data write establishes its own marker.
-      positionUpdatedAt: Number.isFinite(entry.positionUpdatedAt)
-        ? Math.floor(entry.positionUpdatedAt as number)
-        : Number.isFinite(entry.updatedAt)
-          ? Math.floor(entry.updatedAt as number)
-          : 0,
-      positionUpdatedBy:
-        typeof entry.positionUpdatedBy === "string"
-          ? entry.positionUpdatedBy
-          : typeof entry.updatedBy === "string"
-            ? entry.updatedBy
-            : "",
-      dataUpdatedAt: Number.isFinite(entry.dataUpdatedAt)
-        ? Math.floor(entry.dataUpdatedAt as number)
-        : Number.isFinite(entry.updatedAt)
-          ? Math.floor(entry.updatedAt as number)
-          : 0,
-      dataUpdatedBy:
-        typeof entry.dataUpdatedBy === "string"
-          ? entry.dataUpdatedBy
-          : typeof entry.updatedBy === "string"
-            ? entry.updatedBy
-            : "",
-      fieldVersions: fieldVersionsForData(entry, data),
+      versions: {
+        position: sanitizeVersion(entry.versions?.position),
+        fields: Object.fromEntries(
+          Object.keys(data ?? {}).map((field) => [
+            field,
+            sanitizeVersion(entry.versions?.fields?.[field]),
+          ])
+        ),
+      },
       deletedAt: Number.isFinite(entry.deletedAt)
         ? Math.floor(entry.deletedAt as number)
         : null,
@@ -260,73 +232,48 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     this.invalidateSnapshotCache();
   }
 
-  getItem(id: string): OrderedSetEntry<TData> | null {
-    const record = this.items.get(id);
-    if (!record) return null;
+  /** An item as callers see it, sharing nothing with the stored record. */
+  private toEntry(record: ItemRecord<TData>): OrderedSetEntry<TData> {
     return {
       id: record.id,
       pos: clonePosition(record.pos),
       data: this.cloneData(record.data),
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt,
-      updatedBy: record.updatedBy,
-      positionUpdatedAt: record.positionUpdatedAt,
-      positionUpdatedBy: record.positionUpdatedBy,
-      dataUpdatedAt: record.dataUpdatedAt,
-      dataUpdatedBy: record.dataUpdatedBy,
-      fieldVersions: cloneFieldVersions(record.fieldVersions),
+      versions: cloneVersions(record.versions),
       deletedAt: record.deletedAt,
     };
+  }
+
+  getItem(id: string): OrderedSetEntry<TData> | null {
+    const record = this.items.get(id);
+    return record ? this.toEntry(record) : null;
   }
 
   getSnapshot(options: { includeDeleted?: boolean } = {}): OrderedSetSnapshot<TData> {
     const includeDeleted = Boolean(options.includeDeleted);
     if (!includeDeleted && Array.isArray(this._snapshotCache)) {
-      return this._snapshotCache.map((item) => ({
-        ...item,
-        pos: clonePosition(item.pos),
-        data: this.cloneData(item.data),
-        fieldVersions: cloneFieldVersions(item.fieldVersions),
+      return this._snapshotCache.map((entry) => ({
+        ...entry,
+        pos: clonePosition(entry.pos),
+        data: this.cloneData(entry.data),
+        versions: cloneVersions(entry.versions!),
       }));
     }
 
-    const records = Array.from(this.items.values());
-    const entries = records
+    const entries = Array.from(this.items.values())
       .filter((record) => includeDeleted || record.deletedAt == null)
-      .map((record) => ({
-        id: record.id,
-        pos: clonePosition(record.pos),
-        data: this.cloneData(record.data),
-        createdAt: record.createdAt,
-        updatedAt: record.updatedAt,
-        updatedBy: record.updatedBy,
-        positionUpdatedAt: record.positionUpdatedAt,
-        positionUpdatedBy: record.positionUpdatedBy,
-        dataUpdatedAt: record.dataUpdatedAt,
-        dataUpdatedBy: record.dataUpdatedBy,
-        fieldVersions: cloneFieldVersions(record.fieldVersions),
-        deletedAt: record.deletedAt,
-      }))
       .sort(
         (a, b) =>
           comparePositions(a.pos, b.pos) ||
           (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-      );
+      )
+      .map((record) => this.toEntry(record));
 
     if (!includeDeleted) {
-      this._snapshotCache = entries.map((item) => ({
-        id: item.id,
-        pos: clonePosition(item.pos),
-        data: this.cloneData(item.data),
-        fieldVersions: cloneFieldVersions(item.fieldVersions),
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        updatedBy: item.updatedBy,
-        positionUpdatedAt: item.positionUpdatedAt,
-        positionUpdatedBy: item.positionUpdatedBy,
-        dataUpdatedAt: item.dataUpdatedAt,
-        dataUpdatedBy: item.dataUpdatedBy,
-        deletedAt: item.deletedAt,
+      this._snapshotCache = entries.map((entry) => ({
+        ...entry,
+        pos: clonePosition(entry.pos),
+        data: this.cloneData(entry.data),
+        versions: cloneVersions(entry.versions!),
       }));
     }
 
@@ -402,16 +349,12 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
           ? position
           : between(null, null, { actor: this.actorId }),
         data: payloadData,
-        createdAt: clock,
-        updatedAt: clock,
-        updatedBy: operation.actor,
-        positionUpdatedAt: clock,
-        positionUpdatedBy: operation.actor,
-        dataUpdatedAt: clock,
-        dataUpdatedBy: operation.actor,
-        fieldVersions: Object.fromEntries(
-          Object.keys(payloadData).map((field) => [field, { clock, actor: operation.actor }])
-        ),
+        versions: {
+          position: { clock, actor: operation.actor },
+          fields: Object.fromEntries(
+            Object.keys(payloadData).map((field) => [field, { clock, actor: operation.actor }])
+          ),
+        },
         deletedAt: null,
       });
       return true;
@@ -419,13 +362,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
 
     // Position and content are independent registers: a completion must not
     // suppress a concurrent move, regardless of which operation arrives first.
-    const winsPosition =
-      compareWrites(
-        clock,
-        operation.actor,
-        existing.positionUpdatedAt,
-        existing.positionUpdatedBy
-      ) > 0;
+    const winsPosition = wins(clock, operation.actor, existing.versions.position);
     let mutated = false;
 
     // Only an insert that wins the write race may move an existing item. Older
@@ -436,8 +373,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         existing.pos = position;
         mutated = true;
       }
-      existing.positionUpdatedAt = clock;
-      existing.positionUpdatedBy = operation.actor;
+      existing.versions.position = { clock, actor: operation.actor };
       mutated = true;
     }
 
@@ -448,11 +384,9 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
 
     const winningData: Partial<TData> = {};
     for (const [field, value] of Object.entries(payloadData)) {
-      const prior = existing.fieldVersions?.[field];
-      if (compareWrites(clock, operation.actor, prior?.clock, prior?.actor) <= 0) continue;
+      if (!wins(clock, operation.actor, existing.versions.fields[field])) continue;
       (winningData as Record<string, unknown>)[field] = value;
-      existing.fieldVersions ??= {};
-      existing.fieldVersions[field] = { clock, actor: operation.actor };
+      existing.versions.fields[field] = { clock, actor: operation.actor };
       mutated = true;
     }
     if (Object.keys(winningData).length > 0) {
@@ -461,15 +395,6 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
         existing.data = merged;
         mutated = true;
       }
-      if (compareWrites(clock, operation.actor, existing.dataUpdatedAt, existing.dataUpdatedBy) > 0) {
-        existing.dataUpdatedAt = clock;
-        existing.dataUpdatedBy = operation.actor;
-      }
-    }
-
-    if (mutated && this.writeWins(clock, operation.actor, existing)) {
-      existing.updatedAt = clock;
-      existing.updatedBy = operation.actor;
     }
 
     return mutated;
@@ -485,10 +410,6 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
       : 0;
     if (record.deletedAt != null && clock <= record.deletedAt) return false;
     record.deletedAt = clock;
-    if (this.writeWins(clock, operation.actor, record)) {
-      record.updatedAt = clock;
-      record.updatedBy = operation.actor;
-    }
     return true;
   }
 
@@ -502,22 +423,9 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const clock = Number.isFinite(operation.clock)
       ? Math.floor(operation.clock)
       : 0;
-    if (
-      compareWrites(
-        clock,
-        operation.actor,
-        record.positionUpdatedAt,
-        record.positionUpdatedBy
-      ) <= 0
-    ) return false;
-    const moved = comparePositions(position, record.pos) !== 0;
-    if (moved) record.pos = position;
-    record.positionUpdatedAt = clock;
-    record.positionUpdatedBy = operation.actor;
-    if (this.writeWins(clock, operation.actor, record)) {
-      record.updatedAt = clock;
-      record.updatedBy = operation.actor;
-    }
+    if (!wins(clock, operation.actor, record.versions.position)) return false;
+    if (comparePositions(position, record.pos) !== 0) record.pos = position;
+    record.versions.position = { clock, actor: operation.actor };
     return true;
   }
 
@@ -537,23 +445,13 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     }
     const winningData: Partial<TData> = {};
     for (const [field, value] of Object.entries(updatePayload)) {
-      const prior = record.fieldVersions?.[field];
-      if (compareWrites(clock, operation.actor, prior?.clock, prior?.actor) <= 0) continue;
+      if (!wins(clock, operation.actor, record.versions.fields[field])) continue;
       (winningData as Record<string, unknown>)[field] = value;
-      record.fieldVersions ??= {};
-      record.fieldVersions[field] = { clock, actor: operation.actor };
+      record.versions.fields[field] = { clock, actor: operation.actor };
     }
     if (Object.keys(winningData).length === 0) return false;
     const merged = this.mergeUpdateData(record.data, winningData);
     if (!this.areDataEqual(record.data, merged)) record.data = merged;
-    if (compareWrites(clock, operation.actor, record.dataUpdatedAt, record.dataUpdatedBy) > 0) {
-      record.dataUpdatedAt = clock;
-      record.dataUpdatedBy = operation.actor;
-    }
-    if (this.writeWins(clock, operation.actor, record)) {
-      record.updatedAt = clock;
-      record.updatedBy = operation.actor;
-    }
     return true;
   }
 

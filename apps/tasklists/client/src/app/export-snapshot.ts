@@ -98,40 +98,16 @@ function buildSnapshotLists(
     .filter((entry): entry is SnapshotList => Boolean(entry));
 }
 
+/** Entries in the given order. They have no versions: any change wins. */
 function buildOrderedEntries<TData extends Record<string, unknown>>(
   items: Array<{ id: string; data: TData }>,
   actor: string
-): Array<{
-  id: string;
-  pos: ReturnType<typeof between>;
-  data: TData;
-  createdAt: number;
-  updatedAt: number;
-  updatedBy: string;
-  deletedAt: null;
-}> {
+) {
   let previousPosition: ReturnType<typeof between> | null = null;
-  return items.map((item, index): {
-    id: string;
-    pos: ReturnType<typeof between>;
-    data: TData;
-    createdAt: number;
-    updatedAt: number;
-    updatedBy: string;
-    deletedAt: null;
-  } => {
+  return items.map((item) => {
     const position = between(previousPosition, null, { actor });
     previousPosition = position;
-    const time = index + 1;
-    return {
-      id: item.id,
-      pos: position,
-      data: item.data,
-      createdAt: time,
-      updatedAt: time,
-      updatedBy: actor,
-      deletedAt: null,
-    };
+    return { id: item.id, pos: position, data: item.data, deletedAt: null };
   });
 }
 

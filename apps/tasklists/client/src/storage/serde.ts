@@ -1,9 +1,11 @@
 import { normalizePosition } from "../domain/crdt/position.js";
 import type {
+  EntryVersions,
   ListState,
   OrderedSetEntry,
   Position,
   RegistryState,
+  Version,
 } from "../types/domain.js";
 import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
 
@@ -16,14 +18,7 @@ type EncodedEntry<TData> = {
   id: string;
   pos: EncodedPosition;
   data: TData;
-  createdAt: number;
-  updatedAt: number;
-  updatedBy: string;
-  positionUpdatedAt?: number;
-  positionUpdatedBy?: string;
-  dataUpdatedAt?: number;
-  dataUpdatedBy?: string;
-  fieldVersions?: Record<string, { clock: number; actor: string }>;
+  versions: EntryVersions;
   deletedAt: number | null;
 };
 type MapDataFn<TIn, TOut> = (data: TIn) => TOut;
@@ -63,6 +58,22 @@ function encodeTimestamp(value: unknown) {
   return Math.max(0, Math.floor(value));
 }
 
+function encodeVersion(value: unknown): Version {
+  const version = value as Partial<Version> | null | undefined;
+  return { clock: encodeTimestamp(version?.clock), actor: encodeActor(version?.actor) };
+}
+
+function encodeVersions(value: unknown): EntryVersions {
+  const versions = value as Partial<EntryVersions> | null | undefined;
+  const fields = versions?.fields && typeof versions.fields === "object" ? versions.fields : {};
+  return {
+    position: encodeVersion(versions?.position),
+    fields: Object.fromEntries(
+      Object.entries(fields).map(([field, version]) => [field, encodeVersion(version)])
+    ),
+  };
+}
+
 function encodeData(value: unknown) {
   if (value == null) return {};
   if (typeof value !== "object") {
@@ -83,19 +94,7 @@ function encodeEntry<TIn, TOut>(
     id: entry.id,
     pos: encodePosition(entry.pos),
     data,
-    createdAt: encodeTimestamp(entry.createdAt),
-    updatedAt: encodeTimestamp(entry.updatedAt),
-    updatedBy: encodeActor(entry.updatedBy),
-    positionUpdatedAt: encodeTimestamp(entry.positionUpdatedAt ?? entry.updatedAt),
-    positionUpdatedBy: encodeActor(entry.positionUpdatedBy ?? entry.updatedBy),
-    dataUpdatedAt: encodeTimestamp(entry.dataUpdatedAt ?? entry.updatedAt),
-    dataUpdatedBy: encodeActor(entry.dataUpdatedBy ?? entry.updatedBy),
-    fieldVersions: Object.fromEntries(
-      Object.entries(entry.fieldVersions ?? {}).map(([field, version]) => [
-        field,
-        { clock: encodeTimestamp(version.clock), actor: encodeActor(version.actor) },
-      ])
-    ),
+    versions: encodeVersions(entry.versions),
     deletedAt:
       entry.deletedAt == null || !Number.isFinite(entry.deletedAt)
         ? null
@@ -112,14 +111,7 @@ function decodeEntry<TOut>(
     id?: unknown;
     pos?: unknown;
     data?: unknown;
-    createdAt?: unknown;
-    updatedAt?: unknown;
-    updatedBy?: unknown;
-    positionUpdatedAt?: unknown;
-    positionUpdatedBy?: unknown;
-    dataUpdatedAt?: unknown;
-    dataUpdatedBy?: unknown;
-    fieldVersions?: unknown;
+    versions?: unknown;
     deletedAt?: unknown;
   };
   if (typeof record.id !== "string" || !record.id.length) return null;
@@ -128,24 +120,7 @@ function decodeEntry<TOut>(
     id: record.id,
     pos: decodePosition(record.pos),
     data,
-    createdAt: encodeTimestamp(record.createdAt),
-    updatedAt: encodeTimestamp(record.updatedAt),
-    updatedBy: encodeActor(record.updatedBy),
-    positionUpdatedAt: encodeTimestamp(record.positionUpdatedAt ?? record.updatedAt),
-    positionUpdatedBy: encodeActor(record.positionUpdatedBy ?? record.updatedBy),
-    dataUpdatedAt: encodeTimestamp(record.dataUpdatedAt ?? record.updatedAt),
-    dataUpdatedBy: encodeActor(record.dataUpdatedBy ?? record.updatedBy),
-    fieldVersions: record.fieldVersions && typeof record.fieldVersions === "object"
-      ? Object.fromEntries(
-          Object.entries(record.fieldVersions).map(([field, value]) => {
-            const version = value as { clock?: unknown; actor?: unknown };
-            return [field, {
-              clock: encodeTimestamp(version?.clock),
-              actor: encodeActor(version?.actor),
-            }];
-          })
-        )
-      : undefined,
+    versions: encodeVersions(record.versions),
     deletedAt:
       typeof record.deletedAt !== "number" || !Number.isFinite(record.deletedAt)
         ? null

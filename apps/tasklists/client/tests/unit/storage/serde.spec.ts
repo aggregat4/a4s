@@ -26,12 +26,13 @@ test("list state serialization round-trips entries and metadata", () => {
                     { digit: 5, actor: "b" },
                 ],
                 data: { text: "Task", done: true, note: "Context" },
-                createdAt: 1,
-                updatedAt: 2,
-                fieldVersions: {
-                    text: { clock: 2, actor: "writer-a" },
-                    done: { clock: 3, actor: "writer-b" },
-                    note: { clock: 4, actor: "writer-c" },
+                versions: {
+                    position: { clock: 1, actor: "writer-a" },
+                    fields: {
+                        text: { clock: 2, actor: "writer-a" },
+                        done: { clock: 3, actor: "writer-b" },
+                        note: { clock: 4, actor: "writer-c" },
+                    },
                 },
                 deletedAt: null,
             },
@@ -45,7 +46,7 @@ test("list state serialization round-trips entries and metadata", () => {
     assert.equal(decoded.entries[0].data.text, "Task");
     assert.equal(decoded.entries[0].data.done, true);
     assert.equal(decoded.entries[0].data.note, "Context");
-    assert.deepEqual(decoded.entries[0].fieldVersions, original.entries[0].fieldVersions);
+    assert.deepEqual(decoded.entries[0].versions, original.entries[0].versions);
 });
 
 test("registry state serialization retains ordering data", () => {
@@ -56,8 +57,6 @@ test("registry state serialization retains ordering data", () => {
                 id: "list-1",
                 pos: [{ digit: 1, actor: "a" }],
                 data: { title: "A" },
-                createdAt: 1,
-                updatedAt: 2,
                 deletedAt: null,
             },
         ],
@@ -91,8 +90,6 @@ test("ordered set snapshot helpers filter invalid entries", () => {
                 id: "valid",
                 pos: [{ digit: 1, actor: "a" }],
                 data: { value: 1 },
-                createdAt: 0,
-                updatedAt: 0,
                 deletedAt: null,
             },
             {
