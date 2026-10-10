@@ -545,9 +545,8 @@ const remoteType = index.map((n) =>
     await remoteEdit(r, position);
     await r.remote.keyboard.type("z");
     const { id, text } = tasks[position];
+    // The task being edited shows the new text, the cursor where it was.
     apply(m, { type: "update", id, text: `${text}z` }, m.actors.remote);
-    // The task being edited shows the new text, the cursor at its end.
-    if (m.editing?.id === id) m.editing.caret = text.length + 1;
   })
 );
 

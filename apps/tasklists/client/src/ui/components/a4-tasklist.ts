@@ -1620,19 +1620,16 @@ class A4TaskList extends HTMLElement {
     }
 
     if (editingId && this.inlineEditor?.editingEl) {
+      const editingEl = this.inlineEditor.editingEl;
       const stateItem = state.items?.find((item) => item.id === editingId) ?? null;
       if (stateItem) {
+        // Another device changed the text: show it, the cursor where it was.
         const desiredText = stateItem.text ?? "";
-        const currentText = this.inlineEditor.editingEl.textContent ?? "";
-        if (currentText !== desiredText) {
-          this.inlineEditor.editingEl.textContent = desiredText;
-          this.inlineEditor.editingEl.dataset.originalText = desiredText;
-          const caretTarget = desiredText.length;
-          this.inlineEditor.setSelectionAtOffset(
-            this.inlineEditor.editingEl,
-            caretTarget,
-            "end"
-          );
+        if ((editingEl.textContent ?? "") !== desiredText) {
+          const { start } = this.inlineEditor.getSelectionOffsets(editingEl);
+          editingEl.textContent = desiredText;
+          editingEl.dataset.originalText = desiredText;
+          this.inlineEditor.setSelectionAtOffset(editingEl, start);
         }
       }
     }

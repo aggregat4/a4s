@@ -10,6 +10,11 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Changed
+
+- When another device changes the task being edited, the cursor stays where
+  it was instead of jumping to the end.
+
 ### Fixed
 
 - A task brought back by undo or redo stays after a reload, and every device
