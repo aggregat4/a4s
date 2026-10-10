@@ -31,6 +31,6 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter a4-tasklists exec playwright install --with-deps chromium
       - name: Install Go Task
-        run: go install github.com/go-task/task/v3/cmd/task@v3.53.1
+        run: go install github.com/go-task/task/v3/cmd/task@v3.54.0
       - name: Run repository checks
         run: task ci

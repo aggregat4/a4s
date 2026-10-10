@@ -73,7 +73,7 @@ tasks:
     desc: Verify the module graph and scan reachable vulnerabilities
     cmds:
       - go mod verify
-      - go run golang.org/x/vuln/cmd/govulncheck@v1.2.0 ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
   ci:
     desc: Run lint, security checks, tests, and builds sequentially
     cmds:
