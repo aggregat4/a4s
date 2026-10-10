@@ -1,6 +1,6 @@
 module github.com/aggregat4/a4s
 
-go 1.26.6
+go 1.27.2
 
 require (
 	github.com/coreos/go-oidc/v3 v3.18.0

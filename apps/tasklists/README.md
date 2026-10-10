@@ -19,7 +19,7 @@ ordering. The repository includes:
 ## Prerequisites
 
 - Node.js `22+` and pnpm `11.3.0`
-- Go `1.26.6`
+- Go `1.27.2`
 - Docker (required for the default E2E workflow)
 
 Install the workspace dependencies once from the monorepo root:

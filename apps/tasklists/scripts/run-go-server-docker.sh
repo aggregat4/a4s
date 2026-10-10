@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 MONOREPO_ROOT=$(cd "${ROOT_DIR}/../.." && pwd)
 PORT=8000
-IMAGE=golang:1.26.6-bookworm
+IMAGE=golang:1.27.2-bookworm
 CONTAINER_NAME=a4-tasklists-go-server
 STATIC_MODE=${SERVER_STATIC_MODE:-external}
 EMBEDDED_STATIC_DIR="${ROOT_DIR}/server/cmd/server/static"

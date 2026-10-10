@@ -18,7 +18,7 @@ commits.
 
 ## Development
 
-Prerequisites are Go `1.26.6`, Node.js `22+`, pnpm `11.3.0`, Docker (for the
+Prerequisites are Go `1.27.2`, Node.js `22+`, pnpm `11.3.0`, Docker (for the
 Tasklists browser suite), and [Go Task](https://taskfile.dev/). Install the
 pinned task runner once and make its Go bin directory available on `PATH`:
 
