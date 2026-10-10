@@ -2728,8 +2728,7 @@ test.describe("tasklist flows", () => {
 
     const orderedTexts = await page.evaluate(() => {
       const el = document.querySelector("a4-tasklist") as any;
-      return el?.store
-        ?.getState?.()
+      return el?.state
         ?.items?.map((item: any) => item?.text?.trim?.());
     });
     expect(orderedTexts?.[0]).toBe(firstText);
@@ -2759,7 +2758,7 @@ test.describe("tasklist flows", () => {
     const expectedIds =
       (await page.evaluate(() => {
         const el = document.querySelector("a4-tasklist") as any;
-        return el?.store?.getState?.()?.items?.map((item: any) => item?.id ?? "");
+        return el?.state?.items?.map((item: any) => item?.id ?? "");
       })) ??
       (await items.evaluateAll((els) =>
         els.map((el) => el.dataset?.itemId ?? "")
@@ -2798,7 +2797,7 @@ test.describe("tasklist flows", () => {
     const expectedIds =
       (await page.evaluate(() => {
         const el = document.querySelector("a4-tasklist") as any;
-        return el?.store?.getState?.()?.items?.map((item: any) => item?.id ?? "");
+        return el?.state?.items?.map((item: any) => item?.id ?? "");
       })) ??
       (await items.evaluateAll((els) =>
         els.map((el) => el.dataset?.itemId ?? "")
@@ -2847,7 +2846,7 @@ test.describe("tasklist flows", () => {
     const stateAfter = await page.evaluate(() => {
       const el = document.querySelector("a4-tasklist") as any;
       return {
-        state: el?.store?.getState?.(),
+        state: el?.state,
       };
     });
     expect(stateAfter?.state?.items?.[0]?.text).toBe("Fresh");

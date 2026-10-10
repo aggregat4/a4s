@@ -11,12 +11,12 @@ type ListElement = HTMLElement & {
   searchQuery?: string;
   focusItem: (id: string) => void;
   getItemSnapshot: (id: string) => TaskItem | null;
-  removeItemById: (id: string) => boolean;
-  prependItem: (item: TaskItem) => void;
+  removeItemById: (id: string, saved: Promise<unknown> | null) => boolean;
+  prependItem: (item: TaskItem, saved: Promise<unknown> | null) => void;
   addTask?: () => void;
   setShowDone?: (value: boolean) => void;
   cancelActiveDrag?: () => void;
-  store?: { getState?: () => TaskListState };
+  firstItemId?: () => string | null;
   dispose?: () => void;
 };
 

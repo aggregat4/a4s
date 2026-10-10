@@ -6,10 +6,8 @@ import InlineTextEditor, {
   visibleSiblingTask,
 } from "../../shared/inline-text-editor.js";
 import {
-  createStore,
-  listReducer,
-  LIST_ACTIONS,
   cloneListState,
+  normalizeHeaderError,
   generateItemId,
 } from "../state/list-store.js";
 import {
@@ -22,6 +20,8 @@ import type { PatternConfig, PatternKind } from "../state/highlight-utils.js";
 import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
+import { applyPendingChanges } from "../state/pending-changes.js";
+import type { PendingChange } from "../state/pending-changes.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
 import { isOffsetCaret } from "../../types/caret.js";
 import {
@@ -44,12 +44,6 @@ const makeOffsetCaret = (value: number, bias?: CaretBias): CaretPreference => ({
   bias,
 });
 
-type ListAction = NonNullable<Parameters<typeof listReducer>[1]>;
-type ListStore = {
-  getState: () => TaskListState;
-  dispatch: (action: ListAction) => ListAction;
-  subscribe: (listener: () => void) => (() => void);
-};
 type InlineEditor = InstanceType<typeof InlineTextEditor>;
 
 type ReorderMove = { fromIndex: number; toIndex: number };
@@ -202,10 +196,17 @@ class A4TaskList extends HTMLElement {
   searchQuery: string;
   showDone: boolean;
   private _searchMode: boolean;
-  private store: ListStore | null;
-  private unsubscribe: (() => void) | null;
+  /** The list as it is shown: the confirmed state with pending changes. */
+  private state: TaskListState;
+  /** Why the last save failed, until one succeeds or it is dismissed. */
+  private headerError: TaskListState["headerError"];
   private suppressNameSync: boolean;
-  private _initialState: TaskListState | null;
+  /** The list as the repository last reported it. */
+  private confirmedState: TaskListState | null;
+  /** The user's changes the repository has not saved yet, in order. */
+  private pendingChanges: PendingChange[][];
+  /** Notes being typed, which are saved when the note loses focus. */
+  private noteDrafts: Map<string, string>;
   private shellRendered: boolean;
   private patternConfig: PatternConfigEntry[];
   private listIdentifier: ListId | null;
@@ -234,15 +235,11 @@ class A4TaskList extends HTMLElement {
   >;
   private lastDragReorderMove: ReorderMove | null;
   private dragStartOrder: string[] | null;
-  private repositorySyncPaused: number;
-  private queuedRepositoryState: TaskListState | null;
   private editController: EditController;
 
   private pendingEditFlushRequested: boolean;
   private _repository: ListRepository | null;
   private repositoryUnsubscribe: (() => void) | null;
-  private editingShadowText: Map<string, string>;
-  private editingNoteShadow: Map<string, string>;
 
   constructor() {
     super();
@@ -256,10 +253,12 @@ class A4TaskList extends HTMLElement {
     this.searchQuery = "";
     this.showDone = false;
     this._searchMode = false;
-    this.store = null;
-    this.unsubscribe = null;
+    this.state = { title: "", items: [], headerError: null };
+    this.headerError = null;
     this.suppressNameSync = false;
-    this._initialState = null;
+    this.confirmedState = null;
+    this.pendingChanges = [];
+    this.noteDrafts = new Map();
     this.shellRendered = false;
     // Contexts and tags start a word, so "me@example.com" holds no context.
     this.patternConfig = this.normalizePatternDefs([
@@ -298,14 +297,11 @@ class A4TaskList extends HTMLElement {
     this.touchGestureState = new Map();
     this.lastDragReorderMove = null;
     this.dragStartOrder = null;
-    this.repositorySyncPaused = 0;
-    this.queuedRepositoryState = null;
 
     this.handleSearchInput = this.handleSearchInput.bind(this);
     this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
     this.handleItemBlur = this.handleItemBlur.bind(this);
     this.handleToggle = this.handleToggle.bind(this);
-    this.handleStoreChange = this.handleStoreChange.bind(this);
     this.handleEditCommit = this.handleEditCommit.bind(this);
     this.handleEditSplit = this.handleEditSplit.bind(this);
     this.handleEditMerge = this.handleEditMerge.bind(this);
@@ -351,8 +347,6 @@ class A4TaskList extends HTMLElement {
     this.pendingEditFlushRequested = false;
     this._repository = null;
     this.repositoryUnsubscribe = null;
-    this.editingShadowText = new Map();
-    this.editingNoteShadow = new Map();
   }
 
   static get observedAttributes() {
@@ -360,26 +354,11 @@ class A4TaskList extends HTMLElement {
   }
 
   get initialState() {
-    return this._initialState;
+    return this.confirmedState;
   }
 
   set initialState(value: TaskListState | null) {
     this.applyRepositoryState(value ?? { title: "", items: [] });
-  }
-
-  pauseRepositorySync() {
-    this.repositorySyncPaused += 1;
-  }
-
-  resumeRepositorySync() {
-    if (this.repositorySyncPaused > 0) {
-      this.repositorySyncPaused -= 1;
-    }
-    if (this.repositorySyncPaused !== 0) return;
-    if (!this.queuedRepositoryState) return;
-    const queued = this.queuedRepositoryState;
-    this.queuedRepositoryState = null;
-    this.applyRepositoryState(queued);
   }
 
   connectedCallback() {
@@ -387,7 +366,7 @@ class A4TaskList extends HTMLElement {
     if (!this.listEl) return;
     this.renderHeader(this.getHeaderRenderState());
 
-    this.initializeStore();
+    this.showState();
     this.refreshRepositorySubscription();
 
     const listEl = this.listEl;
@@ -454,28 +433,6 @@ class A4TaskList extends HTMLElement {
     document.addEventListener("pointerdown", this.handleDocumentPointerDown);
   }
 
-  initializeStore() {
-    const baseState = this.buildInitialState();
-    if (!this.store) {
-      const reducer = listReducer as unknown as (
-        state: TaskListState | undefined,
-        action: ListAction
-      ) => TaskListState;
-      this.store = createStore(reducer, baseState) as ListStore;
-    } else if (baseState) {
-      this.store.dispatch({
-        type: LIST_ACTIONS.replaceAll,
-        payload: baseState,
-      });
-    }
-    if (this.store && !this.unsubscribe) {
-      this.unsubscribe = this.store.subscribe(this.handleStoreChange);
-    }
-    if (this.store) {
-      this.handleStoreChange();
-    }
-  }
-
   refreshRepositorySubscription() {
     this.repositoryUnsubscribe?.();
     this.repositoryUnsubscribe = null;
@@ -507,69 +464,10 @@ class A4TaskList extends HTMLElement {
     );
   }
 
+  /** Shows the repository's state, with the user's unsaved changes on top. */
   applyRepositoryState(state: TaskListState) {
-    if (this.repositorySyncPaused > 0) {
-      this.queuedRepositoryState = state;
-      this._initialState = cloneListState(state);
-      return;
-    }
-    const next = cloneListState(state);
-    if (this.editingShadowText.size > 0) {
-      // Repository echoes can arrive out-of-order while typing and queued saves
-      // are still pending. Keep the text the user last typed for an item until
-      // the repository reflects it, so a stale snapshot does not blank a task
-      // whose save has not been applied yet. Split, merge and remove drop the
-      // shadow when editing ends without a commit; otherwise it is cleared
-      // once the repository matches.
-      for (const [itemId, shadowText] of this.editingShadowText.entries()) {
-        const item = next.items?.find((entry) => entry.id === itemId);
-        if (!item) {
-          this.editingShadowText.delete(itemId);
-          continue;
-        }
-        if (item.text === shadowText) {
-          this.editingShadowText.delete(itemId);
-          continue;
-        }
-        item.text = shadowText;
-      }
-    }
-    if (this.editingNoteShadow.size > 0) {
-      const activeNoteItemId =
-        document.activeElement?.classList?.contains("task-note-input") === true
-          ? document.activeElement.closest("li")?.dataset?.itemId ?? null
-          : null;
-      for (const [itemId, shadowNote] of this.editingNoteShadow.entries()) {
-        const item = next.items?.find((entry) => entry.id === itemId);
-        if (!item) {
-          this.editingNoteShadow.delete(itemId);
-          continue;
-        }
-        if ((item.note ?? "") === shadowNote) {
-          this.editingNoteShadow.delete(itemId);
-          continue;
-        }
-        if (
-          this.openNoteItemIds.has(itemId) ||
-          activeNoteItemId === itemId
-        ) {
-          item.note = shadowNote;
-          continue;
-        }
-        this.editingNoteShadow.delete(itemId);
-      }
-    }
-    this._initialState = next;
-    if (this.store) {
-      this.store.dispatch({
-        type: LIST_ACTIONS.replaceAll,
-        payload: next,
-      });
-      return;
-    }
-    if (this.isConnected) {
-      this.initializeStore();
-    }
+    this.confirmedState = cloneListState(state);
+    this.showState();
   }
 
   syncFromRepository() {
@@ -580,39 +478,68 @@ class A4TaskList extends HTMLElement {
     }
   }
 
+  /** The list as the user should see it. */
+  shownState(): TaskListState {
+    const changes: PendingChange[] = this.pendingChanges.flat();
+    for (const [id, note] of this.noteDrafts) {
+      changes.push({ type: "update", id, fields: { note } });
+    }
+    return applyPendingChanges(this.confirmedState ?? this.buildInitialState(), changes);
+  }
+
+  showState() {
+    this.state = { ...this.shownState(), headerError: this.headerError };
+    this.renderCurrentState();
+  }
+
+  setHeaderError(error: unknown) {
+    this.headerError = normalizeHeaderError(error);
+    this.showState();
+  }
+
+  /** Asks the repository for a change to this list, if it has one. */
+  save(request: (repository: ListRepository, listId: ListId) => Promise<unknown>) {
+    return this._repository && this.listId ? request(this._repository, this.listId) : null;
+  }
+
   /**
-   * Tracks a change this list asked the repository for. The list shows its
-   * changes right away, but the repository applies them one at a time, and
-   * on a slow device it lags behind. Until all of this list's changes are
-   * saved, repository snapshots are held back: they predate changes the user
-   * already sees, so applying them would bring back a deleted task or
-   * re-render the task being edited. The latest one is applied afterwards.
+   * A change of the user, shown right away. The repository saves changes one
+   * at a time, and on a slow device it lags behind: until it has saved this
+   * one, its snapshots predate it, so the change stays on top of them.
+   * Without a repository the change is final.
    */
-  runRepositoryOperation(promise: Promise<unknown> | null) {
-    if (!promise || typeof promise.then !== "function") return;
-    this.pauseRepositorySync();
-    promise
+  changeList(changes: PendingChange[], saved: Promise<unknown> | null) {
+    if (!saved) {
+      this.confirmedState = applyPendingChanges(
+        this.confirmedState ?? this.buildInitialState(),
+        changes
+      );
+      this.showState();
+      return;
+    }
+    this.pendingChanges.push(changes);
+    this.showState();
+    saved
       .finally(() => {
-        this.resumeRepositorySync();
+        this.pendingChanges = this.pendingChanges.filter((entry) => entry !== changes);
         this.syncFromRepository();
+        this.showState();
       })
       .then(() => {
-        if (this.store) {
-          this.store.dispatch({ type: LIST_ACTIONS.clearHeaderError });
-        }
+        if (this.headerError) this.setHeaderError(null);
       })
       .catch((err) => {
-        if (this.store) {
-          this.store.dispatch({
-            type: LIST_ACTIONS.setHeaderError,
-            payload: {
-              message:
-                (err && err.message) ||
-                "Sync failed. Please check your connection and retry.",
-            },
-          });
-        }
+        this.setHeaderError({
+          message:
+            (err && err.message) ||
+            "Sync failed. Please check your connection and retry.",
+        });
       });
+  }
+
+  /** Reports the outcome of a change that is not shown before it is saved. */
+  reportSave(saved: Promise<unknown> | null) {
+    this.changeList([], saved);
   }
 
   buildInitialState(): TaskListState {
@@ -620,7 +547,7 @@ class A4TaskList extends HTMLElement {
       title: this.getAttribute("name") ?? "",
       items: [],
     };
-    const source = this._initialState ?? fallback;
+    const source = this.confirmedState ?? fallback;
     const baseState = cloneListState(source);
     const attrTitle = this.getAttribute("name");
     if (typeof attrTitle === "string" && attrTitle.length) {
@@ -657,9 +584,6 @@ class A4TaskList extends HTMLElement {
   }
 
   dispose() {
-    this.unsubscribe?.();
-    this.unsubscribe = null;
-    this.store = null;
     this.inlineEditor?.destroy();
     this.inlineEditor = null;
     this.repositoryUnsubscribe?.();
@@ -674,18 +598,11 @@ class A4TaskList extends HTMLElement {
     if (name === "name" && oldValue !== newValue) {
       if (this.suppressNameSync) return;
       const nextTitle = typeof newValue === "string" ? newValue : "";
-      if (this._repository && this.listId) {
-        const promise = this._repository.renameList(this.listId, nextTitle);
-        this.runRepositoryOperation(promise);
-      } else if (this.store) {
-        this.store.dispatch({
-          type: LIST_ACTIONS.setTitle,
-          payload: { title: nextTitle },
-        });
-      } else {
-        this.renderHeader(this.getHeaderRenderState());
-      }
-      this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+      this.changeList(
+        [{ type: "rename", title: nextTitle }],
+        this.save((repository, listId) => repository.renameList(listId, nextTitle))
+      );
+      this.renderHeader(this.getHeaderRenderState(this.state));
     }
   }
 
@@ -878,7 +795,7 @@ class A4TaskList extends HTMLElement {
     this.titleOriginalValue = this.titleEl?.textContent ?? "";
     this.titleLiveUpdates = false;
     this.isTitleEditing = true;
-    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+    this.renderHeader(this.getHeaderRenderState(this.state));
     this.titleEl?.focus();
     const selection = document.getSelection();
     if (selection && this.titleEl) {
@@ -894,7 +811,7 @@ class A4TaskList extends HTMLElement {
     this.isTitleEditing = false;
     this.titleOriginalValue = "";
     this.titleLiveUpdates = false;
-    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+    this.renderHeader(this.getHeaderRenderState(this.state));
   }
 
   commitTitleEditing({ restoreFocus = true } = {}) {
@@ -924,20 +841,10 @@ class A4TaskList extends HTMLElement {
     }
 
     if (!hadLiveUpdates) {
-      if (this.store) {
-        this.store.dispatch({
-          type: LIST_ACTIONS.setTitle,
-          payload: { title: trimmed },
-        });
-      } else {
-        this.setAttribute("name", trimmed);
-        this.renderHeader(this.getHeaderRenderState());
-      }
-
-      if (this._repository && this.listId) {
-        const promise = this._repository.renameList(this.listId, trimmed);
-        this.runRepositoryOperation(promise);
-      }
+      this.changeList(
+        [{ type: "rename", title: trimmed }],
+        this.save((repository, listId) => repository.renameList(listId, trimmed))
+      );
 
       this.dispatchEvent(
         new CustomEvent("titlechange", {
@@ -957,22 +864,16 @@ class A4TaskList extends HTMLElement {
     if (!this.isTitleEditing) return;
     const target = event.target as HTMLElement | null;
     if (!target?.classList?.contains("tasklist-title")) return;
-    if (!this.store) return;
     flattenToPlainText(target);
     const rawValue = target.textContent ?? "";
     const trimmed = rawValue.trim();
-    const currentTitle = this.store.getState().title ?? "";
+    const currentTitle = this.state.title ?? "";
     if (!trimmed.length || trimmed === currentTitle) return;
     this.titleLiveUpdates = true;
-    this.store.dispatch({
-      type: LIST_ACTIONS.setTitle,
-      payload: { title: trimmed },
-    });
-    if (this._repository && this.listId) {
-      this.runRepositoryOperation(
-        this._repository.renameList(this.listId, trimmed)
-      );
-    }
+    this.changeList(
+      [{ type: "rename", title: trimmed }],
+      this.save((repository, listId) => repository.renameList(listId, trimmed))
+    );
   }
 
   cancelTitleEditing({ restoreFocus = true } = {}) {
@@ -982,16 +883,10 @@ class A4TaskList extends HTMLElement {
     this.titleEl.textContent = previousValue;
     this.finishTitleEditing();
     if (hadLiveUpdates) {
-      if (this.store) {
-        this.store.dispatch({
-          type: LIST_ACTIONS.setTitle,
-          payload: { title: previousValue },
-        });
-      }
-      if (this._repository && this.listId) {
-        const promise = this._repository.renameList(this.listId, previousValue);
-        this.runRepositoryOperation(promise);
-      }
+      this.changeList(
+        [{ type: "rename", title: previousValue }],
+        this.save((repository, listId) => repository.renameList(listId, previousValue))
+      );
     }
     if (restoreFocus) {
       this.titleEl.focus();
@@ -1034,11 +929,7 @@ class A4TaskList extends HTMLElement {
   }
 
   handleHeaderErrorDismiss() {
-    if (this.store) {
-      this.store.dispatch({ type: LIST_ACTIONS.clearHeaderError });
-      return;
-    }
-    this.renderHeader(this.getHeaderRenderState());
+    this.setHeaderError(null);
   }
 
   normalizePatternDefs(
@@ -1135,7 +1026,7 @@ class A4TaskList extends HTMLElement {
   setShowDone(value: boolean) {
     if (this.showDone === value) return;
     this.showDone = value;
-    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+    this.renderHeader(this.getHeaderRenderState(this.state));
     this.renderCurrentState();
     this.dispatchEvent(
       new CustomEvent("showdonechange", {
@@ -1150,7 +1041,7 @@ class A4TaskList extends HTMLElement {
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = null;
     this.searchQuery = "";
-    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+    this.renderHeader(this.getHeaderRenderState(this.state));
     this.renderCurrentState();
     this.dispatchEvent(
       new CustomEvent("clearsearch", { bubbles: true, composed: true })
@@ -1163,34 +1054,35 @@ class A4TaskList extends HTMLElement {
 
   /** Inserts an empty task at the top of the list and starts editing it. */
   addTask() {
-    if (!this.store) return;
     this.ensureInlineEditor();
     this.clearSearch();
-    const stateBefore = this.store.getState();
+    const stateBefore = this.state;
     const firstItem =
       Array.isArray(stateBefore?.items) && stateBefore.items.length
         ? stateBefore.items[0].id
         : null;
     const newId = generateItemId();
-    this.store.dispatch({
-      type: LIST_ACTIONS.insertItem,
-      payload: {
-        index: 0,
-        item: { id: newId, text: "", done: false },
-      },
-    });
-    // Queue edit AFTER dispatch so element exists when pending edit is applied
+    this.changeList(
+      [
+        {
+          type: "insert",
+          item: { id: newId, text: "", done: false, note: "" },
+          afterId: null,
+          beforeId: firstItem,
+        },
+      ],
+      this.save((repository, listId) =>
+        repository.insertTask(listId, {
+          itemId: newId,
+          text: "",
+          done: false,
+          beforeId: firstItem ?? undefined,
+        })
+      )
+    );
+    // Queue edit AFTER the change so the element exists when the edit is applied
     this.editController.queue(newId, "end");
     this.schedulePendingEditFlush();
-    if (this._repository && this.listId) {
-      const promise = this._repository.insertTask(this.listId, {
-        itemId: newId,
-        text: "",
-        done: false,
-        beforeId: firstItem ?? undefined,
-      });
-      this.runRepositoryOperation(promise);
-    }
   }
 
   handleEditSplit({
@@ -1204,54 +1096,45 @@ class A4TaskList extends HTMLElement {
     afterText: string;
     previousText: string;
   }) {
-    if (!element || !this.store) return;
+    if (!element) return;
     const li = element.closest("li");
     const id = li?.dataset?.itemId;
     if (!id) return;
 
-    const state = this.store.getState();
+    const state = this.state;
     const currentIndex = state.items.findIndex((item) => item.id === id);
     if (currentIndex === -1) return;
     const nextItemId = state.items[currentIndex + 1]?.id ?? null;
 
     const newId = generateItemId();
-    if (typeof beforeText === "string") {
-      this.store.dispatch({
-        type: LIST_ACTIONS.updateItemText,
-        payload: { id, text: beforeText },
-      });
-    }
-
-    this.store.dispatch({
-      type: LIST_ACTIONS.insertItem,
-      payload: {
-        index: currentIndex + 1,
-        item: {
-          id: newId,
-          text: typeof afterText === "string" ? afterText : "",
-          done: false,
+    const before = typeof beforeText === "string" ? beforeText : "";
+    const after = typeof afterText === "string" ? afterText : "";
+    this.changeList(
+      [
+        { type: "update", id, fields: { text: before } },
+        {
+          type: "insert",
+          item: { id: newId, text: after, done: false, note: "" },
+          afterId: id,
+          beforeId: nextItemId,
         },
-      },
-    });
-    // Queue edit AFTER dispatch so element exists when pending edit is applied
+      ],
+      this.save((repository, listId) =>
+        repository.splitTask(listId, id, {
+          beforeText: before,
+          afterText: after,
+          previousText: `${before}${after}`,
+          newItemId: newId,
+          afterId: id,
+          beforeId: nextItemId ?? undefined,
+        })
+      )
+    );
+    // Queue edit AFTER the change so the element exists when the edit is applied
     this.editController.queue(newId, "start");
     // Try to start editing immediately; pending queue will retry if the node is not ready yet.
     this.startEditingItem(newId, "start");
     this.schedulePendingEditFlush();
-    if (this._repository && this.listId) {
-      const repository = this._repository;
-      const listId = this.listId;
-      const originalText = `${beforeText ?? ""}${afterText ?? ""}`;
-      const promise = repository.splitTask(listId, id, {
-        beforeText: typeof beforeText === "string" ? beforeText : "",
-        afterText: typeof afterText === "string" ? afterText : "",
-        previousText: originalText,
-        newItemId: newId,
-        afterId: id,
-        beforeId: nextItemId ?? undefined,
-      });
-      this.runRepositoryOperation(promise);
-    }
   }
 
   // Re-stitches adjacent tasks on Backspace so users can treat the list like a text editor without losing content.
@@ -1266,9 +1149,9 @@ class A4TaskList extends HTMLElement {
     currentText: string;
     selectionStart?: number;
   }) {
-    if (!this.store || !currentItemId || !previousItemId) return false;
+    if (!currentItemId || !previousItemId) return false;
 
-    const state = this.store.getState();
+    const state = this.state;
     const items = Array.isArray(state?.items) ? state.items : [];
     const currentIndex = items.findIndex((item) => item.id === currentItemId);
     if (currentIndex <= 0) return false;
@@ -1290,24 +1173,15 @@ class A4TaskList extends HTMLElement {
 
     this.editController.queue(previousItem.id, makeOffsetCaret(mergeOffset));
     this.schedulePendingEditFlush();
-    this.store.dispatch({
-      type: LIST_ACTIONS.updateItemText,
-      payload: { id: previousItem.id, text: mergedText },
-    });
-    this.store.dispatch({
-      type: LIST_ACTIONS.removeItem,
-      payload: { id: currentItemId },
-    });
-
-    if (this._repository && this.listId) {
-      const promise = this._repository.mergeTask(
-        this.listId,
-        previousItem.id,
-        currentItemId,
-        { mergedText }
-      );
-      this.runRepositoryOperation(promise);
-    }
+    this.changeList(
+      [
+        { type: "update", id: previousItem.id, fields: { text: mergedText } },
+        { type: "remove", id: currentItemId },
+      ],
+      this.save((repository, listId) =>
+        repository.mergeTask(listId, previousItem.id, currentItemId, { mergedText })
+      )
+    );
 
     return true;
   }
@@ -1320,7 +1194,7 @@ class A4TaskList extends HTMLElement {
     element: HTMLElement;
     reason?: string;
   }) {
-    if (!element || !this.store) return;
+    if (!element) return;
     const li = element.closest("li");
     const id = li?.dataset?.itemId;
     if (!li || !id) return;
@@ -1344,15 +1218,10 @@ class A4TaskList extends HTMLElement {
       this.closeActionsForItem(id);
     }
 
-    this.store.dispatch({
-      type: LIST_ACTIONS.removeItem,
-      payload: { id },
-    });
-
-    if (this._repository && this.listId) {
-      const promise = this._repository.removeTask(this.listId, id);
-      this.runRepositoryOperation(promise);
-    }
+    this.changeList(
+      [{ type: "remove", id }],
+      this.save((repository, listId) => repository.removeTask(listId, id))
+    );
   }
 
   // Supports ctrl/cmd + arrow reordering while preserving caret placement, matching expectations from native outliners.
@@ -1363,12 +1232,12 @@ class A4TaskList extends HTMLElement {
     element: HTMLElement;
     direction: "up" | "down";
   }) {
-    if (!element || !this.store) return;
+    if (!element) return;
     const li = element.closest("li");
     const id = li?.dataset?.itemId;
     if (!id) return;
 
-    const state = this.store.getState();
+    const state = this.state;
     const items = Array.isArray(state?.items) ? state.items : [];
     const fromIndex = items.findIndex((item) => item.id === id);
     if (fromIndex === -1) return;
@@ -1399,26 +1268,17 @@ class A4TaskList extends HTMLElement {
     order.splice(toIndex, 0, id);
 
     // Rendering keeps the task in edit, the cursor where it was.
-    this.store.dispatch({
-      type: LIST_ACTIONS.reorderItems,
-      payload: { order },
-    });
-    this.handleStoreChange();
-
-    if (this._repository && this.listId) {
-      const beforeNeighbor = order[toIndex - 1] ?? null;
-      const afterNeighbor = order[toIndex + 1] ?? null;
-      const promise = this._repository.moveTaskWithinList(this.listId, id, {
-        afterId: beforeNeighbor ?? undefined,
-        beforeId: afterNeighbor ?? undefined,
-      });
-      this.runRepositoryOperation(promise);
-    }
-  }
-
-  handleStoreChange() {
-    if (!this.store) return;
-    this.renderFromState(this.store.getState());
+    const afterId = order[toIndex - 1] ?? null;
+    const beforeId = order[toIndex + 1] ?? null;
+    this.changeList(
+      [{ type: "move", id, afterId, beforeId }],
+      this.save((repository, listId) =>
+        repository.moveTaskWithinList(listId, id, {
+          afterId: afterId ?? undefined,
+          beforeId: beforeId ?? undefined,
+        })
+      )
+    );
   }
 
   schedulePendingEditFlush() {
@@ -1451,9 +1311,7 @@ class A4TaskList extends HTMLElement {
   }
 
   renderCurrentState() {
-    if (this.store) {
-      this.renderFromState(this.store.getState());
-    }
+    if (this.listEl) this.renderFromState(this.state);
   }
 
   getEditingTarget(itemId: string) {
@@ -1864,22 +1722,17 @@ class A4TaskList extends HTMLElement {
     if (!target?.classList?.contains("done-toggle")) return;
     const li = target.closest("li");
     const id = li?.dataset?.itemId;
-    if (!id || !this.store) return;
+    if (!id) return;
     const nextDone = Boolean((target as HTMLInputElement).checked);
-    const store = this.store;
     // Request the change right away so it is queued in the order of the
     // user's actions: an undo pressed right after must find it.
-    if (this._repository && this.listId) {
-      const promise = this._repository.toggleTask(this.listId, id, nextDone);
-      this.runRepositoryOperation(promise);
-    }
-    // Defer the state update so click events settle before the list rerenders
-    // and hides completed items.
+    const saved = this.save((repository, listId) =>
+      repository.toggleTask(listId, id, nextDone)
+    );
+    // Show it once click events settle, as the list then rerenders and hides
+    // completed items.
     setTimeout(() => {
-      store?.dispatch({
-        type: LIST_ACTIONS.setItemDone,
-        payload: { id, done: nextDone },
-      });
+      this.changeList([{ type: "update", id, fields: { done: nextDone } }], saved);
     }, 0);
   }
 
@@ -1909,7 +1762,7 @@ class A4TaskList extends HTMLElement {
     const button = event.currentTarget as HTMLElement | null;
     const li = button?.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
-    if (!itemId || !this.store) return;
+    if (!itemId) return;
 
     const snapshot = this.getItemSnapshot(itemId);
     const confirmationMessage = snapshot?.text
@@ -1919,7 +1772,7 @@ class A4TaskList extends HTMLElement {
       return;
     }
 
-    const state = this.store.getState();
+    const state = this.state;
     const items = Array.isArray(state?.items) ? state.items : [];
     const currentIndex = items.findIndex((item) => item.id === itemId);
     if (currentIndex === -1) return;
@@ -1936,14 +1789,10 @@ class A4TaskList extends HTMLElement {
     if (this.openActionsItemId === itemId) {
       this.closeActionsForItem(itemId);
     }
-    this.store.dispatch({
-      type: LIST_ACTIONS.removeItem,
-      payload: { id: itemId },
-    });
-    if (this._repository && this.listId) {
-      const promise = this._repository.removeTask(this.listId, itemId);
-      this.runRepositoryOperation(promise);
-    }
+    this.changeList(
+      [{ type: "remove", id: itemId }],
+      this.save((repository, listId) => repository.removeTask(listId, itemId))
+    );
   }
 
   handleActionToggleClick(event: Event) {
@@ -1953,7 +1802,7 @@ class A4TaskList extends HTMLElement {
     const itemId = li.dataset?.itemId ?? null;
     if (!itemId) return;
     this.openActionsItemId = this.openActionsItemId === itemId ? null : itemId;
-    this.renderFromState(this.store?.getState?.());
+    this.renderFromState(this.state);
   }
 
   isNoteInputActive(itemId: string) {
@@ -1962,30 +1811,23 @@ class A4TaskList extends HTMLElement {
     return activeElement.closest("li")?.dataset?.itemId === itemId;
   }
 
-  clearNoteShadow(itemId: string) {
-    this.editingNoteShadow.delete(itemId);
+  /** Saves a note that was typed, if it changed. */
+  commitNoteChange(itemId: string, nextNote: string) {
+    this.noteDrafts.delete(itemId);
+    const item = this.confirmedItem(itemId);
+    if (!item || (item.note ?? "") === nextNote) return;
+    this.changeList(
+      [{ type: "update", id: itemId, fields: { note: nextNote } }],
+      this.save((repository, listId) => repository.updateTask(listId, itemId, { note: nextNote }))
+    );
   }
 
-  commitNoteChange(itemId: string, nextNote: string) {
-    if (!this.store) return;
-    const stateItem = this.store
-      .getState()
-      .items.find((item) => item.id === itemId);
-    if (!stateItem) return;
-    if ((stateItem.note ?? "") === nextNote) {
-      this.editingNoteShadow.delete(itemId);
-      return;
-    }
-    this.editingNoteShadow.set(itemId, nextNote);
-    this.store.dispatch({
-      type: LIST_ACTIONS.updateItemNote,
-      payload: { id: itemId, note: nextNote },
-    });
-    if (this._repository && this.listId) {
-      this.runRepositoryOperation(
-        this._repository.updateTask(this.listId, itemId, { note: nextNote })
-      );
-    }
+  /** An item as the repository and the pending changes have it, without drafts. */
+  confirmedItem(itemId: string) {
+    const base = this.confirmedState ?? this.buildInitialState();
+    return applyPendingChanges(base, this.pendingChanges.flat()).items.find(
+      (item) => item.id === itemId
+    );
   }
 
   flushNoteChange(itemId: string, nextNote: string) {
@@ -2032,7 +1874,7 @@ class A4TaskList extends HTMLElement {
     const li = target?.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId || !target) return;
-    this.editingNoteShadow.set(itemId, target.value ?? "");
+    this.noteDrafts.set(itemId, target.value ?? "");
     this.updateNoteScrollState(target);
   }
 
@@ -2060,20 +1902,18 @@ class A4TaskList extends HTMLElement {
       this.flushNoteChange(itemId, noteInput.value ?? "");
     }
     this.openNoteItemIds.delete(itemId);
-    this.clearNoteShadow(itemId);
-    this.renderFromState(this.store?.getState?.());
+    this.renderFromState(this.state);
     const textTarget = li?.querySelector(".text") as HTMLElement | null;
     textTarget?.focus();
   }
 
   toggleItemDone(itemId: string) {
-    if (!this.store) return;
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
     const nextDone = !Boolean(snapshot.done);
     const shouldMoveFocus = nextDone && this.showDone === false;
     if (shouldMoveFocus) {
-      const state = this.store.getState();
+      const state = this.state;
       const items = Array.isArray(state?.items) ? state.items : [];
       const tokens = tokenizeSearchQuery(this.searchQuery);
       const isVisible = (item: TaskItem) =>
@@ -2113,18 +1953,10 @@ class A4TaskList extends HTMLElement {
       }
     }
     setTimeout(() => {
-      this.store?.dispatch({
-        type: LIST_ACTIONS.setItemDone,
-        payload: { id: itemId, done: nextDone },
-      });
-      if (this._repository && this.listId) {
-        const promise = this._repository.toggleTask(
-          this.listId,
-          itemId,
-          nextDone
-        );
-        this.runRepositoryOperation(promise);
-      }
+      this.changeList(
+        [{ type: "update", id: itemId, fields: { done: nextDone } }],
+        this.save((repository, listId) => repository.toggleTask(listId, itemId, nextDone))
+      );
     }, 0);
   }
 
@@ -2142,7 +1974,6 @@ class A4TaskList extends HTMLElement {
         this.flushNoteChange(itemId, noteInput.value ?? "");
       }
       this.openNoteItemIds.delete(itemId);
-      this.clearNoteShadow(itemId);
       this.pendingNoteFocusId = null;
       if (restoreEdit) {
         restoreCaret = "end";
@@ -2155,7 +1986,7 @@ class A4TaskList extends HTMLElement {
       this.openNoteItemIds.add(itemId);
       this.pendingNoteFocusId = focus ? itemId : null;
     }
-    this.renderFromState(this.store?.getState?.());
+    this.renderFromState(this.state);
     if (restoreCaret) {
       setTimeout(() => {
         this.startEditingItem(itemId, restoreCaret);
@@ -2172,7 +2003,7 @@ class A4TaskList extends HTMLElement {
     if (!id || this.openActionsItemId !== id) return;
     this.openActionsItemId = null;
     if (immediateRender) {
-      this.renderFromState(this.store?.getState?.());
+      this.renderFromState(this.state);
     }
   }
 
@@ -2185,7 +2016,7 @@ class A4TaskList extends HTMLElement {
     );
     if (openLi?.contains(target)) return;
     this.openActionsItemId = null;
-    this.renderFromState(this.store?.getState?.());
+    this.renderFromState(this.state);
   }
 
   getTaskActionsRevealWidth(li: HTMLElement) {
@@ -2226,7 +2057,7 @@ class A4TaskList extends HTMLElement {
         ) == null
       ) {
         this.openActionsItemId = null;
-        this.renderFromState(this.store?.getState?.());
+        this.renderFromState(this.state);
       }
       if (!element) return;
       const li = element.closest("li");
@@ -2302,10 +2133,10 @@ class A4TaskList extends HTMLElement {
       if (reveal > state.revealWidth / 2) {
         const itemId = li.dataset?.itemId ?? null;
         this.openActionsItemId = itemId;
-        this.renderFromState(this.store?.getState?.());
+        this.renderFromState(this.state);
       } else {
         this.openActionsItemId = null;
-        this.renderFromState(this.store?.getState?.());
+        this.renderFromState(this.state);
       }
     });
   }
@@ -2342,8 +2173,7 @@ class A4TaskList extends HTMLElement {
     ) {
       const target = event.target as HTMLElement | null;
       if (target?.classList?.contains("task-note-input")) return;
-      if (!this.store) return;
-      const items = this.store.getState()?.items ?? [];
+      const items = this.state.items;
       if (!items.length) return;
       const tokens = tokenizeSearchQuery(this.searchQuery);
       const isVisible = (item: TaskItem) =>
@@ -2420,27 +2250,17 @@ class A4TaskList extends HTMLElement {
   }) {
     if (!element?.classList?.contains("text")) return;
     if (!element.isContentEditable) return;
-    if (!this.store) return;
     const li = element.closest("li");
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
     const newText = text ?? "";
-    const stateItem = this.store
-      .getState()
-      .items.find((item) => item.id === itemId);
+    const stateItem = this.state.items.find((item) => item.id === itemId);
     if (!stateItem) return;
     if (stateItem.text === newText) return;
-    this.store.dispatch({
-      type: LIST_ACTIONS.updateItemText,
-      payload: { id: itemId, text: newText },
-    });
-    if (this._repository && this.listId) {
-      const promise = this._repository.updateTask(this.listId, itemId, {
-        text: newText,
-      });
-      this.runRepositoryOperation(promise);
-    }
-    this.editingShadowText.set(itemId, newText);
+    this.changeList(
+      [{ type: "update", id: itemId, fields: { text: newText } }],
+      this.save((repository, listId) => repository.updateTask(listId, itemId, { text: newText }))
+    );
   }
 
   /**
@@ -2533,7 +2353,7 @@ class A4TaskList extends HTMLElement {
   handleListDragStart(event: DragEvent) {
     this.lastDragReorderMove = null;
     this.dragStartOrder =
-      this.store?.getState?.()?.items?.map((item) => item.id) ?? null;
+      this.state.items?.map((item) => item.id) ?? null;
     const li = (event.target as HTMLElement | null)?.closest?.("li") ?? null;
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
@@ -2569,7 +2389,7 @@ class A4TaskList extends HTMLElement {
     newText: string;
     previousText: string;
   }) {
-    if (!element || !this.store) {
+    if (!element) {
       this.scheduleSearchRender(0);
       return;
     }
@@ -2583,7 +2403,7 @@ class A4TaskList extends HTMLElement {
       this.scheduleSearchRender(0);
       return;
     }
-    const currentState = this.store.getState();
+    const currentState = this.state;
     const stateItem = currentState?.items?.find((item) => item.id === id);
     if (!stateItem) {
       this.scheduleSearchRender(0);
@@ -2598,25 +2418,19 @@ class A4TaskList extends HTMLElement {
       this.scheduleSearchRender(0);
       return;
     }
-    this.store.dispatch({
-      type: LIST_ACTIONS.updateItemText,
-      payload: { id, text: newText },
-    });
-    if (this._repository && this.listId) {
-      const promise = this._repository.updateTask(this.listId, id, {
-        text: newText,
-      });
-      this.runRepositoryOperation(promise);
-    }
+    this.changeList(
+      [{ type: "update", id, fields: { text: newText } }],
+      this.save((repository, listId) => repository.updateTask(listId, id, { text: newText }))
+    );
   }
 
   scheduleReorderUpdate({
     beforeOrder,
     move,
   }: { beforeOrder?: string[] | null; move?: ReorderMove | null } = {}) {
-    if (!this.store || !this.listEl) return;
+    if (!this.listEl) return;
     Promise.resolve().then(() => {
-      if (!this.store || !this.listEl) return;
+      if (!this.listEl) return;
       if (!Array.isArray(beforeOrder) || !beforeOrder.length) return;
 
       let order: string[] = [];
@@ -2667,11 +2481,6 @@ class A4TaskList extends HTMLElement {
       }
       this.listEl.textContent = "";
 
-      this.store.dispatch({
-        type: LIST_ACTIONS.reorderItems,
-        payload: { order },
-      });
-
       const findMovedId = (before: string[], after: string[]) => {
         if (!Array.isArray(before) || !Array.isArray(after)) return null;
         if (before.length !== after.length) return null;
@@ -2696,22 +2505,24 @@ class A4TaskList extends HTMLElement {
       if (!movedId || !order.includes(movedId)) {
         movedId = findMovedId(beforeOrder, order);
       }
-      if (!movedId) return;
-
-      if (this._repository && this.listId) {
-        const targetIndex = order.indexOf(movedId);
-        const beforeNeighbor = order[targetIndex - 1] ?? null;
-        const afterNeighbor = order[targetIndex + 1] ?? null;
-        const promise = this._repository.moveTaskWithinList(
-          this.listId,
-          movedId,
-          {
-            afterId: beforeNeighbor ?? undefined,
-            beforeId: afterNeighbor ?? undefined,
-          }
-        );
-        this.runRepositoryOperation(promise);
+      if (!movedId) {
+        this.renderCurrentState();
+        return;
       }
+
+      const id = movedId;
+      const targetIndex = order.indexOf(id);
+      const afterId = order[targetIndex - 1] ?? null;
+      const beforeId = order[targetIndex + 1] ?? null;
+      this.changeList(
+        [{ type: "move", id, afterId, beforeId }],
+        this.save((repository, listId) =>
+          repository.moveTaskWithinList(listId, id, {
+            afterId: afterId ?? undefined,
+            beforeId: beforeId ?? undefined,
+          })
+        )
+      );
     });
   }
 
@@ -2719,15 +2530,6 @@ class A4TaskList extends HTMLElement {
     const target = e.target as HTMLElement | null;
     const textEl = target?.classList?.contains("text") ? target : null;
     if (!textEl) return;
-    const itemId = textEl.closest("li")?.dataset?.itemId;
-    // Keep the shadow while a normal edit is being committed: its save is
-    // queued and the repository can echo a stale snapshot before it lands.
-    // Split, merge and remove call finishEditing first, so the shadow is
-    // dropped here for those.
-    const isActiveEdit = this.inlineEditor?.editingEl === textEl;
-    if (itemId && !isActiveEdit) {
-      this.editingShadowText.delete(itemId);
-    }
     textEl.dataset.originalText = textEl.textContent;
     this.scheduleSearchRender(0);
   }
@@ -2738,10 +2540,7 @@ class A4TaskList extends HTMLElement {
     if (!this.listEl) {
       this.renderShell();
     }
-    if (!this.store) {
-      this.initializeStore();
-    }
-    this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+    this.renderHeader(this.getHeaderRenderState(this.state));
     this.renderCurrentState();
   }
 
@@ -2750,47 +2549,47 @@ class A4TaskList extends HTMLElement {
   }
 
   getItemSnapshot(itemId: string) {
-    if (!this.store || !itemId) return null;
-    const state = this.store.getState();
+    if (!itemId) return null;
+    const state = this.state;
     const items = Array.isArray(state?.items) ? state.items : [];
     const found = items.find((item) => item.id === itemId);
     return found ? { ...found } : null;
   }
 
-  removeItemById(itemId: string) {
-    if (!this.store) {
-      this.initializeStore();
-    }
-    if (!this.store || !itemId) return false;
-    const state = this.store.getState();
-    if (!state?.items?.some((item) => item.id === itemId)) {
+  firstItemId() {
+    return this.state.items[0]?.id ?? null;
+  }
+
+  /** Removes a task that moves to another list, until `saved` settles. */
+  removeItemById(itemId: string, saved: Promise<unknown> | null) {
+    if (!itemId) return false;
+    if (!this.state.items.some((item) => item.id === itemId)) {
       return false;
     }
-    this.store.dispatch({
-      type: LIST_ACTIONS.removeItem,
-      payload: { id: itemId },
-    });
-    this.handleStoreChange();
+    this.changeList([{ type: "remove", id: itemId }], saved);
     return true;
   }
 
-  prependItem(item: TaskItem) {
-    if (!this.store) {
-      this.initializeStore();
-    }
-    if (!this.store || !item || !item.id) return false;
-    this.store.dispatch({
-      type: LIST_ACTIONS.insertItem,
-      payload: {
-        index: 0,
-        item: {
-          id: item.id,
-          text: typeof item.text === "string" ? item.text : "",
-          done: Boolean(item.done),
+  /** Adds a task that moves here from another list, until `saved` settles. */
+  prependItem(item: TaskItem, saved: Promise<unknown> | null) {
+    if (!item || !item.id) return false;
+    const first = this.firstItemId();
+    this.changeList(
+      [
+        {
+          type: "insert",
+          item: {
+            id: item.id,
+            text: typeof item.text === "string" ? item.text : "",
+            done: Boolean(item.done),
+            note: typeof item.note === "string" ? item.note : "",
+          },
+          afterId: null,
+          beforeId: first,
         },
-      },
-    });
-    this.handleStoreChange();
+      ],
+      saved
+    );
     return true;
   }
 
@@ -2813,22 +2612,8 @@ class A4TaskList extends HTMLElement {
     this.dragCoordinator?.cancel();
   }
 
-  setListName(name: string) {
-    const nextTitle = typeof name === "string" ? name : "";
-    if (this.store) {
-      this.store.dispatch({
-        type: LIST_ACTIONS.setTitle,
-        payload: { title: nextTitle },
-      });
-    } else {
-      this.setAttribute("name", nextTitle);
-      this.renderHeader(this.getHeaderRenderState());
-    }
-  }
-
   getTotalItemCount() {
-    if (!this.store) return 0;
-    const state = this.store.getState();
+        const state = this.state;
     return Array.isArray(state?.items)
       ? state.items.filter((item) => !item?.done).length
       : 0;
@@ -2843,7 +2628,7 @@ class A4TaskList extends HTMLElement {
 
   getSearchMatchCountForQuery(query: string) {
     const tokens = tokenizeSearchQuery(query);
-    const state = this.store?.getState?.();
+    const state = this.state;
     const items = Array.isArray(state?.items) ? state.items : [];
     let count = 0;
     items.forEach((item) => {
@@ -2947,7 +2732,7 @@ class A4TaskList extends HTMLElement {
     if (next === this._searchMode) return;
     this._searchMode = next;
     if (this.shellRendered) {
-      this.renderHeader(this.getHeaderRenderState(this.store?.getState?.()));
+      this.renderHeader(this.getHeaderRenderState(this.state));
     }
   }
 

@@ -1,4 +1,3 @@
-import { createStore } from "./list-store.js";
 import type { ListId } from "../../types/domain.js";
 
 const APP_ACTIONS = {
@@ -192,6 +191,36 @@ const appReducer = (
     default:
       return state;
   }
+};
+
+const createStore = <State, Action extends { type: string }>(
+  reducer: (state: State | undefined, action: Action) => State,
+  preloadedState?: State
+) => {
+  let currentState =
+    typeof preloadedState === "undefined"
+      ? reducer(undefined, { type: "@@INIT" } as Action)
+      : reducer(preloadedState, { type: "@@INIT" } as Action);
+  let listeners = new Set<() => void>();
+
+  return {
+    getState: () => currentState,
+    dispatch(action: Action) {
+      const nextState = reducer(currentState, action);
+      if (nextState !== currentState) {
+        currentState = nextState;
+        listeners.forEach((fn) => fn());
+      }
+      return action;
+    },
+    subscribe(listener: () => void) {
+      if (typeof listener !== "function") return () => {};
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
 };
 
 const createAppStore = (preloadedState?: AppState) =>

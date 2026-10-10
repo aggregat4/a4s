@@ -160,37 +160,22 @@ class MoveTasksController {
       options.snapshot ?? sourceRecord.element!.getItemSnapshot(itemId);
     if (!snapshot) return;
     sourceRecord.element!.cancelActiveDrag?.();
-    const targetStateBefore = targetRecord.element!.store?.getState?.();
-    const fallbackBeforeId = Array.isArray(targetStateBefore?.items)
-      ? targetStateBefore.items[0]?.id ?? undefined
-      : undefined;
-    const removed = sourceRecord.element!.removeItemById(itemId);
-    if (!removed) return;
-    targetRecord.element!.prependItem(snapshot);
+    const fallbackBeforeId = targetRecord.element!.firstItemId?.() ?? undefined;
+    if (!sourceRecord.element!.getItemSnapshot(itemId)) return;
+    // Both lists show the move until the repository has saved it.
+    const saved = this.repository
+      ? this.repository.moveTask(sourceListId, targetListId, itemId, {
+          snapshot,
+          beforeId: options.beforeId ?? fallbackBeforeId,
+          afterId: options.afterId,
+        })
+      : null;
+    sourceRecord.element!.removeItemById(itemId, saved);
+    targetRecord.element!.prependItem(snapshot, saved);
     if (options.focus) {
       targetRecord.element!.focusItem(itemId);
     }
     this.registry.flashList(targetListId);
-
-    if (this.repository) {
-      const beforeId = options.beforeId ?? fallbackBeforeId;
-      const promise = this.repository.moveTask(
-        sourceListId,
-        targetListId,
-        itemId,
-        {
-          snapshot,
-          beforeId,
-          afterId: options.afterId,
-        }
-      );
-      this.runRepositoryOperation(promise);
-    }
-  }
-
-  runRepositoryOperation(promise: Promise<unknown> | null) {
-    if (!promise || typeof promise.then !== "function") return;
-    promise.catch(() => {});
   }
 }
 
