@@ -9,6 +9,7 @@ import { generateItemId } from "../state/list-store.js";
 import { ListState } from "../state/list-state.js";
 import "./tasklist-header.js";
 import type { TaskListHeaderElement } from "./tasklist-header.js";
+import { TaskActions } from "./task-actions.js";
 import {
   URL_PATTERN,
   evaluateSearchEntry,
@@ -205,21 +206,11 @@ class A4TaskList extends HTMLElement {
   private lastReportedQuery: string;
   private lastReportedTitle: string | null;
   private emptyStateEl: HTMLElement | null;
-  private openActionsItemId: string | null;
+  /** Which task shows its actions, opened by its button or by swiping. */
+  private actions: TaskActions;
   private openNoteItemIds: Set<string>;
   private pendingNoteFocusId: string | null;
   private focusedItemId: string | null;
-  private touchGestureState: Map<
-    number,
-    {
-      startX: number;
-      startY: number;
-      target: HTMLElement;
-      revealWidth: number;
-      swiping: boolean;
-      wasOpen: boolean;
-    }
-  >;
   private lastDragReorderMove: ReorderMove | null;
   private dragStartOrder: string[] | null;
   private editController: EditController;
@@ -252,11 +243,13 @@ class A4TaskList extends HTMLElement {
     this.lastReportedQuery = "";
     this.lastReportedTitle = null;
     this.emptyStateEl = null;
-    this.openActionsItemId = null;
+    this.actions = new TaskActions({
+      itemElement: (itemId) => this.itemElement(itemId),
+      onChange: () => this.renderCurrentState(),
+    });
     this.openNoteItemIds = new Set();
     this.pendingNoteFocusId = null;
     this.focusedItemId = null;
-    this.touchGestureState = new Map();
     this.lastDragReorderMove = null;
     this.dragStartOrder = null;
 
@@ -327,13 +320,7 @@ class A4TaskList extends HTMLElement {
     on("click", (event) => this.handleTokenClick(event));
     on("focusin", (event) => this.handleFocusIn(event));
     on("focusout", (event) => this.handleFocusOut(event));
-    on("touchstart", (event) => this.handleTouchGestureStart(event), { passive: true });
-    on("touchmove", (event) => this.handleTouchGestureMove(event), { passive: false });
-    on("touchend", (event) => this.handleTouchGestureEnd(event), { passive: true });
-    on("touchcancel", (event) => this.handleTouchGestureCancel(event), { passive: true });
-    document.addEventListener("pointerdown", (event) => this.handleDocumentPointerDown(event), {
-      signal,
-    });
+    this.actions.listen(listEl, signal);
     if (this.listIdentifier) {
       this.dataset.listId = this.listIdentifier;
     }
@@ -348,8 +335,7 @@ class A4TaskList extends HTMLElement {
     this.searchTimer = null;
     this.list.disconnect();
     this.classList.remove("tasklist-no-matches");
-    this.touchGestureState.clear();
-    this.openActionsItemId = null;
+    this.actions.reset();
   }
 
   dispose() {
@@ -602,9 +588,7 @@ class A4TaskList extends HTMLElement {
       this.editController.clear();
     }
 
-    if (this.openActionsItemId === id) {
-      this.closeActionsForItem(id);
-    }
+    this.actions.close(id);
 
     this.list.change(
       [{ type: "remove", id }],
@@ -875,7 +859,6 @@ class A4TaskList extends HTMLElement {
     this.renderHeader();
 
     const preservedFocus = this.captureFocus();
-    const openActionsId = this.openActionsItemId;
     const tokens = tokenizeSearchQuery(this.searchQuery);
     const forceVisible = this.editController.getForceVisibleIds();
     const editingId =
@@ -917,7 +900,7 @@ class A4TaskList extends HTMLElement {
           visibleCount += 1;
         }
         return this.renderItemTemplate(item, {
-          isOpen: openActionsId === item.id,
+          isOpen: this.actions.openItemId === item.id,
           hidden,
           markup,
           noteMarkup,
@@ -982,11 +965,9 @@ class A4TaskList extends HTMLElement {
       }
     }
 
-    if (
-      this.openActionsItemId &&
-      !state.items.some((item) => item.id === this.openActionsItemId)
-    ) {
-      this.openActionsItemId = null;
+    const openActions = this.actions.openItemId;
+    if (openActions && !state.items.some((item) => item.id === openActions)) {
+      this.actions.close();
     }
     if (this.openNoteItemIds.size) {
       const validIds = new Set(state.items.map((item) => item.id));
@@ -1062,7 +1043,7 @@ class A4TaskList extends HTMLElement {
       sourceListId: this.listId,
       trigger: "button",
     });
-    this.closeActionsForItem(itemId, { immediateRender: true });
+    if (this.actions.close(itemId)) this.renderCurrentState();
   }
 
   handleDeleteButtonClick(event: Event) {
@@ -1092,9 +1073,7 @@ class A4TaskList extends HTMLElement {
       this.editController.clear();
     }
 
-    if (this.openActionsItemId === itemId) {
-      this.closeActionsForItem(itemId);
-    }
+    this.actions.close(itemId);
     this.list.change(
       [{ type: "remove", id: itemId }],
       this.list.save((repository, listId) => repository.removeTask(listId, itemId))
@@ -1107,8 +1086,7 @@ class A4TaskList extends HTMLElement {
     if (!li) return;
     const itemId = li.dataset?.itemId ?? null;
     if (!itemId) return;
-    this.openActionsItemId = this.openActionsItemId === itemId ? null : itemId;
-    this.renderFromState(this.state);
+    this.actions.toggle(itemId);
   }
 
   isNoteInputActive(itemId: string) {
@@ -1253,157 +1231,6 @@ class A4TaskList extends HTMLElement {
         this.startEditingItem(itemId, restoreCaret);
       }, 0);
     }
-  }
-
-  closeActionsForItem(
-    target: string | HTMLElement,
-    { immediateRender = false }: { immediateRender?: boolean } = {}
-  ) {
-    const id =
-      typeof target === "string" ? target : target?.dataset?.itemId ?? null;
-    if (!id || this.openActionsItemId !== id) return;
-    this.openActionsItemId = null;
-    if (immediateRender) {
-      this.renderFromState(this.state);
-    }
-  }
-
-  handleDocumentPointerDown(event: PointerEvent) {
-    if (!this.openActionsItemId) return;
-    const target = event.target as Node | null;
-    if (!target) return;
-    if (this.itemElement(this.openActionsItemId)?.contains(target)) return;
-    this.openActionsItemId = null;
-    this.renderFromState(this.state);
-  }
-
-  getTaskActionsRevealWidth(li: HTMLElement) {
-    const actions = li.querySelector(".task-item-actions");
-    if (!(actions instanceof HTMLElement)) return 128;
-    return Math.max(96, Math.min(actions.scrollWidth || 128, 180));
-  }
-
-  setTaskSwipeReveal(li: HTMLElement, reveal: number, revealWidth: number) {
-    const clamped = Math.max(0, Math.min(reveal, revealWidth));
-    li.style.setProperty("--task-swipe-translate", `${-clamped}px`);
-    li.style.setProperty("--task-actions-reveal-width", `${revealWidth}px`);
-    li.classList.toggle("task-item-swiping", clamped > 0);
-  }
-
-  clearTaskSwipeReveal(li: HTMLElement | null | undefined) {
-    if (!li) return;
-    li.classList.remove("task-item-swiping");
-    li.style.removeProperty("--task-swipe-translate");
-    li.style.removeProperty("--task-actions-reveal-width");
-  }
-
-  handleTouchGestureStart(event: TouchEvent) {
-    if (!event?.changedTouches) return;
-    Array.from(event.changedTouches).forEach((touch) => {
-      const target = touch.target;
-      const element =
-        target instanceof Element
-          ? target
-          : event.target instanceof Element
-          ? event.target
-          : null;
-      if (
-        this.openActionsItemId &&
-        element &&
-        !this.itemElement(this.openActionsItemId)?.contains(element)
-      ) {
-        this.openActionsItemId = null;
-        this.renderFromState(this.state);
-      }
-      if (!element) return;
-      const li = element.closest("li");
-      if (!li) return;
-      if (element.closest(".handle")) return;
-      if (element.closest(".task-item-actions")) return;
-      if (element.closest(".task-item-toggle")) return;
-      if (element.closest(".task-note-toggle")) return;
-      if (element.closest(".task-note-panel")) return;
-      const itemId = li.dataset?.itemId ?? null;
-      this.touchGestureState.set(touch.identifier, {
-        startX: touch.clientX,
-        startY: touch.clientY,
-        target: li,
-        revealWidth: this.getTaskActionsRevealWidth(li),
-        swiping: false,
-        wasOpen: itemId != null && this.openActionsItemId === itemId,
-      });
-    });
-  }
-
-  handleTouchGestureMove(event: TouchEvent) {
-    if (!event?.changedTouches) return;
-    Array.from(event.changedTouches).forEach((touch) => {
-      const state = this.touchGestureState.get(touch.identifier);
-      if (!state) return;
-      const li = state.target;
-      if (!li || !li.isConnected) {
-        this.touchGestureState.delete(touch.identifier);
-        return;
-      }
-      const deltaX = touch.clientX - state.startX;
-      const deltaY = touch.clientY - state.startY;
-      const absX = Math.abs(deltaX);
-      const absY = Math.abs(deltaY);
-      if (!state.swiping) {
-        if (absX < 8) return;
-        if (absX < absY) {
-          this.clearTaskSwipeReveal(li);
-          this.touchGestureState.delete(touch.identifier);
-          return;
-        }
-        state.swiping = true;
-      }
-      event.preventDefault();
-      const startReveal = state.wasOpen ? state.revealWidth : 0;
-      const reveal = Math.max(
-        0,
-        Math.min(state.revealWidth, startReveal - deltaX)
-      );
-      this.setTaskSwipeReveal(li, reveal, state.revealWidth);
-    });
-  }
-
-  handleTouchGestureEnd(event: TouchEvent) {
-    if (!event?.changedTouches) return;
-    Array.from(event.changedTouches).forEach((touch) => {
-      const state = this.touchGestureState.get(touch.identifier);
-      if (!state) return;
-      this.touchGestureState.delete(touch.identifier);
-      const li = state.target;
-      if (!li || !li.isConnected) return;
-      const deltaX = touch.clientX - state.startX;
-      const deltaY = touch.clientY - state.startY;
-      this.clearTaskSwipeReveal(li);
-      if (Math.abs(deltaX) < 30) return;
-      if (Math.abs(deltaX) < Math.abs(deltaY)) return;
-      const startReveal = state.wasOpen ? state.revealWidth : 0;
-      const reveal = Math.max(
-        0,
-        Math.min(state.revealWidth, startReveal - deltaX)
-      );
-      if (reveal > state.revealWidth / 2) {
-        const itemId = li.dataset?.itemId ?? null;
-        this.openActionsItemId = itemId;
-        this.renderFromState(this.state);
-      } else {
-        this.openActionsItemId = null;
-        this.renderFromState(this.state);
-      }
-    });
-  }
-
-  handleTouchGestureCancel(event: TouchEvent) {
-    if (!event?.changedTouches) return;
-    Array.from(event.changedTouches).forEach((touch) => {
-      const state = this.touchGestureState.get(touch.identifier);
-      this.clearTaskSwipeReveal(state?.target);
-      this.touchGestureState.delete(touch.identifier);
-    });
   }
 
   handleItemKeyDown(event: KeyboardEvent) {
