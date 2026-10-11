@@ -48,7 +48,11 @@ const makeOffsetCaret = (value: number, bias?: CaretBias): CaretPreference => ({
 
 type InlineEditor = InstanceType<typeof InlineTextEditor>;
 
-type ReorderMove = { fromIndex: number; toIndex: number };
+/** Where a dragged task was dropped: between two tasks. */
+type DragMove = { id: string; afterId: string | null; beforeId: string | null };
+
+const itemIdOf = (element: Element | null) =>
+  (element as HTMLElement | null)?.dataset.itemId ?? null;
 
 const escapeSelectorId = (value: string | null | undefined) => {
   if (typeof value !== "string") return "";
@@ -211,8 +215,8 @@ class A4TaskList extends HTMLElement {
   private openNoteItemIds: Set<string>;
   private pendingNoteFocusId: string | null;
   private focusedItemId: string | null;
-  private lastDragReorderMove: ReorderMove | null;
-  private dragStartOrder: string[] | null;
+  /** A drop to save once the drag is over. */
+  private dragMove: DragMove | null;
   private editController: EditController;
 
   private pendingEditFlushRequested: boolean;
@@ -250,8 +254,7 @@ class A4TaskList extends HTMLElement {
     this.openNoteItemIds = new Set();
     this.pendingNoteFocusId = null;
     this.focusedItemId = null;
-    this.lastDragReorderMove = null;
-    this.dragStartOrder = null;
+    this.dragMove = null;
 
     this.editController = new EditController({
       getListElement: () => this.listEl,
@@ -294,13 +297,20 @@ class A4TaskList extends HTMLElement {
       this.dragCoordinator = new DraggableBehavior(listEl, {
         handleClass: "handle",
         animator: new FlipAnimator(),
+        // The drag moves the task's element, so its new neighbours are there.
         onReorder: (fromIndex, toIndex) => {
-          // Saved on drop or drag end, so the DOM stays in control while dragging.
-          this.lastDragReorderMove = { fromIndex, toIndex };
+          const item = listEl.children[toIndex] ?? null;
+          const id = itemIdOf(item);
+          if (fromIndex === toIndex || !item || !id) return;
+          this.dragMove = {
+            id,
+            afterId: itemIdOf(item.previousElementSibling),
+            beforeId: itemIdOf(item.nextElementSibling),
+          };
         },
         onDragStart: (event) => this.handleListDragStart(event),
-        onDragEnd: () => this.handleDragFinalize(),
-        onDrop: () => this.handleDragFinalize(),
+        onDragEnd: () => this.saveDragMove(),
+        onDrop: () => this.saveDragMove(),
       });
       this.dragCoordinator.enable();
     }
@@ -395,16 +405,25 @@ class A4TaskList extends HTMLElement {
     );
   }
 
-  handleDragFinalize() {
-    const beforeOrder = Array.isArray(this.dragStartOrder)
-      ? this.dragStartOrder
-      : null;
-    if (!beforeOrder?.length) return;
-    this.dragStartOrder = null;
-
-    const move = this.lastDragReorderMove;
-    this.lastDragReorderMove = null;
-    this.scheduleReorderUpdate({ beforeOrder, move });
+  /** Saves where a task was dropped, once the drag is over. */
+  saveDragMove() {
+    const move = this.dragMove;
+    this.dragMove = null;
+    if (!move || !this.listEl) return;
+    // The drag moved the task's element behind lit's back, which confuses its
+    // bookkeeping of the list: render the list afresh.
+    delete (this.listEl as HTMLOListElement & { _$litPart$?: unknown })._$litPart$;
+    this.listEl.textContent = "";
+    const { id, afterId, beforeId } = move;
+    this.list.change(
+      [{ type: "move", id, afterId, beforeId }],
+      this.list.save((repository, listId) =>
+        repository.moveTaskWithinList(listId, id, {
+          afterId: afterId ?? undefined,
+          beforeId: beforeId ?? undefined,
+        })
+      )
+    );
   }
 
   ensureInlineEditor() {
@@ -1389,8 +1408,6 @@ class A4TaskList extends HTMLElement {
   }
 
   handleListDragStart(event: DragEvent) {
-    this.lastDragReorderMove = null;
-    this.dragStartOrder = this.state.items.map((item) => item.id);
     const li = (event.target as HTMLElement | null)?.closest?.("li") ?? null;
     const itemId = li?.dataset?.itemId ?? null;
     if (!itemId) return;
@@ -1458,108 +1475,6 @@ class A4TaskList extends HTMLElement {
       [{ type: "update", id, fields: { text: newText } }],
       this.list.save((repository, listId) => repository.updateTask(listId, id, { text: newText }))
     );
-  }
-
-  scheduleReorderUpdate({
-    beforeOrder,
-    move,
-  }: { beforeOrder?: string[] | null; move?: ReorderMove | null } = {}) {
-    if (!this.listEl) return;
-    Promise.resolve().then(() => {
-      if (!this.listEl) return;
-      if (!Array.isArray(beforeOrder) || !beforeOrder.length) return;
-
-      let order: string[] = [];
-      if (
-        move &&
-        Number.isInteger(move.fromIndex) &&
-        Number.isInteger(move.toIndex) &&
-        beforeOrder.length
-      ) {
-        const next = beforeOrder.slice();
-        const [moved] = next.splice(move.fromIndex, 1);
-        if (moved) {
-          const clampedTo = Math.max(0, Math.min(move.toIndex, next.length));
-          next.splice(clampedTo, 0, moved);
-          order = next;
-        }
-      }
-
-      if (!order.length) {
-        order = (Array.from(this.listEl.children) as HTMLElement[])
-          .filter((li) => !li.classList.contains("placeholder"))
-          .map((li) => li.dataset.itemId)
-          .filter((id): id is string => Boolean(id));
-      }
-      if (!order.length) return;
-
-      if (order.length !== beforeOrder.length) {
-        beforeOrder.forEach((id) => {
-          if (!order.includes(id)) {
-            order.push(id);
-          }
-        });
-      }
-      if (
-        order.length !== beforeOrder.length ||
-        beforeOrder.every((id, index) => id === order[index])
-      ) {
-        return;
-      }
-
-      // Drag behavior physically reorders <li> nodes, which can confuse lit-html's internal part bookkeeping.
-      // Reset the render part before dispatching so the next render recreates the list DOM deterministically.
-      try {
-        delete (this.listEl as HTMLOListElement & { _$litPart$?: unknown })
-          ._$litPart$;
-      } catch (err) {
-        // ignore
-      }
-      this.listEl.textContent = "";
-
-      const findMovedId = (before: string[], after: string[]) => {
-        if (!Array.isArray(before) || !Array.isArray(after)) return null;
-        if (before.length !== after.length) return null;
-        if (before.every((id, index) => id === after[index])) return null;
-        for (const id of before) {
-          const beforeWithout = before.filter((entry) => entry !== id);
-          const afterWithout = after.filter((entry) => entry !== id);
-          if (
-            beforeWithout.length === afterWithout.length &&
-            beforeWithout.every((entry, index) => entry === afterWithout[index])
-          ) {
-            return id;
-          }
-        }
-        return null;
-      };
-
-      let movedId =
-        move && Number.isInteger(move.fromIndex)
-          ? beforeOrder[move.fromIndex] ?? null
-          : null;
-      if (!movedId || !order.includes(movedId)) {
-        movedId = findMovedId(beforeOrder, order);
-      }
-      if (!movedId) {
-        this.renderCurrentState();
-        return;
-      }
-
-      const id = movedId;
-      const targetIndex = order.indexOf(id);
-      const afterId = order[targetIndex - 1] ?? null;
-      const beforeId = order[targetIndex + 1] ?? null;
-      this.list.change(
-        [{ type: "move", id, afterId, beforeId }],
-        this.list.save((repository, listId) =>
-          repository.moveTaskWithinList(listId, id, {
-            afterId: afterId ?? undefined,
-            beforeId: beforeId ?? undefined,
-          })
-        )
-      );
-    });
   }
 
   handleItemBlur(e: FocusEvent) {
