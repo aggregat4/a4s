@@ -14,6 +14,9 @@ const config: PlaywrightTestConfig = {
   globalTeardown: "./tests/global-teardown.ts",
   use: {
     baseURL,
+    // A step waiting for an element that never comes fails instead of
+    // waiting until the test times out.
+    actionTimeout: 15_000,
   },
 
   // Automatically start a local HTTP server before tests
