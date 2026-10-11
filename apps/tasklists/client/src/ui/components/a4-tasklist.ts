@@ -196,7 +196,6 @@ class A4TaskList extends HTMLElement {
       handler: (event: HTMLElementEventMap[K]) => void,
       options: AddEventListenerOptions = {}
     ) => listEl.addEventListener(type, handler, { ...options, signal });
-    on("blur", (event) => this.handleItemBlur(event), { capture: true });
     on("keydown", (event) => this.handleListKeyDown(event), { capture: true });
     on("click", (event) => this.handleTokenClick(event));
     on("focusin", (event) => this.handleFocusIn(event));
@@ -1195,14 +1194,6 @@ class A4TaskList extends HTMLElement {
       [{ type: "update", id, fields: { text: newText } }],
       this.list.save((repository, listId) => repository.updateTask(listId, id, { text: newText }))
     );
-  }
-
-  handleItemBlur(e: FocusEvent) {
-    const target = e.target as HTMLElement | null;
-    const textEl = target?.classList?.contains("text") ? target : null;
-    if (!textEl) return;
-    textEl.dataset.originalText = textEl.textContent;
-    this.scheduleSearchRender(0);
   }
 
   applyFilter(query: string) {
