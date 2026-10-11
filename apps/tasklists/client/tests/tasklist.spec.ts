@@ -1962,6 +1962,32 @@ test.describe("tasklist flows", () => {
     await expect(pageHeader).toBeHidden();
   });
 
+  test("a task edited during a search shows as the search has it once editing ends", async ({
+    page,
+  }) => {
+    await globalSearchInput(page).fill("bird");
+    const id = await page
+      .locator(listItemsSelector)
+      .filter({ hasText: "bird feeder" })
+      .getAttribute("data-item-id");
+    const task = page.locator(`li[data-item-id='${id}']`);
+    const text = task.locator(".text");
+    await expect(task.locator("mark")).toHaveText("bird");
+
+    // While it is edited, the task shows its plain text.
+    await text.click();
+    await expect(task.locator("mark")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(task.locator("mark")).toHaveText("bird");
+
+    await text.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type("Refill the feeder");
+    await expect(text).toHaveText("Refill the feeder");
+    await page.keyboard.press("Escape");
+    await expect(task).toBeHidden();
+  });
+
   test("search mode hides Add/Rename and collapses no-match lists", async ({
     page,
   }) => {
