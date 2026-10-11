@@ -90,10 +90,8 @@ class A4TaskList extends HTMLElement {
   private list: ListState;
   private shellRendered: boolean;
   private listIdentifier: ListId | null;
-  private lastReportedMatches: number | null;
-  private lastReportedTotal: number | null;
-  private lastReportedQuery: string;
-  private lastReportedTitle: string | null;
+  /** The detail of each change event last emitted, to emit only changes. */
+  private reported: Map<string, string>;
   private emptyStateEl: HTMLElement | null;
   /** Which task shows its actions, opened by its button or by swiping. */
   private actions: TaskActions;
@@ -123,10 +121,7 @@ class A4TaskList extends HTMLElement {
     this.shellRendered = false;
 
     this.listIdentifier = this.dataset.listId ?? null;
-    this.lastReportedMatches = null;
-    this.lastReportedTotal = null;
-    this.lastReportedQuery = "";
-    this.lastReportedTitle = null;
+    this.reported = new Map();
     this.emptyStateEl = null;
     this.actions = new TaskActions({
       itemElement: (itemId) => this.itemElement(itemId),
@@ -688,53 +683,44 @@ class A4TaskList extends HTMLElement {
     if (!this.listEl || !state) return;
 
     this.renderHeader();
+    const focus = this.captureFocus();
+    const editingId = this.editingItemId();
+    const shownCount = this.renderItems(state.items, editingId);
+    if (editingId) this.showEditedText(state.items, editingId);
+    const startedEdit = this.applyNextEdit();
+    this.restoreFocus(focus, { skip: startedEdit || this.nextEdit !== null });
+    this.forgetRemovedItems(state.items);
+    this.updateOpenNotes();
+    this.renderEmptyState(shownCount);
+    this.reportChanges(state, shownCount);
+  }
 
-    const preservedFocus = this.captureFocus();
+  /** Renders the tasks as the search and "Show done" have them; returns how many show. */
+  renderItems(items: TaskItem[], editingId: string | null) {
     const tokens = tokenizeSearchQuery(this.searchQuery);
     const nextEditId = this.nextEdit?.itemId ?? null;
-    const editingId = this.editingItemId();
-
-    let visibleCount = 0;
+    let shownCount = 0;
     const itemsTemplate = repeat(
-      state.items ?? [],
+      items,
       (item) => item.id,
       (item) => {
-        const text = item.text;
-        const note = item.note ?? "";
         const isEditing = editingId === item.id;
-        let hidden = false;
-        let markup = null;
-        let noteMarkup = null;
-        let noteMatched = false;
-        if (!isEditing) {
-          const result = evaluateSearchEntry({
-            originalText: text,
-            noteText: note,
-            tokens,
-            patternConfig: TASK_PATTERNS,
-            showDone: this.showDone,
-            isDone: item.done,
-          });
-          hidden = result.hidden;
-          markup = result.markup;
-          noteMarkup = result.noteMarkup;
-          noteMatched = result.noteMatched;
-        }
-        if (item.id === nextEditId) {
-          hidden = false;
-          markup = null;
-          noteMarkup = null;
-          noteMatched = false;
-        }
-        if (!hidden) {
-          visibleCount += 1;
-        }
+        // A task being edited, or about to be, shows plainly.
+        const view =
+          isEditing || item.id === nextEditId
+            ? { hidden: false, markup: null, noteMarkup: null, noteMatched: false }
+            : evaluateSearchEntry({
+                originalText: item.text,
+                noteText: item.note ?? "",
+                tokens,
+                patternConfig: TASK_PATTERNS,
+                showDone: this.showDone,
+                isDone: item.done,
+              });
+        if (!view.hidden) shownCount += 1;
         return this.renderItemTemplate(item, {
+          ...view,
           isOpen: this.actions.openItemId === item.id,
-          hidden,
-          markup,
-          noteMarkup,
-          noteMatched,
           isEditing,
         });
       }
@@ -743,88 +729,58 @@ class A4TaskList extends HTMLElement {
     if (this.inlineEditor) this.inlineEditor.keepEditingThrough(renderItems);
     else renderItems();
     this.dragCoordinator?.invalidateItemsCache();
+    return shownCount;
+  }
 
-    const totalCount = this.getTotalItemCount();
-    if (totalCount !== this.lastReportedTotal) {
-      this.lastReportedTotal = totalCount;
-      this.emit("itemcountchange", { total: totalCount });
+  /** Shows text another device saved in the task being edited. */
+  showEditedText(items: TaskItem[], editingId: string) {
+    const item = items.find((entry) => entry.id === editingId);
+    if (item && this.inlineEditor?.editingEl) this.inlineEditor.replaceText(item.text ?? "");
+  }
+
+  /** Closes the actions and notes of tasks that are gone. */
+  forgetRemovedItems(items: TaskItem[]) {
+    const ids = new Set(items.map((item) => item.id));
+    const openActions = this.actions.openItemId;
+    if (openActions && !ids.has(openActions)) this.actions.close();
+    for (const id of this.openNoteItemIds) {
+      if (!ids.has(id)) this.openNoteItemIds.delete(id);
     }
+  }
 
-    const nextTitle = state.title;
+  /** Updates the scroll shadows of open notes, and focuses a note that was asked for. */
+  updateOpenNotes() {
+    for (const itemId of this.openNoteItemIds) {
+      const noteInput = this.noteInput(itemId);
+      if (noteInput) this.updateNoteScrollState(noteInput);
+    }
+    if (!this.pendingNoteFocusId) return;
+    const target = this.noteInput(this.pendingNoteFocusId);
+    this.pendingNoteFocusId = null;
+    if (!target) return;
+    target.focus();
+    const end = target.value.length;
+    target.setSelectionRange(end, end);
+    this.updateNoteScrollState(target);
+  }
 
+  /** Says so when a search matches none of the tasks. */
+  renderEmptyState(shownCount: number) {
+    const noMatches = this.searchQuery.trim().length > 0 && shownCount === 0;
+    if (this.emptyStateEl) this.emptyStateEl.hidden = !noMatches;
+    this.classList.toggle("tasklist-no-matches", noMatches);
+  }
+
+  /** Tells the app about changes to the list's title and counts. */
+  reportChanges(state: TaskListState, shownCount: number) {
     // Tests find a list by its title.
-    if (this.getAttribute("name") !== nextTitle) {
-      if (nextTitle) this.setAttribute("name", nextTitle);
+    if (this.getAttribute("name") !== state.title) {
+      if (state.title) this.setAttribute("name", state.title);
       else this.removeAttribute("name");
     }
-
-    if (nextTitle !== this.lastReportedTitle) {
-      this.lastReportedTitle = nextTitle;
-      this.emit("titlechange", { title: nextTitle });
-    }
-
-    if (editingId && this.inlineEditor?.editingEl) {
-      const stateItem = state.items.find((item) => item.id === editingId);
-      // Another device changed the text being edited.
-      if (stateItem) this.inlineEditor.replaceText(stateItem.text ?? "");
-    }
-
-    const startedEdit = this.applyNextEdit();
-    this.restoreFocus(preservedFocus, { skip: startedEdit || this.nextEdit !== null });
-
-    if (this.openNoteItemIds.size > 0) {
-      for (const itemId of this.openNoteItemIds) {
-        const noteInput = this.noteInput(itemId);
-        if (noteInput) {
-          this.updateNoteScrollState(noteInput);
-        }
-      }
-    }
-
-    const openActions = this.actions.openItemId;
-    if (openActions && !state.items.some((item) => item.id === openActions)) {
-      this.actions.close();
-    }
-    if (this.openNoteItemIds.size) {
-      const validIds = new Set(state.items.map((item) => item.id));
-      for (const id of this.openNoteItemIds) {
-        if (!validIds.has(id)) {
-          this.openNoteItemIds.delete(id);
-        }
-      }
-    }
-    if (this.pendingNoteFocusId) {
-      const targetId = this.pendingNoteFocusId;
-      this.pendingNoteFocusId = null;
-      const target = this.noteInput(targetId);
-      if (target) {
-        target.focus();
-        const end = target.value.length;
-        target.setSelectionRange(end, end);
-        this.updateNoteScrollState(target);
-      }
-    }
-
-    if (
-      visibleCount !== this.lastReportedMatches ||
-      this.searchQuery !== this.lastReportedQuery
-    ) {
-      this.lastReportedMatches = visibleCount;
-      this.lastReportedQuery = this.searchQuery;
-      this.emit("searchresultschange", {
-        matches: visibleCount,
-        query: this.searchQuery,
-      });
-    }
-
-    const shouldShowEmpty =
-      typeof this.searchQuery === "string" &&
-      this.searchQuery.trim().length > 0 &&
-      visibleCount === 0;
-    if (this.emptyStateEl) {
-      this.emptyStateEl.hidden = !shouldShowEmpty;
-    }
-    this.classList.toggle("tasklist-no-matches", shouldShowEmpty);
+    this.emitChange("itemcountchange", { total: this.getTotalItemCount() });
+    this.emitChange("titlechange", { title: state.title });
+    this.emitChange("searchresultschange", { matches: shownCount, query: this.searchQuery });
   }
 
   handleToggle(e: Event) {
@@ -1228,6 +1184,14 @@ class A4TaskList extends HTMLElement {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
+  /** Emits an event about a change, unless it reports what it did last time. */
+  emitChange(name: string, detail: Record<string, unknown>) {
+    const key = JSON.stringify(detail);
+    if (this.reported.get(name) === key) return;
+    this.reported.set(name, key);
+    this.emit(name, detail);
+  }
+
   getItemSnapshot(itemId: string) {
     const found = this.state.items.find((item) => item.id === itemId);
     return found ? { ...found } : null;
@@ -1285,13 +1249,6 @@ class A4TaskList extends HTMLElement {
 
   getTotalItemCount() {
     return this.state.items.filter((item) => !item.done).length;
-  }
-
-  getSearchMatchCount() {
-    if (typeof this.lastReportedMatches === "number") {
-      return this.lastReportedMatches;
-    }
-    return this.getTotalItemCount();
   }
 
   getSearchMatchCountForQuery(query: string) {

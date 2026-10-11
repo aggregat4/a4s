@@ -4,7 +4,6 @@ import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 type ListElement = HTMLElement & {
   initialState?: TaskListState;
   getTotalItemCount: () => number;
-  getSearchMatchCount: () => number;
   getSearchMatchCountForQuery?: (query: string) => number;
   applyFilter?: (query: string) => void;
   showDone?: boolean;

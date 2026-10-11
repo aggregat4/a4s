@@ -78,7 +78,7 @@ a refactor of its own commit.
   helper.
 - [x] `a4-tasklist.ts`: `handleEditCommit` (1231) has six early returns that
   each call `scheduleSearchRender(0)`.
-- [ ] `a4-tasklist.ts`: `renderFromState` (708, about 150 lines) mixes
+- [x] `a4-tasklist.ts`: `renderFromState` (708, about 150 lines) mixes
   rendering, three change events de-duplicated by four `lastReported*`
   fields, the title attribute, starting edits and restoring focus, pruning
   open notes and actions, and the empty state. Split it into named steps and
