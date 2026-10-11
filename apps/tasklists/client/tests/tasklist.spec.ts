@@ -2551,6 +2551,26 @@ test.describe("tasklist flows", () => {
     await expect(page.locator(listItemsSelector)).toHaveCount(itemCount - 1);
   });
 
+  test("deleting a task next to a hidden done task keeps that task hidden", async ({
+    page,
+  }) => {
+    const items = page.locator(listItemsSelector);
+    const second = items.nth(1);
+    const doneText = (await second.locator(".text").textContent())?.trim() ?? "";
+    await second.locator("input.done-toggle").check();
+    await expect(items.filter({ hasText: doneText })).toHaveCount(0);
+    const shownCount = await items.count();
+
+    const first = items.first();
+    await first.locator(".task-item-toggle").click();
+    page.once("dialog", (dialog) => dialog.accept());
+    await first.locator(".task-item-actions button", { hasText: "Delete" }).click();
+
+    await expect(items).toHaveCount(shownCount - 1);
+    await expect(items.filter({ hasText: doneText })).toHaveCount(0);
+    await expect(page.locator(".text[contenteditable='true']")).not.toHaveText(doneText);
+  });
+
   test("adding a task resets any active search filter", async ({ page }) => {
     const searchInput = globalSearchInput(page);
     await searchInput.fill("bird");

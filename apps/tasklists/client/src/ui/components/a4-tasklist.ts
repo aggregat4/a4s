@@ -1078,12 +1078,7 @@ class A4TaskList extends HTMLElement {
       return;
     }
 
-    const items = this.state.items;
-    const currentIndex = items.findIndex((item) => item.id === itemId);
-    if (currentIndex === -1) return;
-
-    const nextItem = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
-    const focusTargetId = nextItem?.id ?? null;
+    const focusTargetId = this.nextShownTaskId(itemId);
     if (focusTargetId) {
       this.editController.queue(focusTargetId, "end");
       this.schedulePendingEditFlush();
@@ -1192,15 +1187,7 @@ class A4TaskList extends HTMLElement {
     const nextDone = !Boolean(snapshot.done);
     const shouldMoveFocus = nextDone && this.showDone === false;
     if (shouldMoveFocus) {
-      // Continue with the next shown task below, or else above.
-      const items = this.state.items;
-      const index = items.findIndex((item) => item.id === itemId);
-      const shown = (item: TaskItem) => this.isShown(item);
-      const focusTargetId =
-        index === -1
-          ? null
-          : (items.slice(index + 1).find(shown) ?? items.slice(0, index).reverse().find(shown))
-              ?.id ?? null;
+      const focusTargetId = this.nextShownTaskId(itemId);
       if (this.inlineEditor?.editingEl) {
         this.inlineEditor.finishEditing(this.inlineEditor.editingEl);
       }
@@ -1597,6 +1584,16 @@ class A4TaskList extends HTMLElement {
       item.id === this.editingItemId() ||
       this.matchesSearch(item, tokenizeSearchQuery(this.searchQuery))
     );
+  }
+
+  /** The task to continue with when a task goes away: the next shown one below, or else above. */
+  nextShownTaskId(itemId: string) {
+    const items = this.state.items;
+    const index = items.findIndex((item) => item.id === itemId);
+    if (index === -1) return null;
+    const shown = (item: TaskItem) => this.isShown(item);
+    const next = items.slice(index + 1).find(shown) ?? items.slice(0, index).reverse().find(shown);
+    return next?.id ?? null;
   }
 
   /** Whether a task matches a search, and is not done or done tasks show. */

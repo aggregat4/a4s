@@ -17,6 +17,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- Deleting a task with its Delete button continues with the next task in
+  view. It could open a done task that "Show done" hides, and show it.
 - The task being edited can be moved with the keyboard after another device
   ticked it off. It stayed in view while edited, but did not move.
 - A task brought back by undo or redo stays after a reload, and every device
