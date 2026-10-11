@@ -76,7 +76,7 @@ a refactor of its own commit.
 - [x] `a4-tasklist.ts`: eleven handlers repeat "find the task id from the
   event" (`closest("li")`, `dataset.itemId`). Add one `taskIdOf(event)`
   helper.
-- [ ] `a4-tasklist.ts`: `handleEditCommit` (1231) has six early returns that
+- [x] `a4-tasklist.ts`: `handleEditCommit` (1231) has six early returns that
   each call `scheduleSearchRender(0)`.
 - [ ] `a4-tasklist.ts`: `renderFromState` (708, about 150 lines) mixes
   rendering, three change events de-duplicated by four `lastReported*`

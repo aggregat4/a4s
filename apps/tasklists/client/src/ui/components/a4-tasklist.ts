@@ -1171,6 +1171,11 @@ class A4TaskList extends HTMLElement {
     transfer.effectAllowed = "move";
   }
 
+  /**
+   * Editing ended: saves the text if it is not saved yet. Either way the list
+   * renders again, as the search and "Show done" did not hide the task while
+   * it was edited.
+   */
   handleEditCommit({
     element,
     newText,
@@ -1180,30 +1185,9 @@ class A4TaskList extends HTMLElement {
     newText: string;
     previousText: string;
   }) {
-    if (!element) {
-      this.scheduleSearchRender(0);
-      return;
-    }
     const id = taskIdOf(element);
-    if (!id) {
-      this.scheduleSearchRender(0);
-      return;
-    }
-    if (typeof newText !== "string") {
-      this.scheduleSearchRender(0);
-      return;
-    }
-    const stateItem = this.state.items.find((item) => item.id === id);
-    if (!stateItem) {
-      this.scheduleSearchRender(0);
-      return;
-    }
-    if (newText === previousText) {
-      this.scheduleSearchRender(0);
-      return;
-    }
-    if (stateItem.text === newText) {
-      element.dataset.originalText = newText;
+    const item = this.state.items.find((entry) => entry.id === id);
+    if (!id || !item || newText === previousText || item.text === newText) {
       this.scheduleSearchRender(0);
       return;
     }
