@@ -21,7 +21,6 @@ import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
 import type { CaretBias, CaretPreference } from "../../types/caret.js";
-import { isOffsetCaret } from "../../types/caret.js";
 
 /** A highlighted kind of token in task text. */
 const pattern = (regex: RegExp, className: string, kind: PatternKind): PatternConfig => ({
@@ -69,124 +68,6 @@ const escapeHTML = (value: string | null | undefined) => {
     .replace(/'/g, "&#39;");
 };
 
-// EditController queues follow-up edits so caret placement survives rerenders that
-// happen between an action (merge, move) and the next paint.
-class EditController {
-  private getListElement: () => HTMLElement | null;
-  private getInlineEditor: () => InlineTextEditor | null;
-  private getEditingTarget: ((itemId: string) => HTMLElement | null) | null;
-  private getItemSnapshot: ((itemId: string) => TaskItem | null) | null;
-  private pendingItemId: string | null;
-  private pendingCaret: CaretPreference | null;
-
-  constructor({
-    getListElement,
-    getInlineEditor,
-    getEditingTarget,
-    getItemSnapshot,
-  }: {
-    getListElement?: () => HTMLElement | null;
-    getInlineEditor?: () => InlineTextEditor | null;
-    getEditingTarget?: (itemId: string) => HTMLElement | null;
-    getItemSnapshot?: (itemId: string) => TaskItem | null;
-  } = {}) {
-    this.getListElement =
-      typeof getListElement === "function" ? getListElement : () => null;
-    this.getInlineEditor =
-      typeof getInlineEditor === "function" ? getInlineEditor : () => null;
-    this.getEditingTarget =
-      typeof getEditingTarget === "function" ? getEditingTarget : null;
-    this.getItemSnapshot =
-      typeof getItemSnapshot === "function" ? getItemSnapshot : null;
-    this.pendingItemId = null;
-    this.pendingCaret = null;
-  }
-
-  queue(itemId: string, caretPreference: CaretPreference | null = null) {
-    if (typeof itemId === "string" && itemId.length) {
-      this.pendingItemId = itemId;
-      this.pendingCaret = caretPreference ?? null;
-    }
-  }
-
-  clear() {
-    this.pendingItemId = null;
-    this.pendingCaret = null;
-  }
-
-  hasPending() {
-    return (
-      typeof this.pendingItemId === "string" && this.pendingItemId.length > 0
-    );
-  }
-
-  isPendingItem(itemId: string) {
-    if (!this.hasPending()) return false;
-    return this.pendingItemId === itemId;
-  }
-
-  getPendingEdit() {
-    if (!this.hasPending()) return null;
-    return {
-      itemId: this.pendingItemId,
-      caret: this.pendingCaret,
-    };
-  }
-
-  getForceVisibleIds() {
-    if (!this.hasPending()) return null;
-    return new Set([this.pendingItemId]);
-  }
-
-  applyPendingEdit() {
-    if (!this.hasPending()) return false;
-    const itemId = this.pendingItemId;
-    if (!itemId) return false;
-    const inlineEditor = this.getInlineEditor();
-    if (!inlineEditor) return false;
-
-    let textEl = this.getEditingTarget?.(itemId) ?? null;
-    if (!textEl) {
-      const listEl = this.getListElement();
-      if (!listEl) return false;
-      const selectorId = escapeSelectorId(itemId);
-      const targetLi = listEl.querySelector(`li[data-item-id="${selectorId}"]`);
-      textEl = targetLi?.querySelector(".text") ?? null;
-      if (textEl && this.getItemSnapshot) {
-        const snapshot = this.getItemSnapshot(itemId);
-        if (snapshot && typeof snapshot.text === "string") {
-          textEl.textContent = snapshot.text;
-          textEl.dataset.originalText = snapshot.text;
-        }
-      }
-    }
-    if (!textEl) return false;
-
-    if (inlineEditor.editingEl === textEl && this.pendingCaret) {
-      inlineEditor.applyCaretPreference(textEl, this.pendingCaret);
-      if (isOffsetCaret(this.pendingCaret)) {
-        inlineEditor.setSelectionAtOffset(
-          textEl,
-          this.pendingCaret.value,
-          this.pendingCaret.bias
-        );
-      }
-      textEl.focus();
-    } else {
-      inlineEditor.startEditing(textEl, null, this.pendingCaret);
-      if (isOffsetCaret(this.pendingCaret)) {
-        inlineEditor.setSelectionAtOffset(
-          textEl,
-          this.pendingCaret.value,
-          this.pendingCaret.bias
-        );
-      }
-    }
-    this.clear();
-    return true;
-  }
-}
-
 // TaskListView keeps DOM reconciliation separate from state changes so we can reuse
 // focused nodes and avoid churn when the reducer reorders items.
 // Custom element binds the store and behaviors together so the prototype
@@ -217,9 +98,9 @@ class A4TaskList extends HTMLElement {
   private focusedItemId: string | null;
   /** A drop to save once the drag is over. */
   private dragMove: DragMove | null;
-  private editController: EditController;
+  /** A task to edit once it is rendered, and where the cursor goes in it. */
+  private nextEdit: { itemId: string; caret: CaretPreference } | null;
 
-  private pendingEditFlushRequested: boolean;
   private _repository: ListRepository | null;
   /** Aborted when the element is disconnected, removing its listeners. */
   private connection: AbortController | null;
@@ -256,14 +137,8 @@ class A4TaskList extends HTMLElement {
     this.focusedItemId = null;
     this.dragMove = null;
 
-    this.editController = new EditController({
-      getListElement: () => this.listEl,
-      getInlineEditor: () => this.inlineEditor,
-      getEditingTarget: (id) => this.getEditingTarget(id),
-      getItemSnapshot: (id) => this.getItemSnapshot(id),
-    });
+    this.nextEdit = null;
 
-    this.pendingEditFlushRequested = false;
     this._repository = null;
     this.connection = null;
   }
@@ -464,6 +339,7 @@ class A4TaskList extends HTMLElement {
     this.clearSearch();
     const firstItem = this.firstItemId();
     const newId = generateItemId();
+    this.editNext(newId, "end");
     this.list.change(
       [
         {
@@ -482,9 +358,6 @@ class A4TaskList extends HTMLElement {
         })
       )
     );
-    // Queue edit AFTER the change so the element exists when the edit is applied
-    this.editController.queue(newId, "end");
-    this.schedulePendingEditFlush();
   }
 
   handleEditSplit({
@@ -507,6 +380,7 @@ class A4TaskList extends HTMLElement {
     const nextItemId = state.items[currentIndex + 1]?.id ?? null;
 
     const newId = generateItemId();
+    this.editNext(newId, "start");
     this.list.change(
       [
         { type: "update", id, fields: { text: beforeText } },
@@ -528,11 +402,6 @@ class A4TaskList extends HTMLElement {
         })
       )
     );
-    // Queue edit AFTER the change so the element exists when the edit is applied
-    this.editController.queue(newId, "start");
-    // Try to start editing immediately; pending queue will retry if the node is not ready yet.
-    this.startEditingItem(newId, "start");
-    this.schedulePendingEditFlush();
   }
 
   // Re-stitches adjacent tasks on Backspace so users can treat the list like a text editor without losing content.
@@ -564,8 +433,7 @@ class A4TaskList extends HTMLElement {
         ? Math.max(0, Math.min(selectionStart, currentText.length))
         : 0);
 
-    this.editController.queue(previousItem.id, makeOffsetCaret(mergeOffset));
-    this.schedulePendingEditFlush();
+    this.editNext(previousItem.id, makeOffsetCaret(mergeOffset));
     this.list.change(
       [
         { type: "update", id: previousItem.id, fields: { text: mergedText } },
@@ -599,13 +467,7 @@ class A4TaskList extends HTMLElement {
     const below = visibleSiblingTask(li, "down");
     const focusTarget =
       reason === "empty-backspace" ? above ?? below : below ?? above;
-    const focusTargetId = focusTarget?.dataset?.itemId ?? null;
-    if (focusTargetId) {
-      this.editController.queue(focusTargetId, "end");
-      this.schedulePendingEditFlush();
-    } else {
-      this.editController.clear();
-    }
+    this.editNext(focusTarget?.dataset?.itemId ?? null, "end");
 
     this.actions.close(id);
 
@@ -662,25 +524,19 @@ class A4TaskList extends HTMLElement {
     );
   }
 
-  schedulePendingEditFlush() {
-    if (this.pendingEditFlushRequested) return;
-    this.pendingEditFlushRequested = true;
-    const scheduleFlush = (cb: () => void) => {
-      if (typeof requestAnimationFrame === "function") {
-        requestAnimationFrame(() => cb());
-      } else if (typeof queueMicrotask === "function") {
-        queueMicrotask(cb);
-      } else {
-        Promise.resolve().then(cb);
-      }
-    };
-    scheduleFlush(() => {
-      this.pendingEditFlushRequested = false;
-      if (!this.editController?.hasPending()) {
-        return;
-      }
-      this.editController.applyPendingEdit();
-    });
+  /**
+   * Edits a task once it is rendered: after the next render, or on the next
+   * frame if nothing renders. Until then it shows, as the task being edited
+   * does. Without a task, nothing is edited next.
+   */
+  editNext(itemId: string | null, caret: CaretPreference) {
+    this.nextEdit = itemId ? { itemId, caret } : null;
+    if (itemId) requestAnimationFrame(() => this.applyNextEdit());
+  }
+
+  /** Edits the task asked for next, if it is rendered. */
+  applyNextEdit() {
+    return this.nextEdit ? this.editTask(this.nextEdit.itemId, this.nextEdit.caret) : false;
   }
 
   scheduleSearchRender(delayMs = 120) {
@@ -695,41 +551,18 @@ class A4TaskList extends HTMLElement {
     if (this.listEl) this.renderFromState(this.state);
   }
 
-  getEditingTarget(itemId: string) {
+  /** Edits a task now, the cursor where asked, if it is rendered. */
+  editTask(itemId: string, caret: CaretPreference) {
+    const inlineEditor = this.ensureInlineEditor();
     const textEl = this.itemElement(itemId)?.querySelector<HTMLElement>(".text");
-    if (!textEl) return null;
-    const snapshot = this.getItemSnapshot(itemId);
-    if (snapshot && typeof snapshot.text === "string") {
-      textEl.textContent = snapshot.text;
-      textEl.dataset.originalText = snapshot.text;
-    }
-    return textEl;
-  }
-
-  startEditingItem(itemId: string, caretPreference: CaretPreference | null = null) {
-    if (!this.inlineEditor) {
-      this.ensureInlineEditor();
-    }
-    if (!this.inlineEditor) return false;
-    const textEl = this.getEditingTarget(itemId);
-    if (!textEl) return false;
-    if (this.inlineEditor.editingEl === textEl) {
-      // Re-apply caret even if we're already editing the node.
+    if (!inlineEditor || !textEl) return false;
+    this.nextEdit = null;
+    if (inlineEditor.editingEl === textEl) {
       textEl.focus();
+      inlineEditor.applyCaretPreference(textEl, caret);
     } else {
-      this.inlineEditor.startEditing(textEl, null, caretPreference);
+      inlineEditor.startEditing(textEl, null, caret);
     }
-    if (caretPreference) {
-      this.inlineEditor.applyCaretPreference(textEl, caretPreference);
-      if (isOffsetCaret(caretPreference)) {
-        this.inlineEditor.setSelectionAtOffset(
-          textEl,
-          caretPreference.value,
-          caretPreference.bias
-        );
-      }
-    }
-    this.editController.clear();
     return true;
   }
 
@@ -879,7 +712,7 @@ class A4TaskList extends HTMLElement {
 
     const preservedFocus = this.captureFocus();
     const tokens = tokenizeSearchQuery(this.searchQuery);
-    const forceVisible = this.editController.getForceVisibleIds();
+    const nextEditId = this.nextEdit?.itemId ?? null;
     const editingId = this.editingItemId();
 
     let visibleCount = 0;
@@ -908,7 +741,7 @@ class A4TaskList extends HTMLElement {
           noteMarkup = result.noteMarkup;
           noteMatched = result.noteMatched;
         }
-        if (forceVisible?.has(item.id)) {
+        if (item.id === nextEditId) {
           hidden = false;
           markup = null;
           noteMarkup = null;
@@ -962,17 +795,8 @@ class A4TaskList extends HTMLElement {
       if (stateItem) this.inlineEditor.replaceText(stateItem.text ?? "");
     }
 
-    let hasPendingEdit = this.editController.hasPending();
-
-    let appliedPendingEdit = false;
-    if (hasPendingEdit) {
-      appliedPendingEdit = this.editController.applyPendingEdit() === true;
-      hasPendingEdit = this.editController.hasPending();
-    }
-
-    this.restoreFocus(preservedFocus, {
-      skip: hasPendingEdit || appliedPendingEdit,
-    });
+    const startedEdit = this.applyNextEdit();
+    this.restoreFocus(preservedFocus, { skip: startedEdit || this.nextEdit !== null });
 
     if (this.openNoteItemIds.size > 0) {
       for (const itemId of this.openNoteItemIds) {
@@ -1078,14 +902,7 @@ class A4TaskList extends HTMLElement {
       return;
     }
 
-    const focusTargetId = this.nextShownTaskId(itemId);
-    if (focusTargetId) {
-      this.editController.queue(focusTargetId, "end");
-      this.schedulePendingEditFlush();
-    } else {
-      this.editController.clear();
-    }
-
+    this.editNext(this.nextShownTaskId(itemId), "end");
     this.actions.close(itemId);
     this.list.change(
       [{ type: "remove", id: itemId }],
@@ -1187,16 +1004,10 @@ class A4TaskList extends HTMLElement {
     const nextDone = !Boolean(snapshot.done);
     const shouldMoveFocus = nextDone && this.showDone === false;
     if (shouldMoveFocus) {
-      const focusTargetId = this.nextShownTaskId(itemId);
       if (this.inlineEditor?.editingEl) {
         this.inlineEditor.finishEditing(this.inlineEditor.editingEl);
       }
-      if (focusTargetId) {
-        this.editController.queue(focusTargetId, "end");
-        this.schedulePendingEditFlush();
-      } else {
-        this.editController.clear();
-      }
+      this.editNext(this.nextShownTaskId(itemId), "end");
     }
     setTimeout(() => {
       this.list.change(
@@ -1223,19 +1034,15 @@ class A4TaskList extends HTMLElement {
         restoreCaret = "end";
       }
     } else {
-      const textEl = this.getEditingTarget(itemId);
+      const textEl = this.itemElement(itemId)?.querySelector<HTMLElement>(".text");
       if (textEl && this.inlineEditor?.editingEl === textEl) {
         this.inlineEditor.finishEditing(textEl);
       }
       this.openNoteItemIds.add(itemId);
       this.pendingNoteFocusId = focus ? itemId : null;
     }
+    if (restoreCaret) this.editNext(itemId, restoreCaret);
     this.renderFromState(this.state);
-    if (restoreCaret) {
-      setTimeout(() => {
-        this.startEditingItem(itemId, restoreCaret);
-      }, 0);
-    }
   }
 
   handleItemKeyDown(event: KeyboardEvent) {
@@ -1268,7 +1075,7 @@ class A4TaskList extends HTMLElement {
         : this.state.items.find(shown);
       if (!targetItem) return;
       event.preventDefault();
-      this.startEditingItem(targetItem.id, isEnd ? "end" : "start");
+      this.editTask(targetItem.id, isEnd ? "end" : "start");
       return;
     }
     if (matchesShortcut(event, SHORTCUTS.toggleDone)) {
