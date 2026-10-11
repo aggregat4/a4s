@@ -3236,6 +3236,33 @@ test.describe("tasklist flows", () => {
   });
 });
 
+test("a new list shows its name right away", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "CPU throttling uses CDP");
+  await gotoWithSnapshot(page, "/?resetStorage=1");
+  // On a slow device the sidebar has time to render in between.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+  await page.evaluate(() => {
+    const shown: string[] = [];
+    (window as unknown as { __listNames: string[] }).__listNames = shown;
+    new MutationObserver(() => {
+      document
+        .querySelectorAll("[data-role='sidebar-list'] .sidebar-list-label")
+        .forEach((label) => shown.push(label.textContent ?? ""));
+    }).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+
+  page.once("dialog", (dialog) => dialog.accept("New List"));
+  await openSidebarOptions(page);
+  await page.locator("[data-role='add-list']").click();
+  await expect.poll(() => getSidebarListNames(page)).toContain("New List");
+
+  const shown = await page.evaluate(
+    () => (window as unknown as { __listNames: string[] }).__listNames
+  );
+  expect(shown).not.toContain("Untitled List");
+});
+
 test("sidebar count updates after adding a task to a new list", async ({
   page,
 }) => {

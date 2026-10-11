@@ -17,6 +17,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- A new list shows its name right away. On a slow device it briefly showed
+  as "Untitled List".
 - Deleting a task with its Delete button continues with the next task in
   view. It could open a done task that "Show done" hides, and show it.
 - The task being edited can be moved with the keyboard after another device

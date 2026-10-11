@@ -652,8 +652,16 @@ test("the task list matches the model for any sequence of user input", async ({
           page.on("dialog", (dialog) => dialog.accept(title));
           await page.goto("/?sync=1");
           await openSidebarOptions(page);
+          // The list shows right away, but is only kept once it is saved.
+          const saved = page.waitForResponse(
+            (response) =>
+              response.url().includes("/sync/push") &&
+              response.ok() &&
+              (response.request().postData() ?? "").includes(title)
+          );
           await page.getByRole("button", { name: "Add list" }).click();
           await expect(page.locator("[data-role='active-list-title']")).toHaveText(title);
+          await saved;
           const viewerUrl = page.url();
           // Reloading clears the undo history, which holds creating the list.
           await page.reload();

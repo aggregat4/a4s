@@ -84,7 +84,9 @@ class RepositorySync {
       const listId = entry?.id;
       if (!listId) return;
       const state = this.repository.getListState(listId);
-      const titleCandidate = state?.title ?? entry.title ?? "";
+      // A list announced in the registry before the repository has the list
+      // itself, as when it was just created, has no title of its own yet.
+      const titleCandidate = state?.title || entry.title || "";
       this.registry.createList({
         id: listId,
         title: titleCandidate,
