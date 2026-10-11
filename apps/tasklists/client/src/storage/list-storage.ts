@@ -330,23 +330,6 @@ class IndexedDbListStorage implements ListStorage {
     await completion;
   }
 
-  async pruneOperations(listId: ListId, beforeClock: number) {
-    if (!Number.isFinite(beforeClock)) return;
-    const db = await this.ready();
-    const transaction = db.transaction(STORE_LIST_OPERATIONS, "readwrite");
-    const completion = transactionCompleted(transaction);
-    const operationsStore = transaction.objectStore(STORE_LIST_OPERATIONS);
-    const index = operationsStore.index("byList");
-    const cursorRequest = index.openCursor(listId);
-    await iterateCursor(cursorRequest, (cursor) => {
-      const record = cursor.value;
-      if (record.clock <= beforeClock) {
-        cursor.delete();
-      }
-    });
-    await completion;
-  }
-
   async loadRegistry(): Promise<PersistedRegistryRecord> {
     const db = await this.ready();
     const transaction = db.transaction(

@@ -56,8 +56,6 @@ export default class DraggableBehavior {
     onDragEnd: ((event: DragEvent) => void) | null;
     onDrop: ((event: DragEvent) => void) | null;
     animator: FlipAnimator | null;
-    debug: boolean;
-    pointerFallback?: boolean;
   };
   private dragging: HTMLElement | null;
   private touchStartY: number;
@@ -72,7 +70,6 @@ export default class DraggableBehavior {
   private _dropHandled: boolean;
   private dragStartIndex: number | null;
   private _lastClientY: number | null;
-  private _lastDragOverLogTs: number;
   private _onDragStart: (event: DragEvent) => void;
   private _onDragEnd: (event: DragEvent) => void;
   private _onDragOver: (event: DragEvent) => void;
@@ -80,8 +77,6 @@ export default class DraggableBehavior {
   private _onTouchStart: (event: TouchEvent) => void;
   private _onTouchMove: (event: TouchEvent) => void;
   private _onTouchEnd: (event: TouchEvent) => void;
-  private deferFloatingInit: boolean;
-  private _pendingInitCoords: { x: number; y: number } | null;
 
   constructor(
     container: HTMLElement | null,
@@ -93,8 +88,6 @@ export default class DraggableBehavior {
       onDragEnd?: ((event: DragEvent) => void) | null;
       onDrop?: ((event: DragEvent) => void) | null;
       animator?: FlipAnimator | null;
-      debug?: boolean;
-      pointerFallback?: boolean;
     } = {}
   ) {
     this.container = container;
@@ -106,7 +99,6 @@ export default class DraggableBehavior {
       onDragEnd: null,
       onDrop: null,
       animator: null,
-      debug: false,
       ...options,
     };
     this.dragging = null;
@@ -122,7 +114,6 @@ export default class DraggableBehavior {
     this._dropHandled = false;
     this.dragStartIndex = null;
     this._lastClientY = null;
-    this._lastDragOverLogTs = 0;
 
     this._onDragStart = this.handleDragStart.bind(this);
     this._onDragEnd = this.handleDragEnd.bind(this);
@@ -132,9 +123,6 @@ export default class DraggableBehavior {
     this._onTouchStart = this.handleTouchStart.bind(this);
     this._onTouchMove = this.handleTouchMove.bind(this);
     this._onTouchEnd = this.handleTouchEnd.bind(this);
-
-    this.deferFloatingInit = false;
-    this._pendingInitCoords = null;
   }
 
   enable() {
@@ -188,10 +176,7 @@ export default class DraggableBehavior {
     const li = (event.target as HTMLElement | null)?.closest("li");
     if (!li) return;
 
-    this.deferFloatingInit = false;
-    this._pendingInitCoords = null;
-
-    this.startDrag(li, event.clientX, event.clientY);
+    this.startDrag(li, event.clientY);
     this.options.onDragStart?.(event);
 
     if (event.dataTransfer) {
@@ -236,27 +221,12 @@ export default class DraggableBehavior {
   handleDragOver(event: DragEvent) {
     event.preventDefault();
 
-    if (this.dragging && this.deferFloatingInit) {
-      this.deferFloatingInit = false;
-      const coords = this._pendingInitCoords || {
-        x: event.clientX,
-        y: event.clientY,
-      };
-      this.beginFloating(coords.x, coords.y);
-      this._pendingInitCoords = null;
-    }
-
     if (Number.isFinite(event.clientY)) {
       this._lastClientY = event.clientY;
     }
     this.debouncedDragOver(event.clientY);
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = "move";
-    }
-
-    const now = Date.now();
-    if (now - this._lastDragOverLogTs > 120) {
-      this._lastDragOverLogTs = now;
     }
   }
 
@@ -302,8 +272,7 @@ export default class DraggableBehavior {
       this.isTouchDragging = true;
       const li = target.closest("li");
       if (!li) return;
-      this.deferFloatingInit = false;
-      this.startDrag(li, event.touches[0].clientX, event.touches[0].clientY);
+      this.startDrag(li, event.touches[0].clientY);
       this.options.onDragStart?.(event as unknown as DragEvent);
     } else {
       this.debouncedDragOver(event.touches[0].clientY);
@@ -318,7 +287,7 @@ export default class DraggableBehavior {
     }
   }
 
-  startDrag(li: HTMLElement, startClientX: number | null = null, startClientY: number | null = null) {
+  startDrag(li: HTMLElement, startClientY: number | null = null) {
     this.dragging = li;
     this.dragStartIndex = this.getIndex(li);
     this.originalPosition = this.dragStartIndex;
@@ -327,14 +296,6 @@ export default class DraggableBehavior {
     this._currentPlaceholderIndex = this.originalPosition;
     this._dropHandled = false;
     this.dragging.classList.add("dragging");
-
-    if (
-      !this.deferFloatingInit &&
-      startClientX != null &&
-      startClientY != null
-    ) {
-      this.beginFloating(startClientX, startClientY);
-    }
   }
 
   endDrag() {
@@ -346,14 +307,6 @@ export default class DraggableBehavior {
     this.originalPosition = null;
     this.dragStartIndex = null;
     draggedRef.classList.remove("dragging");
-    draggedRef.style.position = "";
-    draggedRef.style.top = "";
-    draggedRef.style.left = "";
-    draggedRef.style.width = "";
-    draggedRef.style.zIndex = "";
-    draggedRef.style.pointerEvents = "";
-    draggedRef.style.boxShadow = "";
-    draggedRef.style.opacity = "";
     this.invalidateItemsCache();
     this._lastClientY = null;
   }
@@ -388,15 +341,6 @@ export default class DraggableBehavior {
       this.options.onReorder(startIndex, toIndex);
     }
     this._dropHandled = true;
-  }
-
-  beginFloating(eClientX: number, eClientY: number) {
-    const li = this.dragging;
-    if (!li) return;
-    const rect = li.getBoundingClientRect();
-
-    void (eClientY != null ? eClientY - rect.top : rect.height / 2);
-    void (eClientX != null ? eClientX - rect.left : 16);
   }
 
   getDropTarget(mouseY: number) {

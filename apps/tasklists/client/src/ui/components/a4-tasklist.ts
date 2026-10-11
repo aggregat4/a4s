@@ -68,10 +68,11 @@ const escapeHTML = (value: string | null | undefined) => {
     .replace(/'/g, "&#39;");
 };
 
-// TaskListView keeps DOM reconciliation separate from state changes so we can reuse
-// focused nodes and avoid churn when the reducer reorders items.
-// Custom element binds the store and behaviors together so the prototype
-// remains drop-in embeddable without a framework runtime.
+/**
+ * One task list: renders a list's tasks with lit and handles editing, ticking
+ * off, moving, notes and search. It shows the repository's state of the list
+ * through `ListState`, with the user's changes on top until they are saved.
+ */
 class A4TaskList extends HTMLElement {
   private listEl: HTMLOListElement | null;
   private dragCoordinator: DraggableBehavior | null;
@@ -83,7 +84,6 @@ class A4TaskList extends HTMLElement {
   private _searchMode: boolean;
   /** The list as the repository has it, with the user's unsaved changes. */
   private list: ListState;
-  private suppressNameSync: boolean;
   private shellRendered: boolean;
   private listIdentifier: ListId | null;
   private lastReportedMatches: number | null;
@@ -115,11 +115,7 @@ class A4TaskList extends HTMLElement {
     this.searchQuery = "";
     this.showDone = false;
     this._searchMode = false;
-    this.list = new ListState(
-      () => this.getAttribute("name") ?? "",
-      () => this.renderCurrentState()
-    );
-    this.suppressNameSync = false;
+    this.list = new ListState(() => this.renderCurrentState());
     this.shellRendered = false;
 
     this.listIdentifier = this.dataset.listId ?? null;
@@ -141,10 +137,6 @@ class A4TaskList extends HTMLElement {
 
     this._repository = null;
     this.connection = null;
-  }
-
-  static get observedAttributes() {
-    return ["name"];
   }
 
   /** The list as it is shown. */
@@ -227,17 +219,6 @@ class A4TaskList extends HTMLElement {
     this.inlineEditor?.destroy();
     this.inlineEditor = null;
     this.list.disconnect();
-  }
-
-  attributeChangedCallback(
-    name: string,
-    oldValue: string | null,
-    newValue: string | null
-  ) {
-    if (name === "name" && oldValue !== newValue) {
-      if (this.suppressNameSync) return;
-      this.rename(newValue ?? "");
-    }
   }
 
   renderShell() {
@@ -773,15 +754,10 @@ class A4TaskList extends HTMLElement {
 
     const nextTitle = state.title;
 
-    const attrTitle = this.getAttribute("name");
-    if (attrTitle !== nextTitle) {
-      this.suppressNameSync = true;
-      if (nextTitle) {
-        this.setAttribute("name", nextTitle);
-      } else {
-        this.removeAttribute("name");
-      }
-      this.suppressNameSync = false;
+    // Tests find a list by its title.
+    if (this.getAttribute("name") !== nextTitle) {
+      if (nextTitle) this.setAttribute("name", nextTitle);
+      else this.removeAttribute("name");
     }
 
     if (nextTitle !== this.lastReportedTitle) {
@@ -1497,17 +1473,6 @@ class A4TaskList extends HTMLElement {
     }
   }
 
-  get name() {
-    return this.getAttribute("name") ?? "";
-  }
-
-  set name(value) {
-    if (value == null) {
-      this.removeAttribute("name");
-    } else {
-      this.setAttribute("name", String(value));
-    }
-  }
 }
 
 customElements.define("a4-tasklist", A4TaskList);

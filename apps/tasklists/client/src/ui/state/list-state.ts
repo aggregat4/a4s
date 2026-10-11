@@ -30,12 +30,10 @@ export class ListState {
   private repository: ListRepository | null;
   private listId: ListId | null;
   private unsubscribe: (() => void) | null;
-  /** The list's title until the repository has the list. */
-  private fallbackTitle: () => string;
   /** Called whenever what is shown changes. */
   private onChange: () => void;
 
-  constructor(fallbackTitle: () => string, onChange: () => void) {
+  constructor(onChange: () => void) {
     this.saved = null;
     this.pending = [];
     this.noteDrafts = new Map();
@@ -43,7 +41,6 @@ export class ListState {
     this.repository = null;
     this.listId = null;
     this.unsubscribe = null;
-    this.fallbackTitle = fallbackTitle;
     this.onChange = onChange;
     this.shown = this.compute();
   }
@@ -143,7 +140,7 @@ export class ListState {
   }
 
   private base(): TaskListState {
-    return this.saved ?? { title: this.fallbackTitle(), items: [] };
+    return this.saved ?? { title: "", items: [] };
   }
 
   private compute(): TaskListState {

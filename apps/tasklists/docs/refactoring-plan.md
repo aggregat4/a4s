@@ -48,24 +48,26 @@ delete this file when everything is done.
   records (`app-shell.ts` `applySearchToLists`), whose `element` is set only
   when a render attaches it.
 
-## 2. Mechanical cleanup (one commit)
+## 2. Mechanical cleanup
 
-Commit: `refactor(tasklists): remove dead code and leftovers`.
+The first four items are one commit,
+`refactor(tasklists): remove dead code and leftovers`. Each of the others is
+a refactor of its own commit.
 
-- [ ] `src/shared/drag-behavior.ts`: `beginFloating` (line 393) computes values
+- [x] `src/shared/drag-behavior.ts`: `beginFloating` (line 393) computes values
   and discards them; `deferFloatingInit` and `_pendingInitCoords` are never
   set to anything that matters; `_lastDragOverLogTs` is a logging leftover;
   the `debug` and `pointerFallback` options (lines 59–60, 97) are never read.
-- [ ] Unused methods: `ListRepository.getTaskSnapshot`
+- [x] Unused methods: `ListRepository.getTaskSnapshot`
   (`list-repository.ts:1528`), `ListStorage.pruneOperations`
   (`list-storage.ts:333`), `ListRegistry.ensureActiveListId`
   (`list-registry.ts:104`), and the unused `repository` constructor parameter
   of `ListRegistry` (line 57).
-- [ ] Comments that describe old behaviour: the class comment of
+- [x] Comments that describe old behaviour: the class comment of
   `a4-tasklist.ts` (line 71, mentions a reducer and a store); the comments on
   `_changeQueue` and `_textEditSessions` in `list-repository.ts` (lines 108,
   111).
-- [ ] `a4-tasklist.ts`, the `name` attribute: the element writes the title to
+- [x] `a4-tasklist.ts`, the `name` attribute: the element writes the title to
   it (tests use `a4-tasklist[name='…']` as a locator, so keep that), but
   nothing sets it from outside. Remove renaming from the attribute:
   `observedAttributes` (146), `attributeChangedCallback` (232),

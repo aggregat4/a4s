@@ -53,13 +53,7 @@ class ListRegistry {
   private listOrder: ListId[];
   private activeListId: ListId | null;
 
-  constructor({
-    repository: _repository,
-    eventHandlers = {},
-  }: {
-    repository?: { createList?: (options: ListConfig) => void } | null;
-    eventHandlers?: ListEventHandlers;
-  } = {}) {
+  constructor({ eventHandlers = {} }: { eventHandlers?: ListEventHandlers } = {}) {
     this.eventHandlers = eventHandlers;
     this.records = new Map();
     this.listOrder = [];
@@ -99,15 +93,6 @@ class ListRegistry {
     }
     if (!this.records.has(listId)) return;
     this.activeListId = listId;
-  }
-
-  ensureActiveListId() {
-    if (this.activeListId && this.records.has(this.activeListId)) {
-      return this.activeListId;
-    }
-    const fallback = this.listOrder.find((id) => this.records.has(id)) ?? null;
-    this.activeListId = fallback ?? null;
-    return this.activeListId;
   }
 
   createList(config: ListConfig, { makeActive = false }: { makeActive?: boolean } = {}) {

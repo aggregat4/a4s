@@ -104,10 +104,9 @@ export class ListRepository {
   private _globalListeners: Set<(payload: GlobalListener) => void>;
   private _history: HistoryManager;
   private _historySuppressed: number;
-  // Serializes undo/redo so history ops never interleave.
+  /** Local changes and undo/redo, run one at a time; see the class comment. */
   private _changeQueue: Promise<void>;
-  // Serializes text updates per item so keystrokes apply in order.
-  // Tracks inserts so early text edits can wait until the item exists in CRDT.
+  /** Per task, the last text edit, to decide whether the next one merges into its undo step. */
   private _textEditSessions: Map<
     string,
     { segmentId: number; lastAt: number; lastText: string }
@@ -1523,14 +1522,6 @@ export class ListRepository {
       sourceState: source.crdt.toListState(),
       targetState: target.crdt.toListState(),
     };
-  }
-
-  async getTaskSnapshot(listId: ListId, itemId: string) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
-    const snapshot = record.crdt.getSnapshot();
-    return snapshot.find((item) => item.id === itemId) ?? null;
   }
 
   _createListInstance(listId: ListId, state: ListState | null = null) {

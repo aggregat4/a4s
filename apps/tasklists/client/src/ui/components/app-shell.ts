@@ -293,9 +293,7 @@ class ListsAppShellElement extends HTMLElement {
     this.seedConfigs = seedConfigs;
     this.demoSeedEnabled = Boolean(enableDemoSeed);
     this.store = createAppStore();
-    this.registry = new ListRegistry({
-      repository: this.repository,
-    });
+    this.registry = new ListRegistry();
     this.moveTasksController = new MoveTasksController({
       registry: this.registry,
       repository: this.repository,

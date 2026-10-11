@@ -52,7 +52,7 @@ const ids = (list: ListState) => list.shown.items.map((item) => item.id);
 
 function connected(items: TaskItem[]) {
   const repo = fakeRepository(items);
-  const list = new ListState(() => "", () => {});
+  const list = new ListState(() => {});
   list.connect(repo.repository, "list-1");
   return { repo, list };
 }
@@ -105,11 +105,10 @@ test("a change whose save fails is undone and the failure shown", async () => {
 });
 
 test("without a repository a change is final", () => {
-  const list = new ListState(() => "Title", () => {});
+  const list = new ListState(() => {});
   assert.equal(list.save(() => Promise.resolve()), null);
   list.change([{ type: "insert", item: task("a"), afterId: null, beforeId: null }], null);
   assert.deepEqual(ids(list), ["a"]);
-  assert.equal(list.shown.title, "Title");
 });
 
 test("a note being typed shows, and is saved once committed if it changed", async () => {
@@ -130,7 +129,7 @@ test("a note being typed shows, and is saved once committed if it changed", asyn
 test("every change of what is shown is reported", () => {
   const repo = fakeRepository([task("a")]);
   let reports = 0;
-  const list = new ListState(() => "", () => (reports += 1));
+  const list = new ListState(() => (reports += 1));
   list.connect(repo.repository, "list-1");
   const afterConnect = reports;
   repo.report([task("b")]);
