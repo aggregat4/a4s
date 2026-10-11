@@ -34,3 +34,11 @@ jobs:
         run: go install github.com/go-task/task/v3/cmd/task@v3.54.0
       - name: Run repository checks
         run: task ci
+      - name: Upload Tasklists test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tasklists-test-results
+          path: apps/tasklists/client/test-results
+          if-no-files-found: ignore
+          retention-days: 14

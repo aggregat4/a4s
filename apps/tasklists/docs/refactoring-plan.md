@@ -41,13 +41,12 @@ delete this file when everything is done.
 - [ ] **Search flake on CI.** In CI run 38133330500, "tasklist header mirrors
   title, search, and show-done state" (`tests/tasklist.spec.ts:414`) still
   showed all 20 tasks five seconds after searching for "umbrella". The rerun
-  passed, and 40 local runs under load passed. Without artifacts there is no
-  page snapshot. Consider uploading `apps/tasklists/client/test-results` from
-  CI on failure (`actions/upload-artifact`, `if: failure()`), as its own
-  commit, so a recurrence can be diagnosed. One lead: the search reaches the
-  list elements through `ListRegistry` records (`app-shell.ts`
-  `applySearchToLists`), whose `element` is set only when a render attaches
-  it.
+  passed, and 40 local runs under load passed. CI now keeps a trace of a
+  failed test and uploads `apps/tasklists/client/test-results` as the
+  `tasklists-test-results` artifact; diagnose the next recurrence from it.
+  One lead: the search reaches the list elements through `ListRegistry`
+  records (`app-shell.ts` `applySearchToLists`), whose `element` is set only
+  when a render attaches it.
 
 ## 2. Mechanical cleanup (one commit)
 

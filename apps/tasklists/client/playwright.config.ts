@@ -17,6 +17,9 @@ const config: PlaywrightTestConfig = {
     // A step waiting for an element that never comes fails instead of
     // waiting until the test times out.
     actionTimeout: 15_000,
+    // CI uploads test-results when a run fails; a trace shows the page and
+    // its console step by step.
+    trace: process.env.CI ? "retain-on-failure" : "off",
   },
 
   // Automatically start a local HTTP server before tests
