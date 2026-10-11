@@ -32,7 +32,7 @@ delete this file when everything is done.
 
 ## 1. Open problems
 
-- [ ] **Undo test race.** `tests/tasklist.spec.ts:573` checks
+- [x] **Undo test race.** `tests/tasklist.spec.ts:573` checks
   `repository.canUndo()` once, right after the new task shows. The task now
   shows before the repository has saved it and recorded the undo step, so a
   slow machine sees `false`. It fails 4 times in 15 under

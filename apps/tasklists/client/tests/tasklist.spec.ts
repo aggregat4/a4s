@@ -570,10 +570,15 @@ test("undo/redo shortcuts revert task insertions", async ({ page }) => {
   const initialCount = await page.locator(listItemsSelector).count();
   await addBlankTask(page);
   await expect(page.locator(listItemsSelector)).toHaveCount(initialCount + 1);
-  const canUndo = await page.evaluate(
-    () => (window as any).listsApp?.repository?.canUndo?.() ?? false
-  );
-  expect(canUndo).toBe(true);
+  // The task shows before the repository has saved it and recorded the undo
+  // step, so wait for the step instead of reading it once.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as any).listsApp?.repository?.canUndo?.() ?? false
+      )
+    )
+    .toBe(true);
 
   await page.locator(listItemsSelector).first().locator(".text").click();
   await pressUndo(page);
