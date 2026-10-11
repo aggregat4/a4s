@@ -73,7 +73,7 @@ a refactor of its own commit.
   `observedAttributes` (146), `attributeChangedCallback` (232),
   `suppressNameSync`, the `name` getter and setter (1500), and the fallback
   title read from the attribute in the `ListState` constructor call.
-- [ ] `a4-tasklist.ts`: eleven handlers repeat "find the task id from the
+- [x] `a4-tasklist.ts`: eleven handlers repeat "find the task id from the
   event" (`closest("li")`, `dataset.itemId`). Add one `taskIdOf(event)`
   helper.
 - [ ] `a4-tasklist.ts`: `handleEditCommit` (1231) has six early returns that

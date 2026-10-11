@@ -53,6 +53,10 @@ type DragMove = { id: string; afterId: string | null; beforeId: string | null };
 const itemIdOf = (element: Element | null) =>
   (element as HTMLElement | null)?.dataset.itemId ?? null;
 
+/** The id of the task an element is part of. */
+const taskIdOf = (node: EventTarget | null) =>
+  node instanceof Element ? itemIdOf(node.closest("li")) : null;
+
 const escapeSelectorId = (value: string | null | undefined) => {
   if (typeof value !== "string") return "";
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -350,9 +354,7 @@ class A4TaskList extends HTMLElement {
     beforeText: string;
     afterText: string;
   }) {
-    if (!element) return;
-    const li = element.closest("li");
-    const id = li?.dataset?.itemId;
+    const id = taskIdOf(element);
     if (!id) return;
 
     const state = this.state;
@@ -436,9 +438,8 @@ class A4TaskList extends HTMLElement {
     element: HTMLElement;
     reason?: string;
   }) {
-    if (!element) return;
-    const li = element.closest("li");
-    const id = li?.dataset?.itemId;
+    const li = element?.closest("li") ?? null;
+    const id = itemIdOf(li);
     if (!li || !id) return;
 
     // Continue editing a task the user can see: never one hidden by "Show
@@ -448,7 +449,7 @@ class A4TaskList extends HTMLElement {
     const below = visibleSiblingTask(li, "down");
     const focusTarget =
       reason === "empty-backspace" ? above ?? below : below ?? above;
-    this.editNext(focusTarget?.dataset?.itemId ?? null, "end");
+    this.editNext(itemIdOf(focusTarget), "end");
 
     this.actions.close(id);
 
@@ -466,9 +467,7 @@ class A4TaskList extends HTMLElement {
     element: HTMLElement;
     direction: "up" | "down";
   }) {
-    if (!element) return;
-    const li = element.closest("li");
-    const id = li?.dataset?.itemId;
+    const id = taskIdOf(element);
     if (!id) return;
 
     const items = this.state.items;
@@ -832,8 +831,7 @@ class A4TaskList extends HTMLElement {
   handleToggle(e: Event) {
     const target = e.target as HTMLElement | null;
     if (!target?.classList?.contains("done-toggle")) return;
-    const li = target.closest("li");
-    const id = li?.dataset?.itemId;
+    const id = taskIdOf(target);
     if (!id) return;
     const nextDone = Boolean((target as HTMLInputElement).checked);
     // Request the change right away so it is queued in the order of the
@@ -849,9 +847,7 @@ class A4TaskList extends HTMLElement {
   }
 
   handleMoveButtonClick(event: Event) {
-    const button = event.currentTarget as HTMLElement | null;
-    const li = button?.closest("li");
-    const itemId = li?.dataset?.itemId ?? null;
+    const itemId = taskIdOf(event.currentTarget);
     if (!itemId) return;
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
@@ -865,9 +861,7 @@ class A4TaskList extends HTMLElement {
   }
 
   handleDeleteButtonClick(event: Event) {
-    const button = event.currentTarget as HTMLElement | null;
-    const li = button?.closest("li");
-    const itemId = li?.dataset?.itemId ?? null;
+    const itemId = taskIdOf(event.currentTarget);
     if (!itemId) return;
 
     const snapshot = this.getItemSnapshot(itemId);
@@ -887,10 +881,7 @@ class A4TaskList extends HTMLElement {
   }
 
   handleActionToggleClick(event: Event) {
-    const button = event.currentTarget as HTMLElement | null;
-    const li = button?.closest("li");
-    if (!li) return;
-    const itemId = li.dataset?.itemId ?? null;
+    const itemId = taskIdOf(event.currentTarget);
     if (!itemId) return;
     this.actions.toggle(itemId);
   }
@@ -898,7 +889,7 @@ class A4TaskList extends HTMLElement {
   isNoteInputActive(itemId: string) {
     const activeElement = document.activeElement;
     if (!activeElement?.classList?.contains("task-note-input")) return false;
-    return activeElement.closest("li")?.dataset?.itemId === itemId;
+    return taskIdOf(activeElement) === itemId;
   }
 
   updateNoteScrollState(textarea: HTMLTextAreaElement) {
@@ -920,17 +911,13 @@ class A4TaskList extends HTMLElement {
 
   handleNoteBlur(event: Event) {
     const target = event.currentTarget as HTMLTextAreaElement | null;
-    const li = target?.closest("li");
-    const itemId = li?.dataset?.itemId ?? null;
+    const itemId = taskIdOf(target);
     if (!itemId || !target) return;
     this.list.commitNote(itemId, target.value ?? "");
   }
 
   handleNoteToggleClick(event: Event) {
-    const button = event.currentTarget as HTMLElement | null;
-    const li = button?.closest("li");
-    if (!li) return;
-    const itemId = li.dataset?.itemId ?? null;
+    const itemId = taskIdOf(event.currentTarget);
     if (!itemId) return;
     const shouldFocus = this.openNoteItemIds.has(itemId) === false;
     this.toggleNoteForItem(itemId, { focus: shouldFocus });
@@ -938,8 +925,7 @@ class A4TaskList extends HTMLElement {
 
   handleNoteInput(event: Event) {
     const target = event.currentTarget as HTMLTextAreaElement | null;
-    const li = target?.closest("li");
-    const itemId = li?.dataset?.itemId ?? null;
+    const itemId = taskIdOf(target);
     if (!itemId || !target) return;
     this.list.draftNote(itemId, target.value ?? "");
     this.updateNoteScrollState(target);
@@ -953,9 +939,8 @@ class A4TaskList extends HTMLElement {
     ) {
       return;
     }
-    const target = event.currentTarget as HTMLElement | null;
-    const li = target?.closest("li");
-    const itemId = li?.dataset?.itemId ?? null;
+    const li = (event.currentTarget as HTMLElement | null)?.closest("li") ?? null;
+    const itemId = itemIdOf(li);
     if (!itemId) return;
     event.preventDefault();
     if (matchesShortcut(event, SHORTCUTS.toggleNote)) {
@@ -1026,13 +1011,8 @@ class A4TaskList extends HTMLElement {
     if (event.isComposing) return;
     if (matchesShortcut(event, SHORTCUTS.toggleNote)) {
       const target = event.target as HTMLElement | null;
-      if (!target) return;
-      if (target.classList.contains("task-note-input")) {
-        return;
-      }
-      const li = target.closest?.("li");
-      if (!li) return;
-      const itemId = li.dataset?.itemId ?? null;
+      if (target?.classList.contains("task-note-input")) return;
+      const itemId = taskIdOf(target);
       if (!itemId) return;
       event.preventDefault();
       this.toggleNoteForItem(itemId, { focus: true });
@@ -1055,22 +1035,14 @@ class A4TaskList extends HTMLElement {
       return;
     }
     if (matchesShortcut(event, SHORTCUTS.toggleDone)) {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const li = target.closest?.("li");
-      if (!li) return;
-      const itemId = li.dataset?.itemId ?? null;
+      const itemId = taskIdOf(event.target);
       if (!itemId) return;
       event.preventDefault();
       this.toggleItemDone(itemId);
       return;
     }
     if (!matchesShortcut(event, SHORTCUTS.moveTask)) return;
-    const target = event.target as HTMLElement | null;
-    if (!target) return;
-    const li = target.closest?.("li");
-    if (!li) return;
-    const itemId = li.dataset?.itemId ?? null;
+    const itemId = taskIdOf(event.target);
     if (!itemId) return;
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
@@ -1092,8 +1064,7 @@ class A4TaskList extends HTMLElement {
   }) {
     if (!element?.classList?.contains("text")) return;
     if (!element.isContentEditable) return;
-    const li = element.closest("li");
-    const itemId = li?.dataset?.itemId ?? null;
+    const itemId = taskIdOf(element);
     if (!itemId) return;
     const newText = text ?? "";
     const stateItem = this.state.items.find((item) => item.id === itemId);
@@ -1126,8 +1097,7 @@ class A4TaskList extends HTMLElement {
     const isEditing = Boolean(target?.closest?.("[contenteditable='true']"));
     if (!isEditing) return;
     if (matchesShortcut(event, SHORTCUTS.toggleDone)) {
-      const li = target?.closest?.("li");
-      const itemId = li?.dataset?.itemId ?? null;
+      const itemId = taskIdOf(target);
       if (!itemId) return;
       event.preventDefault();
       event.stopPropagation();
@@ -1149,15 +1119,14 @@ class A4TaskList extends HTMLElement {
   }
 
   handleFocusIn(event: FocusEvent) {
-    const target = event.target as HTMLElement | null;
-    const li = target?.closest?.("li");
-    const itemId = li?.dataset?.itemId ?? null;
-    if (!itemId) return;
+    const li = (event.target as HTMLElement | null)?.closest("li") ?? null;
+    const itemId = itemIdOf(li);
+    if (!li || !itemId) return;
     if (this.focusedItemId && this.focusedItemId !== itemId) {
       this.itemElement(this.focusedItemId)?.classList.remove("is-focused");
     }
     this.focusedItemId = itemId;
-    li?.classList.add("is-focused");
+    li.classList.add("is-focused");
     this.emit("task-focus", {
       itemId,
       sourceListId: this.listId,
@@ -1165,12 +1134,11 @@ class A4TaskList extends HTMLElement {
   }
 
   handleFocusOut(event: FocusEvent) {
-    const target = event.target as HTMLElement | null;
-    const li = target?.closest?.("li");
+    const li = (event.target as HTMLElement | null)?.closest("li");
     if (!li) return;
     const related = event.relatedTarget as HTMLElement | null;
     if (related && li.contains(related)) return;
-    const itemId = li?.dataset?.itemId ?? null;
+    const itemId = itemIdOf(li);
     if (itemId && this.focusedItemId === itemId) {
       this.focusedItemId = null;
     }
@@ -1178,8 +1146,7 @@ class A4TaskList extends HTMLElement {
   }
 
   handleListDragStart(event: DragEvent) {
-    const li = (event.target as HTMLElement | null)?.closest?.("li") ?? null;
-    const itemId = li?.dataset?.itemId ?? null;
+    const itemId = taskIdOf(event.target);
     if (!itemId) return;
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
@@ -1217,8 +1184,7 @@ class A4TaskList extends HTMLElement {
       this.scheduleSearchRender(0);
       return;
     }
-    const li = element.closest("li");
-    const id = li?.dataset?.itemId;
+    const id = taskIdOf(element);
     if (!id) {
       this.scheduleSearchRender(0);
       return;
@@ -1266,7 +1232,7 @@ class A4TaskList extends HTMLElement {
   }
 
   editingItemId() {
-    return this.inlineEditor?.editingEl?.closest("li")?.dataset.itemId ?? null;
+    return taskIdOf(this.inlineEditor?.editingEl ?? null);
   }
 
   /** The list item of a task, if it is rendered. */
@@ -1399,8 +1365,8 @@ class A4TaskList extends HTMLElement {
     if (!listEl) return null;
     const activeElement = document.activeElement;
     if (!activeElement || !listEl.contains(activeElement as Node)) return null;
-    const activeLi = (activeElement as Element).closest("li");
-    if (!activeLi?.dataset?.itemId) return null;
+    const itemId = taskIdOf(activeElement);
+    if (!itemId) return null;
     const role: "toggle" | "text" | "note" | null =
       activeElement.classList.contains("done-toggle")
         ? "toggle"
@@ -1409,7 +1375,7 @@ class A4TaskList extends HTMLElement {
         : activeElement.classList.contains("task-note-input")
         ? "note"
         : null;
-    return role ? { itemId: activeLi.dataset.itemId, role } : null;
+    return role ? { itemId, role } : null;
   }
 
   /**
