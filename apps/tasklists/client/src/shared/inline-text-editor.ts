@@ -305,7 +305,8 @@ export default class InlineTextEditor {
   /**
    * Runs an update that may move the element being edited, such as rendering
    * changes from another device. Moving a focused element blurs it, so editing
-   * continues afterwards, with the cursor where it was.
+   * continues afterwards, with the cursor where it was. If the update removes
+   * the element, its task is gone and editing ends.
    */
   keepEditingThrough(update: () => void) {
     const textEl = this.editingEl;
@@ -320,7 +321,13 @@ export default class InlineTextEditor {
     } finally {
       this.keepingEdit = false;
     }
-    if (this.editingEl === textEl && textEl.isConnected && document.activeElement !== textEl) {
+    if (this.editingEl !== textEl) return;
+    if (!textEl.isConnected) {
+      // Typing was saved as it happened; there is nothing left to commit.
+      this.finishEditing(textEl, true);
+      return;
+    }
+    if (document.activeElement !== textEl) {
       textEl.focus();
       this.setSelectionAtOffset(textEl, start);
     }

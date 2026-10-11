@@ -912,3 +912,46 @@ test("the task being edited moves after another device ticked it off", async ({ 
     await contextB.close();
   }
 });
+
+test("a task another device deleted while it was edited shows that device's edits once restored", async ({
+  browser,
+}) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  try {
+    for (const page of [pageA, pageB]) {
+      await Promise.all([
+        page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),
+        page.goto("/?sync=1"),
+      ]);
+    }
+    const listTitle = `Restored after delete ${Date.now()}`;
+    await createList(pageA, listTitle);
+    await selectList(pageB, listTitle);
+    await pageA.getByRole("button", { name: "Add task" }).click();
+    await expect(taskTexts(pageB)).toHaveText([""]);
+
+    // The other device deletes the task while this one still edits it.
+    await pageB.locator(listItemsSelector).first().locator(".text").click();
+    await pageB.keyboard.press("ControlOrMeta+Shift+Backspace");
+    await expect(taskTexts(pageA)).toHaveCount(0);
+
+    const sidebar = pageA.locator("[data-role='sidebar']");
+    await sidebar.getByRole("button", { name: "Undo", exact: true }).click();
+    await sidebar.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(taskTexts(pageA)).toHaveText([""]);
+    await expect(taskTexts(pageB)).toHaveText([""]);
+
+    await pageB.locator(listItemsSelector).first().locator(".text").click();
+    await pageB.keyboard.press("End");
+    await pageB.keyboard.type("z");
+    await pageB.keyboard.press("Escape");
+    await expect(taskTexts(pageB)).toHaveText(["z"]);
+    await expect(taskTexts(pageA)).toHaveText(["z"]);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});

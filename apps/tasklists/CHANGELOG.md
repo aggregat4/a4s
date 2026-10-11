@@ -17,6 +17,9 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- A task that another device deleted while it was being edited shows that
+  device's changes again once undo or redo brings it back. It kept showing
+  the text it had when it was deleted.
 - A new list shows its name right away. On a slow device it briefly showed
   as "Untitled List".
 - Deleting a task with its Delete button continues with the next task in
