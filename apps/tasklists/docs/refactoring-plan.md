@@ -104,6 +104,9 @@ name again, and failures are rolled back case by case.
 
 - [x] Delete the shell's `dispose` and `RepositorySync.dispose`; nothing
   calls them, and the shell lives as long as the page.
+- [x] The repository gives a list the registry's title until the list's own
+  state arrives (after an import, or from another device). Until now only
+  `RepositorySync`'s copy into the elements' `initialState` covered this.
 - [ ] The shell listens once for the list events, which bubble and are
   composed, instead of `ListRegistry` attaching seven listeners to every
   element. Drop the unused `task-focus` event.

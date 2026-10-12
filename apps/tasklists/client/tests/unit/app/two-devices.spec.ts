@@ -56,3 +56,16 @@ test("a list restored by undo looks the same on a device that reloaded", async (
   assert.equal(titleOf(a, "list-1"), "");
   assert.equal(titleOf(b, "list-1"), titleOf(a, "list-1"));
 });
+
+test("a list known only from the registry has the registry's title", async () => {
+  const a = await openDevice();
+  const b = await openDevice();
+  await a.repository.createList({ listId: "list-1", title: "Inbox" });
+  const outbox = await (a.repository as unknown as {
+    _storage: { loadOutbox: () => Promise<Array<{ scope: string }>> };
+  })._storage.loadOutbox();
+
+  // The registry's operations arrive before the list's own.
+  await b.repository.applyRemoteOps(outbox.filter((op) => op.scope === "registry") as never);
+  assert.equal(titleOf(b, "list-1"), "Inbox");
+});

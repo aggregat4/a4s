@@ -390,9 +390,15 @@ export class ListRepository {
     return this.getRegistrySnapshot().map((entry) => entry.id);
   }
 
+  /**
+   * A list's title and tasks. The registry announces a list before its own
+   * state arrives, as after an import or from another device; until then the
+   * list has the registry's title.
+   */
   getListState(listId: ListId): TaskListState {
-    const record = this._listMap.get(listId);
-    return toListState(record);
+    const state = toListState(this._listMap.get(listId));
+    if (state.title) return state;
+    return { ...state, title: this._listsCrdt.getRecord(listId)?.title ?? "" };
   }
 
   getListSnapshot(listId: ListId) {
