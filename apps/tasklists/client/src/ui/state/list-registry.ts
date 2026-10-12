@@ -24,7 +24,6 @@ export type ListRecord = {
   initialState: TaskListState;
   element: ListElement | null;
   wrapper: HTMLElement | null;
-  boundElement: ListElement | null;
   stateVersion: number;
   appliedStateVersion: number;
   flashTimer: ReturnType<typeof setTimeout> | null;
@@ -36,31 +35,15 @@ type ListConfig = {
   items?: TaskItem[];
 };
 
-type ListEventHandlers = Partial<{
-  onTaskMoveRequest: (event: Event) => void;
-  onItemCountChange: (event: Event) => void;
-  onSearchResultsChange: (event: Event) => void;
-  onListFocus: (event: Event) => void;
-  onListTitleChange: (event: Event) => void;
-  onSearchClear: (event: Event) => void;
-  onShowDoneChange: (event: Event) => void;
-}>;
-
 class ListRegistry {
-  private eventHandlers: ListEventHandlers;
   private records: Map<ListId, ListRecord>;
   private listOrder: ListId[];
   private activeListId: ListId | null;
 
-  constructor({ eventHandlers = {} }: { eventHandlers?: ListEventHandlers } = {}) {
-    this.eventHandlers = eventHandlers;
+  constructor() {
     this.records = new Map();
     this.listOrder = [];
     this.activeListId = null;
-  }
-
-  setEventHandlers(eventHandlers: ListEventHandlers = {}) {
-    this.eventHandlers = eventHandlers;
   }
 
   getRecord(listId: ListId) {
@@ -118,14 +101,12 @@ class ListRegistry {
       initialState: state,
       element: null,
       wrapper: null,
-      boundElement: null,
       stateVersion: 1,
       appliedStateVersion: 0,
       flashTimer: null,
     };
 
     this.records.set(id, record);
-    this.registerListEvents(record);
     if (!this.listOrder.includes(id)) {
       this.listOrder.push(id);
     }
@@ -139,9 +120,7 @@ class ListRegistry {
   removeList(listId: ListId) {
     const record = this.records.get(listId);
     if (!record) return;
-    const element = record.element;
-    this.unregisterListEvents(record);
-    element?.dispose?.();
+    record.element?.dispose?.();
     if (record.flashTimer) {
       clearTimeout(record.flashTimer);
       record.flashTimer = null;
@@ -187,93 +166,13 @@ class ListRegistry {
         "a4-tasklist"
       ) as ListElement | null;
       if (!listElement) return;
-      if (record.boundElement && record.boundElement !== listElement) {
-        this.unregisterListEvents(record);
-      }
       record.element = listElement;
       record.wrapper = section;
-      if (record.boundElement !== listElement) {
-        record.boundElement = listElement;
-        this.registerListEvents(record);
-      }
       if (record.appliedStateVersion !== record.stateVersion) {
         listElement.initialState = record.initialState;
         record.appliedStateVersion = record.stateVersion;
       }
     });
-  }
-
-  registerListEvents(record: ListRecord) {
-    const element = record?.boundElement ?? record?.element;
-    if (!element || !this.eventHandlers) return;
-    const {
-      onTaskMoveRequest,
-      onItemCountChange,
-      onSearchResultsChange,
-      onListFocus,
-      onListTitleChange,
-      onSearchClear,
-      onShowDoneChange,
-    } = this.eventHandlers;
-    if (onTaskMoveRequest) {
-      element.addEventListener("task-move-request", onTaskMoveRequest);
-    }
-    if (onItemCountChange) {
-      element.addEventListener("itemcountchange", onItemCountChange);
-    }
-    if (onSearchResultsChange) {
-      element.addEventListener("searchresultschange", onSearchResultsChange);
-    }
-    if (onListFocus) {
-      element.addEventListener("task-focus", onListFocus);
-    }
-    if (onListTitleChange) {
-      element.addEventListener("titlechange", onListTitleChange);
-    }
-    if (onSearchClear) {
-      element.addEventListener("clearsearch", onSearchClear);
-    }
-    if (onShowDoneChange) {
-      element.addEventListener("showdonechange", onShowDoneChange);
-    }
-  }
-
-  unregisterListEvents(record: ListRecord) {
-    const element = record?.boundElement ?? record?.element;
-    if (!element || !this.eventHandlers) return;
-    const {
-      onTaskMoveRequest,
-      onItemCountChange,
-      onSearchResultsChange,
-      onListFocus,
-      onListTitleChange,
-      onSearchClear,
-      onShowDoneChange,
-    } = this.eventHandlers;
-    if (onTaskMoveRequest) {
-      element.removeEventListener("task-move-request", onTaskMoveRequest);
-    }
-    if (onItemCountChange) {
-      element.removeEventListener("itemcountchange", onItemCountChange);
-    }
-    if (onSearchResultsChange) {
-      element.removeEventListener("searchresultschange", onSearchResultsChange);
-    }
-    if (onListFocus) {
-      element.removeEventListener("task-focus", onListFocus);
-    }
-    if (onListTitleChange) {
-      element.removeEventListener("titlechange", onListTitleChange);
-    }
-    if (onSearchClear) {
-      element.removeEventListener("clearsearch", onSearchClear);
-    }
-    if (onShowDoneChange) {
-      element.removeEventListener("showdonechange", onShowDoneChange);
-    }
-    if (record) {
-      record.boundElement = null;
-    }
   }
 
   getRecordIds() {

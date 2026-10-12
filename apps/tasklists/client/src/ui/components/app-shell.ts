@@ -175,6 +175,24 @@ class ListsAppShellElement extends HTMLElement {
     });
     window.addEventListener("popstate", () => this.onPopState(), { signal });
     this.addEventListener("tokensearch", (event) => this.handleTokenSearch(event), { signal });
+    // Events of the list elements, which bubble.
+    this.addEventListener(
+      "task-move-request",
+      (event) => this.moveTasksController?.handleTaskMoveRequest(event),
+      { signal }
+    );
+    this.addEventListener("itemcountchange", () => this.refreshSidebar(), { signal });
+    this.addEventListener("searchresultschange", () => this.refreshSidebar(), { signal });
+    this.addEventListener("titlechange", (event) => this.handleListTitleChange(event), { signal });
+    this.addEventListener("clearsearch", () => this.handleSearchClear(), { signal });
+    this.addEventListener(
+      "showdonechange",
+      () => {
+        this.refreshSidebar();
+        this.refreshMobileToolbar();
+      },
+      { signal }
+    );
   }
 
   disconnectedCallback() {
@@ -278,19 +296,6 @@ class ListsAppShellElement extends HTMLElement {
       repository: this.repository,
       registry: this.registry,
       store: this.store,
-    });
-    this.registry.setEventHandlers({
-      onTaskMoveRequest: (event) =>
-        moveTasksController.handleTaskMoveRequest(event),
-      onItemCountChange: () => this.refreshSidebar(),
-      onSearchResultsChange: () => this.refreshSidebar(),
-      onListTitleChange: (event) => this.handleListTitleChange(event),
-      onSearchClear: () => this.handleSearchClear(),
-      onShowDoneChange: () => {
-        if (!this.store) return;
-        this.refreshSidebar(this.store.getState());
-        this.refreshMobileToolbar();
-      },
     });
     this.sidebarElement?.setHandlers?.({
       onSearchChange: (value: string) => this.handleSearchChange(value),
@@ -555,11 +560,7 @@ class ListsAppShellElement extends HTMLElement {
   handleListTitleChange(event: Event) {
     if (!this.store) return;
     const customEvent = event as CustomEvent<{ title?: string }>;
-    const element = event.currentTarget ?? null;
-    const listId =
-      (element as { listId?: ListId } | null)?.listId ??
-      (element as HTMLElement | null)?.dataset?.listId ??
-      null;
+    const listId = (event.target as { listId?: ListId } | null)?.listId ?? null;
     const detailTitle =
       typeof customEvent.detail?.title === "string"
         ? customEvent.detail.title

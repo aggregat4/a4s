@@ -778,6 +778,8 @@ class A4TaskList extends HTMLElement {
       if (state.title) this.setAttribute("name", state.title);
       else this.removeAttribute("name");
     }
+    // Until the list's state is known, there is nothing to tell.
+    if (!this.list.savedState) return;
     this.emitChange("itemcountchange", { total: this.getTotalItemCount() });
     this.emitChange("titlechange", { title: state.title });
     this.emitChange("searchresultschange", { matches: shownCount, query: this.searchQuery });
@@ -1082,10 +1084,6 @@ class A4TaskList extends HTMLElement {
     }
     this.focusedItemId = itemId;
     li.classList.add("is-focused");
-    this.emit("task-focus", {
-      itemId,
-      sourceListId: this.listId,
-    });
   }
 
   handleFocusOut(event: FocusEvent) {

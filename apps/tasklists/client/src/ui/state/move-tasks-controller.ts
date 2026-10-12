@@ -86,10 +86,7 @@ class MoveTasksController {
       trigger?: string;
     }>;
     const detail = customEvent.detail ?? {};
-    const sourceListId =
-      detail.sourceListId ??
-      (event.currentTarget as { listId?: ListId } | null)?.listId ??
-      null;
+    const sourceListId = detail.sourceListId ?? null;
     const itemId = detail.itemId ?? null;
     if (!sourceListId || !itemId) return;
     const record = this.registry.getRecord(sourceListId);
