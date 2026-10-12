@@ -143,14 +143,6 @@ class A4TaskList extends HTMLElement {
     return this.list.shown;
   }
 
-  get initialState() {
-    return this.list.savedState;
-  }
-
-  set initialState(value: TaskListState | null) {
-    this.list.setSaved(value ?? { title: "", items: [] });
-  }
-
   connectedCallback() {
     this.renderShell();
     if (!this.listEl) return;

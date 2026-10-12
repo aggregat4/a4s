@@ -1,8 +1,6 @@
-import { generateListId, cloneListState } from "./list-store.js";
-import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
+import type { ListId, TaskItem } from "../../types/domain.js";
 
 type ListElement = HTMLElement & {
-  initialState?: TaskListState;
   getTotalItemCount: () => number;
   getSearchMatchCountForQuery?: (query: string) => number;
   applyFilter?: (query: string) => void;
@@ -21,18 +19,9 @@ type ListElement = HTMLElement & {
 
 export type ListRecord = {
   id: ListId;
-  initialState: TaskListState;
   element: ListElement | null;
   wrapper: HTMLElement | null;
-  stateVersion: number;
-  appliedStateVersion: number;
   flashTimer: ReturnType<typeof setTimeout> | null;
-};
-
-type ListConfig = {
-  id?: ListId;
-  title?: string;
-  items?: TaskItem[];
 };
 
 class ListRegistry {
@@ -77,44 +66,16 @@ class ListRegistry {
     this.activeListId = listId;
   }
 
-  createList(config: ListConfig, { makeActive = false }: { makeActive?: boolean } = {}) {
-    const id = config.id ?? generateListId("list");
-    const state = cloneListState({
-      title:
-        typeof config.title === "string" && config.title.length
-          ? config.title
-          : "",
-      items: Array.isArray(config.items) ? config.items : [],
-    });
-    const existing = this.records.get(id);
-    if (existing) {
-      existing.initialState = state;
-      existing.stateVersion = (existing.stateVersion ?? 0) + 1;
-      if (makeActive) {
-        this.activeListId = id;
-      }
-      return existing;
-    }
-
-    const record: ListRecord = {
-      id,
-      initialState: state,
-      element: null,
-      wrapper: null,
-      stateVersion: 1,
-      appliedStateVersion: 0,
-      flashTimer: null,
-    };
-
-    this.records.set(id, record);
+  /** Keeps a record for a list, if it has none yet. */
+  addList(id: ListId) {
+    if (this.records.has(id)) return;
+    this.records.set(id, { id, element: null, wrapper: null, flashTimer: null });
     if (!this.listOrder.includes(id)) {
       this.listOrder.push(id);
     }
-
-    if (makeActive || !this.activeListId) {
+    if (!this.activeListId) {
       this.activeListId = id;
     }
-    return record;
   }
 
   removeList(listId: ListId) {
@@ -168,10 +129,6 @@ class ListRegistry {
       if (!listElement) return;
       record.element = listElement;
       record.wrapper = section;
-      if (record.appliedStateVersion !== record.stateVersion) {
-        listElement.initialState = record.initialState;
-        record.appliedStateVersion = record.stateVersion;
-      }
     });
   }
 

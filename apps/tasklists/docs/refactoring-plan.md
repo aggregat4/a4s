@@ -110,7 +110,7 @@ name again, and failures are rolled back case by case.
 - [x] The shell listens once for the list events, which bubble and are
   composed, instead of `ListRegistry` attaching seven listeners to every
   element. Drop the unused `task-focus` event.
-- [ ] Stop copying `initialState` into the list elements (the setter, and
+- [x] Stop copying `initialState` into the list elements (the setter, and
   `stateVersion` and `appliedStateVersion`); each follows the repository
   through `ListState.connect`.
 - [ ] The main pane, which renders the list elements, finds a list's element

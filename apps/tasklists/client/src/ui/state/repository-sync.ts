@@ -13,11 +13,7 @@ type Repository = {
 };
 
 type Registry = {
-  createList: (config: {
-    id?: ListId;
-    title?: string;
-    items?: TaskListState["items"];
-  }) => { id: ListId } | null;
+  addList: (id: ListId) => void;
   getRecordIds: () => ListId[];
   removeList: (id: ListId) => void;
   has: (id: ListId) => boolean;
@@ -77,11 +73,7 @@ class RepositorySync {
       const listId = entry?.id;
       if (!listId) return;
       const state = this.repository.getListState(listId);
-      this.registry.createList({
-        id: listId,
-        title: state.title,
-        items: state.items,
-      });
+      this.registry.addList(listId);
       const normalized = state.title.trim();
       const name = normalized.length ? normalized : "Untitled List";
       listMeta.push({ id: listId, name });
