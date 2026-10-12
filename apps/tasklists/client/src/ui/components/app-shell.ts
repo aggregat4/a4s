@@ -115,16 +115,13 @@ class ListsAppShellElement extends HTMLElement {
   private moveDialogElement: MoveDialogElement | null;
   private shortcutsDialogElement: ShortcutsDialogElement | null;
   private mobileToolbarElement: MobileToolbarElement | null;
-  private unsubscribeHistory: (() => void) | null;
   private repository: ListRepository | null;
   private store: Store | null;
   private registry: ListRegistry | null;
   private moveTasksController: MoveTasksController | null;
-  private repositorySync: RepositorySync | null;
   private seedConfigs: SeedConfig[] | undefined;
   private demoSeedEnabled: boolean;
   private importInput: HTMLInputElement | null;
-  private unsubscribeStore: (() => void) | null;
   private lastOrder: ListId[];
   private lastActiveId: ListId | null;
   // A list the user navigates to before it exists (a list being created). It
@@ -148,16 +145,13 @@ class ListsAppShellElement extends HTMLElement {
     this.moveDialogElement = null;
     this.shortcutsDialogElement = null;
     this.mobileToolbarElement = null;
-    this.unsubscribeHistory = null;
     this.repository = null;
     this.store = null;
     this.registry = null;
     this.moveTasksController = null;
-    this.repositorySync = null;
     this.seedConfigs = undefined;
     this.demoSeedEnabled = false;
     this.importInput = null;
-    this.unsubscribeStore = null;
     this.lastOrder = [];
     this.lastActiveId = null;
     this.listIdToPushToUrl = null;
@@ -280,7 +274,7 @@ class ListsAppShellElement extends HTMLElement {
       store: this.store,
     });
     const moveTasksController = this.moveTasksController;
-    this.repositorySync = new RepositorySync({
+    const repositorySync = new RepositorySync({
       repository: this.repository,
       registry: this.registry,
       store: this.store,
@@ -322,11 +316,11 @@ class ListsAppShellElement extends HTMLElement {
       onShowDoneChange: (showDone) =>
         this.getActiveListElement()?.setShowDone?.(showDone),
     });
-    this.unsubscribeHistory = this.repository.subscribeHistory((state) => {
+    this.repository.subscribeHistory((state) => {
       this.sidebarElement?.setHistoryState?.(state);
       this.mobileToolbarElement?.setState?.(state);
     });
-    this.unsubscribeStore = this.store.subscribe(() => this.handleStoreChange());
+    this.store.subscribe(() => this.handleStoreChange());
     this.lastOrder = selectors.getListOrder(this.store.getState());
     this.lastActiveId = selectors.getActiveListId(this.store.getState());
     // The list may not be loaded (or synced) yet, so it becomes active once the
@@ -338,7 +332,7 @@ class ListsAppShellElement extends HTMLElement {
         payload: { id: urlListId },
       });
     }
-    await this.repositorySync.initialize();
+    await repositorySync.initialize();
     this.sidebarElement?.setDemoSeedEnabled?.(this.demoSeedEnabled);
     const urlSearch = readSearchFromUrl();
     if (urlSearch) {
@@ -403,14 +397,6 @@ class ListsAppShellElement extends HTMLElement {
 
   handleSyncStatus(status: SyncStatus) {
     this.sidebarElement?.setSyncStatus?.(status);
-  }
-
-  dispose() {
-    this.unsubscribeHistory?.();
-    this.unsubscribeHistory = null;
-    this.unsubscribeStore?.();
-    this.unsubscribeStore = null;
-    this.repositorySync?.dispose?.();
   }
 
   handleStoreChange() {

@@ -66,13 +66,6 @@ class RepositorySync {
     this.handleRegistryChange(this.repository.getRegistrySnapshot());
   }
 
-  dispose() {
-    if (this.registryUnsubscribe) {
-      this.registryUnsubscribe();
-      this.registryUnsubscribe = null;
-    }
-  }
-
   handleRegistryChange(snapshot: ListRegistryEntry[] = []) {
     if (!Array.isArray(snapshot)) return;
     const seen = new Set<ListId>();
