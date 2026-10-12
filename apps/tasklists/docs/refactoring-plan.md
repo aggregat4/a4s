@@ -88,30 +88,40 @@ a refactor of its own commit.
   for template handlers and one `AbortController` per connection for other
   listeners.
 
-## 3. App-level state consolidation (design first)
+## 3. App-level state consolidation
 
 `ListRegistry` (`src/ui/state/list-registry.ts`), the app store
 (`src/ui/state/app-store.ts`) and `RepositorySync`
-(`src/ui/state/repository-sync.ts`) overlap:
+(`src/ui/state/repository-sync.ts`) overlap: the list order, the active list
+and the list names are copied between the repository's registry, the app
+store and `ListRegistry`.
 
-- The list order, the active list and the list names are kept in three
-  places: the repository's registry, the app store, and `ListRegistry`.
-- `ListRegistry` copies each list's `initialState` into its element, with
-  `stateVersion` and `appliedStateVersion` counters (lines 125–138, 215). The
-  elements no longer need it: each follows the repository through
-  `ListState.connect`.
-- `ListRegistry.registerListEvents` (line 222) attaches seven listeners to
-  every element, although those events bubble and are composed; one listener
-  on the container would do.
-- Nothing listens to the list element's `task-focus` event any more, and
-  `ListRegistry` still has an `onListFocus` handler slot for it.
-- `app-shell.ts` `dispose` is never called; it is the only caller of
-  `RepositorySync.dispose`. Decide the shell's teardown with the rest.
+Agreed design: what the user sees of the lists is the repository's registry
+with the user's unsaved list changes on top, as `ListState` does for the
+tasks of a list. The store copies the registry on every change, so a
+snapshot taken before a reorder or rename was saved shows the old order or
+name again, and failures are rolled back case by case.
 
-Discuss with the user before starting: which of the three keeps the list
-order, the active list and the names, and what each of the others becomes.
-Expect `app-shell.ts` `initialize` (110 lines) to shrink with it. Several
-commits, each keeping the suite green.
+- [ ] Delete the shell's `dispose` and `RepositorySync.dispose`; nothing
+  calls them, and the shell lives as long as the page.
+- [ ] The shell listens once for the list events, which bubble and are
+  composed, instead of `ListRegistry` attaching seven listeners to every
+  element. Drop the unused `task-focus` event.
+- [ ] Stop copying `initialState` into the list elements (the setter, and
+  `stateVersion` and `appliedStateVersion`); each follows the repository
+  through `ListState.connect`.
+- [ ] The main pane, which renders the list elements, finds a list's element
+  and flashes its section. The move controller and the shell use it, and
+  `ListRegistry` is deleted.
+- [ ] E2E tests on a slow device for reordering, renaming, creating and
+  deleting lists while other registry changes arrive. Review with the user
+  before going on.
+- [ ] Factor the pending-changes core shared with `ListState` out of it.
+- [ ] Add `ListsState`: the registry with pending creates, removes, moves and
+  renames. A rename is one request, pending in both the list's `ListState`
+  and `ListsState`. The sidebar, the main pane and the move dialog use it.
+- [ ] Remove the app store and `RepositorySync`; the active list, the list
+  waited for from the URL and the search query become the shell's state.
 
 ## 4. Repository changes
 
