@@ -55,7 +55,8 @@ class SidebarElement extends HTMLElement {
   private historyState: HistoryAvailability;
   private serverVersion: string | null;
   private serverVersionLoading: boolean;
-  private handleOnlineChange: (() => void) | null;
+  /** Aborted when the element is disconnected, removing its listeners. */
+  private connection: AbortController | null;
 
   private static readonly TASK_MIME = "application/x-a4-task";
 
@@ -80,19 +81,7 @@ class SidebarElement extends HTMLElement {
     this.historyState = { canUndo: false, canRedo: false };
     this.serverVersion = null;
     this.serverVersionLoading = false;
-    this.handleOnlineChange = null;
-    this.handleSearchInput = this.handleSearchInput.bind(this);
-    this.handleSearchKeyDown = this.handleSearchKeyDown.bind(this);
-    this.handleListDragEnter = this.handleListDragEnter.bind(this);
-    this.handleListDragOver = this.handleListDragOver.bind(this);
-    this.handleListDragLeave = this.handleListDragLeave.bind(this);
-    this.handleListDrop = this.handleListDrop.bind(this);
-    this.handleGlobalDragEnd = this.handleGlobalDragEnd.bind(this);
-    this.handleSidebarButtonClick = this.handleSidebarButtonClick.bind(this);
-    this.handleListDragStart = this.handleListDragStart.bind(this);
-    this.handleListDragEnd = this.handleListDragEnd.bind(this);
-    this.handleListReorder = this.handleListReorder.bind(this);
-    this.handleActionsToggle = this.handleActionsToggle.bind(this);
+    this.connection = null;
   }
 
   connectedCallback() {
@@ -100,11 +89,25 @@ class SidebarElement extends HTMLElement {
     if (!this.dataset.role) {
       this.dataset.role = "sidebar";
     }
+    this.connection = new AbortController();
+    const { signal } = this.connection;
+    this.isOnline = navigator.onLine !== false;
+    window.addEventListener("online", () => this.handleOnlineChange(), { signal });
+    window.addEventListener("offline", () => this.handleOnlineChange(), { signal });
+    document.addEventListener("dragend", () => this.handleGlobalDragEnd(), { signal });
     this.renderView();
   }
 
   disconnectedCallback() {
-    this.destroy();
+    this.connection?.abort();
+    this.connection = null;
+    clearTimeout(this.searchDebounceId ?? undefined);
+    this.dragCoordinator?.destroy();
+    this.dragCoordinator = null;
+    this.dragStartOrder = null;
+    this.isListDragging = false;
+    this.pendingRender = false;
+    this.pendingRenderMode = null;
   }
 
   setHandlers(
@@ -177,41 +180,15 @@ class SidebarElement extends HTMLElement {
       : "disconnected";
   }
 
-  init() {
-    if (typeof window !== "undefined") {
-      this.isOnline = navigator.onLine !== false;
-      this.handleOnlineChange = () => {
-        const next = navigator.onLine !== false;
-        if (next !== this.isOnline) {
-          this.isOnline = next;
-          // Optimistically clear a stale "disconnected" the moment
-          // connectivity returns; a still-unreachable server re-asserts it on
-          // the next failed flush.
-          if (next) this.syncStatus = "connected";
-          this.renderView();
-        }
-      };
-      window.addEventListener("online", this.handleOnlineChange);
-      window.addEventListener("offline", this.handleOnlineChange);
-    }
+  handleOnlineChange() {
+    const next = navigator.onLine !== false;
+    if (next === this.isOnline) return;
+    this.isOnline = next;
+    // Optimistically clear a stale "disconnected" the moment connectivity
+    // returns; a still-unreachable server re-asserts it on the next failed
+    // flush.
+    if (next) this.syncStatus = "connected";
     this.renderView();
-    document.addEventListener("dragend", this.handleGlobalDragEnd);
-  }
-
-  destroy() {
-    clearTimeout(this.searchDebounceId ?? undefined);
-    document.removeEventListener("dragend", this.handleGlobalDragEnd);
-    this.dragCoordinator?.destroy();
-    this.dragCoordinator = null;
-    this.dragStartOrder = null;
-    this.isListDragging = false;
-    this.pendingRender = false;
-    this.pendingRenderMode = null;
-    if (this.handleOnlineChange && typeof window !== "undefined") {
-      window.removeEventListener("online", this.handleOnlineChange);
-      window.removeEventListener("offline", this.handleOnlineChange);
-      this.handleOnlineChange = null;
-    }
   }
 
   setSearchValue(value: string) {
@@ -434,7 +411,8 @@ class SidebarElement extends HTMLElement {
           </div>
         </div>
       `,
-      this
+      this,
+      { host: this }
     );
     this.ensureDragBehavior();
     this.syncListDomOrder();
@@ -612,9 +590,9 @@ class SidebarElement extends HTMLElement {
         animator: new FlipAnimator(),
         onReorder: (fromIndex, toIndex) =>
           this.handleListReorder(fromIndex, toIndex),
-        onDragStart: this.handleListDragStart,
-        onDragEnd: this.handleListDragEnd,
-        onDrop: this.handleListDragEnd,
+        onDragStart: (event) => this.handleListDragStart(event),
+        onDragEnd: () => this.handleListDragEnd(),
+        onDrop: () => this.handleListDragEnd(),
       });
       this.dragCoordinator.enable();
     }

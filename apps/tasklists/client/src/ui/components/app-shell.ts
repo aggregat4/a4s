@@ -42,7 +42,6 @@ import type { ToolbarHandlers, ToolbarState } from "./mobile-toolbar.js";
 import "./a4-tasklist.js";
 
 type SidebarElement = HTMLElement & {
-  init?: () => void;
   setSearchValue?: (value: string) => void;
   setDemoSeedEnabled?: (enabled: boolean) => void;
   setSyncStatus?: (status: SyncStatus) => void;
@@ -137,8 +136,8 @@ class ListsAppShellElement extends HTMLElement {
     searchQuery: string;
   } | null;
   private mainRenderScheduled: boolean;
-  private handleGlobalKeyDown: (event: KeyboardEvent) => void;
-  private handlePopState: () => void;
+  /** Aborted when the element is disconnected, removing its listeners. */
+  private connection: AbortController | null;
 
   constructor() {
     super();
@@ -164,26 +163,7 @@ class ListsAppShellElement extends HTMLElement {
     this.listIdToPushToUrl = null;
     this.pendingMainRender = null;
     this.mainRenderScheduled = false;
-    this.handleGlobalKeyDown = this.onGlobalKeyDown.bind(this);
-    this.handlePopState = this.onPopState.bind(this);
-    this.handleTokenSearch = this.handleTokenSearch.bind(this);
-
-    this.handleStoreChange = this.handleStoreChange.bind(this);
-    this.handleSearchChange = this.handleSearchChange.bind(this);
-    this.handleSearchClear = this.handleSearchClear.bind(this);
-    this.handleListSelection = this.handleListSelection.bind(this);
-    this.handleAddList = this.handleAddList.bind(this);
-    this.handleDeleteList = this.handleDeleteList.bind(this);
-    this.handleItemCountChange = this.handleItemCountChange.bind(this);
-    this.handleSearchResultsChange = this.handleSearchResultsChange.bind(this);
-    this.handleListFocus = this.handleListFocus.bind(this);
-    this.handleListTitleChange = this.handleListTitleChange.bind(this);
-    this.handleShowDoneChange = this.handleShowDoneChange.bind(this);
-    this.handleSidebarReorder = this.handleSidebarReorder.bind(this);
-    this.handleSeedDemo = this.handleSeedDemo.bind(this);
-    this.handleExportSnapshot = this.handleExportSnapshot.bind(this);
-    this.handleImportSnapshot = this.handleImportSnapshot.bind(this);
-    this.handleImportInputChange = this.handleImportInputChange.bind(this);
+    this.connection = null;
   }
 
   connectedCallback() {
@@ -193,12 +173,19 @@ class ListsAppShellElement extends HTMLElement {
     }
     this.renderShell();
     this.cacheElements();
-    document.addEventListener("keydown", this.handleGlobalKeyDown, true);
+    this.connection = new AbortController();
+    const { signal } = this.connection;
+    document.addEventListener("keydown", (event) => this.onGlobalKeyDown(event), {
+      capture: true,
+      signal,
+    });
+    window.addEventListener("popstate", () => this.onPopState(), { signal });
+    this.addEventListener("tokensearch", (event) => this.handleTokenSearch(event), { signal });
   }
 
   disconnectedCallback() {
-    document.removeEventListener("keydown", this.handleGlobalKeyDown, true);
-    window.removeEventListener("popstate", this.handlePopState);
+    this.connection?.abort();
+    this.connection = null;
   }
 
   renderShell() {
@@ -228,9 +215,11 @@ class ListsAppShellElement extends HTMLElement {
           accept="application/json"
           data-role="import-snapshot-input"
           hidden
+          @change=${this.handleImportInputChange}
         />
       `,
-      this
+      this,
+      { host: this }
     );
     this.shellRendered = true;
   }
@@ -254,16 +243,6 @@ class ListsAppShellElement extends HTMLElement {
     this.importInput = this.querySelector(
       "[data-role='import-snapshot-input']"
     ) as HTMLInputElement | null;
-    if (this.importInput) {
-      this.importInput.removeEventListener(
-        "change",
-        this.handleImportInputChange
-      );
-      this.importInput.addEventListener(
-        "change",
-        this.handleImportInputChange
-      );
-    }
   }
 
   async initialize({
@@ -311,7 +290,6 @@ class ListsAppShellElement extends HTMLElement {
         moveTasksController.handleTaskMoveRequest(event),
       onItemCountChange: () => this.refreshSidebar(),
       onSearchResultsChange: () => this.refreshSidebar(),
-      onListFocus: (event) => this.handleListFocus(event),
       onListTitleChange: (event) => this.handleListTitleChange(event),
       onSearchClear: () => this.handleSearchClear(),
       onShowDoneChange: () => {
@@ -321,20 +299,21 @@ class ListsAppShellElement extends HTMLElement {
       },
     });
     this.sidebarElement?.setHandlers?.({
-      onSearchChange: this.handleSearchChange,
-      onSelectList: this.handleListSelection,
-      onAddList: this.handleAddList,
-      onDeleteList: this.handleDeleteList,
-      onExportSnapshot: this.handleExportSnapshot,
-      onImportSnapshot: this.handleImportSnapshot,
-      onSeedDemo: this.handleSeedDemo,
+      onSearchChange: (value: string) => this.handleSearchChange(value),
+      onSelectList: (listId: ListId) => this.handleListSelection(listId),
+      onAddList: () => this.handleAddList(),
+      onDeleteList: () => this.handleDeleteList(),
+      onExportSnapshot: () => this.handleExportSnapshot(),
+      onImportSnapshot: () => this.handleImportSnapshot(),
+      onSeedDemo: () => this.handleSeedDemo(),
       onUndo: () => void this.repository?.undo(),
       onRedo: () => void this.repository?.redo(),
       onItemDropped: (
         payload: { sourceListId?: ListId; itemId?: string; item?: TaskItem },
         targetListId: ListId
       ) => moveTasksController.handleSidebarDrop(payload, targetListId),
-      onReorderList: this.handleSidebarReorder,
+      onReorderList: (payload: { movedId: ListId; order: ListId[] }) =>
+        this.handleSidebarReorder(payload),
     });
     this.mobileToolbarElement?.setHandlers?.({
       onUndo: () => void this.repository?.undo(),
@@ -347,7 +326,7 @@ class ListsAppShellElement extends HTMLElement {
       this.sidebarElement?.setHistoryState?.(state);
       this.mobileToolbarElement?.setState?.(state);
     });
-    this.unsubscribeStore = this.store.subscribe(this.handleStoreChange);
+    this.unsubscribeStore = this.store.subscribe(() => this.handleStoreChange());
     this.lastOrder = selectors.getListOrder(this.store.getState());
     this.lastActiveId = selectors.getActiveListId(this.store.getState());
     // The list may not be loaded (or synced) yet, so it becomes active once the
@@ -359,10 +338,7 @@ class ListsAppShellElement extends HTMLElement {
         payload: { id: urlListId },
       });
     }
-    window.addEventListener("popstate", this.handlePopState);
-    this.addEventListener("tokensearch", this.handleTokenSearch);
     await this.repositorySync.initialize();
-    this.sidebarElement?.init?.();
     this.sidebarElement?.setDemoSeedEnabled?.(this.demoSeedEnabled);
     const urlSearch = readSearchFromUrl();
     if (urlSearch) {
@@ -430,8 +406,6 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   dispose() {
-    window.removeEventListener("popstate", this.handlePopState);
-    this.removeEventListener("tokensearch", this.handleTokenSearch);
     this.unsubscribeHistory?.();
     this.unsubscribeHistory = null;
     this.unsubscribeStore?.();
@@ -523,11 +497,6 @@ class ListsAppShellElement extends HTMLElement {
   handleSearchClear() {
     this.sidebarElement?.setSearchValue?.("");
     this.handleSearchChange("");
-  }
-
-  handleShowDoneChange(event: Event) {
-    // No-op: sidebar refresh is handled by store subscription
-    void event;
   }
 
   handleListSelection(listId: ListId) {
@@ -763,20 +732,6 @@ class ListsAppShellElement extends HTMLElement {
         payload: { order: previousOrder },
       });
     });
-  }
-
-  handleItemCountChange(_event: Event) {
-    if (!this.store) return;
-    this.refreshSidebar(this.store.getState());
-  }
-
-  handleSearchResultsChange(_event: Event) {
-    if (!this.store) return;
-    this.refreshSidebar(this.store.getState());
-  }
-
-  handleListFocus(_event: Event) {
-    // No-op; hook reserved for future focus restoration.
   }
 
   applySearchToLists(query: string) {

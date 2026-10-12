@@ -83,7 +83,7 @@ a refactor of its own commit.
   fields, the title attribute, starting edits and restoring focus, pruning
   open notes and actions, and the empty state. Split it into named steps and
   replace the `lastReported*` fields with one "emit when changed" helper.
-- [ ] `app-shell.ts` (19 `bind` calls from line 167) and `sidebar.ts` (12):
+- [x] `app-shell.ts` (19 `bind` calls from line 167) and `sidebar.ts` (12):
   do what the list element did in `d3a86a9`, with lit's `host` render option
   for template handlers and one `AbortController` per connection for other
   listeners.
@@ -103,6 +103,10 @@ a refactor of its own commit.
 - `ListRegistry.registerListEvents` (line 222) attaches seven listeners to
   every element, although those events bubble and are composed; one listener
   on the container would do.
+- Nothing listens to the list element's `task-focus` event any more, and
+  `ListRegistry` still has an `onListFocus` handler slot for it.
+- `app-shell.ts` `dispose` is never called; it is the only caller of
+  `RepositorySync.dispose`. Decide the shell's teardown with the rest.
 
 Discuss with the user before starting: which of the three keeps the list
 order, the active list and the names, and what each of the others becomes.
