@@ -113,7 +113,7 @@ name again, and failures are rolled back case by case.
 - [x] Stop copying `initialState` into the list elements (the setter, and
   `stateVersion` and `appliedStateVersion`); each follows the repository
   through `ListState.connect`.
-- [ ] The main pane, which renders the list elements, finds a list's element
+- [x] The main pane, which renders the list elements, finds a list's element
   and flashes its section. The move controller and the shell use it, and
   `ListRegistry` is deleted.
 - [ ] E2E tests on a slow device for reordering, renaming, creating and

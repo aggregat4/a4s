@@ -1,5 +1,4 @@
 import { html, render } from "lit";
-import { arraysEqual } from "../../shared/array-utils.js";
 import {
   formatMatchCount,
   formatTotalCount,
@@ -9,7 +8,6 @@ import { ensureDemoData, type SeedConfig } from "../../app/demo-seed.js";
 import { generateListId } from "../state/list-store.js";
 
 import { MoveTasksController } from "../state/move-tasks-controller.js";
-import { ListRegistry } from "../state/list-registry.js";
 import { RepositorySync } from "../state/repository-sync.js";
 import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
 import {
@@ -34,6 +32,7 @@ import type { ListId, TaskItem } from "../../types/domain.js";
 import type { SyncStatus } from "../../types/sync.js";
 import "./sidebar.js";
 import "./main-pane.js";
+import type { ListElement } from "./main-pane.js";
 import "./move-dialog.js";
 import "./shortcuts-dialog.js";
 import "./mobile-toolbar.js";
@@ -68,7 +67,9 @@ type MainPaneElement = HTMLElement & {
   ) => void;
   setTitle?: (value: string) => void;
   setSearchMode?: (enabled: boolean) => void;
-  getListsContainer?: () => HTMLElement | null;
+  listElement?: (listId: ListId) => ListElement | null;
+  listElements?: () => ListElement[];
+  flashList?: (listId: ListId) => void;
 };
 
 type MoveDialogElement = HTMLElement & {
@@ -117,12 +118,10 @@ class ListsAppShellElement extends HTMLElement {
   private mobileToolbarElement: MobileToolbarElement | null;
   private repository: ListRepository | null;
   private store: Store | null;
-  private registry: ListRegistry | null;
   private moveTasksController: MoveTasksController | null;
   private seedConfigs: SeedConfig[] | undefined;
   private demoSeedEnabled: boolean;
   private importInput: HTMLInputElement | null;
-  private lastOrder: ListId[];
   private lastActiveId: ListId | null;
   // A list the user navigates to before it exists (a list being created). It
   // gets its own history entry once it becomes active.
@@ -147,12 +146,10 @@ class ListsAppShellElement extends HTMLElement {
     this.mobileToolbarElement = null;
     this.repository = null;
     this.store = null;
-    this.registry = null;
     this.moveTasksController = null;
     this.seedConfigs = undefined;
     this.demoSeedEnabled = false;
     this.importInput = null;
-    this.lastOrder = [];
     this.lastActiveId = null;
     this.listIdToPushToUrl = null;
     this.pendingMainRender = null;
@@ -284,9 +281,11 @@ class ListsAppShellElement extends HTMLElement {
     this.seedConfigs = seedConfigs;
     this.demoSeedEnabled = Boolean(enableDemoSeed);
     this.store = createAppStore();
-    this.registry = new ListRegistry();
     this.moveTasksController = new MoveTasksController({
-      registry: this.registry,
+      lists: {
+        listElement: (listId) => this.listElement(listId),
+        flashList: (listId) => this.mainElement?.flashList?.(listId),
+      },
       repository: this.repository,
       moveDialog: this.moveDialogElement,
       store: this.store,
@@ -294,7 +293,6 @@ class ListsAppShellElement extends HTMLElement {
     const moveTasksController = this.moveTasksController;
     const repositorySync = new RepositorySync({
       repository: this.repository,
-      registry: this.registry,
       store: this.store,
     });
     this.sidebarElement?.setHandlers?.({
@@ -326,10 +324,9 @@ class ListsAppShellElement extends HTMLElement {
       this.mobileToolbarElement?.setState?.(state);
     });
     this.store.subscribe(() => this.handleStoreChange());
-    this.lastOrder = selectors.getListOrder(this.store.getState());
     this.lastActiveId = selectors.getActiveListId(this.store.getState());
     // The list may not be loaded (or synced) yet, so it becomes active once the
-    // registry contains it.
+    // repository has it.
     const urlListId = readListIdFromUrl();
     if (urlListId) {
       this.store.dispatch({
@@ -405,20 +402,13 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   handleStoreChange() {
-    if (!this.store || !this.registry) return;
+    if (!this.store) return;
     const state = this.store.getState();
     const searchQuery = selectors.getSearchQuery(state);
     const searchMode = selectors.isSearchMode(state);
-    const order = selectors.getListOrder(state);
     const activeId = selectors.getActiveListId(state);
 
-    if (!arraysEqual(order, this.lastOrder)) {
-      this.registry.setListOrder(order);
-      this.lastOrder = order;
-    }
-
     if (activeId !== this.lastActiveId) {
-      this.registry.setActiveListId(activeId);
       this.lastActiveId = activeId;
       if (activeId && activeId === this.listIdToPushToUrl) {
         this.listIdToPushToUrl = null;
@@ -436,10 +426,15 @@ class ListsAppShellElement extends HTMLElement {
     this.refreshMobileToolbar();
   }
 
+  /** The element showing a list, once rendered. */
+  listElement(listId: ListId) {
+    return this.mainElement?.listElement?.(listId) ?? null;
+  }
+
   getActiveListElement() {
-    if (!this.store || !this.registry) return null;
+    if (!this.store) return null;
     const activeId = selectors.getActiveListId(this.store.getState());
-    return activeId ? this.registry.getRecord(activeId)?.element ?? null : null;
+    return activeId ? this.listElement(activeId) : null;
   }
 
   refreshMobileToolbar() {
@@ -722,26 +717,15 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   applySearchToLists(query: string) {
-    if (!this.registry) return;
-    const records = this.registry.getRecordsInOrder();
-    records.forEach((record) => {
-      if (!record.element || typeof record.element.applyFilter !== "function")
-        return;
-      record.element.applyFilter(query);
-    });
+    this.mainElement?.listElements?.().forEach((element) => element.applyFilter?.(query));
   }
-
-
 
   getSearchMatchCountForList(listId: ListId, tokens: string[]) {
     // Query the list element directly for its current match count, since the
     // element updates optimistically and may be ahead of the repository
-    const record = this.registry?.getRecord(listId);
-    if (
-      record?.element &&
-      typeof record.element.getSearchMatchCountForQuery === "function"
-    ) {
-      return record.element.getSearchMatchCountForQuery(tokens.join(" "));
+    const element = this.listElement(listId);
+    if (element && typeof element.getSearchMatchCountForQuery === "function") {
+      return element.getSearchMatchCountForQuery(tokens.join(" "));
     }
     // Fallback to repository if element not available
     if (!this.repository) return 0;
@@ -771,9 +755,9 @@ class ListsAppShellElement extends HTMLElement {
   getListTotalCount(listId: ListId) {
     // Query the list element directly for its current count, since the element
     // updates optimistically and may be ahead of the repository
-    const record = this.registry?.getRecord(listId);
-    if (record?.element) {
-      return record.element.getTotalItemCount();
+    const element = this.listElement(listId);
+    if (element) {
+      return element.getTotalItemCount();
     }
     // Fallback to repository if element not available
     if (!this.repository) return 0;
@@ -853,28 +837,24 @@ class ListsAppShellElement extends HTMLElement {
       }
       return;
     }
-    if (!this.registry || !this.repository) return;
-    const records = this.registry.getRecordsInOrder();
-    this.mainElement.renderLists?.(records, {
+    if (!this.store || !this.repository) return;
+    const lists = selectors.getListOrder(this.store.getState()).map((id) => ({ id }));
+    this.mainElement.renderLists?.(lists, {
       activeListId: activeId,
       searchMode,
       repository: this.repository,
     });
-    this.registry.attachRenderedLists?.(
-      this.mainElement.getListsContainer?.() ?? null
-    );
     const query =
       typeof searchQuery === "string" ? searchQuery.trim() : "";
     if (query.length) {
-      const needsSync = records.some(
-        (record) => record.element && record.element.searchQuery !== query
-      );
+      const needsSync = this.mainElement
+        .listElements?.()
+        .some((element) => element.searchQuery !== query);
       if (needsSync) {
         this.applySearchToLists(query);
       }
     }
   }
-
 }
 
 customElements.define("a4-lists-app", ListsAppShellElement);

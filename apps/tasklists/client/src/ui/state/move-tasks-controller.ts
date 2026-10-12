@@ -4,7 +4,7 @@ import {
   formatMatchCount,
   formatTotalCount,
 } from "../../shared/format-utils.js";
-import type { ListRecord } from "./list-registry.js";
+import type { ListElement } from "../components/main-pane.js";
 import type { ListId, TaskItem, TaskListState } from "../../types/domain.js";
 
 type MoveDialog = {
@@ -20,10 +20,10 @@ type MoveDialog = {
   }) => void;
 };
 
-type RegistryController = {
-  getRecord: (id: ListId) => ListRecord | null;
+/** The rendered lists. */
+type Lists = {
+  listElement: (id: ListId) => ListElement | null;
   flashList: (id: ListId) => void;
-  has: (id: ListId) => boolean;
 };
 
 type Repository = {
@@ -42,22 +42,22 @@ type AppStore = {
 };
 
 class MoveTasksController {
-  private registry: RegistryController;
+  private lists: Lists;
   private repository: Repository | null;
   private moveDialog: MoveDialog | null;
   private store: AppStore;
   constructor({
-    registry,
+    lists,
     repository,
     moveDialog,
     store,
   }: {
-    registry: RegistryController;
+    lists: Lists;
     repository?: Repository | null;
     moveDialog?: MoveDialog | null;
     store: AppStore;
   }) {
-    this.registry = registry;
+    this.lists = lists;
     this.repository = repository ?? null;
     this.moveDialog = moveDialog ?? null;
     this.store = store;
@@ -89,24 +89,23 @@ class MoveTasksController {
     const sourceListId = detail.sourceListId ?? null;
     const itemId = detail.itemId ?? null;
     if (!sourceListId || !itemId) return;
-    const record = this.registry.getRecord(sourceListId);
-    if (!record) return;
-    const snapshot = detail.item ?? record.element!.getItemSnapshot(itemId);
+    const source = this.lists.listElement(sourceListId);
+    if (!source) return;
+    const snapshot = detail.item ?? source.getItemSnapshot(itemId);
     if (!snapshot) return;
     const state = this.store.getState();
     const searchActive = selectors.isSearchMode(state);
     const targets = selectors
       .getListOrder(state)
-      .map((id) => this.registry.getRecord(id))
-      .filter((rec): rec is ListRecord => rec != null && rec.id !== sourceListId)
-      .map((rec) => {
-        const listData = selectors.getList(state, rec.id);
-        const repoState = this.repository?.getListState?.(rec.id);
+      .filter((id) => id !== sourceListId)
+      .map((id) => {
+        const listData = selectors.getList(state, id);
+        const repoState = this.repository?.getListState?.(id);
         const total = (repoState?.items ?? []).filter((item) => !item?.done)
           .length;
         const matches = total; // Simplified - in search mode we calculate separately
         return {
-          id: rec.id,
+          id,
           name: listData?.name ?? "Untitled List",
           countLabel: searchActive
             ? formatMatchCount(matches)
@@ -115,7 +114,7 @@ class MoveTasksController {
       });
     if (!targets.length) return;
     const restoreFocus = () => {
-      record.element!.focusItem(itemId);
+      source.focusItem(itemId);
     };
     this.moveDialog?.open?.({
       sourceListId,
@@ -150,15 +149,14 @@ class MoveTasksController {
     } = {}
   ) {
     if (!itemId || sourceListId === targetListId) return;
-    const sourceRecord = this.registry.getRecord(sourceListId);
-    const targetRecord = this.registry.getRecord(targetListId);
-    if (!sourceRecord || !targetRecord) return;
-    const snapshot =
-      options.snapshot ?? sourceRecord.element!.getItemSnapshot(itemId);
+    const source = this.lists.listElement(sourceListId);
+    const target = this.lists.listElement(targetListId);
+    if (!source || !target) return;
+    const snapshot = options.snapshot ?? source.getItemSnapshot(itemId);
     if (!snapshot) return;
-    sourceRecord.element!.cancelActiveDrag?.();
-    const fallbackBeforeId = targetRecord.element!.firstItemId?.() ?? undefined;
-    if (!sourceRecord.element!.getItemSnapshot(itemId)) return;
+    source.cancelActiveDrag?.();
+    const fallbackBeforeId = target.firstItemId?.() ?? undefined;
+    if (!source.getItemSnapshot(itemId)) return;
     // Both lists show the move until the repository has saved it.
     const saved = this.repository
       ? this.repository.moveTask(sourceListId, targetListId, itemId, {
@@ -167,12 +165,12 @@ class MoveTasksController {
           afterId: options.afterId,
         })
       : null;
-    sourceRecord.element!.removeItemById(itemId, saved);
-    targetRecord.element!.prependItem(snapshot, saved);
+    source.removeItemById(itemId, saved);
+    target.prependItem(snapshot, saved);
     if (options.focus) {
-      targetRecord.element!.focusItem(itemId);
+      target.focusItem(itemId);
     }
-    this.registry.flashList(targetListId);
+    this.lists.flashList(targetListId);
   }
 }
 

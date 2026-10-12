@@ -12,14 +12,6 @@ type Repository = {
   getListState: (listId: ListId) => TaskListState;
 };
 
-type Registry = {
-  addList: (id: ListId) => void;
-  getRecordIds: () => ListId[];
-  removeList: (id: ListId) => void;
-  has: (id: ListId) => boolean;
-  setListOrder: (order: ListId[]) => void;
-};
-
 type AppStateSlice = {
   pendingActiveListId: ListId | null;
   activeListId: ListId | null;
@@ -32,21 +24,17 @@ type Store = {
 
 class RepositorySync {
   private repository: Repository;
-  private registry: Registry;
   private store: Store;
   private registryUnsubscribe: (() => void) | null;
 
   constructor({
     repository,
-    registry,
     store,
   }: {
     repository: Repository;
-    registry: Registry;
     store: Store;
   }) {
     this.repository = repository;
-    this.registry = registry;
     this.store = store;
     this.registryUnsubscribe = null;
   }
@@ -64,52 +52,32 @@ class RepositorySync {
 
   handleRegistryChange(snapshot: ListRegistryEntry[] = []) {
     if (!Array.isArray(snapshot)) return;
-    const seen = new Set<ListId>();
-    const listMeta: Array<{
-      id: ListId;
-      name: string;
-    }> = [];
-    snapshot.forEach((entry) => {
-      const listId = entry?.id;
-      if (!listId) return;
-      const state = this.repository.getListState(listId);
-      this.registry.addList(listId);
-      const normalized = state.title.trim();
-      const name = normalized.length ? normalized : "Untitled List";
-      listMeta.push({ id: listId, name });
-      this.store.dispatch({
-        type: APP_ACTIONS.upsertList,
-        payload: { id: listId, name },
-      });
-      seen.add(listId);
+    const listMeta = snapshot.map((entry) => {
+      const name = this.repository.getListState(entry.id).title.trim();
+      return { id: entry.id, name: name.length ? name : "Untitled List" };
     });
+    listMeta.forEach((list) =>
+      this.store.dispatch({ type: APP_ACTIONS.upsertList, payload: list })
+    );
 
-    this.registry.getRecordIds().forEach((id) => {
-      if (!seen.has(id)) {
-        this.registry.removeList(id);
-      }
-    });
-
-    const order = snapshot
-      .map((entry) => entry.id)
-      .filter((id) => this.registry.has(id));
-    this.registry.setListOrder(order);
-
+    const order = snapshot.map((entry) => entry.id);
+    const known = new Set(order);
     const currentState = this.store.getState();
     const pending = currentState.pendingActiveListId;
+    // A list waited for becomes active once it exists.
     const activeCandidate =
-      pending && this.registry.has(pending) ? pending : currentState.activeListId;
+      pending && known.has(pending) ? pending : currentState.activeListId;
 
     this.store.dispatch({
       type: APP_ACTIONS.setRegistry,
       payload: {
         lists: listMeta,
         order,
-        activeListId: activeCandidate && this.registry.has(activeCandidate)
-          ? activeCandidate
-          : currentState.activeListId,
-        pendingActiveListId:
-          pending && this.registry.has(pending) ? null : pending ?? null,
+        activeListId:
+          activeCandidate && known.has(activeCandidate)
+            ? activeCandidate
+            : currentState.activeListId,
+        pendingActiveListId: pending && known.has(pending) ? null : pending ?? null,
       },
     });
   }

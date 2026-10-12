@@ -205,12 +205,6 @@ class A4TaskList extends HTMLElement {
     this.actions.reset();
   }
 
-  dispose() {
-    this.inlineEditor?.destroy();
-    this.inlineEditor = null;
-    this.list.disconnect();
-  }
-
   renderShell() {
     if (this.shellRendered) return;
     render(
