@@ -1,5 +1,3 @@
-import { selectors } from "./app-store.js";
-import type { AppAction } from "./app-store.js";
 import {
   formatMatchCount,
   formatTotalCount,
@@ -20,8 +18,11 @@ type MoveDialog = {
   }) => void;
 };
 
-/** The rendered lists. */
+/** The lists as shown, and their elements. */
 type Lists = {
+  /** The lists in order, with their names. */
+  entries: () => Array<{ id: ListId; name: string }>;
+  isSearchMode: () => boolean;
   listElement: (id: ListId) => ListElement | null;
   flashList: (id: ListId) => void;
 };
@@ -36,31 +37,22 @@ type Repository = {
   getListState: (listId: ListId) => TaskListState | null;
 };
 
-type AppStore = {
-  getState: () => ReturnType<typeof selectors.getState>;
-  dispatch: (action: AppAction) => void;
-};
-
 class MoveTasksController {
   private lists: Lists;
   private repository: Repository | null;
   private moveDialog: MoveDialog | null;
-  private store: AppStore;
   constructor({
     lists,
     repository,
     moveDialog,
-    store,
   }: {
     lists: Lists;
     repository?: Repository | null;
     moveDialog?: MoveDialog | null;
-    store: AppStore;
   }) {
     this.lists = lists;
     this.repository = repository ?? null;
     this.moveDialog = moveDialog ?? null;
-    this.store = store;
   }
 
   handleSidebarDrop(
@@ -93,20 +85,18 @@ class MoveTasksController {
     if (!source) return;
     const snapshot = detail.item ?? source.getItemSnapshot(itemId);
     if (!snapshot) return;
-    const state = this.store.getState();
-    const searchActive = selectors.isSearchMode(state);
-    const targets = selectors
-      .getListOrder(state)
-      .filter((id) => id !== sourceListId)
-      .map((id) => {
-        const listData = selectors.getList(state, id);
+    const searchActive = this.lists.isSearchMode();
+    const targets = this.lists
+      .entries()
+      .filter(({ id }) => id !== sourceListId)
+      .map(({ id, name }) => {
         const repoState = this.repository?.getListState?.(id);
         const total = (repoState?.items ?? []).filter((item) => !item?.done)
           .length;
         const matches = total; // Simplified - in search mode we calculate separately
         return {
           id,
-          name: listData?.name ?? "Untitled List",
+          name,
           countLabel: searchActive
             ? formatMatchCount(matches)
             : formatTotalCount(total),

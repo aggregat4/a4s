@@ -126,8 +126,8 @@ name again, and failures are rolled back case by case.
   `ListsState`. It replaces `RepositorySync`, and feeds the app store until
   the store goes. A new list still shows once saved: its element shows the
   repository's state of the list, which has no title before then.
-- [ ] Remove the app store and `RepositorySync`; the active list, the list
-  waited for from the URL and the search query become the shell's state.
+- [x] Remove the app store; the active list, the list waited for (from the
+  URL, or being created) and the search query become the shell's state.
 
 ## 4. Repository changes
 

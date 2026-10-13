@@ -9,7 +9,6 @@ import { generateListId } from "../state/list-store.js";
 
 import { MoveTasksController } from "../state/move-tasks-controller.js";
 import { ListsState } from "../state/lists-state.js";
-import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
 import {
   pushListIdToUrl,
   pushSearchToUrl,
@@ -94,8 +93,6 @@ type MobileToolbarElement = HTMLElement & {
   setHandlers?: (handlers: ToolbarHandlers) => void;
 };
 
-type Store = ReturnType<typeof createAppStore>;
-
 const NON_TEXT_INPUT_TYPES = new Set([
   "button",
   "checkbox",
@@ -117,10 +114,14 @@ class ListsAppShellElement extends HTMLElement {
   private shortcutsDialogElement: ShortcutsDialogElement | null;
   private mobileToolbarElement: MobileToolbarElement | null;
   private repository: ListRepository | null;
-  private store: Store | null;
   private moveTasksController: MoveTasksController | null;
   /** The lists as the user sees them. */
   private lists: ListsState | null;
+  /** The list the user is on. */
+  private activeListId: ListId | null;
+  /** A list to make active once it exists: one named in the URL, or one being created. */
+  private wantedListId: ListId | null;
+  private searchQuery: string;
   private seedConfigs: SeedConfig[] | undefined;
   private demoSeedEnabled: boolean;
   private importInput: HTMLInputElement | null;
@@ -147,9 +148,11 @@ class ListsAppShellElement extends HTMLElement {
     this.shortcutsDialogElement = null;
     this.mobileToolbarElement = null;
     this.repository = null;
-    this.store = null;
     this.moveTasksController = null;
     this.lists = null;
+    this.activeListId = null;
+    this.wantedListId = null;
+    this.searchQuery = "";
     this.seedConfigs = undefined;
     this.demoSeedEnabled = false;
     this.importInput = null;
@@ -283,18 +286,18 @@ class ListsAppShellElement extends HTMLElement {
     this.repository.setSyncStatusChange((status) => this.handleSyncStatus(status));
     this.seedConfigs = seedConfigs;
     this.demoSeedEnabled = Boolean(enableDemoSeed);
-    this.store = createAppStore();
     this.moveTasksController = new MoveTasksController({
       lists: {
+        entries: () => this.listEntries(),
+        isSearchMode: () => this.isSearchMode(),
         listElement: (listId) => this.listElement(listId),
         flashList: (listId) => this.mainElement?.flashList?.(listId),
       },
       repository: this.repository,
       moveDialog: this.moveDialogElement,
-      store: this.store,
     });
     const moveTasksController = this.moveTasksController;
-    this.lists = new ListsState(() => this.showLists());
+    this.lists = new ListsState(() => this.listsChanged());
     this.sidebarElement?.setHandlers?.({
       onSearchChange: (value: string) => this.handleSearchChange(value),
       onSelectList: (listId: ListId) => this.handleListSelection(listId),
@@ -323,25 +326,17 @@ class ListsAppShellElement extends HTMLElement {
       this.sidebarElement?.setHistoryState?.(state);
       this.mobileToolbarElement?.setState?.(state);
     });
-    this.store.subscribe(() => this.handleStoreChange());
-    this.lastActiveId = selectors.getActiveListId(this.store.getState());
     // The list may not be loaded (or synced) yet, so it becomes active once the
     // repository has it.
-    const urlListId = readListIdFromUrl();
-    if (urlListId) {
-      this.store.dispatch({
-        type: APP_ACTIONS.setPendingActiveList,
-        payload: { id: urlListId },
-      });
-    }
+    this.wantedListId = readListIdFromUrl();
     await this.lists.connect(this.repository);
     this.sidebarElement?.setDemoSeedEnabled?.(this.demoSeedEnabled);
     const urlSearch = readSearchFromUrl();
     if (urlSearch) {
       this.handleSearchChange(urlSearch);
     }
-    this.sidebarElement?.setSearchValue?.(this.store.getState().searchQuery);
-    this.handleStoreChange();
+    this.sidebarElement?.setSearchValue?.(this.searchQuery);
+    this.render();
     this.appInitialized = true;
 
   }
@@ -401,12 +396,51 @@ class ListsAppShellElement extends HTMLElement {
     this.sidebarElement?.setSyncStatus?.(status);
   }
 
-  handleStoreChange() {
-    if (!this.store) return;
-    const state = this.store.getState();
-    const searchQuery = selectors.getSearchQuery(state);
-    const searchMode = selectors.isSearchMode(state);
-    const activeId = selectors.getActiveListId(state);
+  /** The lists as shown, with their names. */
+  listEntries() {
+    return (this.lists?.shown ?? []).map(({ id, title }) => ({
+      id,
+      name: title.trim() || "Untitled List",
+    }));
+  }
+
+  hasList(listId: ListId) {
+    return (this.lists?.shown ?? []).some((list) => list.id === listId);
+  }
+
+  isSearchMode() {
+    return this.searchQuery.trim().length > 0;
+  }
+
+  /**
+   * The lists changed: a list waited for becomes active once it exists, and
+   * the first list once the active one is gone.
+   */
+  listsChanged() {
+    const ids = (this.lists?.shown ?? []).map((list) => list.id);
+    if (this.wantedListId && ids.includes(this.wantedListId)) {
+      this.activeListId = this.wantedListId;
+      this.wantedListId = null;
+    }
+    if (!this.activeListId || !ids.includes(this.activeListId)) {
+      this.activeListId = ids[0] ?? null;
+    }
+    this.render();
+  }
+
+  /** Makes a list that exists the active one. */
+  showList(listId: ListId) {
+    if (!this.hasList(listId) || this.activeListId === listId) return;
+    this.activeListId = listId;
+    this.render();
+  }
+
+  /** Shows the lists, the active one and the search. */
+  render() {
+    if (!this.lists) return;
+    const searchQuery = this.searchQuery;
+    const searchMode = this.isSearchMode();
+    const activeId = this.activeListId;
 
     if (activeId !== this.lastActiveId) {
       this.lastActiveId = activeId;
@@ -420,8 +454,8 @@ class ListsAppShellElement extends HTMLElement {
 
     this.renderMainLists({ activeId, searchMode, searchQuery });
 
-    this.refreshSidebar(state);
-    this.updateMainHeading(state);
+    this.refreshSidebar();
+    this.updateMainHeading();
     this.updateMainSearchMode(searchMode);
     this.refreshMobileToolbar();
   }
@@ -432,26 +466,24 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   getActiveListElement() {
-    if (!this.store) return null;
-    const activeId = selectors.getActiveListId(this.store.getState());
-    return activeId ? this.listElement(activeId) : null;
+    return this.activeListId ? this.listElement(this.activeListId) : null;
   }
 
   refreshMobileToolbar() {
-    if (!this.store) return;
+    if (!this.lists) return;
     this.mobileToolbarElement?.setState?.({
       showDone: Boolean(this.getActiveListElement()?.showDone),
-      searchMode: selectors.isSearchMode(this.store.getState()),
+      searchMode: this.isSearchMode(),
     });
   }
 
   handleSearchChange(value: string) {
-    if (!this.store) return;
+    if (!this.lists) return;
     const next = typeof value === "string" ? value : "";
-    this.store.dispatch({
-      type: APP_ACTIONS.setSearchQuery,
-      payload: { query: next },
-    });
+    if (next !== this.searchQuery) {
+      this.searchQuery = next;
+      this.render();
+    }
     replaceSearchInUrl(next);
     this.applySearchToLists(next);
   }
@@ -467,11 +499,10 @@ class ListsAppShellElement extends HTMLElement {
    * narrows the results, as each word must match; clicking it again removes it.
    */
   handleTokenSearch(event: Event) {
-    if (!this.store) return;
+    if (!this.lists) return;
     const token = (event as CustomEvent<{ token?: string }>).detail?.token;
     if (!token) return;
-    const current = selectors.getSearchQuery(this.store.getState());
-    const words = current.trim().split(/\s+/).filter(Boolean);
+    const words = this.searchQuery.trim().split(/\s+/).filter(Boolean);
     const isToken = (word: string) => word.toLowerCase() === token.toLowerCase();
     const next = words.some(isToken)
       ? words.filter((word) => !isToken(word)).join(" ")
@@ -486,69 +517,50 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   handleListSelection(listId: ListId) {
-    if (!listId || !this.store) return;
-    if (!selectors.getList(this.store.getState(), listId)) return;
+    if (!listId || !this.hasList(listId)) return;
     this.listIdToPushToUrl = null;
-    this.store.dispatch({
-      type: APP_ACTIONS.setPendingActiveList,
-      payload: { id: null },
-    });
+    this.wantedListId = null;
     pushListIdToUrl(listId);
-    this.store.dispatch({
-      type: APP_ACTIONS.setActiveList,
-      payload: { id: listId },
-    });
+    this.showList(listId);
   }
 
   onPopState() {
-    if (!this.store) return;
+    if (!this.lists) return;
     const search = readSearchFromUrl();
-    if (search !== selectors.getSearchQuery(this.store.getState())) {
+    if (search !== this.searchQuery) {
       this.setSearch(search);
     }
     const listId = readListIdFromUrl();
     this.listIdToPushToUrl = null;
-    this.store.dispatch({
-      type: APP_ACTIONS.setPendingActiveList,
-      payload: { id: null },
-    });
-    if (listId && selectors.getList(this.store.getState(), listId)) {
-      this.store.dispatch({
-        type: APP_ACTIONS.setActiveList,
-        payload: { id: listId },
-      });
+    this.wantedListId = null;
+    if (listId && this.hasList(listId)) {
+      this.showList(listId);
       return;
     }
     // The entry points at a list that no longer exists: keep the current list.
-    const activeId = selectors.getActiveListId(this.store.getState());
-    if (activeId) {
-      replaceListIdInUrl(activeId);
+    if (this.activeListId) {
+      replaceListIdInUrl(this.activeListId);
     }
   }
 
   handleAddList() {
-    if (!this.store || !this.repository) return;
+    if (!this.lists || !this.repository) return;
     const response = window.prompt?.("Name for the new list");
     if (response == null) return;
     const trimmed = response.trim();
     if (!trimmed.length) return;
     const id = generateListId("list");
     this.listIdToPushToUrl = id;
-    this.store.dispatch({
-      type: APP_ACTIONS.setPendingActiveList,
-      payload: { id },
-    });
-    const store = this.store;
+    this.wantedListId = id;
     Promise.resolve(
       this.repository.createList({ listId: id, title: trimmed })
     ).catch(() => {
       if (this.listIdToPushToUrl === id) {
         this.listIdToPushToUrl = null;
       }
-      store.dispatch({
-        type: APP_ACTIONS.setPendingActiveList,
-        payload: { id: null },
-      });
+      if (this.wantedListId === id) {
+        this.wantedListId = null;
+      }
     });
   }
 
@@ -560,35 +572,17 @@ class ListsAppShellElement extends HTMLElement {
     if (listId) this.lists?.rename(listId, title, saved);
   }
 
-  /** Shows the lists as `ListsState` has them. */
-  showLists() {
-    if (!this.store || !this.lists) return;
-    const lists = this.lists.shown;
-    const pending = selectors.getPendingActiveListId(this.store.getState());
-    this.store.dispatch({
-      type: APP_ACTIONS.setRegistry,
-      payload: {
-        lists: lists.map(({ id, title }) => ({ id, name: title.trim() })),
-        order: lists.map(({ id }) => id),
-        // A list waited for becomes active once it exists.
-        activeListId: pending,
-        pendingActiveListId: pending,
-      },
-    });
-  }
-
   handleDeleteList() {
-    if (!this.store || !this.repository) return;
-    const state = this.store.getState();
-    const activeListId = selectors.getActiveListId(state);
-    const listOrder = selectors.getListOrder(state);
+    if (!this.lists) return;
+    const entries = this.listEntries();
+    const activeListId = this.activeListId;
+    const listOrder = entries.map((entry) => entry.id);
     if (!activeListId) return;
     if (listOrder.length <= 1) {
       window.alert?.("At least one list must remain.");
       return;
     }
-    const listData = selectors.getList(state, activeListId);
-    const listName = listData?.name ?? "Untitled List";
+    const listName = entries.find((entry) => entry.id === activeListId)?.name ?? "Untitled List";
     const confirmed = window.confirm?.(
       `Delete "${listName}" and all of its tasks?`
     );
@@ -605,17 +599,11 @@ class ListsAppShellElement extends HTMLElement {
     if (!fallbackId) {
       fallbackId = listOrder.find((id) => id !== removeId) ?? null;
     }
-    this.store.dispatch({
-      type: APP_ACTIONS.setPendingActiveList,
-      payload: { id: fallbackId ?? null },
-    });
+    this.wantedListId = fallbackId;
     if (fallbackId) {
-      this.store.dispatch({
-        type: APP_ACTIONS.setActiveList,
-        payload: { id: fallbackId },
-      });
+      this.showList(fallbackId);
     }
-    this.lists?.remove(removeId);
+    this.lists.remove(removeId);
   }
 
   async handleSeedDemo() {
@@ -693,8 +681,8 @@ class ListsAppShellElement extends HTMLElement {
     movedId: ListId;
     order: ListId[];
   }) {
-    if (!this.store || !this.lists) return;
-    const previousOrder = selectors.getListOrder(this.store.getState());
+    if (!this.lists) return;
+    const previousOrder = this.lists.shown.map((list) => list.id);
     if (!Array.isArray(previousOrder) || previousOrder.length <= 1) return;
     if (!Array.isArray(order) || order.length <= 1) return;
     if (!movedId || !order.includes(movedId)) return;
@@ -755,13 +743,11 @@ class ListsAppShellElement extends HTMLElement {
     return (state?.items ?? []).filter((item) => !item?.done).length;
   }
 
-  refreshSidebar(state: ReturnType<Store["getState"]> | null = this.store?.getState?.() ?? null) {
-    if (!state) return;
-    const searchMode = selectors.isSearchMode(state);
-    const tokens = searchMode
-      ? tokenizeSearchQuery(selectors.getSearchQuery(state))
-      : [];
-    const data = selectors.getSidebarListData(state).map((entry) => {
+  refreshSidebar() {
+    if (!this.lists) return;
+    const searchMode = this.isSearchMode();
+    const tokens = searchMode ? tokenizeSearchQuery(this.searchQuery) : [];
+    const data = this.listEntries().map((entry) => {
       const totalCount = this.getListTotalCount(entry.id);
       const matchCount = searchMode
         ? this.getSearchMatchCountForList(entry.id, tokens)
@@ -774,15 +760,15 @@ class ListsAppShellElement extends HTMLElement {
       };
     });
     this.sidebarElement?.setLists?.(data, {
-      activeListId: selectors.getActiveListId(state),
-      searchQuery: selectors.getSearchQuery(state),
+      activeListId: this.activeListId,
+      searchQuery: this.searchQuery,
     });
   }
 
-  updateMainHeading(state: ReturnType<Store["getState"]> | null = this.store?.getState?.() ?? null) {
-    if (!state) return;
-    if (selectors.isSearchMode(state)) {
-      const query = selectors.getSearchQuery(state).trim();
+  updateMainHeading() {
+    if (!this.lists) return;
+    if (this.isSearchMode()) {
+      const query = this.searchQuery.trim();
       if (query.length) {
         this.mainElement?.setTitle?.(`Search: "${query}"`);
       } else {
@@ -790,12 +776,7 @@ class ListsAppShellElement extends HTMLElement {
       }
       return;
     }
-    const activeId = selectors.getActiveListId(state);
-    if (!activeId) {
-      this.mainElement?.setTitle?.("Task Collections");
-      return;
-    }
-    const active = selectors.getList(state, activeId);
+    const active = this.listEntries().find((entry) => entry.id === this.activeListId);
     this.mainElement?.setTitle?.(active ? active.name : "Task Collections");
   }
 
@@ -827,8 +808,8 @@ class ListsAppShellElement extends HTMLElement {
       }
       return;
     }
-    if (!this.store || !this.repository) return;
-    const lists = selectors.getListOrder(this.store.getState()).map((id) => ({ id }));
+    if (!this.lists || !this.repository) return;
+    const lists = this.lists.shown.map(({ id }) => ({ id }));
     this.mainElement.renderLists?.(lists, {
       activeListId: activeId,
       searchMode,
