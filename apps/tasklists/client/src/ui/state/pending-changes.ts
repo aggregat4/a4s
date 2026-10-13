@@ -20,7 +20,11 @@ export type PendingChange =
  * either neighbour it goes to the top, unless it was asked to follow an item
  * that is gone, then to the end.
  */
-function placement(items: TaskItem[], afterId: string | null, beforeId: string | null) {
+export function placement(
+  items: Array<{ id: string }>,
+  afterId: string | null,
+  beforeId: string | null
+) {
   const after = afterId ? items.findIndex((item) => item.id === afterId) : -1;
   if (after !== -1) return after + 1;
   const before = beforeId ? items.findIndex((item) => item.id === beforeId) : -1;

@@ -116,14 +116,16 @@ name again, and failures are rolled back case by case.
 - [x] The main pane, which renders the list elements, finds a list's element
   and flashes its section. The move controller and the shell use it, and
   `ListRegistry` is deleted.
-- [ ] E2E tests on a slow device for reordering, renaming, creating and
-  deleting lists while other registry changes arrive. Review with the user
-  before going on.
+- [x] E2E tests on a slow device for reordering and renaming lists while
+  earlier changes are saved. Both showed the sidebar going back. Creating and
+  deleting showed nothing to fix: the store only showed them once saved.
 - [x] Factor the pending-changes core shared with `ListState` out of it
   (`PendingState`).
-- [ ] Add `ListsState`: the registry with pending creates, removes, moves and
-  renames. A rename is one request, pending in both the list's `ListState`
-  and `ListsState`. The sidebar, the main pane and the move dialog use it.
+- [x] Add `ListsState`: the registry with pending removes, moves and renames.
+  A rename is one request, pending in both the list's `ListState` and
+  `ListsState`. It replaces `RepositorySync`, and feeds the app store until
+  the store goes. A new list still shows once saved: its element shows the
+  repository's state of the list, which has no title before then.
 - [ ] Remove the app store and `RepositorySync`; the active list, the list
   waited for from the URL and the search query become the shell's state.
 

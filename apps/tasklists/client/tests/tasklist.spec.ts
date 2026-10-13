@@ -878,6 +878,118 @@ test.describe("on a slow device", () => {
     ).toBe(false);
     await expect(items).toHaveCount(countBefore - 1);
   });
+
+  // Each saved list change makes the repository announce its lists, while
+  // later changes may still wait to be saved. What the sidebar shows must not
+  // go back to what was there before them.
+
+  /** Records the lists the sidebar shows, as "id name", each time they change. */
+  async function recordSidebar(page: Page) {
+    await page.evaluate(() => {
+      const list = document.querySelector("[data-role='sidebar-list']")!;
+      const read = () =>
+        [...list.querySelectorAll<HTMLElement>("li[data-item-id]")].map(
+          (li) => `${li.dataset.itemId} ${li.querySelector(".sidebar-list-label")?.textContent ?? ""}`
+        );
+      const shown = [read()];
+      (window as unknown as { sidebarShown: string[][] }).sidebarShown = shown;
+      new MutationObserver(() => {
+        const next = read();
+        if (next.join("|") !== shown[shown.length - 1].join("|")) shown.push(next);
+      }).observe(list, { subtree: true, childList: true, characterData: true });
+    });
+    return () =>
+      page.evaluate(
+        () => (window as unknown as { sidebarShown: string[][] }).sidebarShown
+      );
+  }
+
+  /** Waits until the repository has saved the lists in this order. */
+  async function expectSavedOrder(page: Page, ids: string[]) {
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            (window as any).listsApp.repository
+              .getRegistrySnapshot()
+              .map((entry: { id: string }) => entry.id)
+          ),
+        { timeout: 30_000 }
+      )
+      .toEqual(ids);
+  }
+
+  /** The step of `steps` each shown state is at; a step back is an older state. */
+  const progress = (shown: string[][], steps: string[][]) =>
+    shown.map((state) => steps.findIndex((step) => step.join("|") === state.join("|")));
+
+  async function renameActiveList(page: Page, text: string) {
+    const title = page.locator(".tasklist-title").first();
+    await title.click();
+    await expect(title).toHaveAttribute("contenteditable", "true");
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.type(text);
+    await page.keyboard.press("Enter");
+  }
+
+  async function dragList(page: Page, from: number, to: number) {
+    const items = page.locator("[data-role='sidebar-list'] li");
+    await dragHandleToTarget(items.nth(from).locator(".sidebar-list-handle"), items.nth(to), {
+      targetPosition: { x: 10, y: 2 },
+    });
+  }
+
+  test("the sidebar never shows an older name of a list being renamed", async ({
+    page,
+  }) => {
+    const shown = await recordSidebar(page);
+    await renameActiveList(page, "Groceries");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as any).listsApp.repository.getListState("list-prototype").title
+        ),
+        { timeout: 30_000 }
+      )
+      .toBe("Groceries");
+    await expect.poll(() => getSidebarListNames(page)).toEqual([
+      "Groceries",
+      "Weekend Projects",
+      "Work Follow-ups",
+    ]);
+
+    const names = ["Prototype Tasks", ..."Groceries".split("").map((_, i) => "Groceries".slice(0, i + 1))];
+    const steps = names.map((name) => [
+      `list-prototype ${name}`,
+      "list-weekend Weekend Projects",
+      "list-work Work Follow-ups",
+    ]);
+    const at = progress(await shown(), steps);
+    expect(at).not.toContain(-1);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+  });
+
+  test("a list dragged in the sidebar right after a rename keeps its place", async ({
+    page,
+  }) => {
+    await renameActiveList(page, "Groceries");
+    const shown = await recordSidebar(page);
+    await dragList(page, 2, 0);
+    await expect.poll(() => getSidebarListNames(page)).toEqual([
+      "Work Follow-ups",
+      "Groceries",
+      "Weekend Projects",
+    ]);
+    await expectSavedOrder(page, ["list-work", "list-prototype", "list-weekend"]);
+
+    const ids = (await shown()).map((state) => state.map((entry) => entry.split(" ")[0]));
+    const at = progress(ids, [
+      ["list-prototype", "list-weekend", "list-work"],
+      ["list-work", "list-prototype", "list-weekend"],
+    ]);
+    expect(at).not.toContain(-1);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+  });
 });
 
 test("undo merge after split keeps distinct tasks below", async ({ page }) => {

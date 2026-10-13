@@ -239,10 +239,10 @@ class A4TaskList extends HTMLElement {
   }
 
   rename(title: string) {
-    this.list.change(
-      [{ type: "rename", title }],
-      this.list.save((repository, listId) => repository.renameList(listId, title))
-    );
+    const saved = this.list.save((repository, listId) => repository.renameList(listId, title));
+    this.list.change([{ type: "rename", title }], saved);
+    // The app names the list elsewhere too, until the same save settles.
+    this.emit("listrename", { listId: this.listId, title, saved });
   }
 
   /** Saves where a task was dropped, once the drag is over. */
@@ -767,7 +767,6 @@ class A4TaskList extends HTMLElement {
     // Until the list's state is known, there is nothing to tell.
     if (!this.list.savedState) return;
     this.emitChange("itemcountchange", { total: this.getTotalItemCount() });
-    this.emitChange("titlechange", { title: state.title });
     this.emitChange("searchresultschange", { matches: shownCount, query: this.searchQuery });
   }
 

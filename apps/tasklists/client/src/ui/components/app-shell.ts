@@ -8,7 +8,7 @@ import { ensureDemoData, type SeedConfig } from "../../app/demo-seed.js";
 import { generateListId } from "../state/list-store.js";
 
 import { MoveTasksController } from "../state/move-tasks-controller.js";
-import { RepositorySync } from "../state/repository-sync.js";
+import { ListsState } from "../state/lists-state.js";
 import { APP_ACTIONS, createAppStore, selectors } from "../state/app-store.js";
 import {
   pushListIdToUrl,
@@ -119,6 +119,8 @@ class ListsAppShellElement extends HTMLElement {
   private repository: ListRepository | null;
   private store: Store | null;
   private moveTasksController: MoveTasksController | null;
+  /** The lists as the user sees them. */
+  private lists: ListsState | null;
   private seedConfigs: SeedConfig[] | undefined;
   private demoSeedEnabled: boolean;
   private importInput: HTMLInputElement | null;
@@ -147,6 +149,7 @@ class ListsAppShellElement extends HTMLElement {
     this.repository = null;
     this.store = null;
     this.moveTasksController = null;
+    this.lists = null;
     this.seedConfigs = undefined;
     this.demoSeedEnabled = false;
     this.importInput = null;
@@ -180,7 +183,7 @@ class ListsAppShellElement extends HTMLElement {
     );
     this.addEventListener("itemcountchange", () => this.refreshSidebar(), { signal });
     this.addEventListener("searchresultschange", () => this.refreshSidebar(), { signal });
-    this.addEventListener("titlechange", (event) => this.handleListTitleChange(event), { signal });
+    this.addEventListener("listrename", (event) => this.handleListRename(event), { signal });
     this.addEventListener("clearsearch", () => this.handleSearchClear(), { signal });
     this.addEventListener(
       "showdonechange",
@@ -291,10 +294,7 @@ class ListsAppShellElement extends HTMLElement {
       store: this.store,
     });
     const moveTasksController = this.moveTasksController;
-    const repositorySync = new RepositorySync({
-      repository: this.repository,
-      store: this.store,
-    });
+    this.lists = new ListsState(() => this.showLists());
     this.sidebarElement?.setHandlers?.({
       onSearchChange: (value: string) => this.handleSearchChange(value),
       onSelectList: (listId: ListId) => this.handleListSelection(listId),
@@ -334,7 +334,7 @@ class ListsAppShellElement extends HTMLElement {
         payload: { id: urlListId },
       });
     }
-    await repositorySync.initialize();
+    await this.lists.connect(this.repository);
     this.sidebarElement?.setDemoSeedEnabled?.(this.demoSeedEnabled);
     const urlSearch = readSearchFromUrl();
     if (urlSearch) {
@@ -552,19 +552,28 @@ class ListsAppShellElement extends HTMLElement {
     });
   }
 
-  handleListTitleChange(event: Event) {
-    if (!this.store) return;
-    const customEvent = event as CustomEvent<{ title?: string }>;
-    const listId = (event.target as { listId?: ListId } | null)?.listId ?? null;
-    const detailTitle =
-      typeof customEvent.detail?.title === "string"
-        ? customEvent.detail.title
-        : "";
-    if (!listId) return;
-    const trimmed = detailTitle.trim();
+  /** A list renamed itself: its new name shows here too until it is saved. */
+  handleListRename(event: Event) {
+    const { listId, title, saved } = (
+      event as CustomEvent<{ listId: ListId | null; title: string; saved: Promise<unknown> | null }>
+    ).detail;
+    if (listId) this.lists?.rename(listId, title, saved);
+  }
+
+  /** Shows the lists as `ListsState` has them. */
+  showLists() {
+    if (!this.store || !this.lists) return;
+    const lists = this.lists.shown;
+    const pending = selectors.getPendingActiveListId(this.store.getState());
     this.store.dispatch({
-      type: APP_ACTIONS.updateListName,
-      payload: { id: listId, name: trimmed },
+      type: APP_ACTIONS.setRegistry,
+      payload: {
+        lists: lists.map(({ id, title }) => ({ id, name: title.trim() })),
+        order: lists.map(({ id }) => id),
+        // A list waited for becomes active once it exists.
+        activeListId: pending,
+        pendingActiveListId: pending,
+      },
     });
   }
 
@@ -606,13 +615,7 @@ class ListsAppShellElement extends HTMLElement {
         payload: { id: fallbackId },
       });
     }
-    const store = this.store;
-    Promise.resolve(this.repository.removeList(removeId)).catch(() => {
-      store.dispatch({
-        type: APP_ACTIONS.setPendingActiveList,
-        payload: { id: null },
-      });
-    });
+    this.lists?.remove(removeId);
   }
 
   async handleSeedDemo() {
@@ -690,7 +693,7 @@ class ListsAppShellElement extends HTMLElement {
     movedId: ListId;
     order: ListId[];
   }) {
-    if (!this.store || !this.repository) return;
+    if (!this.store || !this.lists) return;
     const previousOrder = selectors.getListOrder(this.store.getState());
     if (!Array.isArray(previousOrder) || previousOrder.length <= 1) return;
     if (!Array.isArray(order) || order.length <= 1) return;
@@ -700,20 +703,7 @@ class ListsAppShellElement extends HTMLElement {
     const movedIndex = order.indexOf(movedId);
     const beforeId = order[movedIndex + 1] ?? null;
     const afterId = order[movedIndex - 1] ?? null;
-    this.store.dispatch({
-      type: APP_ACTIONS.setOrder,
-      payload: { order },
-    });
-
-    const store = this.store;
-    Promise.resolve(
-      this.repository.reorderList(movedId, { afterId, beforeId })
-    ).catch(() => {
-      store.dispatch({
-        type: APP_ACTIONS.setOrder,
-        payload: { order: previousOrder },
-      });
-    });
+    this.lists.move(movedId, afterId, beforeId);
   }
 
   applySearchToLists(query: string) {

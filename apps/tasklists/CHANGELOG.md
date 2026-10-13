@@ -17,6 +17,9 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- On a slow device, the sidebar keeps showing a list's new name while it is
+  saved, and a list where it was dragged. It went back through the names
+  typed before, or to the list's earlier place, as earlier changes were saved.
 - A task that another device deleted while it was being edited shows that
   device's changes again once undo or redo brings it back. It kept showing
   the text it had when it was deleted.
