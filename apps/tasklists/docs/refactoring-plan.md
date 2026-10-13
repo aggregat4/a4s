@@ -149,6 +149,10 @@ name again, and failures are rolled back case by case.
   did before `785de9c`. Apply the same approach: at drop time the dragged
   element is in its final place, so its neighbours give the move. Run the
   sidebar drag tests repeatedly; they were flaky before.
+- [ ] On a slow device (CPU throttled 6x), a second sidebar drag right after
+  the first often does nothing: no reorder reaches the app and the sidebar
+  keeps the first drag's order. Seen with two `dragHandleToTarget` calls in a
+  row in the "on a slow device" block; reproduce it there first.
 
 ## 6. List element merges
 
