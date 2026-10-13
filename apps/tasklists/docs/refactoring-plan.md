@@ -119,7 +119,8 @@ name again, and failures are rolled back case by case.
 - [ ] E2E tests on a slow device for reordering, renaming, creating and
   deleting lists while other registry changes arrive. Review with the user
   before going on.
-- [ ] Factor the pending-changes core shared with `ListState` out of it.
+- [x] Factor the pending-changes core shared with `ListState` out of it
+  (`PendingState`).
 - [ ] Add `ListsState`: the registry with pending creates, removes, moves and
   renames. A rename is one request, pending in both the list's `ListState`
   and `ListsState`. The sidebar, the main pane and the move dialog use it.

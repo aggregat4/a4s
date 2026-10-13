@@ -30,7 +30,7 @@ function placement(items: TaskItem[], afterId: string | null, beforeId: string |
 
 // Applying a change again changes nothing more: the repository's state can
 // already include a change whose save has not reported back yet.
-function applyChange(state: TaskListState, change: PendingChange): TaskListState {
+export function applyChange(state: TaskListState, change: PendingChange): TaskListState {
   switch (change.type) {
     case "insert": {
       if (state.items.some((item) => item.id === change.item.id)) return state;
