@@ -26,7 +26,7 @@ const createMemoryStorage = (): ListStorage => ({
   persistSyncState: async () => {},
   loadOutbox: async () => [],
   persistOutbox: async () => {},
-  persistOperations: async () => {},
+  persistList: async () => {},
   persistRegistry: async () => {},
 });
 
@@ -250,7 +250,7 @@ const createSlowStorage = (delayMs: number): ListStorage => {
   const wait = () => new Promise<void>((resolve) => setTimeout(resolve, delayMs));
   return {
     ...createMemoryStorage(),
-    persistOperations: async () => wait(),
+    persistList: async () => wait(),
     persistRegistry: async () => wait(),
   };
 };

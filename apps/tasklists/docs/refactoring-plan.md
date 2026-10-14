@@ -142,10 +142,12 @@ name again, and failures are rolled back case by case.
   off, next to `SyncEngine`'s own writer. Two writers of the same IndexedDB
   record can race. Give the outbox one owner. They did race: a task added as
   the server came back was lost in 6 of 40 runs. `Outbox` now owns it.
-- [ ] `ListStorage.persistOperations` (line 278) saves a list's state and
+- [x] `ListStorage.persistOperations` (line 278) saves a list's state and
   appends its operations, and loading replays those operations onto a state
   that already includes them. That overlap exposed the redo bug fixed in
-  `accc4c4`. Consider keeping only operations after the saved state.
+  `accc4c4`. Saving now writes only the state (`persistList`,
+  `persistRegistry`) and removes operations an older version stored; loading
+  still replays those. The operation stores can go with a schema version.
 
 ## 5. Sidebar drag reorder
 

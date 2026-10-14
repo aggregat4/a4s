@@ -5,7 +5,6 @@ import {
   deserializeListState,
   serializeRegistryState,
   deserializeRegistryState,
-  serializeOperation,
   deserializeOperation,
 } from "./serde.js";
 import type { ListId, ListState, RegistryState } from "../types/domain.js";
@@ -275,58 +274,30 @@ class IndexedDbListStorage implements ListStorage {
     };
   }
 
-  async persistOperations(
-    listId: ListId,
-    operations: TaskListOperation[] = [],
-    options: { snapshot?: ListState | null } = {}
-  ) {
+  /**
+   * Saves a list's state. Its operations are in the state, so none are
+   * stored; any an older version stored are removed with it.
+   */
+  async persistList(listId: ListId, state: ListState) {
     if (typeof listId !== "string" || !listId.length) {
-      throw new Error("persistOperations requires a listId");
+      throw new Error("persistList requires a listId");
     }
     const db = await this.ready();
-    const stores = [STORE_LIST_OPERATIONS];
-    if (options.snapshot) {
-      stores.push(STORE_LIST_STATES);
-    }
-    const transaction = db.transaction(stores, "readwrite");
+    const transaction = db.transaction(
+      [STORE_LIST_STATES, STORE_LIST_OPERATIONS],
+      "readwrite"
+    );
     const completion = transactionCompleted(transaction);
-    const operationsStore = transaction.objectStore(STORE_LIST_OPERATIONS);
-    const snapshotStore = options.snapshot
-      ? transaction.objectStore(STORE_LIST_STATES)
-      : null;
-    const now = Date.now();
-
-    if (snapshotStore && options.snapshot) {
-      const index = operationsStore.index("byList");
-      const cursorRequest = index.openCursor(listId);
-      await iterateCursor(cursorRequest, (cursor) => {
-        cursor.delete();
-      });
-    }
-
-    if (Array.isArray(operations)) {
-      operations.forEach((operation) => {
-        const serialized = serializeOperation(operation);
-        if (!serialized) return;
-        operationsStore.put({
-          listId,
-          clock: serialized.clock,
-          actor: serialized.actor,
-          operation: serialized,
-          createdAt: now,
-        });
-      });
-    }
-
-    if (snapshotStore && options.snapshot) {
-      snapshotStore.put({
-        listId,
-        state: serializeListState(options.snapshot),
-        updatedAt: now,
-        version: SERIALIZATION_VERSION,
-      });
-    }
-
+    const index = transaction.objectStore(STORE_LIST_OPERATIONS).index("byList");
+    await iterateCursor(index.openCursor(listId), (cursor) => {
+      cursor.delete();
+    });
+    transaction.objectStore(STORE_LIST_STATES).put({
+      listId,
+      state: serializeListState(state),
+      updatedAt: Date.now(),
+      version: SERIALIZATION_VERSION,
+    });
     await completion;
   }
 
@@ -410,49 +381,21 @@ class IndexedDbListStorage implements ListStorage {
     await completion;
   }
 
-  async persistRegistry({
-    operations = [],
-    snapshot = null,
-  }: { operations?: ListsOperation[]; snapshot?: RegistryState | null } = {}) {
+  /** Saves the registry's state; see `persistList`. */
+  async persistRegistry(state: RegistryState) {
     const db = await this.ready();
-    const stores = [STORE_REGISTRY_OPERATIONS];
-    if (snapshot) {
-      stores.push(STORE_REGISTRY_STATE);
-    }
-    const transaction = db.transaction(stores, "readwrite");
+    const transaction = db.transaction(
+      [STORE_REGISTRY_STATE, STORE_REGISTRY_OPERATIONS],
+      "readwrite"
+    );
     const completion = transactionCompleted(transaction);
-    const operationsStore = transaction.objectStore(STORE_REGISTRY_OPERATIONS);
-    const snapshotStore = snapshot
-      ? transaction.objectStore(STORE_REGISTRY_STATE)
-      : null;
-    const now = Date.now();
-
-    if (snapshotStore && snapshot) {
-      operationsStore.clear();
-    }
-
-    if (Array.isArray(operations)) {
-      operations.forEach((operation) => {
-        const serialized = serializeOperation(operation);
-        if (!serialized) return;
-        operationsStore.put({
-          clock: serialized.clock,
-          actor: serialized.actor,
-          operation: serialized,
-          createdAt: now,
-        });
-      });
-    }
-
-    if (snapshotStore && snapshot) {
-      snapshotStore.put({
-        id: REGISTRY_STATE_ID,
-        state: serializeRegistryState(snapshot),
-        updatedAt: now,
-        version: SERIALIZATION_VERSION,
-      });
-    }
-
+    transaction.objectStore(STORE_REGISTRY_OPERATIONS).clear();
+    transaction.objectStore(STORE_REGISTRY_STATE).put({
+      id: REGISTRY_STATE_ID,
+      state: serializeRegistryState(state),
+      updatedAt: Date.now(),
+      version: SERIALIZATION_VERSION,
+    });
     await completion;
   }
 

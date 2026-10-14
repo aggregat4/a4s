@@ -29,9 +29,7 @@ export async function openScheduledStorage(
     loadOutbox: () => storage.loadOutbox(),
     persistSyncState: held("sync state", (state) => storage.persistSyncState(state)),
     persistOutbox: held("outbox", (ops) => storage.persistOutbox(ops)),
-    persistOperations: held("list", (listId, operations, options) =>
-      storage.persistOperations(listId, operations, options)
-    ),
-    persistRegistry: held("registry", (options) => storage.persistRegistry(options)),
+    persistList: held("list", (listId, state) => storage.persistList(listId, state)),
+    persistRegistry: held("registry", (state) => storage.persistRegistry(state)),
   };
 }

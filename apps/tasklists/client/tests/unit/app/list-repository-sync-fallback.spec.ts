@@ -60,7 +60,7 @@ const createMemoryStorage = (): ListStorage => {
     persistOutbox: async (ops) => {
       outbox = Array.isArray(ops) ? ops.map((op) => ({ ...op })) : [];
     },
-    persistOperations: async () => {},
+    persistList: async () => {},
     persistRegistry: async () => {},
   };
 };

@@ -60,29 +60,16 @@ class MemoryListStorage {
         this.outbox = Array.isArray(ops) ? ops.map((op) => clone(op)) : [];
     }
 
-    async persistOperations(listId: string, operations: any[] = [], options: any = {}) {
+    async persistList(listId: string, state: any) {
         if (typeof listId !== "string" || !listId.length) {
-            throw new Error("persistOperations requires a listId");
+            throw new Error("persistList requires a listId");
         }
-        const record =
-            this.lists.get(listId) ?? { state: null, operations: [], updatedAt: null };
-        if (Array.isArray(operations) && operations.length) {
-            record.operations.push(...operations.map((op) => clone(op)));
-        }
-        if (options.snapshot) {
-            record.state = clone(options.snapshot);
-        }
-        record.updatedAt = Date.now();
-        this.lists.set(listId, record);
+        this.lists.set(listId, { state: clone(state), operations: [], updatedAt: Date.now() });
     }
 
-    async persistRegistry({ operations = [], snapshot = null }: any = {}) {
-        if (Array.isArray(operations) && operations.length) {
-            this.registry.operations.push(...operations.map((op) => clone(op)));
-        }
-        if (snapshot) {
-            this.registry.state = clone(snapshot);
-        }
+    async persistRegistry(state: any) {
+        this.registry.state = clone(state);
+        this.registry.operations = [];
         this.registry.updatedAt = Date.now();
     }
 
@@ -119,7 +106,7 @@ test("hydrateFromStorage rebuilds CRDT instances from persisted registry and lis
 
     let previousId = null;
     for (const config of seedConfigs) {
-        const createResult = listsCrdt.generateCreate({
+        listsCrdt.generateCreate({
             listId: config.id,
             title: config.title,
             afterId: previousId,
@@ -130,27 +117,19 @@ test("hydrateFromStorage rebuilds CRDT instances from persisted registry and lis
             actorId: `seed-${config.id}`,
             title: config.title,
         });
-        const ops = [];
-        const rename = listCrdt.generateRename(config.title);
-        ops.push(rename.op);
+        listCrdt.generateRename(config.title);
         let afterId: string | null = null;
         config.items.forEach((item) => {
-            const insert = listCrdt.generateInsert({
+            listCrdt.generateInsert({
                 itemId: item.id,
                 text: item.text,
                 done: item.done,
                 afterId,
             });
-            ops.push(insert.op);
             afterId = item.id;
         });
-        await storage.persistOperations(config.id, ops, {
-            snapshot: listCrdt.exportState(),
-        });
-        await storage.persistRegistry({
-            operations: [createResult.op],
-            snapshot: listsCrdt.exportState(),
-        });
+        await storage.persistList(config.id, listCrdt.exportState());
+        await storage.persistRegistry(listsCrdt.exportState());
     }
 
     const hydrationIndex = new ListsCRDT({ actorId: "hydrate-index" });

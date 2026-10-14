@@ -49,7 +49,7 @@ const createMemoryStorage = (): ListStorage => ({
   persistSyncState: async () => {},
   loadOutbox: async () => [],
   persistOutbox: async () => {},
-  persistOperations: async () => {},
+  persistList: async () => {},
   persistRegistry: async () => {},
 });
 

@@ -40,13 +40,8 @@ export type ListStorage = {
   persistSyncState: (state: SyncState) => Promise<void>;
   loadOutbox: () => Promise<SyncOp[]>;
   persistOutbox: (ops: SyncOp[]) => Promise<void>;
-  persistOperations: (
-    listId: ListId,
-    operations: TaskListOperation[],
-    options?: { snapshot?: ListState | null }
-  ) => Promise<void>;
-  persistRegistry: (options?: {
-    operations?: ListsOperation[];
-    snapshot?: RegistryState | null;
-  }) => Promise<void>;
+  /** Saves a list's state; operations an older version stored are removed. */
+  persistList: (listId: ListId, state: ListState) => Promise<void>;
+  /** Saves the registry's state; operations an older version stored are removed. */
+  persistRegistry: (state: RegistryState) => Promise<void>;
 };

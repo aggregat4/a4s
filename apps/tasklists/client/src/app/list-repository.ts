@@ -496,16 +496,11 @@ export class ListRepository {
       datasetGenerationKey,
     });
     await this._outbox?.clear();
-    await this._storage.persistRegistry({
-      operations: [],
-      snapshot: registryState,
-    });
+    await this._storage.persistRegistry(registryState);
     const listEntries = Array.isArray(lists) ? lists : [];
     for (const entry of listEntries) {
       if (!entry?.listId) continue;
-      await this._storage.persistOperations(entry.listId, [], {
-        snapshot: entry.state,
-      });
+      await this._storage.persistList(entry.listId, entry.state);
     }
 
     const hydration = await hydrateFromStorage({
@@ -1439,6 +1434,7 @@ export class ListRepository {
     return this._createListCrdt(listId, state, this._identityOptions);
   }
 
+  /** Saves a list's state, and sends this device's operations on it. */
   _persistList(
     listId: ListId,
     crdt: TaskListCRDT,
@@ -1447,26 +1443,21 @@ export class ListRepository {
   ) {
     if (!this._storage || !crdt) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
-    const snapshot = crdt.exportState();
-    const persist = Promise.resolve(
-      this._storage.persistOperations(listId, operations, { snapshot })
-    );
+    const persist = this._storage.persistList(listId, crdt.exportState());
     if (options.origin !== "remote" && operations.length > 0) {
       return persist.then(() => this.queueOpsForSync("list", listId, operations));
     }
     return persist;
   }
 
+  /** Saves the registry's state, and sends this device's operations on it. */
   _persistRegistry(
     ops: ListsOperation[] = [],
     options: { origin?: "local" | "remote" } = {}
   ) {
     if (!this._storage) return Promise.resolve();
     const operations = Array.isArray(ops) ? ops : [];
-    const snapshot = this._listsCrdt.exportState();
-    const persist = Promise.resolve(
-      this._storage.persistRegistry({ operations, snapshot })
-    );
+    const persist = this._storage.persistRegistry(this._listsCrdt.exportState());
     if (options.origin !== "remote" && operations.length > 0) {
       return persist.then(() =>
         this.queueOpsForSync("registry", "registry", operations)
