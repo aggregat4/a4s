@@ -63,6 +63,38 @@ function toListState(record?: ListRecord | null): TaskListState {
   return record.crdt.toListState();
 }
 
+type TaskEntry = ReturnType<TaskListCRDT["getSnapshot"]>[number];
+
+/** A task of a list, with its neighbours, if the list has it. */
+function taskAt(crdt: TaskListCRDT, itemId: string) {
+  const snapshot = crdt.getSnapshot();
+  const index = snapshot.findIndex((entry) => entry.id === itemId);
+  if (!itemId || index === -1) return null;
+  return {
+    item: snapshot[index],
+    afterId: snapshot[index - 1]?.id ?? null,
+    beforeId: snapshot[index + 1]?.id ?? null,
+  };
+}
+
+/** The operation that puts a task back where and as it was. */
+function reinsertTaskOp(
+  listId: ListId,
+  { item, afterId, beforeId }: { item: TaskEntry; afterId: string | null; beforeId: string | null }
+): HistoryOp {
+  return {
+    type: "insertTask",
+    listId,
+    itemId: item.id,
+    text: item.text,
+    done: item.done,
+    note: item.note ?? "",
+    afterId,
+    beforeId,
+    position: item.pos ?? null,
+  };
+}
+
 // Text edits to the same task less than this far apart, within a word, merge
 // into one undo step.
 const TEXT_EDIT_MERGE_WINDOW_MS = 1000;
@@ -975,13 +1007,12 @@ export class ListRepository {
     options: TaskInsertInput = {}
   ) {
     const itemId = ensureId(options.itemId, `${listId}-item`);
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
+    const crdt = await this.listCrdt(listId);
+    if (!crdt) return null;
     const text = sanitizeText(options.text);
     const done = options.done == null ? false : Boolean(options.done);
     const note = sanitizeText(options.note);
-    const insert = record.crdt.generateInsert({
+    const insert = crdt.generateInsert({
       itemId,
       text,
       done,
@@ -990,10 +1021,7 @@ export class ListRepository {
       beforeId: options.beforeId,
       position: options.position,
     });
-    await this._persistList(listId, record.crdt, [insert.op]);
-    this.emitListChange(listId);
-    this.recordHistory({
-      scope: { type: "list", listId },
+    await this.saveListChange(listId, crdt, [insert.op], {
       forwardOps: [
         {
           type: "insertTask",
@@ -1007,17 +1035,10 @@ export class ListRepository {
           position: options.position ?? null,
         },
       ],
-      inverseOps: [
-        {
-          type: "removeTask",
-          listId,
-          itemId,
-        },
-      ],
+      inverseOps: [{ type: "removeTask", listId, itemId }],
       label: "insert-task",
-      actor: record.crdt.actorId,
     });
-    return { id: itemId, state: record.crdt.toListState() };
+    return { id: itemId, state: crdt.toListState() };
   }
 
   async splitTask(
@@ -1052,22 +1073,16 @@ export class ListRepository {
       position?: Position | null;
     }
   ) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
-    if (typeof itemId !== "string" || !itemId.length) return null;
-    const existing = record.crdt
-      .getSnapshot()
-      .find((entry) => entry.id === itemId);
-    if (!existing) return null;
+    const crdt = await this.listCrdt(listId);
+    if (!crdt || !taskAt(crdt, itemId)) return null;
     const beforeText = sanitizeText(options.beforeText);
     const afterText = sanitizeText(options.afterText);
     const previousText = sanitizeText(options.previousText);
-    const update = record.crdt.generateUpdate({
+    const update = crdt.generateUpdate({
       itemId,
       text: beforeText,
     });
-    const insert = record.crdt.generateInsert({
+    const insert = crdt.generateInsert({
       itemId: newItemId,
       text: afterText,
       done: false,
@@ -1076,17 +1091,9 @@ export class ListRepository {
       beforeId: options.beforeId ?? null,
       position: options.position ?? null,
     });
-    await this._persistList(listId, record.crdt, [update.op, insert.op]);
-    this.emitListChange(listId);
-    this.recordHistory({
-      scope: { type: "list", listId },
+    await this.saveListChange(listId, crdt, [update.op, insert.op], {
       forwardOps: [
-        {
-          type: "updateTask",
-          listId,
-          itemId,
-          payload: { text: beforeText },
-        },
+        { type: "updateTask", listId, itemId, payload: { text: beforeText } },
         {
           type: "insertTask",
           listId,
@@ -1100,22 +1107,12 @@ export class ListRepository {
         },
       ],
       inverseOps: [
-        {
-          type: "removeTask",
-          listId,
-          itemId: newItemId,
-        },
-        {
-          type: "updateTask",
-          listId,
-          itemId,
-          payload: { text: previousText },
-        },
+        { type: "removeTask", listId, itemId: newItemId },
+        { type: "updateTask", listId, itemId, payload: { text: previousText } },
       ],
       label: "split-task",
-      actor: record.crdt.actorId,
     });
-    return { id: newItemId, state: record.crdt.toListState() };
+    return { id: newItemId, state: crdt.toListState() };
   }
 
   async mergeTask(
@@ -1137,65 +1134,37 @@ export class ListRepository {
     currentItemId: string,
     options: { mergedText: string }
   ) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
+    const crdt = await this.listCrdt(listId);
+    if (!crdt) return null;
+    const previous = taskAt(crdt, previousItemId);
+    const current = taskAt(crdt, currentItemId);
+    if (!previous || !current) return null;
 
-    const snapshot = record.crdt.getSnapshot();
-    const previousItem = snapshot.find((entry) => entry.id === previousItemId);
-    const currentItem = snapshot.find((entry) => entry.id === currentItemId);
-    if (!previousItem || !currentItem) return null;
-
-    const order = snapshot.map((entry) => entry.id);
-    const neighbors = this.getNeighborIds(order, currentItemId);
     const mergedText = sanitizeText(options?.mergedText);
-    const update = record.crdt.generateUpdate({
+    const update = crdt.generateUpdate({
       itemId: previousItemId,
       text: mergedText,
     });
-    const remove = record.crdt.generateRemove(currentItemId);
+    const remove = crdt.generateRemove(currentItemId);
 
-    await this._persistList(listId, record.crdt, [update.op, remove.op]);
-    this.emitListChange(listId);
-    this.recordHistory({
-      scope: { type: "list", listId },
+    await this.saveListChange(listId, crdt, [update.op, remove.op], {
       forwardOps: [
-        {
-          type: "updateTask",
-          listId,
-          itemId: previousItemId,
-          payload: { text: mergedText },
-        },
-        {
-          type: "removeTask",
-          listId,
-          itemId: currentItemId,
-        },
+        { type: "updateTask", listId, itemId: previousItemId, payload: { text: mergedText } },
+        { type: "removeTask", listId, itemId: currentItemId },
       ],
       inverseOps: [
-        {
-          type: "insertTask",
-          listId,
-          itemId: currentItemId,
-          text: currentItem.text,
-          done: currentItem.done,
-          note: currentItem.note ?? "",
-          afterId: neighbors.afterId,
-          beforeId: neighbors.beforeId,
-          position: currentItem.pos ?? null,
-        },
+        reinsertTaskOp(listId, current),
         {
           type: "updateTask",
           listId,
           itemId: previousItemId,
-          payload: { text: previousItem.text },
+          payload: { text: previous.item.text },
         },
       ],
       label: "merge-task",
-      actor: record.crdt.actorId,
     });
     this._textEditSessions.delete(`${listId}:${currentItemId}`);
-    return record.crdt.toListState();
+    return crdt.toListState();
   }
 
   async updateTask(listId: ListId, itemId: string, payload: TaskUpdateInput = {}) {
@@ -1213,16 +1182,13 @@ export class ListRepository {
     payload: TaskUpdateInput = {},
     editedAt = this._now()
   ) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
-    if (typeof itemId !== "string" || !itemId.length) return null;
-    const existing = record.crdt
-      .getSnapshot()
-      .find((entry) => entry.id === itemId);
-    if (!existing) return null;
+    const crdt = await this.listCrdt(listId);
+    const existing = crdt ? taskAt(crdt, itemId)?.item : null;
+    if (!crdt || !existing) return null;
+    const has = (field: keyof TaskUpdateInput) =>
+      Object.prototype.hasOwnProperty.call(payload, field);
     let coalesceKey: string | undefined;
-    if (Object.prototype.hasOwnProperty.call(payload, "text")) {
+    if (has("text")) {
       const previousText = existing.text ?? "";
       const nextText =
         typeof payload.text === "string" ? payload.text : previousText;
@@ -1235,52 +1201,24 @@ export class ListRepository {
         timestamp: editedAt,
       });
     }
-    const result = record.crdt.generateUpdate({
+    const result = crdt.generateUpdate({
       itemId,
       text: payload.text,
       done: payload.done,
       note: payload.note,
     });
-    await this._persistList(listId, record.crdt, [result.op]);
-    this.emitListChange(listId);
     const inversePayload: TaskUpdateInput = {};
-    if (Object.prototype.hasOwnProperty.call(payload, "text")) {
-      inversePayload.text = existing.text;
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, "done")) {
-      inversePayload.done = existing.done;
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, "note")) {
-      inversePayload.note = existing.note ?? "";
-    }
-    const shouldCoalesce =
-      Object.prototype.hasOwnProperty.call(payload, "text") &&
-      !Object.prototype.hasOwnProperty.call(payload, "done") &&
-      Boolean(coalesceKey);
-    this.recordHistory({
-      scope: { type: "list", listId },
-      forwardOps: [
-        {
-          type: "updateTask",
-          listId,
-          itemId,
-          payload,
-        },
-      ],
-      inverseOps: [
-        {
-          type: "updateTask",
-          listId,
-          itemId,
-          payload: inversePayload,
-        },
-      ],
+    if (has("text")) inversePayload.text = existing.text;
+    if (has("done")) inversePayload.done = existing.done;
+    if (has("note")) inversePayload.note = existing.note ?? "";
+    await this.saveListChange(listId, crdt, [result.op], {
+      forwardOps: [{ type: "updateTask", listId, itemId, payload }],
+      inverseOps: [{ type: "updateTask", listId, itemId, payload: inversePayload }],
       label: "update-task",
-      actor: record.crdt.actorId,
-      coalesceKey: shouldCoalesce ? coalesceKey : undefined,
+      coalesceKey: has("text") && !has("done") ? coalesceKey : undefined,
       timestamp: editedAt,
     });
-    return record.crdt.toListState();
+    return crdt.toListState();
   }
 
   async toggleTask(
@@ -1298,37 +1236,17 @@ export class ListRepository {
     itemId: string,
     explicitState: boolean | null = null
   ) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
-    const existing = record.crdt.getSnapshot().find((entry) => entry.id === itemId);
-    if (!existing) return null;
+    const crdt = await this.listCrdt(listId);
+    const existing = crdt ? taskAt(crdt, itemId)?.item : null;
+    if (!crdt || !existing) return null;
     const nextDone = explicitState == null ? !existing.done : Boolean(explicitState);
-    const result = record.crdt.generateToggle(itemId, explicitState);
-    await this._persistList(listId, record.crdt, [result.op]);
-    this.emitListChange(listId);
-    this.recordHistory({
-      scope: { type: "list", listId },
-      forwardOps: [
-        {
-          type: "updateTask",
-          listId,
-          itemId,
-          payload: { done: nextDone },
-        },
-      ],
-      inverseOps: [
-        {
-          type: "updateTask",
-          listId,
-          itemId,
-          payload: { done: existing.done },
-        },
-      ],
+    const result = crdt.generateToggle(itemId, explicitState);
+    await this.saveListChange(listId, crdt, [result.op], {
+      forwardOps: [{ type: "updateTask", listId, itemId, payload: { done: nextDone } }],
+      inverseOps: [{ type: "updateTask", listId, itemId, payload: { done: existing.done } }],
       label: "toggle-task",
-      actor: record.crdt.actorId,
     });
-    return record.crdt.toListState();
+    return crdt.toListState();
   }
 
   async removeTask(listId: ListId, itemId: string) {
@@ -1336,41 +1254,14 @@ export class ListRepository {
   }
 
   private async removeTaskInternal(listId: ListId, itemId: string) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
-    const snapshot = record.crdt.getSnapshot();
-    const existing = snapshot.find((entry) => entry.id === itemId);
-    if (!existing) return null;
-    const order = snapshot.map((entry) => entry.id);
-    const neighbors = this.getNeighborIds(order, itemId);
-    const result = record.crdt.generateRemove(itemId);
-    await this._persistList(listId, record.crdt, [result.op]);
-    this.emitListChange(listId);
-    this.recordHistory({
-      scope: { type: "list", listId },
-      forwardOps: [
-        {
-          type: "removeTask",
-          listId,
-          itemId,
-        },
-      ],
-      inverseOps: [
-        {
-          type: "insertTask",
-          listId,
-          itemId,
-          text: existing.text,
-          done: existing.done,
-          note: existing.note ?? "",
-          afterId: neighbors.afterId,
-          beforeId: neighbors.beforeId,
-          position: existing.pos ?? null,
-        },
-      ],
+    const crdt = await this.listCrdt(listId);
+    const existing = crdt ? taskAt(crdt, itemId) : null;
+    if (!crdt || !existing) return null;
+    const result = crdt.generateRemove(itemId);
+    await this.saveListChange(listId, crdt, [result.op], {
+      forwardOps: [{ type: "removeTask", listId, itemId }],
+      inverseOps: [reinsertTaskOp(listId, existing)],
       label: "remove-task",
-      actor: record.crdt.actorId,
     });
     this._textEditSessions.delete(`${listId}:${itemId}`);
     return result;
@@ -1391,24 +1282,16 @@ export class ListRepository {
     itemId: string,
     options: TaskMoveInput = {}
   ) {
-    await this.initialize();
-    const record = this._listMap.get(listId);
-    if (!record?.crdt) return null;
-    const snapshot = record.crdt.getSnapshot();
-    const existing = snapshot.find((entry) => entry.id === itemId);
-    if (!existing) return null;
-    const order = snapshot.map((entry) => entry.id);
-    const previousNeighbors = this.getNeighborIds(order, itemId);
-    const move = record.crdt.generateMove({
+    const crdt = await this.listCrdt(listId);
+    const existing = crdt ? taskAt(crdt, itemId) : null;
+    if (!crdt || !existing) return null;
+    const move = crdt.generateMove({
       itemId,
       afterId: options.afterId,
       beforeId: options.beforeId,
       position: options.position,
     });
-    await this._persistList(listId, record.crdt, [move.op]);
-    this.emitListChange(listId);
-    this.recordHistory({
-      scope: { type: "list", listId },
+    await this.saveListChange(listId, crdt, [move.op], {
       forwardOps: [
         {
           type: "moveTaskWithinList",
@@ -1424,15 +1307,14 @@ export class ListRepository {
           type: "moveTaskWithinList",
           listId,
           itemId,
-          afterId: previousNeighbors.afterId,
-          beforeId: previousNeighbors.beforeId,
-          position: existing.pos ?? null,
+          afterId: existing.afterId,
+          beforeId: existing.beforeId,
+          position: existing.item.pos ?? null,
         },
       ],
       label: "move-task",
-      actor: record.crdt.actorId,
     });
-    return record.crdt.toListState();
+    return crdt.toListState();
   }
 
   async moveTask(
@@ -1458,12 +1340,9 @@ export class ListRepository {
     const target = this._listMap.get(targetListId);
     if (!source?.crdt || !target?.crdt) return null;
 
-    const sourceSnapshot = source.crdt.getSnapshot();
-    const sourceEntry = sourceSnapshot.find((entry) => entry.id === itemId);
-    const itemSnapshot = options.snapshot ?? sourceEntry;
-    if (!itemSnapshot || !sourceEntry) return null;
-    const sourceOrder = sourceSnapshot.map((entry) => entry.id);
-    const sourceNeighbors = this.getNeighborIds(sourceOrder, itemId);
+    const sourceTask = taskAt(source.crdt, itemId);
+    const itemSnapshot = options.snapshot ?? sourceTask?.item;
+    if (!itemSnapshot || !sourceTask) return null;
 
     const remove = source.crdt.generateRemove(itemId);
     const insert = target.crdt.generateInsert({
@@ -1515,9 +1394,9 @@ export class ListRepository {
             done: Boolean(itemSnapshot.done),
             note: itemSnapshot.note ?? "",
           },
-          afterId: sourceNeighbors.afterId,
-          beforeId: sourceNeighbors.beforeId,
-          position: sourceEntry.pos ?? null,
+          afterId: sourceTask.afterId,
+          beforeId: sourceTask.beforeId,
+          position: sourceTask.item.pos ?? null,
         },
       ],
       label: "move-task-between",
@@ -1528,6 +1407,33 @@ export class ListRepository {
       sourceState: source.crdt.toListState(),
       targetState: target.crdt.toListState(),
     };
+  }
+
+  /** A list's CRDT, once the repository is initialized, if it has the list. */
+  private async listCrdt(listId: ListId) {
+    await this.initialize();
+    return this._listMap.get(listId)?.crdt ?? null;
+  }
+
+  /**
+   * Saves operations on a list, tells the list's listeners, and records the
+   * change as an undo step of this device's user.
+   */
+  private async saveListChange(
+    listId: ListId,
+    crdt: TaskListCRDT,
+    ops: TaskListOperation[],
+    step: {
+      forwardOps: HistoryOp[];
+      inverseOps: HistoryOp[];
+      label: string;
+      coalesceKey?: string;
+      timestamp?: number;
+    }
+  ) {
+    await this._persistList(listId, crdt, ops);
+    this.emitListChange(listId);
+    this.recordHistory({ scope: { type: "list", listId }, actor: crdt.actorId, ...step });
   }
 
   _createListInstance(listId: ListId, state: ListState | null = null) {

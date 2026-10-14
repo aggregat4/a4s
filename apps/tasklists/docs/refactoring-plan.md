@@ -131,11 +131,13 @@ name again, and failures are rolled back case by case.
 
 ## 4. Repository changes
 
-- [ ] Each of the twelve changes in `list-repository.ts` repeats the same
+- [x] Each of the twelve changes in `list-repository.ts` repeats the same
   steps: initialize, find the list record, generate the operation, persist,
-  emit, record history (40–60 lines each). A helper for persist, emit and
-  record could remove a few hundred lines. Undo and redo replay history
-  through the `*Internal` methods (`applyHistoryOp`); keep that working.
+  emit, record history (40–60 lines each). The seven changes to a list's
+  tasks now share `listCrdt`, `taskAt`, `saveListChange` and
+  `reinsertTaskOp` (about 100 lines less; most of each change is its undo
+  and redo operations). The list changes differ in what they persist, whom
+  they tell and which actor they record, so they stay as they are.
 - [ ] `queueOpsForSync` (line 1576) writes to the outbox itself while sync is
   off, next to `SyncEngine`'s own writer. Two writers of the same IndexedDB
   record can race. Give the outbox one owner. Start with a test of changes
