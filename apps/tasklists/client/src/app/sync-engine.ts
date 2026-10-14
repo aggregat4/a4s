@@ -2,11 +2,14 @@ import { ensureActorId } from "../domain/crdt/ids.js";
 import type { ListStorage } from "../types/storage.js";
 import type { SyncOp, SyncScope, SyncState, SyncStatus } from "../types/sync.js";
 import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
+import { Outbox } from "./outbox.js";
 
 type FetchFn = typeof fetch;
 
 type SyncEngineOptions = {
   storage: ListStorage;
+  /** The operations to send; by default the storage's outbox. */
+  outbox?: Outbox;
   baseUrl: string;
   requestTimeoutMs?: number;
   fetchFn?: FetchFn;
@@ -46,8 +49,7 @@ export class SyncEngine {
   private onConnectionError: ((error: unknown) => void) | null;
   private onStatusChange: ((status: SyncStatus) => void) | null;
   private state: SyncState;
-  private outbox: SyncOp[];
-  private outboxPersistQueue: Promise<void>;
+  private outbox: Outbox;
   private eventSource: EventSource | null;
   private isActive: boolean;
   private syncQueue: Promise<void>;
@@ -74,8 +76,7 @@ export class SyncEngine {
     this.onConnectionError = options.onConnectionError ?? null;
     this.onStatusChange = options.onStatusChange ?? null;
     this.state = { clientId: "", lastServerSeq: 0, datasetGenerationKey: "" };
-    this.outbox = [];
-    this.outboxPersistQueue = Promise.resolve();
+    this.outbox = options.outbox ?? new Outbox(options.storage);
     this.eventSource = null;
     this.syncQueue = Promise.resolve();
     this.defaultClientId = options.clientId ?? null;
@@ -88,10 +89,7 @@ export class SyncEngine {
   }
 
   async initialize() {
-    const [state, outbox] = await Promise.all([
-      this.storage.loadSyncState(),
-      this.storage.loadOutbox(),
-    ]);
+    const [state] = await Promise.all([this.storage.loadSyncState(), this.outbox.load()]);
     this.state = {
       clientId: state.clientId ?? "",
       lastServerSeq: Number.isFinite(state.lastServerSeq)
@@ -103,8 +101,6 @@ export class SyncEngine {
       this.state.clientId = this.defaultClientId || ensureActorId();
       await this.storage.persistSyncState(this.state);
     }
-    this.outbox = Array.isArray(outbox) ? outbox : [];
-    this.outboxPersistQueue = Promise.resolve();
     this.emitStatus(this.isOnline() ? "connected" : "disconnected");
   }
 
@@ -182,7 +178,7 @@ export class SyncEngine {
   private async checkOnStart() {
     if (!this.isActive) return;
     await this.pullRemoteOps();
-    if (this.isActive && this.outbox.length > 0) {
+    if (this.isActive && this.outbox.size > 0) {
       await this.flushOutbox();
     }
   }
@@ -284,30 +280,22 @@ export class SyncEngine {
     }
   }
 
+  /** Adds local operations to the outbox, and sends them soon. */
   enqueueOps(scope: SyncScope, resourceId: string, ops: (ListsOperation | TaskListOperation)[]) {
-    if (!Array.isArray(ops) || ops.length === 0) return Promise.resolve();
-    const nextOps = ops.map((op) => ({
-      scope,
-      resourceId,
-      actor: op.actor,
-      clock: op.clock,
-      payload: op,
-    }));
-    this.outbox.push(...nextOps);
-    const pending = this.outboxPersistQueue.catch(() => {}).then(() =>
-      this.storage.persistOutbox(this.outbox.slice())
-    );
-    this.outboxPersistQueue = pending;
-    if (this.isActive && (!this.pauseWhenOffline || this.isOnline())) {
-      if (this.flushTimer != null) {
-        clearTimeout(this.flushTimer);
-      }
-      this.flushTimer = setTimeout(() => {
-        this.flushTimer = null;
-        void this.flushOnce();
-      }, this.flushDebounceMs);
+    const saved = this.outbox.add(scope, resourceId, ops);
+    this.requestFlush();
+    return saved;
+  }
+
+  private requestFlush() {
+    if (!this.isActive || (this.pauseWhenOffline && !this.isOnline())) return;
+    if (this.flushTimer != null) {
+      clearTimeout(this.flushTimer);
     }
-    return pending;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      void this.flushOnce();
+    }, this.flushDebounceMs);
   }
 
   async flushOnce() {
@@ -326,9 +314,9 @@ export class SyncEngine {
   }
 
   private async flushOutbox() {
-    await this.outboxPersistQueue;
-    if (this.outbox.length === 0) return;
-    const sentOps = this.outbox.slice();
+    await this.outbox.saved();
+    const sentOps = this.outbox.pending();
+    if (sentOps.length === 0) return;
     const response = await this.safeFetch(`${this.baseUrl}/sync/push`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -358,9 +346,7 @@ export class SyncEngine {
     // the dataset's global max seq, which may have already advanced past ops
     // from other clients that this client has not pulled yet. The next pull
     // advances the cursor to the highest op actually received.
-    this.outbox = this.outbox.slice(sentOps.length);
-    await this.outboxPersistQueue;
-    await this.storage.persistOutbox(this.outbox);
+    await this.outbox.confirm(sentOps);
     await this.storage.persistSyncState(this.state);
     this.emitStatus("connected");
   }
@@ -441,8 +427,7 @@ export class SyncEngine {
     const payload = (await response.json()) as SyncPushResponse;
     this.state.datasetGenerationKey = payload.datasetGenerationKey ?? datasetGenerationKey;
     this.state.lastServerSeq = parseServerSeq(payload.serverSeq);
-    this.outbox = [];
-    await this.storage.persistOutbox(this.outbox);
+    await this.outbox.clear();
     await this.storage.persistSyncState(this.state);
     return { ok: true };
   }
@@ -463,8 +448,7 @@ export class SyncEngine {
     await this.onSnapshot({ datasetGenerationKey, snapshot });
     this.state.datasetGenerationKey = datasetGenerationKey;
     this.state.lastServerSeq = parseServerSeq(payload?.serverSeq);
-    this.outbox = [];
-    await this.storage.persistOutbox(this.outbox);
+    await this.outbox.clear();
     await this.storage.persistSyncState(this.state);
     // The old stream was opened with the previous generation key. Reconnect
     // after the replacement is durable so later operations can wake this client.

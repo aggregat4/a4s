@@ -25,6 +25,7 @@ import { HistoryManager } from "./history-manager.js";
 import type { HistoryAvailability } from "./history-manager.js";
 import type { HistoryOp, HistoryScope } from "./history-types.js";
 import { SyncEngine } from "./sync-engine.js";
+import { Outbox } from "./outbox.js";
 import { parseExportSnapshotText } from "./export-snapshot.js";
 
 type ListRecord = { crdt: TaskListCRDT };
@@ -114,15 +115,9 @@ export class ListRepository {
     Coalescing groups adjacent text edits into a single undo step based on time
     gaps and word boundaries for a native editor feel.
 
-    Sync outbox architecture:
-    - Durable source of truth: IndexedDB outbox (`ListStorage.loadOutbox` /
-      `persistOutbox`).
-    - Fast path: when `SyncEngine` is active, repository writes local ops to the
-      in-memory engine outbox; engine persists and flushes to server.
-    - Fallback path: when sync is temporarily unavailable, repository appends
-      local ops directly to durable outbox so no user edits are dropped.
-    - Recovery: on re-enable, `SyncEngine.initialize()` reloads durable outbox
-      and resumes push/pull from stored cursor state.
+    Local operations go to the outbox (`Outbox`), the only writer of the
+    stored outbox, whether sync is on or not. While sync is on, `SyncEngine`
+    sends the outbox to the server and drops what the server confirmed.
   */
   private _listsCrdt: ListsCRDT;
   private _createListCrdt: ListFactory;
@@ -150,7 +145,8 @@ export class ListRepository {
   private _syncOptions: SyncOptions | null;
   private _syncErrorHandler: ((error: unknown) => void) | null;
   private _syncStatusHandler: ((status: SyncStatus) => void) | null;
-  private _outboxPersistQueue: Promise<void>;
+  /** This device's operations the sync server has not confirmed yet. */
+  private _outbox: Outbox | null;
   private _now: () => number;
 
   constructor(
@@ -189,7 +185,7 @@ export class ListRepository {
     this._sync = null;
     this._syncErrorHandler = null;
     this._syncStatusHandler = null;
-    this._outboxPersistQueue = Promise.resolve();
+    this._outbox = null;
   }
 
   recordHistory({
@@ -289,6 +285,8 @@ export class ListRepository {
 
   async _initializeInternal(): Promise<void> {
     this._storage = await this._storageFactory(this._storageOptions);
+    this._outbox = new Outbox(this._storage);
+    await this._outbox.load();
 
     const hydration = await hydrateFromStorage({
       storage: this._storage,
@@ -328,7 +326,7 @@ export class ListRepository {
     this._syncOptions = null;
     this._syncErrorHandler = null;
     this._syncStatusHandler = null;
-    this._outboxPersistQueue = Promise.resolve();
+    this._outbox = null;
     this._listMap.clear();
     this._history.clear();
     this._historySuppressed = 0;
@@ -361,6 +359,7 @@ export class ListRepository {
     if (!this._storage) return null;
     this._sync = new SyncEngine({
       storage: this._storage,
+      outbox: this._outbox ?? undefined,
       baseUrl: normalized,
       onRemoteOps: async (ops) => this.applyRemoteOps(ops),
       onSnapshot: async ({ snapshot }) => {
@@ -496,7 +495,7 @@ export class ListRepository {
       lastServerSeq: 0,
       datasetGenerationKey,
     });
-    await this._storage.persistOutbox([]);
+    await this._outbox?.clear();
     await this._storage.persistRegistry({
       operations: [],
       snapshot: registryState,
@@ -1476,55 +1475,14 @@ export class ListRepository {
     return persist;
   }
 
+  /** Adds local operations to the outbox, and sends them soon while sync is on. */
   private queueOpsForSync(
     scope: "registry" | "list",
     resourceId: string,
     operations: (ListsOperation | TaskListOperation)[]
   ) {
-    if (!Array.isArray(operations) || operations.length === 0) {
-      return;
-    }
-    if (this._sync) {
-      return this._sync.enqueueOps(
-        scope,
-        resourceId,
-        operations as (ListsOperation | TaskListOperation)[]
-      );
-    }
-    if (!this._storage) {
-      return;
-    }
-    // Sync engine can be disabled during transient outages; append operations
-    // directly to the durable outbox so they survive and flush on reconnect.
-    const pendingOps: SyncOp[] = operations
-      .map((op) => ({
-        scope,
-        resourceId,
-        actor: op.actor,
-        clock: op.clock,
-        payload: op,
-      }))
-      .filter(
-        (op) =>
-          typeof op.actor === "string" &&
-          op.actor.length > 0 &&
-          Number.isFinite(op.clock) &&
-          op.clock > 0
-      );
-    if (pendingOps.length === 0) {
-      return;
-    }
-    const persist = this._outboxPersistQueue
-      .then(async () => {
-        if (!this._storage) {
-          return;
-        }
-        const existing = await this._storage.loadOutbox();
-        const outbox = Array.isArray(existing) ? existing : [];
-        await this._storage.persistOutbox([...outbox, ...pendingOps]);
-      });
-    this._outboxPersistQueue = persist.catch(() => {});
-    return persist;
+    if (this._sync) return this._sync.enqueueOps(scope, resourceId, operations);
+    return this._outbox?.add(scope, resourceId, operations);
   }
 
   /** Runs a local change after the ones already requested; see the class comment. */

@@ -955,3 +955,49 @@ test("a task another device deleted while it was edited shows that device's edit
     await contextB.close();
   }
 });
+
+test("tasks added while the server comes back reach other devices", async ({ browser }) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  const syncOn = () => pageA.evaluate(() => (window as any).listsApp.repository.isSyncEnabled());
+  try {
+    for (const page of [pageA, pageB]) {
+      await Promise.all([
+        page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),
+        page.goto("/?sync=1"),
+      ]);
+    }
+    const listTitle = `Server back ${Date.now()}`;
+    await createList(pageA, listTitle);
+    await selectList(pageB, listTitle);
+    const cdp = await contextA.newCDPSession(pageA);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+
+    // The server cannot be reached: sync turns off, and the app checks again later.
+    const unreachable = /\/(sync\/|healthz)/;
+    await pageA.route(unreachable, (route) => route.abort());
+    await pageA.getByRole("button", { name: "Add task" }).click();
+    await pageA.keyboard.type("Offline");
+    await expect.poll(syncOn, { timeout: 10_000 }).toBe(false);
+
+    // The server is back. Tasks are added while sync turns on again.
+    await pageA.unroute(unreachable);
+    const expected = ["Offline"];
+    for (let i = 0; i < 40; i += 1) {
+      await pageA.keyboard.press("Enter");
+      await pageA.keyboard.type(`Task ${i}`);
+      expected.push(`Task ${i}`);
+    }
+    await pageA.keyboard.press("Escape");
+    await expect.poll(syncOn, { timeout: 15_000 }).toBe(true);
+
+    const sorted = async (page: Page) => (await taskTexts(page).allTextContents()).sort();
+    await expect.poll(() => sorted(pageA)).toEqual([...expected].sort());
+    await expect.poll(() => sorted(pageB), { timeout: 20_000 }).toEqual([...expected].sort());
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});

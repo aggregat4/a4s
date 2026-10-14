@@ -17,6 +17,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- A change made just as the sync server could be reached again is sent to
+  other devices. It could be left out of what this device sends, for good.
 - On a slow device, the sidebar keeps showing a list's new name while it is
   saved, and a list where it was dragged. It went back through the names
   typed before, or to the list's earlier place, as earlier changes were saved.

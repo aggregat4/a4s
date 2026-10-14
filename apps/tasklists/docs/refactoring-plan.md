@@ -138,10 +138,10 @@ name again, and failures are rolled back case by case.
   `reinsertTaskOp` (about 100 lines less; most of each change is its undo
   and redo operations). The list changes differ in what they persist, whom
   they tell and which actor they record, so they stay as they are.
-- [ ] `queueOpsForSync` (line 1576) writes to the outbox itself while sync is
+- [x] `queueOpsForSync` (line 1576) writes to the outbox itself while sync is
   off, next to `SyncEngine`'s own writer. Two writers of the same IndexedDB
-  record can race. Give the outbox one owner. Start with a test of changes
-  made while sync is off, then turned on.
+  record can race. Give the outbox one owner. They did race: a task added as
+  the server came back was lost in 6 of 40 runs. `Outbox` now owns it.
 - [ ] `ListStorage.persistOperations` (line 278) saves a list's state and
   appends its operations, and loading replays those operations onto a state
   that already includes them. That overlap exposed the redo bug fixed in
