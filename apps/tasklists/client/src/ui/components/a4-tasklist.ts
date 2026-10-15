@@ -183,7 +183,11 @@ class A4TaskList extends HTMLElement {
       handler: (event: HTMLElementEventMap[K]) => void,
       options: AddEventListenerOptions = {}
     ) => listEl.addEventListener(type, handler, { ...options, signal });
-    on("keydown", (event) => this.handleListKeyDown(event), { capture: true });
+    // Before the task or note being edited handles the key.
+    this.addEventListener("keydown", (event) => this.handleKeyDown(event), {
+      capture: true,
+      signal,
+    });
     on("click", (event) => this.handleTokenClick(event));
     on("focusin", (event) => this.handleFocusIn(event));
     on("focusout", (event) => this.handleFocusOut(event));
@@ -943,14 +947,15 @@ class A4TaskList extends HTMLElement {
     this.renderFromState(this.state);
   }
 
-  handleItemKeyDown(event: KeyboardEvent) {
-    if (!event || event.defaultPrevented) return;
-    if (event.isComposing) return;
+  /** The list's keyboard shortcuts, anywhere in the list element. */
+  handleKeyDown(event: KeyboardEvent) {
+    if (event.defaultPrevented || event.isComposing) return;
+    const target = event.target as HTMLElement | null;
+    // A note handles its own shortcuts.
+    const inNote = Boolean(target?.classList.contains("task-note-input"));
+    const itemId = taskIdOf(target);
     if (matchesShortcut(event, SHORTCUTS.toggleNote)) {
-      const target = event.target as HTMLElement | null;
-      if (target?.classList.contains("task-note-input")) return;
-      const itemId = taskIdOf(target);
-      if (!itemId) return;
+      if (inNote || !itemId) return;
       event.preventDefault();
       this.toggleNoteForItem(itemId, { focus: true });
       return;
@@ -959,8 +964,7 @@ class A4TaskList extends HTMLElement {
       matchesShortcut(event, SHORTCUTS.jumpToListStart) ||
       matchesShortcut(event, SHORTCUTS.jumpToListEnd)
     ) {
-      const target = event.target as HTMLElement | null;
-      if (target?.classList?.contains("task-note-input")) return;
+      if (inNote) return;
       const isEnd = matchesShortcut(event, SHORTCUTS.jumpToListEnd);
       const shown = (item: TaskItem) => this.isShown(item);
       const targetItem = isEnd
@@ -972,24 +976,38 @@ class A4TaskList extends HTMLElement {
       return;
     }
     if (matchesShortcut(event, SHORTCUTS.toggleDone)) {
-      const itemId = taskIdOf(event.target);
       if (!itemId) return;
       event.preventDefault();
       this.toggleItemDone(itemId);
       return;
     }
-    if (!matchesShortcut(event, SHORTCUTS.moveTask)) return;
-    const itemId = taskIdOf(event.target);
-    if (!itemId) return;
-    const snapshot = this.getItemSnapshot(itemId);
-    if (!snapshot) return;
-    event.preventDefault();
-    this.emit("task-move-request", {
-      itemId,
-      item: snapshot,
-      sourceListId: this.listId,
-      trigger: "shortcut",
-    });
+    if (matchesShortcut(event, SHORTCUTS.moveTask)) {
+      const snapshot = itemId ? this.getItemSnapshot(itemId) : null;
+      if (!itemId || !snapshot) return;
+      event.preventDefault();
+      this.emit("task-move-request", {
+        itemId,
+        item: snapshot,
+        sourceListId: this.listId,
+        trigger: "shortcut",
+      });
+      return;
+    }
+    // While a task is edited, undo and redo are the list's, not the
+    // browser's; the title keeps the browser's own.
+    const editingTask =
+      this.listEl?.contains(target) && Boolean(target?.closest("[contenteditable='true']"));
+    if (!this._repository || !editingTask) return;
+    if (matchesShortcut(event, SHORTCUTS.undo)) {
+      event.preventDefault();
+      void this._repository.undo();
+    } else if (
+      matchesShortcut(event, SHORTCUTS.redo) ||
+      matchesShortcut(event, SHORTCUTS.redoAlt)
+    ) {
+      event.preventDefault();
+      void this._repository.redo();
+    }
   }
 
   handleInlineInput({
@@ -1025,34 +1043,6 @@ class A4TaskList extends HTMLElement {
     if (!button || !token || !this.listEl?.contains(button)) return;
     event.preventDefault();
     this.emit("tokensearch", { token });
-  }
-
-  handleListKeyDown(event: KeyboardEvent) {
-    if (!this._repository) return;
-    if (!event || event.defaultPrevented) return;
-    const target = event.target as HTMLElement | null;
-    const isEditing = Boolean(target?.closest?.("[contenteditable='true']"));
-    if (!isEditing) return;
-    if (matchesShortcut(event, SHORTCUTS.toggleDone)) {
-      const itemId = taskIdOf(target);
-      if (!itemId) return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.toggleItemDone(itemId);
-      return;
-    }
-    if (matchesShortcut(event, SHORTCUTS.undo)) {
-      event.preventDefault();
-      void this._repository.undo();
-      return;
-    }
-    if (
-      matchesShortcut(event, SHORTCUTS.redo) ||
-      matchesShortcut(event, SHORTCUTS.redoAlt)
-    ) {
-      event.preventDefault();
-      void this._repository.redo();
-    }
   }
 
   handleFocusIn(event: FocusEvent) {
@@ -1352,14 +1342,3 @@ class A4TaskList extends HTMLElement {
 }
 
 customElements.define("a4-tasklist", A4TaskList);
-document.addEventListener(
-  "keydown",
-  (event) => {
-    if (!event || event.defaultPrevented) return;
-    const target = event.target as Element | null;
-    const host = target?.closest?.("a4-tasklist") as A4TaskList | null;
-    if (!host || typeof host.handleItemKeyDown !== "function") return;
-    host.handleItemKeyDown(event);
-  },
-  true
-);

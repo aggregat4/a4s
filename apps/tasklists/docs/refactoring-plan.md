@@ -169,9 +169,10 @@ name again, and failures are rolled back case by case.
   "so click events settle". Check whether the delay is still needed (the
   `ListState` refactoring removed similar workarounds), and merge the paths.
   The delay is not needed; both go through `setTaskDone`.
-- [ ] Keydown is handled in three places: the module-level document listener
+- [x] Keydown is handled in three places: the module-level document listener
   (1514), `handleListKeyDown` (1146) and `handleItemKeyDown` (1048), with
-  "tick off" handled in two. Merge them into one.
+  "tick off" handled in two. Merge them into one (`handleKeyDown`, a capture
+  listener on the element).
 - [ ] Notes (about 150 lines: `toggleNoteForItem` 1020, `handleNoteKeyDown`
   972, the note handlers and the note panel template). Escape duplicates the
   close logic of `toggleNoteForItem`. The drafts already moved into
