@@ -164,10 +164,11 @@ name again, and failures are rolled back case by case.
 
 ## 6. List element merges
 
-- [ ] Ticking a task off has two paths, `handleToggle` (856, a click) and
+- [x] Ticking a task off has two paths, `handleToggle` (856, a click) and
   `toggleItemDone` (1001, the keyboard), both delayed with `setTimeout(0)`
   "so click events settle". Check whether the delay is still needed (the
   `ListState` refactoring removed similar workarounds), and merge the paths.
+  The delay is not needed; both go through `setTaskDone`.
 - [ ] Keydown is handled in three places: the module-level document listener
   (1514), `handleListKeyDown` (1146) and `handleItemKeyDown` (1048), with
   "tick off" handled in two. Merge them into one.

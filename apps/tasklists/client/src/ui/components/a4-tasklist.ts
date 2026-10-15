@@ -775,17 +775,24 @@ class A4TaskList extends HTMLElement {
     if (!target?.classList?.contains("done-toggle")) return;
     const id = taskIdOf(target);
     if (!id) return;
-    const nextDone = Boolean((target as HTMLInputElement).checked);
-    // Request the change right away so it is queued in the order of the
-    // user's actions: an undo pressed right after must find it.
-    const saved = this.list.save((repository, listId) =>
-      repository.toggleTask(listId, id, nextDone)
+    this.setTaskDone(id, Boolean((target as HTMLInputElement).checked));
+  }
+
+  /**
+   * Ticks a task off, or on again. With `moveFocus`, a task that "Show done"
+   * then hides gives way to the next task in view.
+   */
+  setTaskDone(itemId: string, done: boolean, { moveFocus = false } = {}) {
+    if (moveFocus && done && !this.showDone) {
+      if (this.inlineEditor?.editingEl) {
+        this.inlineEditor.finishEditing(this.inlineEditor.editingEl);
+      }
+      this.editNext(this.nextShownTaskId(itemId), "end");
+    }
+    this.list.change(
+      [{ type: "update", id: itemId, fields: { done } }],
+      this.list.save((repository, listId) => repository.toggleTask(listId, itemId, done))
     );
-    // Show it once click events settle, as the list then rerenders and hides
-    // completed items.
-    setTimeout(() => {
-      this.list.change([{ type: "update", id, fields: { done: nextDone } }], saved);
-    }, 0);
   }
 
   handleMoveButtonClick(event: Event) {
@@ -901,23 +908,11 @@ class A4TaskList extends HTMLElement {
     textTarget?.focus();
   }
 
+  /** Ticks a task off from the keyboard, or on again. */
   toggleItemDone(itemId: string) {
     const snapshot = this.getItemSnapshot(itemId);
     if (!snapshot) return;
-    const nextDone = !Boolean(snapshot.done);
-    const shouldMoveFocus = nextDone && this.showDone === false;
-    if (shouldMoveFocus) {
-      if (this.inlineEditor?.editingEl) {
-        this.inlineEditor.finishEditing(this.inlineEditor.editingEl);
-      }
-      this.editNext(this.nextShownTaskId(itemId), "end");
-    }
-    setTimeout(() => {
-      this.list.change(
-        [{ type: "update", id: itemId, fields: { done: nextDone } }],
-        this.list.save((repository, listId) => repository.toggleTask(listId, itemId, nextDone))
-      );
-    }, 0);
+    this.setTaskDone(itemId, !snapshot.done, { moveFocus: true });
   }
 
   toggleNoteForItem(
