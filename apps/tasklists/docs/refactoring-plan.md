@@ -173,10 +173,13 @@ name again, and failures are rolled back case by case.
   (1514), `handleListKeyDown` (1146) and `handleItemKeyDown` (1048), with
   "tick off" handled in two. Merge them into one (`handleKeyDown`, a capture
   listener on the element).
-- [ ] Notes (about 150 lines: `toggleNoteForItem` 1020, `handleNoteKeyDown`
+- [x] Notes (about 150 lines: `toggleNoteForItem` 1020, `handleNoteKeyDown`
   972, the note handlers and the note panel template). Escape duplicates the
   close logic of `toggleNoteForItem`. The drafts already moved into
-  `ListState`; consider extracting the rest into a controller.
+  `ListState`; consider extracting the rest into a controller. Closing goes
+  through `closeNote`. Not extracted: the notes need the inline editor,
+  `editNext`, rendering and the item elements, so a controller would mostly
+  call back into the element.
 
 ## Not planned
 

@@ -885,31 +885,12 @@ class A4TaskList extends HTMLElement {
   }
 
   handleNoteKeyDown(event: KeyboardEvent) {
-    if (!event) return;
-    if (
-      event.key !== "Escape" &&
-      !matchesShortcut(event, SHORTCUTS.toggleNote)
-    ) {
-      return;
-    }
-    const li = (event.currentTarget as HTMLElement | null)?.closest("li") ?? null;
-    const itemId = itemIdOf(li);
+    const toggle = matchesShortcut(event, SHORTCUTS.toggleNote);
+    if (event.key !== "Escape" && !toggle) return;
+    const itemId = taskIdOf(event.currentTarget);
     if (!itemId) return;
     event.preventDefault();
-    if (matchesShortcut(event, SHORTCUTS.toggleNote)) {
-      this.toggleNoteForItem(itemId, { restoreEdit: true });
-      return;
-    }
-    const noteInput = li?.querySelector(
-      ".task-note-input"
-    ) as HTMLTextAreaElement | null;
-    if (noteInput) {
-      this.list.commitNote(itemId, noteInput.value ?? "");
-    }
-    this.openNoteItemIds.delete(itemId);
-    this.renderFromState(this.state);
-    const textTarget = li?.querySelector(".text") as HTMLElement | null;
-    textTarget?.focus();
+    this.closeNote(itemId, toggle ? "edit" : "focus");
   }
 
   /** Ticks a task off from the keyboard, or on again. */
@@ -919,32 +900,33 @@ class A4TaskList extends HTMLElement {
     this.setTaskDone(itemId, !snapshot.done, { moveFocus: true });
   }
 
-  toggleNoteForItem(
-    itemId: string,
-    { focus = false, restoreEdit = false } = {}
-  ) {
+  toggleNoteForItem(itemId: string, { focus = false, restoreEdit = false } = {}) {
     if (!itemId) return;
-    let restoreCaret: CaretPreference | null = null;
     if (this.openNoteItemIds.has(itemId)) {
-      const noteInput = this.noteInput(itemId);
-      if (noteInput) {
-        this.list.commitNote(itemId, noteInput.value ?? "");
-      }
-      this.openNoteItemIds.delete(itemId);
-      this.pendingNoteFocusId = null;
-      if (restoreEdit) {
-        restoreCaret = "end";
-      }
-    } else {
-      const textEl = this.itemElement(itemId)?.querySelector<HTMLElement>(".text");
-      if (textEl && this.inlineEditor?.editingEl === textEl) {
-        this.inlineEditor.finishEditing(textEl);
-      }
-      this.openNoteItemIds.add(itemId);
-      this.pendingNoteFocusId = focus ? itemId : null;
+      this.closeNote(itemId, restoreEdit ? "edit" : null);
+      return;
     }
-    if (restoreCaret) this.editNext(itemId, restoreCaret);
+    const textEl = this.itemElement(itemId)?.querySelector<HTMLElement>(".text");
+    if (textEl && this.inlineEditor?.editingEl === textEl) {
+      this.inlineEditor.finishEditing(textEl);
+    }
+    this.openNoteItemIds.add(itemId);
+    this.pendingNoteFocusId = focus ? itemId : null;
     this.renderFromState(this.state);
+  }
+
+  /**
+   * Closes a task's note, saving what was typed, and then edits the task,
+   * only focuses it, or neither.
+   */
+  closeNote(itemId: string, then: "edit" | "focus" | null) {
+    const noteInput = this.noteInput(itemId);
+    if (noteInput) this.list.commitNote(itemId, noteInput.value ?? "");
+    this.openNoteItemIds.delete(itemId);
+    this.pendingNoteFocusId = null;
+    if (then === "edit") this.editNext(itemId, "end");
+    this.renderFromState(this.state);
+    if (then === "focus") this.itemElement(itemId)?.querySelector<HTMLElement>(".text")?.focus();
   }
 
   /** The list's keyboard shortcuts, anywhere in the list element. */
