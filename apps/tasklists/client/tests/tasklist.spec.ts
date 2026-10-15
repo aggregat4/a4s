@@ -3005,6 +3005,37 @@ test.describe("tasklist flows", () => {
     expect(orderedTexts).toContain(secondText);
   });
 
+  test("dragging a task up past hidden done tasks drops it where it was dropped", async ({
+    page,
+  }) => {
+    const items = page.locator(listItemsSelector);
+    // Done tasks hidden by "Show done" stay in the list, between the others.
+    for (const index of [1, 1]) {
+      await items.nth(index).locator(".text").click();
+      await page.keyboard.press("Control+Enter");
+      await page.keyboard.press("Escape");
+    }
+    await setShowDone(page, false);
+    const shownIds = () =>
+      items.evaluateAll((els) => els.map((el) => el.dataset?.itemId ?? ""));
+    await expect.poll(async () => (await shownIds()).length).toBeGreaterThan(5);
+    const initialIds = await shownIds();
+
+    // Onto the top edge of the first task, clear of its middle.
+    await dragHandleToTarget(items.nth(3).locator(".handle"), items.nth(0), {
+      targetPosition: { x: 8, y: 2 },
+    });
+
+    const expectedIds = initialIds.slice();
+    const [moved] = expectedIds.splice(3, 1);
+    expectedIds.unshift(moved);
+    await expect.poll(shownIds, { timeout: 5000 }).toEqual(expectedIds);
+
+    await page.goto("/?sync=0");
+    await expect(items.first()).toBeVisible();
+    expect(await shownIds()).toEqual(expectedIds);
+  });
+
   test("dragging reorder persists after reload", async ({ page }) => {
     const items = page.locator(listItemsSelector);
     await expect(items.first()).toBeVisible();

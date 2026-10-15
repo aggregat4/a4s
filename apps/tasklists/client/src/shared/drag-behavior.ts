@@ -346,9 +346,13 @@ export default class DraggableBehavior {
   getDropTarget(mouseY: number) {
     if (!this.container) return null;
     if (!this.cachedItems) {
+      // Hidden items, such as done tasks while "Show done" is off, have no
+      // box: they would break the search below, which needs items in order.
       this.cachedItems = Array.from(
-        this.container.querySelectorAll("li:not(.dragging):not(.placeholder)")
-      );
+        this.container.querySelectorAll<HTMLElement>(
+          "li:not(.dragging):not(.placeholder)"
+        )
+      ).filter((item) => item.getClientRects().length > 0);
     }
     if (this.cachedItems.length === 0) return null;
 

@@ -10,6 +10,11 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Fixed
+
+- A task dragged up in a list goes where it is dropped, also when completed
+  tasks that "Show done" hides are in between. It stopped short of them.
+
 ## [v1.8.0] - 2026-10-15
 
 ### Changed
