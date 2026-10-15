@@ -990,6 +990,24 @@ test.describe("on a slow device", () => {
     expect(at).not.toContain(-1);
     expect(at).toEqual([...at].sort((a, b) => a - b));
   });
+
+  test("a list dragged right after another drag goes where it was dropped", async ({
+    page,
+  }) => {
+    await dragList(page, 2, 0);
+    await expect.poll(() => getSidebarListNames(page)).toEqual([
+      "Work Follow-ups",
+      "Prototype Tasks",
+      "Weekend Projects",
+    ]);
+    await dragList(page, 2, 0);
+    await expect.poll(() => getSidebarListNames(page)).toEqual([
+      "Weekend Projects",
+      "Work Follow-ups",
+      "Prototype Tasks",
+    ]);
+    await expectSavedOrder(page, ["list-weekend", "list-work", "list-prototype"]);
+  });
 });
 
 test("undo merge after split keeps distinct tasks below", async ({ page }) => {

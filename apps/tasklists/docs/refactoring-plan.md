@@ -151,15 +151,16 @@ name again, and failures are rolled back case by case.
 
 ## 5. Sidebar drag reorder
 
-- [ ] `sidebar.ts` repairs the DOM after a drag (`syncListDomOrder`, and the
+- [x] `sidebar.ts` repairs the DOM after a drag (`syncListDomOrder`, and the
   `"reorder"` render mode, `pendingRenderMode` at line 50), as the task list
   did before `785de9c`. Apply the same approach: at drop time the dragged
   element is in its final place, so its neighbours give the move. Run the
   sidebar drag tests repeatedly; they were flaky before.
-- [ ] On a slow device (CPU throttled 6x), a second sidebar drag right after
+- [x] On a slow device (CPU throttled 6x), a second sidebar drag right after
   the first often does nothing: no reorder reaches the app and the sidebar
-  keeps the first drag's order. Seen with two `dragHandleToTarget` calls in a
-  row in the "on a slow device" block; reproduce it there first.
+  keeps the first drag's order. Cause: the rows are rendered by position, so
+  after a drag the drop animation played on another list, which was still
+  moving when the next drag grabbed it. Fixed by the item above.
 
 ## 6. List element merges
 

@@ -17,6 +17,9 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- A list dropped in the sidebar shows its drop animation; another list
+  showed it. On a slow device, that list could still be moving when it was
+  dragged next, and the drag did not start.
 - A change made just as the sync server could be reached again is sent to
   other devices. It could be left out of what this device sends, for good.
 - On a slow device, the sidebar keeps showing a list's new name while it is

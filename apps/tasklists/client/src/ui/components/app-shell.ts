@@ -312,8 +312,8 @@ class ListsAppShellElement extends HTMLElement {
         payload: { sourceListId?: ListId; itemId?: string; item?: TaskItem },
         targetListId: ListId
       ) => moveTasksController.handleSidebarDrop(payload, targetListId),
-      onReorderList: (payload: { movedId: ListId; order: ListId[] }) =>
-        this.handleSidebarReorder(payload),
+      onReorderList: (move: { id: ListId; afterId: ListId | null; beforeId: ListId | null }) =>
+        this.handleSidebarReorder(move),
     });
     this.mobileToolbarElement?.setHandlers?.({
       onUndo: () => void this.repository?.undo(),
@@ -674,24 +674,17 @@ class ListsAppShellElement extends HTMLElement {
     }
   }
 
+  /** A list was dragged in the sidebar, between two others. */
   handleSidebarReorder({
-    movedId,
-    order,
+    id,
+    afterId,
+    beforeId,
   }: {
-    movedId: ListId;
-    order: ListId[];
+    id: ListId;
+    afterId: ListId | null;
+    beforeId: ListId | null;
   }) {
-    if (!this.lists) return;
-    const previousOrder = this.lists.shown.map((list) => list.id);
-    if (!Array.isArray(previousOrder) || previousOrder.length <= 1) return;
-    if (!Array.isArray(order) || order.length <= 1) return;
-    if (!movedId || !order.includes(movedId)) return;
-    if (order.every((id, idx) => id === previousOrder[idx])) return;
-
-    const movedIndex = order.indexOf(movedId);
-    const beforeId = order[movedIndex + 1] ?? null;
-    const afterId = order[movedIndex - 1] ?? null;
-    this.lists.move(movedId, afterId, beforeId);
+    this.lists?.move(id, afterId, beforeId);
   }
 
   applySearchToLists(query: string) {
