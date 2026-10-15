@@ -141,13 +141,22 @@ func ContextWithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userIDContextKey, userID)
 }
 
+// DevUserCookie names the user of a request in dev mode. Browser tests set a
+// user of their own so that they can run side by side without sharing data.
+// A cookie reaches the server from pages, EventSource and the service worker.
+const DevUserCookie = "a4_dev_user"
+
 func DevUserMiddleware(userID string) func(http.Handler) http.Handler {
 	if userID == "" {
 		userID = "dev-user"
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := ContextWithUserID(r.Context(), userID)
+			requestUserID := userID
+			if cookie, err := r.Cookie(DevUserCookie); err == nil && cookie.Value != "" && len(cookie.Value) <= 128 {
+				requestUserID = cookie.Value
+			}
+			ctx := ContextWithUserID(r.Context(), requestUserID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
