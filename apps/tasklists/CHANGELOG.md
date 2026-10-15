@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.8.0] - 2026-10-15
+
 ### Changed
 
 - When another device changes the task being edited, the cursor stays where
