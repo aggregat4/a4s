@@ -31,6 +31,10 @@ test.describe("OIDC session reauthentication", () => {
       }
     });
 
+    // Leave the app first. Otherwise its sync gets a 401 once the cookie is
+    // gone and starts its own login navigation, which aborts the goto below.
+    await page.goto("about:blank");
+
     // Expire the application session without touching the service worker.
     await context.clearCookies({ name: SESSION_COOKIE });
     expect(
