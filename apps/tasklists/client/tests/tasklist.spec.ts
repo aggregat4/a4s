@@ -2426,6 +2426,26 @@ test.describe("tasklist flows", () => {
     await expect(textEl).toBeFocused();
   });
 
+  test("escape in a note closes it, keeps what was typed and focuses the task", async ({
+    page,
+  }) => {
+    await gotoWithSnapshot(page, "/?resetStorage=1");
+    const firstItem = page.locator(listItemsSelector).first();
+    const textEl = firstItem.locator(".text");
+    await textEl.click();
+    await page.keyboard.press("Alt+N");
+    const noteInput = firstItem.locator(".task-note-input");
+    await expect(noteInput).toBeFocused();
+    await page.keyboard.type("Typed in the note");
+
+    await page.keyboard.press("Escape");
+    await expect(noteInput).toHaveCount(0);
+    await expect(textEl).toBeFocused();
+    await expect(textEl).not.toHaveAttribute("contenteditable", "true");
+    await firstItem.locator(".task-note-toggle").click();
+    await expect(noteInput).toHaveValue("Typed in the note");
+  });
+
   test("completed tasks stay checked after performing a search", async ({
     page,
   }) => {
