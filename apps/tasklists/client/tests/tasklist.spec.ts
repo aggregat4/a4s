@@ -1725,6 +1725,28 @@ test.describe("tasklist flows", () => {
       await expect(items.first().locator(".text")).toHaveText(firstText);
       await expect(visibleDoneToggles(page)).toHaveCount(0);
     });
+
+    test("backspace at the start of a task below one merges into the visible task above", async ({
+      page,
+    }) => {
+      const items = page.locator(listItemsSelector);
+      const aboveText = (await items.nth(0).locator(".text").textContent())?.trim() ?? "";
+      const belowText = (await items.nth(2).locator(".text").textContent())?.trim() ?? "";
+      const countBefore = await items.count();
+      await items.nth(1).locator(".done-toggle").click();
+      await expect(items).toHaveCount(countBefore - 1);
+
+      const below = items.nth(1).locator(".text");
+      await expect(below).toHaveText(belowText);
+      await below.click();
+      await setCaretPosition(below, 0);
+      await page.keyboard.press("Backspace");
+
+      await expect(items).toHaveCount(countBefore - 2);
+      await expect(items.first().locator(".text")).toHaveText(aboveText + belowText);
+      await expect(editingTask(page)).toHaveText(aboveText + belowText);
+      await expect.poll(() => getCaretOffset(editingTask(page))).toBe(aboveText.length);
+    });
   });
 
   test("undo after typing a second word removes only that word", async ({ page }) => {

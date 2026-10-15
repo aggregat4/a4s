@@ -17,6 +17,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Fixed
 
+- Backspace at the start of a task joins it to the task above in view, also
+  when completed tasks that "Show done" hides are in between. It did nothing.
 - A list dropped in the sidebar shows its drop animation; another list
   showed it. On a slow device, that list could still be moving when it was
   dragged next, and the drag did not start.

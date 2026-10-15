@@ -381,12 +381,12 @@ class A4TaskList extends HTMLElement {
   }) {
     if (!currentItemId || !previousItemId) return false;
 
+    // The task above in view: tasks that "Show done" hides can be in between.
     const items = this.state.items;
     const currentIndex = items.findIndex((item) => item.id === currentItemId);
-    if (currentIndex <= 0) return false;
-
-    const previousItem = items[currentIndex - 1];
-    if (previousItem.id !== previousItemId) return false;
+    const previousIndex = items.findIndex((item) => item.id === previousItemId);
+    if (previousIndex === -1 || previousIndex >= currentIndex) return false;
+    const previousItem = items[previousIndex];
 
     const mergedText = previousItem.text + currentText;
     // The cursor goes where the merged task's text starts, or further in.
