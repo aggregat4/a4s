@@ -5,7 +5,7 @@ ordering. The repository includes:
 
 - A TypeScript/Lit single-page app (`client/`)
 - A Go HTTP backend with SQLite storage (`server/`)
-- Docker-backed Playwright E2E test workflow for consistent local/CI behavior
+- Playwright E2E tests against the natively built server
 
 ## Repository Layout
 
@@ -20,7 +20,6 @@ ordering. The repository includes:
 
 - Node.js `22+` and pnpm `11.3.0`
 - Go `1.27.2`
-- Docker (required for the default E2E workflow)
 
 Install the workspace dependencies once from the monorepo root:
 
@@ -64,27 +63,41 @@ pnpm --dir apps/tasklists/client run lint:css
 pnpm --dir apps/tasklists/client run test:unit
 ```
 
-### E2E (Playwright + Docker)
+### E2E (Playwright)
 
 ```bash
-PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e
+pnpm --dir apps/tasklists/client run test:e2e
 ```
 
+The browser tests build the Go server and start it natively with a fresh
+database (`scripts/run-test-server.sh`), so they need Go but not Docker. Each
+test signs in as a dev-mode user of its own, so all tests run in parallel.
+
 Run the complete server, unit, and browser suite through `task tasklists:test`.
-It includes a Firefox and mobile WebKit smoke test in the pinned Playwright
-container, so both engines use their supported Linux libraries.
+
+The model tests take their number of runs from `MODEL_RUNS` (unit, default 100)
+and `UI_MODEL_RUNS` (browser, default 3). The nightly workflow runs them much
+longer.
 
 To smoke-test the deployed embedded-static path as well:
 
 ```bash
-PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e:embedded
+pnpm --dir apps/tasklists/client run test:e2e:embedded
 ```
 
 The OIDC session reauthentication flow runs against a server configured with the
 in-repo mock OpenID Provider (`server/cmd/mockidp`):
 
 ```bash
-PLAYWRIGHT_USE_DOCKER=1 pnpm --dir apps/tasklists/client run test:e2e:oidc
+pnpm --dir apps/tasklists/client run test:e2e:oidc
+```
+
+The Firefox and mobile WebKit smoke tests run nightly. To run them locally,
+install those browsers first:
+
+```bash
+pnpm --dir apps/tasklists/client exec playwright install firefox webkit
+pnpm --dir apps/tasklists/client run test:e2e:cross-browser
 ```
 
 ## Deployment

@@ -1,34 +1,35 @@
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { CDPSession, Page } from "@playwright/test";
+
+// Tracks which rules of styles.css the browser tests exercise. Tests run in
+// several worker processes, so each worker writes what it saw to a directory
+// that global setup creates, and global teardown merges and reports it.
 
 type RuleKey = string;
 
 type RuleRecord = {
-  styleSheetId: string;
   startOffset: number;
   endOffset: number;
   selector: string;
 };
 
-type CoverageState = {
-  allRuleKeys: Map<RuleKey, RuleRecord>;
-  usedRuleKeys: Set<RuleKey>;
-  sheetTextById: Map<string, string>;
+type WorkerCoverage = {
+  rules: [RuleKey, RuleRecord][];
+  used: RuleKey[];
 };
 
-const coverageState: CoverageState = {
-  allRuleKeys: new Map(),
-  usedRuleKeys: new Set(),
-  sheetTextById: new Map(),
-};
+const coverageDirEnv = "A4_CSS_COVERAGE_DIR";
+
+const allRules = new Map<RuleKey, RuleRecord>();
+const usedRules = new Set<RuleKey>();
 
 const stylesUrlSuffix = "/styles.css";
 
-function getRuleKey(
-  styleSheetId: string,
-  startOffset: number,
-  endOffset: number
-) {
-  return `${styleSheetId}:${startOffset}:${endOffset}`;
+// Every page loads the same styles.css, so a rule is known by its offsets.
+function getRuleKey(startOffset: number, endOffset: number) {
+  return `${startOffset}:${endOffset}`;
 }
 
 function extractSelector(ruleText: string) {
@@ -48,7 +49,7 @@ function shouldTrackSheet(sourceURL?: string) {
 }
 
 export function isCssCoverageEnabled() {
-  return true;
+  return Boolean(process.env[coverageDirEnv]);
 }
 
 export async function startCssCoverage(page: Page) {
@@ -75,41 +76,55 @@ export async function stopCssCoverage(
       (usage) => usage.styleSheetId === styleSheetId
     );
     if (relevantUsage.length === 0) continue;
-    if (!coverageState.sheetTextById.has(styleSheetId)) {
-      const { text } = await session.send("CSS.getStyleSheetText", {
-        styleSheetId,
-      });
-      coverageState.sheetTextById.set(styleSheetId, text);
-    }
-    const sheetText = coverageState.sheetTextById.get(styleSheetId) ?? "";
+    const { text } = await session.send("CSS.getStyleSheetText", {
+      styleSheetId,
+    });
     for (const usage of relevantUsage) {
-      const ruleKey = getRuleKey(
-        usage.styleSheetId,
-        usage.startOffset,
-        usage.endOffset
-      );
-      if (!coverageState.allRuleKeys.has(ruleKey)) {
-        const ruleText = sheetText.slice(usage.startOffset, usage.endOffset);
-        const selector = extractSelector(ruleText);
-        coverageState.allRuleKeys.set(ruleKey, {
-          styleSheetId: usage.styleSheetId,
+      const ruleKey = getRuleKey(usage.startOffset, usage.endOffset);
+      if (!allRules.has(ruleKey)) {
+        const ruleText = text.slice(usage.startOffset, usage.endOffset);
+        allRules.set(ruleKey, {
           startOffset: usage.startOffset,
           endOffset: usage.endOffset,
-          selector,
+          selector: extractSelector(ruleText),
         });
       }
       if (usage.used) {
-        coverageState.usedRuleKeys.add(ruleKey);
+        usedRules.add(ruleKey);
       }
     }
   }
   await session.detach();
 }
 
-export function reportCssCoverageWarnings() {
-  if (coverageState.allRuleKeys.size === 0) return;
-  const unused = [...coverageState.allRuleKeys.entries()]
-    .filter(([ruleKey]) => !coverageState.usedRuleKeys.has(ruleKey))
+/** Writes what this worker saw; called once when the worker shuts down. */
+export function writeWorkerCssCoverage(workerIndex: number) {
+  const dir = process.env[coverageDirEnv];
+  if (!dir || allRules.size === 0) return;
+  const coverage: WorkerCoverage = { rules: [...allRules], used: [...usedRules] };
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `worker-${workerIndex}-${process.pid}.json`), JSON.stringify(coverage));
+}
+
+export function setupCssCoverage() {
+  process.env[coverageDirEnv] = mkdtempSync(join(tmpdir(), "a4-tasklists-css-coverage-"));
+}
+
+export function reportCssCoverage() {
+  const dir = process.env[coverageDirEnv];
+  if (!dir) return;
+  const rules = new Map<RuleKey, RuleRecord>();
+  const used = new Set<RuleKey>();
+  for (const file of readdirSync(dir)) {
+    const coverage = JSON.parse(readFileSync(join(dir, file), "utf8")) as WorkerCoverage;
+    for (const [key, record] of coverage.rules) rules.set(key, record);
+    for (const key of coverage.used) used.add(key);
+  }
+  rmSync(dir, { recursive: true, force: true });
+  if (rules.size === 0) return;
+
+  const unused = [...rules.entries()]
+    .filter(([ruleKey]) => !used.has(ruleKey))
     .map(([, record]) => record);
   if (unused.length === 0) {
     console.warn("[css-coverage] All tracked rules were exercised.");
@@ -122,8 +137,6 @@ export function reportCssCoverageWarnings() {
     console.warn(`[css-coverage] - ${formatRuleSnippet(record)}`);
   }
   if (unused.length > 50) {
-    console.warn(
-      `[css-coverage] ...and ${unused.length - 50} more.`
-    );
+    console.warn(`[css-coverage] ...and ${unused.length - 50} more.`);
   }
 }

@@ -768,17 +768,6 @@ test("imported snapshot replaces an open client's order and survives its reload"
   }
 });
 
-test.afterAll(async ({ request }) => {
-  const response = await request.post("/sync/reset", {
-    data: {
-      clientId: `e2e-${crypto.randomUUID()}`,
-      datasetGenerationKey: crypto.randomUUID(),
-      snapshot: buildEmptySnapshotPayload(),
-    },
-  });
-  expect(response.ok()).toBe(true);
-});
-
 const taskTexts = (page: Page) => page.locator(listItemsSelector).locator(".text");
 
 test("the task being edited stays editable when another device moves it", async ({

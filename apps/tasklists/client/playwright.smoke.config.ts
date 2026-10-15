@@ -5,8 +5,8 @@ const config: PlaywrightTestConfig = {
   ...baseConfig,
   testMatch: ["cross-browser-smoke.spec.ts"],
   testIgnore: ["**/dist/**"],
-  workers: 1,
-  webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER ? undefined : baseConfig.webServer,
+  globalSetup: undefined,
+  globalTeardown: undefined,
   projects: [
     { name: "firefox-smoke", use: { browserName: "firefox" } },
     {
