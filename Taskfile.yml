@@ -49,14 +49,19 @@ tasks:
   test:
     desc: Run all shared and application test suites
     cmds:
-      - go test ./pkg/...
-      - task rssgrid:test
-      - task bookmarks:test
-      - task comments:test
-      - task idp:test
-      - task tasklists:test
+      - task: test:go
+      - task: tasklists:test:client
+  test:go:
+    desc: Run all Go tests in one invocation, so packages build and run in parallel
+    cmds:
+      - go test -tags=fts5 ./...
   lint:
     desc: Run repository lint and static checks
+    cmds:
+      - task: lint:go
+      - pnpm --filter a4-tasklists run build
+  lint:go:
+    desc: Run the Go, script, deployment and changelog checks
     cmds:
       - bash scripts/check-gofmt
       - bash scripts/check-deploy
@@ -64,7 +69,6 @@ tasks:
       - bash -n scripts/package-release.sh
       - bash -n scripts/changelog-notes.sh
       - go vet -tags=fts5 ./...
-      - pnpm --filter a4-tasklists run build
   modernize:
     desc: Report Go modernization opportunities without changing source
     cmds:
@@ -77,10 +81,24 @@ tasks:
   ci:
     desc: Run lint, security checks, tests, and builds sequentially
     cmds:
-      - task lint
-      - task security
-      - task test
-      - task build
+      - task: ci:go
+      - task: ci:tasklists
+  ci:go:
+    desc: Run the Go checks, tests and builds (one CI job)
+    cmds:
+      - task: lint:go
+      - task: security
+      - task: test:go
+      - task rssgrid:build
+      - task bookmarks:build
+      - task comments:build
+      - task idp:build
+      - go build ./apps/tasklists/server/...
+  ci:tasklists:
+    desc: Build the Tasklists client once and run its unit and browser tests (one CI job)
+    cmds:
+      - pnpm --dir apps/tasklists/client run build
+      - pnpm --dir apps/tasklists/client run test:built
   check:
     desc: Alias for the full CI task
     cmds:

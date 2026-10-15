@@ -9,8 +9,22 @@ on:
 permissions:
   contents: read
 
+# The Go checks and the Tasklists suites share nothing but the checkout, so
+# they run as two jobs side by side.
 jobs:
-  verify:
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install Go Task
+        run: go install github.com/go-task/task/v3/cmd/task@v3.54.0
+      - name: Run Go checks, tests and builds
+        run: task ci:go
+
+  tasklists:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -29,11 +43,11 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
       - name: Install Playwright Chromium
-        run: pnpm --filter a4-tasklists exec playwright install --with-deps chromium
+        run: pnpm --filter a4-tasklists exec playwright install --with-deps --only-shell chromium
       - name: Install Go Task
         run: go install github.com/go-task/task/v3/cmd/task@v3.54.0
-      - name: Run repository checks
-        run: task ci
+      - name: Run Tasklists builds and tests
+        run: task ci:tasklists
       - name: Upload Tasklists test results
         if: failure()
         uses: actions/upload-artifact@v7

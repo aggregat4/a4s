@@ -91,7 +91,7 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
       - name: Install Playwright Chromium
-        run: pnpm --filter a4-tasklists exec playwright install --with-deps chromium
+        run: pnpm --filter a4-tasklists exec playwright install --with-deps --only-shell chromium
       - name: Install Go Task
         run: go install github.com/go-task/task/v3/cmd/task@v3.54.0
 

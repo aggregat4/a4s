@@ -42,17 +42,18 @@
   should be deliberate, separately reviewed work.
 - Direct Go commands need the `fts5` build tag to match the Taskfiles, for
   example `go test -tags=fts5 ./...`.
-- Tasklists uses the root pnpm workspace. Its full browser suite must run
-  through `task tasklists:test`, which starts its Go server in Docker. To run
-  a single test, build the client and run from `apps/tasklists/client`:
-  `PLAYWRIGHT_USE_DOCKER=1 pnpm exec playwright test --project='chromium*' -g "<name>"`.
-  Only the `chromium` and `chromium-sync` projects are part of
-  `task tasklists:test`; `chromium-sync` holds the specs that use the sync
-  server's data and runs them one at a time. Cross-browser
-  coverage comes from a separate smoke suite that runs in the
-  `mcr.microsoft.com/playwright` image. The `firefox` project in
-  `playwright.config.ts`, which runs when `--project` is omitted, is not
-  maintained and currently fails.
+- Tasklists uses the root pnpm workspace. `task tasklists:test` runs its full
+  suite; the browser tests build and start the Go server natively with
+  `apps/tasklists/scripts/run-test-server.sh` (no Docker). To run a single
+  test, build the client and run from `apps/tasklists/client`:
+  `pnpm exec playwright test -g "<name>"`.
+- Every browser test is its own dev-mode user (the `a4_dev_user` cookie set in
+  `tests/fixtures.ts`), so tests share no server data and all run in parallel.
+  A test that opens several devices gets the same user on each of them.
+- CI keeps the model tests short (`MODEL_RUNS`, `UI_MODEL_RUNS`); the nightly
+  workflow runs them far longer, together with the Firefox and mobile WebKit
+  smoke suite (`test:e2e:cross-browser`), which needs those browsers installed
+  with `pnpm exec playwright install firefox webkit`.
 - Keep tests deterministic: do not depend on the machine's timezone, locale,
   or the current time. Pin them in the test, or compare parsed values rather
   than formatted strings.
