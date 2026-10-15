@@ -700,6 +700,6 @@ test("the task list matches the model for any sequence of user input", async ({
         }
       }
     ),
-    { numRuns: Number(process.env.UI_MODEL_RUNS ?? 10), includeErrorInReport: true }
+    { numRuns: Number(process.env.UI_MODEL_RUNS ?? 3), includeErrorInReport: true }
   );
 });

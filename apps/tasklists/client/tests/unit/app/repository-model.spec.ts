@@ -72,7 +72,7 @@ test("devices match the model for any sequence of changes", async () => {
       }
     ),
     {
-      numRuns: Number(process.env.MODEL_RUNS ?? 500),
+      numRuns: Number(process.env.MODEL_RUNS ?? 100),
       includeErrorInReport: true,
     }
   );

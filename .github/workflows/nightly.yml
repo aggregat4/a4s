@@ -1,0 +1,54 @@
+name: Nightly
+
+# The slow, thorough runs: many more model-test runs than CI makes, and the
+# Firefox and mobile WebKit smoke tests.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tasklists:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      MODEL_RUNS: '2000'
+      UI_MODEL_RUNS: '30'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.3.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm --filter a4-tasklists exec playwright install --with-deps chromium firefox webkit
+      - name: Build the client
+        run: pnpm --dir apps/tasklists/client run build
+      - name: Run the unit model test
+        run: pnpm --dir apps/tasklists/client run test:unit:built
+      - name: Run the UI model test
+        working-directory: apps/tasklists/client
+        run: pnpm exec playwright test tests/ui-model.spec.ts
+      - name: Run the cross-browser smoke tests
+        run: pnpm --dir apps/tasklists/client run test:e2e:cross-browser:built
+      - name: Upload Tasklists test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tasklists-nightly-test-results
+          path: apps/tasklists/client/test-results
+          if-no-files-found: ignore
+          retention-days: 14
