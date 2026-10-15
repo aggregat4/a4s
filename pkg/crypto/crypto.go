@@ -16,8 +16,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// PasswordHashCost is the bcrypt cost of HashPassword. Tests lower it to
+// bcrypt.MinCost, since each hash at the default cost takes about a second.
+var PasswordHashCost = 14
+
 func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), PasswordHashCost)
 	return string(bytes), err
 }
 
