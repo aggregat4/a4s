@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.8.1] - 2026-10-16
+
 ### Fixed
 
 - A task dragged up in a list goes where it is dropped, also when completed
