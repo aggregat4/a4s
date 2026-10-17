@@ -68,7 +68,6 @@ body {
     font-size: var(--font-size-base);
     background-color: var(--color-background);
     color: var(--color-text);
-    padding: 0;
     margin: 0;
     min-height: 100vh;
     display: flex;
@@ -167,7 +166,6 @@ button {
     grid-template-columns: 280px minmax(0, 1fr);
     width: 100%;
     max-width: 1200px;
-    margin: 0;
     min-height: 100vh;
     background-color: var(--color-background);
 }
@@ -294,10 +292,6 @@ button {
     min-height: 0;
 }
 
-.sidebar-content > .sidebar-sections {
-    width: 100%;
-}
-
 .sidebar-list {
     list-style: none;
     padding: 0;
@@ -317,9 +311,7 @@ button {
     border: none;
     background-color: transparent;
     color: inherit;
-    font: inherit;
     text-align: left;
-    cursor: pointer;
     flex: 1;
 
     &:hover {
@@ -355,7 +347,6 @@ button {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background-color: var(--color-surface);
-    padding: 0;
 }
 
 .sidebar-list > li:hover:not(.is-active),
@@ -441,7 +432,6 @@ button {
     gap: var(--space-xs);
     cursor: pointer;
     font-weight: 600;
-    color: var(--color-text);
     padding: var(--space-xs) 0;
     list-style: none;
 }
@@ -540,7 +530,6 @@ button {
     align-items: center;
     gap: var(--space-xs);
     margin: 0;
-    color: var(--color-text);
     font-size: var(--font-size-sm);
 
     svg {
@@ -565,7 +554,6 @@ button {
     border-color: transparent;
     background-color: transparent;
     color: var(--color-text);
-    font: inherit;
     text-align: left;
 
     &:hover {
@@ -658,7 +646,6 @@ a4-tasklist {
         max-width: 100%;
         font-size: var(--font-size-title);
         font-weight: 600;
-        color: var(--color-text);
         padding: var(--space-xs);
         border: 1px solid transparent;
         border-radius: var(--radius-sm);
@@ -738,8 +725,6 @@ a4-tasklist {
     display: inline-flex;
     align-items: center;
     gap: var(--space-sm);
-    font-size: 16px;
-    color: var(--color-text);
     cursor: pointer;
 }
 
@@ -801,8 +786,6 @@ a4-tasklist {
     position: relative;
     display: flex;
     align-items: stretch;
-    gap: 0;
-    padding: 0;
     padding-left: var(--space-sm);
     margin-bottom: var(--space-sm);
     background-color: var(--color-surface);
@@ -915,7 +898,6 @@ a4-tasklist {
     display: none;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
 
     &::before {
         content: "";
@@ -1058,16 +1040,11 @@ a4-tasklist {
     align-items: center;
     justify-content: center;
     padding: 0 var(--space-sm);
-    margin-right: 0;
     border: none;
     background-repeat: no-repeat;
     background-position: center;
     background-size: 24px 24px;
     background-image: var(--task-options-icon-left);
-    cursor: pointer;
-    transition:
-        background-color var(--transition-fast),
-        color var(--transition-fast);
 
     &:hover,
     &:focus-visible {
@@ -1087,8 +1064,6 @@ a4-tasklist {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
-    padding: 0;
-    margin: 0;
     max-width: 0;
     opacity: 0;
     pointer-events: none;
@@ -1097,8 +1072,7 @@ a4-tasklist {
     transition:
         max-width var(--transition-fast),
         opacity var(--transition-fast),
-        padding var(--transition-fast),
-        margin var(--transition-fast);
+        padding var(--transition-fast);
 }
 
 .task-item-actions-open {
@@ -1204,8 +1178,6 @@ button.task-token-tag {
     border: 0;
     border-radius: 0;
     background-color: transparent;
-    font: inherit;
-    font-weight: 600;
     text-align: inherit;
 
     &:hover {
@@ -1300,7 +1272,6 @@ button.task-token-tag {
 
 .move-dialog-description {
     margin: 0;
-    font-size: 16px;
     color: var(--color-muted);
 }
 
@@ -1319,9 +1290,6 @@ button.task-token-tag {
     gap: var(--space-sm);
     justify-content: space-between;
     padding: var(--space-sm) var(--space-md);
-    border-radius: var(--radius-sm);
-    font: inherit;
-    cursor: pointer;
     width: 100%;
 }
 
@@ -1465,7 +1433,6 @@ button.task-token-tag {
 .shortcuts-dialog-desc {
     flex: 1 1 auto;
     margin: 0;
-    color: var(--color-text);
 }
 
 .shortcuts-dialog-hint {
@@ -1571,7 +1538,6 @@ button.task-token-tag {
         border-bottom: 1px solid var(--color-border);
         box-shadow: none;
         background-color: var(--color-sidebar-mobile);
-        gap: var(--space-lg);
         padding-block: 0;
         padding-left: calc(var(--space-lg) + env(safe-area-inset-left, 0px));
         padding-right: calc(var(--space-lg) + env(safe-area-inset-right, 0px));
@@ -1614,7 +1580,6 @@ button.task-token-tag {
         );
     }
 
-
     .sidebar-content {
         flex: none;
         gap: 0;
@@ -1623,7 +1588,6 @@ button.task-token-tag {
     .sidebar-sections {
         display: none;
         flex: none;
-        gap: var(--space-lg);
         padding-block: var(--space-lg);
     }
 
@@ -1631,15 +1595,10 @@ button.task-token-tag {
         display: flex;
     }
 
-    .sidebar-actions-disclosure {
-        margin-top: 0;
-    }
-
     .sidebar-topbar {
         display: none;
         flex-direction: row;
         align-items: center;
-        gap: var(--space-sm);
     }
 
     .lists-app.is-search-row-open .sidebar-topbar {
@@ -1670,18 +1629,10 @@ button.task-token-tag {
             justify-self: stretch;
         }
 
-        .tasklist-title {
-            width: auto;
-        }
-
         .tasklist-controls {
             width: 100%;
             justify-content: space-between;
             flex-wrap: nowrap;
-        }
-
-        .tasklist-controls .iconlabel {
-            width: auto;
         }
 
         .tasklist-show-done {
@@ -1712,7 +1663,6 @@ button.task-token-tag {
         }
 
         .task-item-body {
-            flex: 1 1 auto;
             background-color: var(--color-surface);
             z-index: 1;
             transform: translateX(0);
@@ -1728,16 +1678,12 @@ button.task-token-tag {
             max-width: var(--task-actions-reveal-width);
             justify-content: flex-end;
             padding: 0 var(--space-sm);
-            opacity: 0;
             visibility: hidden;
-            pointer-events: none;
             background-color: var(--color-surface);
         }
 
         .task-item-actions-open {
-            opacity: 1;
             visibility: visible;
-            pointer-events: auto;
         }
 
         &:has(.task-item-actions-open) .task-item-body {
