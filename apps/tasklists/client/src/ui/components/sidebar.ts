@@ -3,10 +3,10 @@ import { repeat } from "lit/directives/repeat.js";
 import DraggableBehavior, { FlipAnimator } from "../../shared/drag-behavior.js";
 import { APP_VERSION, fetchServerVersion } from "../../app/version.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
-import type { SyncStatus } from "../../types/sync.js";
 import type { HistoryAvailability } from "../../app/history-manager.js";
 import { SHORTCUTS, formatShortcutParts } from "../state/shortcuts.js";
 import { redoIcon, undoIcon } from "./history-icons.js";
+import { SEARCH_ROW_ID } from "./lists-switcher.js";
 
 type SidebarListEntry = {
   id: ListId;
@@ -28,6 +28,8 @@ type SidebarHandlers = Partial<{
   onSeedDemo: () => void;
   onSelectList: (listId: ListId) => void;
   onSearchChange: (value: string) => void;
+  /** Enter in the search field: the search is typed. */
+  onSearchSubmit: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onItemDropped: (payload: TaskDragPayload, targetListId: ListId) => void;
@@ -57,8 +59,6 @@ class SidebarElement extends HTMLElement {
   private dragMove: ListMove | null;
   private showDemoSeed: boolean;
   private actionsOpen: boolean;
-  private isOnline: boolean;
-  private syncStatus: SyncStatus | null;
   private historyState: HistoryAvailability;
   private serverVersion: string | null;
   private serverVersionLoading: boolean;
@@ -82,8 +82,6 @@ class SidebarElement extends HTMLElement {
     this.dragMove = null;
     this.showDemoSeed = false;
     this.actionsOpen = false;
-    this.isOnline = true;
-    this.syncStatus = null;
     this.historyState = { canUndo: false, canRedo: false };
     this.serverVersion = null;
     this.serverVersionLoading = false;
@@ -97,9 +95,6 @@ class SidebarElement extends HTMLElement {
     }
     this.connection = new AbortController();
     const { signal } = this.connection;
-    this.isOnline = navigator.onLine !== false;
-    window.addEventListener("online", () => this.handleOnlineChange(), { signal });
-    window.addEventListener("offline", () => this.handleOnlineChange(), { signal });
     document.addEventListener("dragend", () => this.handleGlobalDragEnd(), { signal });
     this.renderView();
   }
@@ -133,35 +128,6 @@ class SidebarElement extends HTMLElement {
     }
     this.historyState = { ...state };
     this.requestRender();
-  }
-
-  setSyncStatus(status: SyncStatus) {
-    if (this.syncStatus === status) return;
-    this.syncStatus = status;
-    this.requestRender();
-  }
-
-  /**
-   * Browser connectivity drives the indicator first — it stays correct even
-   * when the sync engine has been torn down on a connection error — refined
-   * by the engine's own signal so a server that's unreachable while still
-   * online reads as disconnected.
-   */
-  private derivedSyncStatus(): SyncStatus {
-    return this.isOnline && this.syncStatus !== "disconnected"
-      ? "connected"
-      : "disconnected";
-  }
-
-  handleOnlineChange() {
-    const next = navigator.onLine !== false;
-    if (next === this.isOnline) return;
-    this.isOnline = next;
-    // Optimistically clear a stale "disconnected" the moment connectivity
-    // returns; a still-unreachable server re-asserts it on the next failed
-    // flush.
-    if (next) this.syncStatus = "connected";
-    this.renderView();
   }
 
   setSearchValue(value: string) {
@@ -206,10 +172,6 @@ class SidebarElement extends HTMLElement {
   renderView() {
     const deleteDisabled =
       this.currentLists.length <= 1 || !this.activeListId;
-    const syncStatus = this.derivedSyncStatus();
-    const syncLabel =
-      syncStatus === "connected" ? "Connected" : "Disconnected";
-    const syncSymbol = syncStatus === "connected" ? "●" : "×";
     render(
       html`
         <div class="sidebar-content">
@@ -239,7 +201,7 @@ class SidebarElement extends HTMLElement {
                 </button>
               </div>
             </div>
-            <div class="sidebar-search-row">
+            <div class="sidebar-search-row" id=${SEARCH_ROW_ID}>
               <label class="sidebar-field sidebar-field-inline">
                 <input
                   type="search"
@@ -265,62 +227,54 @@ class SidebarElement extends HTMLElement {
             >
               <summary class="sidebar-actions-toggle">
                 <span class="sidebar-actions-toggle-label">Options</span>
-                <span class="sidebar-status">
-                  <span
-                    class="sidebar-sync-indicator is-${syncStatus}"
-                    role="status"
-                    aria-live="polite"
-                    aria-label=${syncLabel}
-                    title=${syncLabel}
-                    >${syncSymbol}</span
-                  >
-                </span>
               </summary>
               <div class="sidebar-actions-panel">
-                <div class="sidebar-section sidebar-actions">
-                  <button
-                    type="button"
-                    data-role="add-list"
-                    @click=${() => this.handlers.onAddList?.()}
-                  >
-                    Add list
-                  </button>
-                  ${this.showDemoSeed
-                    ? html`
-                        <button
-                          type="button"
-                          data-role="seed-demo"
-                          @click=${() => this.handlers.onSeedDemo?.()}
-                        >
-                          Load demo data
-                        </button>
-                      `
-                    : null}
-                  <button
-                    type="button"
-                    class="danger"
-                    data-role="delete-list"
-                    ?disabled=${deleteDisabled}
-                    @click=${() => this.handlers.onDeleteList?.()}
-                  >
-                    Delete list
-                  </button>
-                </div>
-                <div class="sidebar-section sidebar-actions sidebar-actions-secondary">
-                  <button
-                    type="button"
-                    data-role="export-snapshot"
-                    @click=${() => this.handlers.onExportSnapshot?.()}
-                  >
-                    Export
-                  </button>
-                  <button
-                    type="button"
-                    data-role="import-snapshot"
-                    @click=${() => this.handlers.onImportSnapshot?.()}
-                  >
-                    Import
-                  </button>
+                <div class="sidebar-actions-grid">
+                  <div class="sidebar-section sidebar-actions">
+                    <button
+                      type="button"
+                      data-role="add-list"
+                      @click=${() => this.handlers.onAddList?.()}
+                    >
+                      Add list
+                    </button>
+                    ${this.showDemoSeed
+                      ? html`
+                          <button
+                            type="button"
+                            data-role="seed-demo"
+                            @click=${() => this.handlers.onSeedDemo?.()}
+                          >
+                            Load demo data
+                          </button>
+                        `
+                      : null}
+                    <button
+                      type="button"
+                      class="danger"
+                      data-role="delete-list"
+                      ?disabled=${deleteDisabled}
+                      @click=${() => this.handlers.onDeleteList?.()}
+                    >
+                      Delete list
+                    </button>
+                  </div>
+                  <div class="sidebar-section sidebar-actions">
+                    <button
+                      type="button"
+                      data-role="export-snapshot"
+                      @click=${() => this.handlers.onExportSnapshot?.()}
+                    >
+                      Export
+                    </button>
+                    <button
+                      type="button"
+                      data-role="import-snapshot"
+                      @click=${() => this.handlers.onImportSnapshot?.()}
+                    >
+                      Import
+                    </button>
+                  </div>
                 </div>
                 <dl class="sidebar-version" data-role="app-versions">
                   <dt>Service</dt>
@@ -430,6 +384,10 @@ class SidebarElement extends HTMLElement {
   }
 
   handleSearchKeyDown(event: KeyboardEvent) {
+    if (event.key === "Enter") {
+      this.handlers.onSearchSubmit?.();
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       if (event.target) {

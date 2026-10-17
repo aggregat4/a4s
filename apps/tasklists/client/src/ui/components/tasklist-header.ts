@@ -1,6 +1,9 @@
 import { html, render } from "lit";
 import { live } from "lit/directives/live.js";
 import { flattenToPlainText, handlePlainTextPaste } from "../../shared/plain-text-input.js";
+import { listsPanel, searchRow } from "../state/lists-panel.js";
+import { listsSwitcher, searchToggle } from "./lists-switcher.js";
+import "./sync-status.js";
 
 type HeaderState = {
   title: string;
@@ -20,14 +23,19 @@ type HeaderHandlers = Partial<{
 
 /**
  * The header of a task list: its title, renamed in place, "Add", "Show done",
- * and why the last save failed. In search mode the title is a read-only label
- * and "Add" is hidden; "Show done" stays, so matching done tasks can be shown.
+ * whether changes reach the server, and why the last save failed. In search
+ * mode the title is a read-only label and "Add" is hidden; "Show done" stays,
+ * so matching done tasks can be shown.
+ *
+ * On narrow screens the title is the switcher that opens the lists, so it is
+ * renamed with the pencil button only, and a search button follows it.
  */
 class TaskListHeaderElement extends HTMLElement {
   private state: HeaderState;
   private handlers: HeaderHandlers;
   /** The title when editing started, restored on Escape; null when not editing. */
   private titleBeforeEdit: string | null;
+  private unsubscribers: (() => void)[] = [];
 
   constructor() {
     super();
@@ -38,7 +46,16 @@ class TaskListHeaderElement extends HTMLElement {
 
   connectedCallback() {
     this.classList.add("tasklist-header");
+    this.unsubscribers = [
+      listsPanel.subscribe(() => this.renderView()),
+      searchRow.subscribe(() => this.renderView()),
+    ];
     this.renderView();
+  }
+
+  disconnectedCallback() {
+    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
+    this.unsubscribers = [];
   }
 
   setHandlers(handlers: HeaderHandlers) {
@@ -159,7 +176,21 @@ class TaskListHeaderElement extends HTMLElement {
               @blur=${() => this.commit({ restoreFocus: false })}
               .textContent=${live(titleText)}
             ></h2>
-            <span class="tasklist-title-edit-icon" aria-hidden="true"></span>
+            ${editing
+              ? null
+              : html`
+                  <h2 class="tasklist-switcher-heading">${listsSwitcher(title)}</h2>
+                  <button
+                    type="button"
+                    class="tasklist-rename-button"
+                    data-role="rename-list"
+                    aria-label="Rename list"
+                    title="Rename list"
+                    @click=${this.startEditing}
+                  ></button>
+                  ${searchToggle()}
+                `}
+            <a4-sync-status class="tasklist-sync-status"></a4-sync-status>
           </div>
         `;
     render(

@@ -397,6 +397,11 @@ export class ListRepository {
     this._syncStatusHandler = handler;
   }
 
+  /** The server could not be reached while sync was being (re)started. */
+  reportSyncUnreachable() {
+    this._syncStatusHandler?.("disconnected");
+  }
+
   /**
    * Force any buffered outbox ops to the server immediately, bypassing the
    * engine's debounce. Backs the Ctrl/Cmd+S "save now" shortcut.

@@ -271,6 +271,12 @@ export class SyncEngine {
       // Sync on connect and reconnect to catch up on missed ops.
       void this.syncOnce();
     });
+    // The connection dropped and the browser is reconnecting: the server is
+    // unreachable until then, and the sync on open reports it back. A refused
+    // stream (closed) is not a lost connection; the pull handles it.
+    this.eventSource.addEventListener("error", () => {
+      if (es.readyState === 0) this.emitStatus("disconnected");
+    });
   }
 
   private disconnectEvents() {

@@ -103,6 +103,7 @@ function createSyncAvailabilityMonitor({
         await repository.enableSync(baseUrl, {
           onConnectionError: () => {
             repository.disableSync();
+            repository.reportSyncUnreachable();
             scheduleRetry();
           },
         });
@@ -112,6 +113,7 @@ function createSyncAvailabilityMonitor({
       window.clearTimeout(timeout);
     }
     repository.disableSync();
+    repository.reportSyncUnreachable();
     scheduleRetry();
   };
 

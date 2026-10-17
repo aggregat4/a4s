@@ -27,6 +27,9 @@ import {
   tokenizeSearchQuery,
 } from "../state/highlight-utils.js";
 import { SHORTCUTS, matchesShortcut } from "../state/shortcuts.js";
+import { connectionStatus } from "../state/connection-status.js";
+import { listsPanel, searchRow } from "../state/lists-panel.js";
+import { LISTS_PANEL_ID } from "./lists-switcher.js";
 import type { ListId, TaskItem } from "../../types/domain.js";
 import type { SyncStatus } from "../../types/sync.js";
 import "./sidebar.js";
@@ -42,7 +45,6 @@ import "./a4-tasklist.js";
 type SidebarElement = HTMLElement & {
   setSearchValue?: (value: string) => void;
   setDemoSeedEnabled?: (enabled: boolean) => void;
-  setSyncStatus?: (status: SyncStatus) => void;
   setHistoryState?: (state: HistoryAvailability) => void;
   setLists?: (
     lists: Array<{
@@ -105,6 +107,9 @@ const NON_TEXT_INPUT_TYPES = new Set([
   "reset",
   "submit",
 ]);
+
+/** Narrow screens fold the sidebar behind the list title; see styles.css. */
+const NARROW_SCREEN = "(width <= 640px)";
 class ListsAppShellElement extends HTMLElement {
   private shellRendered: boolean;
   private appInitialized: boolean;
@@ -177,6 +182,8 @@ class ListsAppShellElement extends HTMLElement {
       signal,
     });
     window.addEventListener("popstate", () => this.onPopState(), { signal });
+    this.connectListsPanel(signal);
+    this.connectSearchRow(signal);
     this.addEventListener("tokensearch", (event) => this.handleTokenSearch(event), { signal });
     // Events of the list elements, which bubble.
     this.addEventListener(
@@ -209,7 +216,16 @@ class ListsAppShellElement extends HTMLElement {
     }
     render(
       html`
-        <a4-sidebar class="lists-sidebar" data-role="sidebar"></a4-sidebar>
+        <a4-sidebar
+          class="lists-sidebar"
+          id=${LISTS_PANEL_ID}
+          data-role="sidebar"
+        ></a4-sidebar>
+        <div
+          class="lists-panel-backdrop"
+          data-role="lists-panel-backdrop"
+          @click=${() => this.closeListsPanel({ restoreFocus: true })}
+        ></div>
         <a4-main-pane class="lists-main" data-role="main"></a4-main-pane>
         <a4-move-dialog
           class="move-dialog"
@@ -300,6 +316,7 @@ class ListsAppShellElement extends HTMLElement {
     this.lists = new ListsState(() => this.listsChanged());
     this.sidebarElement?.setHandlers?.({
       onSearchChange: (value: string) => this.handleSearchChange(value),
+      onSearchSubmit: () => this.closeListsPanel(),
       onSelectList: (listId: ListId) => this.handleListSelection(listId),
       onAddList: () => this.handleAddList(),
       onDeleteList: () => this.handleDeleteList(),
@@ -342,6 +359,16 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   onGlobalKeyDown(event: KeyboardEvent) {
+    if (event.key === "Escape" && listsPanel.isOpen() && !this.isSearchBeingCleared(event)) {
+      event.preventDefault();
+      this.closeListsPanel({ restoreFocus: true });
+      return;
+    }
+    if (event.key === "Escape" && this.isSearchRowField(event.target)) {
+      event.preventDefault();
+      this.closeSearchRow({ restoreFocus: true });
+      return;
+    }
     // The cheat sheet is useful everywhere, including while editing a task,
     // so it is handled before the editable-target bail used by undo/redo.
     if (matchesShortcut(event, SHORTCUTS.help)) {
@@ -393,7 +420,113 @@ class ListsAppShellElement extends HTMLElement {
   }
 
   handleSyncStatus(status: SyncStatus) {
-    this.sidebarElement?.setSyncStatus?.(status);
+    connectionStatus.setSyncStatus(status);
+  }
+
+  /**
+   * On narrow screens the sidebar drops down from the list title. It closes
+   * when a list is picked, on Escape, on a tap outside it, and when the screen
+   * becomes wide, where the sidebar is always shown.
+   */
+  connectListsPanel(signal: AbortSignal) {
+    const reposition = () => this.positionListsPanel();
+    const unsubscribe = listsPanel.subscribe((open) => {
+      this.classList.toggle("is-lists-panel-open", open);
+      if (open) this.positionListsPanel();
+    });
+    signal.addEventListener("abort", () => {
+      unsubscribe();
+      listsPanel.setOpen(false);
+    });
+    window.addEventListener("scroll", reposition, { passive: true, signal });
+    window.addEventListener("resize", reposition, { signal });
+    window
+      .matchMedia(NARROW_SCREEN)
+      .addEventListener("change", () => this.closeListsPanel(), { signal });
+  }
+
+  /**
+   * On narrow screens the search field is a row under the header, opened with
+   * the search button and focused then. A query keeps it open, so closing it
+   * clears the search.
+   */
+  connectSearchRow(signal: AbortSignal) {
+    const unsubscribeRow = searchRow.subscribe((open) => {
+      this.classList.toggle("is-search-row-open", open);
+      if (open) {
+        this.positionListsPanel();
+        if (!this.isSearchMode()) this.searchField()?.focus();
+      } else if (this.isSearchMode()) {
+        this.setSearch("");
+      }
+    });
+    // The header grows with the status line, and the row hangs below it.
+    const unsubscribeStatus = connectionStatus.subscribe(() =>
+      requestAnimationFrame(() => this.positionListsPanel())
+    );
+    signal.addEventListener("abort", () => {
+      unsubscribeRow();
+      unsubscribeStatus();
+      searchRow.setOpen(false);
+    });
+  }
+
+  searchField() {
+    return this.querySelector<HTMLInputElement>("[data-role='global-search']");
+  }
+
+  /** The search field, while it is the search row of a narrow screen. */
+  isSearchRowField(target: EventTarget | null) {
+    return (
+      searchRow.isOpen() &&
+      target === this.searchField() &&
+      window.matchMedia(NARROW_SCREEN).matches
+    );
+  }
+
+  closeSearchRow({ restoreFocus = false } = {}) {
+    if (!searchRow.isOpen()) return;
+    searchRow.setOpen(false);
+    if (restoreFocus) this.visibleButton("search-toggle")?.focus();
+  }
+
+  /** The panel and the search row hang below the header with the switcher. */
+  positionListsPanel() {
+    if (!listsPanel.isOpen() && !searchRow.isOpen()) return;
+    const header = this.visibleListsSwitcher()?.closest(
+      ".tasklist-header, .lists-main-header"
+    );
+    const bottom = header?.getBoundingClientRect().bottom ?? 0;
+    this.style.setProperty("--lists-panel-top", `${Math.max(0, Math.round(bottom))}px`);
+  }
+
+  visibleListsSwitcher() {
+    return this.visibleButton("lists-switcher");
+  }
+
+  /** The button with this role in the header shown; each header has one. */
+  visibleButton(role: string) {
+    return (
+      Array.from(this.querySelectorAll<HTMLElement>(`[data-role='${role}']`)).find(
+        (button) => button.getClientRects().length > 0
+      ) ?? null
+    );
+  }
+
+  closeListsPanel({ restoreFocus = false } = {}) {
+    if (!listsPanel.isOpen()) return;
+    listsPanel.setOpen(false);
+    if (restoreFocus) this.visibleListsSwitcher()?.focus();
+  }
+
+  /** Escape in a search field with text clears the search, not the panel. */
+  isSearchBeingCleared(event: KeyboardEvent) {
+    const target = event.target;
+    return (
+      target instanceof HTMLInputElement &&
+      target.dataset.role === "global-search" &&
+      target.value.length > 0
+    );
   }
 
   /** The lists as shown, with their names. */
@@ -453,6 +586,8 @@ class ListsAppShellElement extends HTMLElement {
     }
 
     this.renderMainLists({ activeId, searchMode, searchQuery });
+    // The switcher moves between headers as the search starts or ends.
+    requestAnimationFrame(() => this.positionListsPanel());
 
     this.refreshSidebar();
     this.updateMainHeading();
@@ -482,6 +617,7 @@ class ListsAppShellElement extends HTMLElement {
     const next = typeof value === "string" ? value : "";
     if (next !== this.searchQuery) {
       this.searchQuery = next;
+      if (this.isSearchMode()) searchRow.setOpen(true);
       this.render();
     }
     replaceSearchInUrl(next);
@@ -522,6 +658,7 @@ class ListsAppShellElement extends HTMLElement {
     this.wantedListId = null;
     pushListIdToUrl(listId);
     this.showList(listId);
+    this.closeListsPanel();
   }
 
   onPopState() {
@@ -549,6 +686,7 @@ class ListsAppShellElement extends HTMLElement {
     if (response == null) return;
     const trimmed = response.trim();
     if (!trimmed.length) return;
+    this.closeListsPanel();
     const id = generateListId("list");
     this.listIdToPushToUrl = id;
     this.wantedListId = id;

@@ -9,3 +9,14 @@ export async function openSidebarOptions(page: Page) {
   await page.getByText("Options").click();
   await expect(options).toHaveAttribute("open", "");
 }
+
+/** On narrow screens the sidebar opens from the list title. */
+export async function openListsPanel(page: Page) {
+  const switcher = page.locator("[data-role='lists-switcher']:visible");
+  if ((await switcher.getAttribute("aria-expanded")) === "true") {
+    return;
+  }
+  await switcher.click();
+  await expect(switcher).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".lists-sidebar")).toBeVisible();
+}

@@ -10,6 +10,26 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Changed
+
+- On phones the list title is a button that opens the lists and the options
+  below it, so the screen starts with the list instead of the sidebar.
+  Picking a list, tapping outside or Escape closes them again. The title
+  stays at the top while the tasks scroll.
+- On phones the search button at the top right opens the search field in a
+  row under the title. The row stays open while there is a search; Escape or
+  the search button clears the search and closes it.
+- On phones the bottom toolbar buttons are as tall as the other buttons.
+- The Options buttons are a two-by-two grid: adding and deleting lists on the
+  left, export and import on the right.
+- The list is renamed with the pencil next to its title, which is now a
+  button. On wider screens clicking the title still renames it too.
+- The connection dot in the Options row is replaced by a line under the list
+  title, "Offline. Changes are saved on this device.", shown only while
+  changes are not reaching the server and after a two-second grace period.
+  It also says "Can’t reach the server" as soon as the server goes away, not
+  only once saving a change fails.
+
 ## [v1.8.1] - 2026-10-16
 
 ### Fixed

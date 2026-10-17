@@ -9,7 +9,7 @@ import {
 import type { ListState, RegistryState } from "../src/types/domain.js";
 import { test, expect } from "./fixtures";
 import { dragHandleToTarget } from "./helpers/drag";
-import { openSidebarOptions } from "./helpers/sidebar";
+import { openListsPanel, openSidebarOptions } from "./helpers/sidebar";
 
 const listItemsSelector =
   "[data-role='lists-container'] .list-section.is-visible ol.tasklist li:not(.placeholder):not([hidden])";
@@ -298,7 +298,12 @@ async function gotoWithSnapshot(page: Page, url: string) {
     .locator("[data-role='sidebar-list'] .sidebar-list-button")
     .filter({ hasText: "Prototype Tasks" })
     .first();
-  await expect(prototypeListButton).toBeVisible({ timeout: 10_000 });
+  await expect(prototypeListButton).toBeAttached({ timeout: 10_000 });
+  // Narrow screens fold the lists behind the list title.
+  if (!(await prototypeListButton.isVisible())) {
+    await openListsPanel(page);
+  }
+  await expect(prototypeListButton).toBeVisible();
   await prototypeListButton.click();
   await expect(page.locator("[data-role='active-list-title']")).toHaveText(
     "Prototype Tasks"
@@ -430,17 +435,18 @@ test("tasklist header mirrors title, search, and show-done state", async ({
   await expect(title).toHaveAttribute("title", "Click to rename");
   const titleIconLayout = await header.evaluate((el) => {
     const titleEl = el.querySelector(".tasklist-title") as HTMLElement | null;
-    const editIcon = el.querySelector(
-      ".tasklist-title-edit-icon"
+    const renameButton = el.querySelector(
+      "[data-role='rename-list']"
     ) as HTMLElement | null;
-    if (!titleEl || !editIcon) return { adjacent: false, sameRow: false };
+    if (!titleEl || !renameButton) return { adjacent: false, sameRow: false };
     const titleRect = titleEl.getBoundingClientRect();
-    const iconRect = editIcon.getBoundingClientRect();
+    const buttonRect = renameButton.getBoundingClientRect();
     const titleCenter = (titleRect.top + titleRect.bottom) / 2;
-    const iconCenter = (iconRect.top + iconRect.bottom) / 2;
+    const buttonCenter = (buttonRect.top + buttonRect.bottom) / 2;
     return {
-      adjacent: iconRect.left >= titleRect.left && iconRect.right <= titleRect.right,
-      sameRow: Math.abs(titleCenter - iconCenter) < 12,
+      adjacent:
+        buttonRect.left >= titleRect.right && buttonRect.left - titleRect.right < 16,
+      sameRow: Math.abs(titleCenter - buttonCenter) < 12,
     };
   });
   expect(titleIconLayout).toEqual({ adjacent: true, sameRow: true });
@@ -491,47 +497,23 @@ test("sidebar keeps lists visible and collapses options by default", async ({
   ]) {
     await page.setViewportSize(viewport);
     await gotoWithSnapshot(page, "/?resetStorage=1");
-
-    await expect(globalSearchInput(page)).toBeVisible();
+    // Narrow screens fold the sidebar behind the list title, and the search
+    // behind the search button.
+    if (viewport.width < 640) {
+      await expect(page.locator(".lists-sidebar")).toBeHidden();
+      await openListsPanel(page);
+      await expect(globalSearchInput(page)).toBeHidden();
+      await expect(page.locator("[data-role='search-toggle']:visible")).toBeVisible();
+    } else {
+      await expect(globalSearchInput(page)).toBeVisible();
+    }
     await expect(
-      page.getByRole("button", { name: "Prototype Tasks" })
+      page.locator(".sidebar-list-button").filter({ hasText: "Prototype Tasks" })
     ).toBeVisible();
 
     const options = page.locator(".sidebar-actions-disclosure");
     await expect(options).not.toHaveAttribute("open", "");
     await expect(page.getByRole("button", { name: "Add list" })).toBeHidden();
-    await expect(page.locator(".sidebar-sync-indicator")).toHaveCount(1);
-    const statusLayout = await page.locator(".lists-sidebar").evaluate((el) => {
-      const status = el.querySelector(".sidebar-sync-indicator") as HTMLElement | null;
-      const optionsToggle = el.querySelector(
-        ".sidebar-actions-toggle"
-      ) as HTMLElement | null;
-      const optionsLabel = el.querySelector(
-        ".sidebar-actions-toggle-label"
-      ) as HTMLElement | null;
-      if (!status || !optionsToggle || !optionsLabel) {
-        return {
-          statusInOptions: false,
-          statusRightAligned: false,
-          statusSameRow: false,
-        };
-      }
-      const statusRect = status.getBoundingClientRect();
-      const optionsRect = optionsToggle.getBoundingClientRect();
-      const labelRect = optionsLabel.getBoundingClientRect();
-      const statusCenter = (statusRect.top + statusRect.bottom) / 2;
-      const labelCenter = (labelRect.top + labelRect.bottom) / 2;
-      return {
-        statusInOptions: Boolean(status.closest(".sidebar-actions-toggle")),
-        statusRightAligned: Math.abs(statusRect.right - optionsRect.right) < 2,
-        statusSameRow: Math.abs(statusCenter - labelCenter) < 12,
-      };
-    });
-    expect(statusLayout).toEqual({
-      statusInOptions: true,
-      statusRightAligned: true,
-      statusSameRow: true,
-    });
     const optionsLayout = await page.locator(".lists-sidebar").evaluate((el) => {
       const lists = el.querySelector(".sidebar-lists") as HTMLElement | null;
       const optionsEl = el.querySelector(
@@ -559,6 +541,138 @@ test("sidebar keeps lists visible and collapses options by default", async ({
     // the placeholder to be replaced by a real value.
     await expect(versions).not.toContainText("unknown");
   }
+});
+
+test.describe("lists panel on narrow screens", () => {
+  const switcher = (page: Page) => page.locator("[data-role='lists-switcher']:visible");
+  const sidebar = (page: Page) => page.locator(".lists-sidebar");
+  const activeTitle = (page: Page) =>
+    page.locator(".list-section.is-active .tasklist-title");
+
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await gotoWithSnapshot(page, "/?resetStorage=1");
+  });
+
+  test("the list title opens the lists and picking one closes them", async ({
+    page,
+  }) => {
+    await expect(switcher(page)).toHaveText("Prototype Tasks");
+    await expect(switcher(page)).toHaveAttribute("aria-expanded", "false");
+    await expect(sidebar(page)).toBeHidden();
+
+    await switcher(page).click();
+    await expect(switcher(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(sidebar(page)).toBeVisible();
+    // The panel hangs below the header holding the switcher.
+    const header = await switcher(page).evaluate(
+      (el) => el.closest(".tasklist-header")?.getBoundingClientRect().bottom ?? -1
+    );
+    const panel = await sidebar(page).boundingBox();
+    expect(panel && Math.abs(panel.y - header) < 2).toBe(true);
+
+    await page.locator(".sidebar-list-button").filter({ hasText: "Weekend Projects" }).click();
+    await expect(sidebar(page)).toBeHidden();
+    await expect(switcher(page)).toHaveText("Weekend Projects");
+    await expect(switcher(page)).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("escape and a tap outside close the lists", async ({ page }) => {
+    await openListsPanel(page);
+    await page.keyboard.press("Escape");
+    await expect(sidebar(page)).toBeHidden();
+    await expect(switcher(page)).toBeFocused();
+
+    await openListsPanel(page);
+    await page.locator("[data-role='lists-panel-backdrop']").click({ position: { x: 200, y: 820 } });
+    await expect(sidebar(page)).toBeHidden();
+
+    await openListsPanel(page);
+    await switcher(page).click();
+    await expect(sidebar(page)).toBeHidden();
+  });
+
+  test("the header stays at the top while tasks scroll", async ({ page }) => {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const box = await switcher(page).boundingBox();
+    expect(box && box.y >= 0 && box.y < 20).toBe(true);
+  });
+
+  test("the search button opens the search row under the header", async ({ page }) => {
+    const searchButton = page.locator("[data-role='search-toggle']:visible");
+    await openListsPanel(page);
+    // The lists panel holds the lists and options, not the search.
+    await expect(globalSearchInput(page)).toBeHidden();
+    await page.keyboard.press("Escape");
+
+    await expect(searchButton).toHaveAttribute("aria-expanded", "false");
+    await searchButton.click();
+    await expect(searchButton).toHaveAttribute("aria-expanded", "true");
+    await expect(globalSearchInput(page)).toBeFocused();
+    // The row hangs below the header, and the tasks start below the row.
+    const header = await page
+      .locator(".list-section.is-active .tasklist-header")
+      .boundingBox();
+    const row = await globalSearchInput(page).boundingBox();
+    const firstTask = await page.locator(listItemsSelector).first().boundingBox();
+    expect(header && row && row.y > header.y + header.height).toBe(true);
+    expect(row && firstTask && firstTask.y > row.y + row.height).toBe(true);
+
+    await page.keyboard.press("Escape");
+    await expect(globalSearchInput(page)).toBeHidden();
+    await expect(searchButton).toBeFocused();
+    await expect(searchButton).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("a search keeps the row open and shows in the header", async ({ page }) => {
+    const searchButton = page.locator("[data-role='search-toggle']:visible");
+    await searchButton.click();
+    await globalSearchInput(page).fill("umbrella");
+    await expect(switcher(page)).toHaveText('Search: "umbrella"');
+    await expect(globalSearchInput(page)).toBeVisible();
+
+    // The lists open below the search row.
+    await switcher(page).click();
+    await expect(page.locator(".sidebar-list-button").first()).toBeVisible();
+    await expect(globalSearchInput(page)).toHaveValue("umbrella");
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".sidebar-list-button").first()).toBeHidden();
+    await expect(globalSearchInput(page)).toBeVisible();
+
+    // Closing the row ends the search.
+    await searchButton.click();
+    await expect(globalSearchInput(page)).toBeHidden();
+    await expect(page.locator("[data-role='global-search']")).toHaveValue("");
+    await expect(switcher(page)).toHaveText("Prototype Tasks");
+  });
+
+  test("escape in the search row clears the search and closes the row", async ({
+    page,
+  }) => {
+    const searchButton = page.locator("[data-role='search-toggle']:visible");
+    await searchButton.click();
+    await globalSearchInput(page).fill("umbrella");
+    await expect(switcher(page)).toHaveText('Search: "umbrella"');
+    await globalSearchInput(page).press("Escape");
+    await expect(globalSearchInput(page)).toBeHidden();
+    await expect(switcher(page)).toHaveText("Prototype Tasks");
+    await expect(page.locator("[data-role='search-toggle']:visible")).toBeFocused();
+  });
+
+  test("the pencil renames the list; the title does not", async ({ page }) => {
+    await switcher(page).click();
+    await expect(activeTitle(page)).not.toHaveAttribute("contenteditable", "true");
+    await page.keyboard.press("Escape");
+
+    await page.locator("[data-role='rename-list']:visible").click();
+    await expect(activeTitle(page)).toHaveAttribute("contenteditable", "true");
+    await expect(activeTitle(page)).toBeFocused();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type("Renamed on the go");
+    await page.keyboard.press("Enter");
+    await expect(activeTitle(page)).not.toHaveAttribute("contenteditable", "true");
+    await expect(switcher(page)).toHaveText("Renamed on the go");
+  });
 });
 
 test("undo/redo shortcuts revert task insertions", async ({ page }) => {
@@ -1511,11 +1625,13 @@ test.describe("undo and redo controls", () => {
       await expect(showDone).toBeChecked();
       await expect(page.locator(listItemsSelector)).toHaveCount(countBefore);
 
+      await openListsPanel(page);
       await page
         .locator(".sidebar-list-button")
         .filter({ hasText: "Weekend Projects" })
         .click();
       await expect(showDone).not.toBeChecked();
+      await openListsPanel(page);
       await page
         .locator(".sidebar-list-button")
         .filter({ hasText: "Prototype Tasks" })
@@ -2786,7 +2902,7 @@ test.describe("tasklist flows", () => {
     expect(matchesCount).toBeGreaterThan(0);
 
     await page
-      .locator("[data-role='lists-container'] .list-section.is-visible button")
+      .locator("[data-role='lists-container'] .list-section.is-visible [data-role='tasklist-add']")
       .first()
       .click();
 

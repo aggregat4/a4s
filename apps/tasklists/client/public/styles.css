@@ -34,8 +34,12 @@
     --field-focus-outline-offset: 2px;
     --shadow-drag: 0 8px 24px rgb(var(--color-black-rgb) / 18%);
     --shadow-toolbar: 0 -6px 12px rgb(var(--color-black-rgb) / 12%);
+    --shadow-panel: 0 10px 24px rgb(var(--color-black-rgb) / 22%);
+    --radius-panel: 12px;
     --touch-target: 44px;
-    --mobile-toolbar-height: calc(var(--touch-target) + 2 * var(--space-xs) + 1px);
+    --control-height: 34px;
+    --search-row-height: calc(var(--control-height) + 2 * var(--space-sm));
+    --mobile-toolbar-height: calc(var(--control-height) + 2 * var(--space-xs) + 1px);
     --radius-sm: 4px;
     --space-xs: 6px;
     --space-sm: 8px;
@@ -46,6 +50,7 @@
     --drop-duration: 0.3s;
     --list-width: 70ch;
     --search-width: 250px;
+    --rename-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%23626262' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 2.5 13.5 5l-8 8H3v-2.5zM9.5 4 12 6.5'/%3E%3C/svg%3E");
     --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4=");
     --task-options-icon-left: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1sZWZ0IiB2aWV3Qm94PSIwIDAgMTYgMTYiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkuMjI0IDEuNTUzYS41LjUgMCAwIDEgLjIyMy42N0w2LjU2IDhsMi44ODggNS43NzZhLjUuNSAwIDEgMS0uODk0LjQ0OGwtMy02YS41LjUgMCAwIDEgMC0uNDQ4bDMtNmEuNS41IDAgMCAxIC42Ny0uMjIzIi8+Cjwvc3ZnPg==");
     --task-options-icon-right: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1yaWdodCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik02Ljc3NiAxLjU1M2EuNS41IDAgMCAxIC42NzEuMjIzbDMgNmEuNS41IDAgMCAxIDAgLjQ0OGwtMyA2YS41LjUgMCAxIDEtLjg5NC0uNDQ4TDkuNDQgOCA2LjU1MyAyLjIyNGEuNS41IDAgMCAxIC4yMjMtLjY3MSIvPgo8L3N2Zz4=");
@@ -234,13 +239,6 @@ button {
     min-width: 0;
 }
 
-.sidebar-status {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    flex: 0 0 auto;
-}
-
 .sidebar-title {
     margin: 0;
     font-size: 24px;
@@ -272,39 +270,6 @@ button {
         letter-spacing: 0.04em;
         text-transform: uppercase;
     }
-}
-
-/* Always-visible connectivity status: muted when connected, red when not. */
-.sidebar-sync-indicator {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    width: 14px;
-    height: 14px;
-    padding: 0;
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1;
-    background: transparent;
-    cursor: help;
-    transition: color var(--transition-fast), opacity var(--transition-fast);
-}
-
-/* The resting state: connected is the norm, so it stays unobtrusive. */
-.sidebar-sync-indicator.is-connected {
-    color: var(--color-muted);
-    opacity: 0.45;
-}
-
-/* The one state that should draw the eye: the browser is offline or changes
-   aren't reaching the server. No fill; the red hue is the only color in the
-   sidebar, so it stands out against the grays on its own. */
-.sidebar-sync-indicator.is-disconnected {
-    color: var(--color-danger);
-    font-size: 14px;
-    font-weight: 700;
-    opacity: 1;
 }
 
 .sidebar-section {
@@ -466,10 +431,22 @@ button {
     }
 }
 
+/* List actions on the left, export and import on the right. */
+.sidebar-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--space-sm);
+}
+
 .sidebar-actions {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
+
+    > * {
+        min-height: var(--control-height);
+    }
 }
 
 .sidebar-actions-disclosure {
@@ -507,10 +484,6 @@ button {
     min-width: 0;
 }
 
-.sidebar-actions-toggle .sidebar-status {
-    margin-left: auto;
-}
-
 .sidebar-actions-toggle:focus-visible {
     outline: 2px solid var(--outline-color);
     outline-offset: 2px;
@@ -520,10 +493,6 @@ button {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
-}
-
-.sidebar-actions-secondary {
-    margin-top: var(--space-sm);
 }
 
 .sidebar-version {
@@ -554,12 +523,18 @@ button {
 
 .lists-main-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: var(--space-md);
+    gap: var(--space-xs) var(--space-md);
+
+    .lists-main-sync-status {
+        flex-basis: 100%;
+    }
 }
 
-.lists-main:not(.search-mode) .lists-main-header {
+/* The main header shows in search mode and when there are no lists. */
+.lists-main:not(.search-mode):has(.list-section.is-visible) .lists-main-header {
     display: none;
 }
 
@@ -567,6 +542,79 @@ button {
     margin: 0;
     font-size: 28px;
     font-weight: 600;
+}
+
+.lists-main-switcher-heading {
+    display: none;
+}
+
+/* Opens the search row on narrow screens; the sidebar shows the search field
+   on wide ones. */
+.search-toggle {
+    display: none;
+}
+
+/* Whether changes reach the server: says nothing while they do. */
+.sync-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+
+    svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+    }
+}
+
+/* The panel's backdrop on narrow screens; see the width <= 640px rules. */
+.lists-panel-backdrop {
+    display: none;
+}
+
+.lists-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    max-width: 100%;
+    min-height: var(--touch-target);
+    padding: 0 var(--space-xs);
+    border-color: transparent;
+    background-color: transparent;
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+
+    &:hover {
+        border-color: var(--color-border-muted);
+        background-color: var(--color-surface-muted);
+        color: var(--color-text);
+    }
+
+    .lists-switcher-label {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .lists-switcher-chevron {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        transition: transform var(--transition-fast);
+    }
+
+    &[aria-expanded="true"] .lists-switcher-chevron {
+        transform: rotate(180deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lists-switcher .lists-switcher-chevron {
+        transition: none;
+    }
 }
 
 .lists-container {
@@ -621,6 +669,7 @@ a4-tasklist {
     .tasklist-title-wrapper {
         position: relative;
         display: inline-flex;
+        flex-wrap: wrap;
         align-items: center;
         min-width: 0;
         justify-self: start;
@@ -634,8 +683,7 @@ a4-tasklist {
         font-size: var(--font-size-title);
         font-weight: 600;
         color: var(--color-text);
-        padding: var(--space-xs) calc(var(--space-xs) + 20px) var(--space-xs)
-            var(--space-xs);
+        padding: var(--space-xs);
         border: 1px solid transparent;
         border-radius: var(--radius-sm);
         cursor: text;
@@ -669,24 +717,36 @@ a4-tasklist {
         }
     }
 
-    .tasklist-title-edit-icon {
-        position: absolute;
-        right: 6px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 16px;
-        height: 16px;
-        opacity: 0.7;
-        pointer-events: none;
+    /* Renames the list in place; on narrow screens the only way to, as the
+       title opens the lists there. */
+    .tasklist-rename-button {
+        --rename-button-size: 32px;
+        width: var(--rename-button-size);
+        height: var(--rename-button-size);
+        flex-shrink: 0;
+        padding: 0;
+        border-color: transparent;
+        background-color: transparent;
         background-repeat: no-repeat;
         background-position: center;
-        background-size: 14px 14px;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%23626262' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.5 2.5l2 2M3 13l8-8 2 2-8 8H3v-2z'/%3E%3C/svg%3E");
+        background-size: 16px 16px;
+        background-image: var(--rename-icon);
+
+        &:hover,
+        &:focus-visible {
+            border-color: var(--color-border-muted);
+            background-color: var(--color-surface-muted);
+        }
     }
 
-    .tasklist-title-wrapper:has(.tasklist-title.is-editing)
-        .tasklist-title-edit-icon {
+    /* The switcher replaces the title on narrow screens only. */
+    .tasklist-switcher-heading {
         display: none;
+    }
+
+    /* Below the title, in its wrapper: an empty line takes no room. */
+    .tasklist-sync-status {
+        flex-basis: 100%;
     }
 
     .tasklist-controls {
@@ -1516,7 +1576,7 @@ button.task-token-tag {
         }
 
         .icon-button {
-            --icon-button-size: var(--touch-target);
+            --icon-button-size: var(--control-height);
         }
     }
 
@@ -1524,7 +1584,7 @@ button.task-token-tag {
         display: inline-flex;
         align-items: center;
         gap: var(--space-sm);
-        min-height: var(--touch-target);
+        min-height: var(--control-height);
         margin-left: auto;
         padding: 0 var(--space-xs);
         color: var(--color-muted);
@@ -1532,7 +1592,7 @@ button.task-token-tag {
     }
 
     .mobile-toolbar-add {
-        height: var(--touch-target);
+        height: var(--control-height);
         padding: 0 var(--space-lg) 0 var(--space-md);
     }
 
@@ -1546,35 +1606,75 @@ button.task-token-tag {
         align-content: start;
     }
 
+    /* The sidebar is folded behind the list title and drops down from the
+       header holding it, over the tasks (see connectListsPanel in
+       app-shell.ts, which sets --lists-panel-top). */
     .lists-sidebar {
+        display: none;
+        position: fixed;
+        top: var(--lists-panel-top, 0);
+        inset-inline: 0;
+        z-index: 30;
+        max-height: calc(100dvh - var(--lists-panel-top, 0%) - var(--space-xl));
+        overflow-y: auto;
+        overscroll-behavior: contain;
         border-right: none;
-        border-bottom: 1px dashed var(--color-border-strong);
-        box-shadow: 0 6px 16px rgb(var(--color-black-rgb) / 10%);
-        align-self: start;
-        grid-column: 1;
+        border-bottom: 1px solid var(--color-border);
+        box-shadow: none;
         background-color: var(--color-sidebar-mobile);
         gap: var(--space-lg);
-        padding-top: calc(var(--space-lg) + env(safe-area-inset-top, 0px));
+        padding-block: 0;
         padding-left: calc(var(--space-lg) + env(safe-area-inset-left, 0px));
         padding-right: calc(var(--space-lg) + env(safe-area-inset-right, 0px));
+    }
+
+    /* The sidebar holds the search row, open with the search button, and the
+       lists panel, open with the switcher; it shows when either is open. */
+    .lists-app.is-search-row-open .lists-sidebar {
+        display: flex;
+    }
+
+    .lists-app.is-lists-panel-open .lists-sidebar {
+        display: flex;
+        border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+        box-shadow: var(--shadow-panel);
+    }
+
+    .lists-panel-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 25;
+        background-color: rgb(var(--color-black-rgb) / 35%);
+    }
+
+    .lists-app.is-lists-panel-open .lists-panel-backdrop {
+        display: block;
     }
 
     .lists-main {
         grid-column: 1;
         background-color: var(--color-main-mobile);
+        padding-top: 0;
         padding-bottom: calc(
             var(--mobile-toolbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-lg)
         );
     }
 
+
     .sidebar-content {
         flex: none;
-        gap: var(--space-lg);
+        gap: 0;
     }
 
     .sidebar-sections {
+        display: none;
         flex: none;
         gap: var(--space-lg);
+        padding-block: var(--space-lg);
+    }
+
+    .lists-app.is-lists-panel-open .sidebar-sections {
+        display: flex;
     }
 
     .sidebar-actions-disclosure {
@@ -1582,9 +1682,14 @@ button.task-token-tag {
     }
 
     .sidebar-topbar {
+        display: none;
         flex-direction: row;
         align-items: center;
         gap: var(--space-sm);
+    }
+
+    .lists-app.is-search-row-open .sidebar-topbar {
+        display: flex;
     }
 
     .sidebar-title-row {
@@ -1593,20 +1698,13 @@ button.task-token-tag {
 
     .sidebar-search-row {
         flex: 1 1 auto;
-    }
-
-    .sidebar-sync-indicator {
-        width: 12px;
-        height: 12px;
-        font-size: 10px;
-    }
-
-    .sidebar-sync-indicator.is-disconnected {
-        font-size: 13px;
+        height: var(--search-row-height);
     }
 
     .sidebar-search-input {
         min-width: 0;
+        height: var(--control-height);
+        padding-block: 0;
     }
 
     .tasklist-header {
@@ -1615,7 +1713,7 @@ button.task-token-tag {
         gap: var(--space-sm);
 
         .tasklist-title-wrapper {
-            justify-self: start;
+            justify-self: stretch;
         }
 
         .tasklist-title {
@@ -1709,5 +1807,95 @@ button.task-token-tag {
             opacity: 1;
             visibility: visible;
         }
+    }
+
+    /* The header naming what is shown stays at the top of the screen: the
+       active list's, or the main one in search mode. It sits above the
+       panel's backdrop, so its switcher also closes the panel. */
+    .lists-main:not(.search-mode) .list-section.is-active .tasklist-header,
+    .lists-main .lists-main-header {
+        position: sticky;
+        top: 0;
+        z-index: 26;
+        margin-inline: calc(-1 * var(--space-lg));
+        padding: calc(var(--space-xs) + env(safe-area-inset-top, 0px)) var(--space-lg)
+            var(--space-xs) calc(var(--space-lg) - var(--space-xs));
+        border-bottom: 1px solid var(--color-border);
+        background-color: var(--color-sidebar-mobile);
+    }
+
+    .lists-main .lists-main-title,
+    .lists-main:not(.search-mode) .tasklist-title:not(.is-editing) {
+        display: none;
+    }
+
+    .lists-main .lists-main-switcher-heading,
+    .lists-main:not(.search-mode) .tasklist-header .tasklist-switcher-heading {
+        display: block;
+        min-width: 0;
+        margin: 0;
+        font-size: var(--font-size-title);
+        font-weight: 600;
+    }
+
+    .lists-main .lists-main-header {
+        align-items: center;
+        gap: 0 var(--space-xs);
+    }
+
+    .lists-main-header .lists-switcher {
+        font-size: var(--font-size-title);
+    }
+
+    .tasklist-header .tasklist-rename-button {
+        --rename-button-size: var(--touch-target);
+    }
+
+    .tasklist-header .search-toggle,
+    .lists-main-header .search-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: var(--touch-target);
+        height: var(--touch-target);
+        margin-left: auto;
+        padding: 0;
+        border-color: transparent;
+        background-color: transparent;
+        color: var(--color-muted);
+
+        &:hover,
+        &:focus-visible,
+        &[aria-expanded="true"] {
+            border-color: var(--color-border-muted);
+            background-color: var(--color-surface-muted);
+            color: var(--color-text);
+        }
+
+        svg {
+            width: 20px;
+            height: 20px;
+        }
+    }
+
+    /* The open search row hangs below the sticky header, over the tasks, so
+       the header keeps room for it (the row's bottom border included). */
+    .lists-app.is-search-row-open .lists-main:not(.search-mode) .list-section.is-active .tasklist-header {
+        margin-bottom: calc(var(--space-md) + var(--search-row-height) + 1px);
+    }
+
+    .lists-app.is-search-row-open .lists-main .lists-main-header {
+        margin-bottom: calc(var(--search-row-height) + 1px);
+    }
+
+    /* The row continues the header: one line under both, not one between. */
+    .lists-app.is-search-row-open .lists-main:not(.search-mode) .list-section.is-active .tasklist-header,
+    .lists-app.is-search-row-open .lists-main .lists-main-header {
+        border-bottom-color: transparent;
+    }
+
+    .sync-status {
+        padding-left: var(--space-xs);
     }
 }

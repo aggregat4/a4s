@@ -1,6 +1,9 @@
 import { html, render } from "lit";
 import type { ListId, TaskItem } from "../../types/domain.js";
 import type { ListRepository } from "../../app/list-repository.js";
+import { listsPanel, searchRow } from "../state/lists-panel.js";
+import { listsSwitcher, searchToggle } from "./lists-switcher.js";
+import "./sync-status.js";
 
 /** What the app asks of a rendered list. */
 export type ListElement = HTMLElement & {
@@ -72,6 +75,8 @@ class MainPaneElement extends HTMLElement {
     this.headerEl = this.querySelector(".lists-main-header");
     this.listContainer = this.querySelector("[data-role='lists-container']");
     this.renderHeader();
+    listsPanel.subscribe(() => this.renderHeader());
+    searchRow.subscribe(() => this.renderHeader());
     this.shellRendered = true;
   }
 
@@ -82,6 +87,9 @@ class MainPaneElement extends HTMLElement {
         <h2 class="lists-main-title" data-role="active-list-title">
           ${this.currentTitle}
         </h2>
+        <h2 class="lists-main-switcher-heading">${listsSwitcher(this.currentTitle)}</h2>
+        ${searchToggle()}
+        <a4-sync-status class="lists-main-sync-status"></a4-sync-status>
       `,
       this.headerEl
     );

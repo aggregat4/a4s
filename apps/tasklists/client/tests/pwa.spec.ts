@@ -57,87 +57,44 @@ test.describe("PWA", () => {
     expect(cacheNames).toContain(`a4-tasklists-${clientVersion}`);
   });
 
-  test("connectivity indicator reflects online/offline state", async ({ page }) => {
-    await page.setViewportSize({ width: 493, height: 500 });
-    await page.goto("/");
-    await page.waitForSelector(".lists-sidebar", { state: "visible" });
+  test("the status line says when changes are not reaching the server", async ({
+    page,
+  }) => {
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/");
+      // Without lists the status sits under the main heading.
+      const status = page.locator(".lists-main-header a4-sync-status");
+      await expect(status).toHaveAttribute("role", "status");
+      // Connected is the normal state: the line is empty.
+      await expect(status).toHaveText("");
 
-    const indicator = page.locator(".sidebar-sync-indicator");
-    const searchInput = page.getByRole("searchbox", { name: "Global search" });
-    await expect(indicator).toHaveCount(1);
-    await expect(indicator).toHaveClass(/is-connected/);
-    await expect(indicator).toHaveAttribute("title", "Connected");
-    await expect(indicator).toHaveText("●");
-    const layout = await indicator.evaluate((el) => {
-      const search = document.querySelector(
-        ".sidebar-search-input"
-      ) as HTMLElement | null;
-      const topbar = document.querySelector(
-        ".sidebar-topbar"
-      ) as HTMLElement | null;
-      const optionsToggle = document.querySelector(
-        ".sidebar-actions-toggle"
-      ) as HTMLElement | null;
-      const optionsLabel = document.querySelector(
-        ".sidebar-actions-toggle-label"
-      ) as HTMLElement | null;
-      if (!search || !topbar || !optionsToggle || !optionsLabel) {
-        return {
-          searchLeftAligned: false,
-          statusInOptions: false,
-          statusRightAligned: false,
-          statusSameRow: false,
-        };
-      }
-      const indicatorRect = el.getBoundingClientRect();
-      const searchRect = search.getBoundingClientRect();
-      const topbarRect = topbar.getBoundingClientRect();
-      const optionsRect = optionsToggle.getBoundingClientRect();
-      const labelRect = optionsLabel.getBoundingClientRect();
-      const indicatorCenter = (indicatorRect.top + indicatorRect.bottom) / 2;
-      const labelCenter = (labelRect.top + labelRect.bottom) / 2;
-      return {
-        searchLeftAligned: Math.abs(searchRect.left - topbarRect.left) < 2,
-        statusInOptions: Boolean(el.closest(".sidebar-actions-toggle")),
-        statusRightAligned: Math.abs(indicatorRect.right - optionsRect.right) < 2,
-        statusSameRow: Math.abs(indicatorCenter - labelCenter) < 12,
-      };
-    });
-    await expect(searchInput).toBeVisible();
-    expect(layout).toEqual({
-      searchLeftAligned: true,
-      statusInOptions: true,
-      statusRightAligned: true,
-      statusSameRow: true,
-    });
-
-    await page.context().setOffline(true);
-    // Playwright may not fire navigator.onLine change automatically in all browsers.
-    // Dispatch the event manually to ensure the UI reacts.
-    await page.evaluate(() => {
-      Object.defineProperty(navigator, "onLine", {
-        value: false,
-        configurable: true,
+      await page.context().setOffline(true);
+      // Playwright may not fire navigator.onLine change automatically in all browsers.
+      // Dispatch the event manually to ensure the UI reacts.
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "onLine", {
+          value: false,
+          configurable: true,
+        });
+        window.dispatchEvent(new Event("offline"));
       });
-      window.dispatchEvent(new Event("offline"));
-    });
+      await expect(status).toHaveText("Offline. Changes are saved on this device.");
+      await expect(status).toBeVisible();
 
-    await expect(indicator).toHaveClass(/is-disconnected/);
-    await expect(indicator).toHaveAttribute("title", "Disconnected");
-    await expect(indicator).toHaveText("×");
-
-    await page.context().setOffline(false);
-    await page.evaluate(() => {
-      Object.defineProperty(navigator, "onLine", {
-        value: true,
-        configurable: true,
+      await page.context().setOffline(false);
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "onLine", {
+          value: true,
+          configurable: true,
+        });
+        window.dispatchEvent(new Event("online"));
       });
-      window.dispatchEvent(new Event("online"));
-    });
-
-    await expect(indicator).toHaveClass(/is-connected/);
-    await expect(indicator).toHaveAttribute("title", "Connected");
-    await expect(indicator).toHaveText("●");
+      await expect(status).toHaveText("");
+    }
   });
 
   test("app loads from service worker cache when offline", async ({ page }) => {
@@ -156,5 +113,22 @@ test.describe("PWA", () => {
     await expect(page.locator(".sidebar-title")).toHaveText("Lists");
 
     await page.context().setOffline(false);
+  });
+});
+
+test.describe("server unreachable", () => {
+  // The service worker would answer the requests the test fails.
+  test.use({ serviceWorkers: "block" });
+
+  test("the status line says when the server cannot be reached", async ({ page }) => {
+    await page.route("**/healthz", (route) => route.abort());
+    await page.goto("/");
+    const status = page.locator(".lists-main-header a4-sync-status");
+    await expect(status).toHaveText(
+      "Can’t reach the server. Changes are saved on this device."
+    );
+
+    await page.unroute("**/healthz");
+    await expect(status).toHaveText("", { timeout: 15_000 });
   });
 });
