@@ -38,9 +38,6 @@ importers:
       postcss:
         specifier: 8.5.26
         version: 8.5.26
-      postcss-scss:
-        specifier: 4.0.9
-        version: 4.0.9(postcss@8.5.26)
       stylelint:
         specifier: 17.16.0
         version: 17.16.0(typescript@7.0.2)
@@ -1146,12 +1143,6 @@ packages:
     peerDependencies:
       postcss: ^8.4.31
 
-  postcss-scss@4.0.9:
-    resolution: {integrity: sha512-AjKOeiwAitL/MXxQW2DliT28EKukvvbEWx3LBmJIRN8KfBGZbRTxNYW0kSqi1COiTZ57nZ9NW06S6ux//N1c9A==}
-    engines: {node: '>=12.0'}
-    peerDependencies:
-      postcss: ^8.4.29
-
   postcss-selector-parser@7.1.5:
     resolution: {integrity: sha512-KvvtD7SrlBP7dlgkBghEE3r84CABm5SmV2aNcG4oCA+qDnJ/tvKonFVvwWAyyWUEwxuNawdfEAZKP9zM3oZ2Uw==}
     engines: {node: '>=4'}
@@ -2228,10 +2219,6 @@ snapshots:
       - supports-color
 
   postcss-safe-parser@7.0.1(postcss@8.5.26):
-    dependencies:
-      postcss: 8.5.26
-
-  postcss-scss@4.0.9(postcss@8.5.26):
     dependencies:
       postcss: 8.5.26
 

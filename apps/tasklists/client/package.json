@@ -7,7 +7,7 @@
     "watch": "node tools/build/watch.mjs",
     "start": "pnpm run build && http-server dist -p 8000 -c-1",
     "lint:deps": "knip",
-    "lint:css": "stylelint \"public/**/*.css\" || true",
+    "lint:css": "stylelint \"public/**/*.css\"",
     "test": "pnpm run build && pnpm run test:built",
     "test:built": "pnpm run test:unit:built && pnpm run test:e2e:built && pnpm run test:e2e:embedded:built && pnpm run test:e2e:oidc:built",
     "test:unit": "pnpm run build && pnpm run test:unit:built",
@@ -35,7 +35,6 @@
     "http-server": "14.1.1",
     "knip": "6.41.0",
     "postcss": "8.5.26",
-    "postcss-scss": "4.0.9",
     "stylelint": "17.16.0",
     "stylelint-config-standard": "40.0.0",
     "typescript": "^7.0.2"
