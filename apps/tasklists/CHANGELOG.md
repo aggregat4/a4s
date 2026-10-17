@@ -20,6 +20,8 @@ Release notes for a tag are taken from the matching version section, so the
   row under the title. The row stays open while there is a search; Escape or
   the search button clears the search and closes it.
 - On phones the bottom toolbar buttons are as tall as the other buttons.
+- On phones the title bar at the top shows a shadow while tasks are scrolled
+  under it, like the toolbar at the bottom.
 - The Options buttons are a two-by-two grid: adding and deleting lists on the
   left, export and import on the right.
 - The list is renamed with the pencil next to its title, which is now a

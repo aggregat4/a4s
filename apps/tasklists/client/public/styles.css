@@ -34,6 +34,7 @@
     --field-focus-outline-offset: 2px;
     --shadow-drag: 0 8px 24px rgb(var(--color-black-rgb) / 18%);
     --shadow-toolbar: 0 -6px 12px rgb(var(--color-black-rgb) / 12%);
+    --shadow-header: 0 6px 12px rgb(var(--color-black-rgb) / 12%);
     --shadow-panel: 0 10px 24px rgb(var(--color-black-rgb) / 22%);
     --radius-panel: 12px;
     --touch-target: 44px;
@@ -1640,6 +1641,11 @@ button.task-token-tag {
         box-shadow: var(--shadow-panel);
     }
 
+    /* Tasks scrolled under the search row, as under the header. */
+    .lists-app.has-content-above.is-search-row-open:not(.is-lists-panel-open) .lists-sidebar {
+        box-shadow: var(--shadow-header);
+    }
+
     .lists-panel-backdrop {
         position: fixed;
         inset: 0;
@@ -1822,6 +1828,7 @@ button.task-token-tag {
             var(--space-xs) calc(var(--space-lg) - var(--space-xs));
         border-bottom: 1px solid var(--color-border);
         background-color: var(--color-sidebar-mobile);
+        transition: box-shadow var(--transition-fast);
     }
 
     .lists-main .lists-main-title,
@@ -1893,6 +1900,12 @@ button.task-token-tag {
     .lists-app.is-search-row-open .lists-main:not(.search-mode) .list-section.is-active .tasklist-header,
     .lists-app.is-search-row-open .lists-main .lists-main-header {
         border-bottom-color: transparent;
+    }
+
+    /* Tasks scrolled under the header, like the toolbar's shadow below. */
+    .lists-app.has-content-above .lists-main:not(.search-mode) .list-section.is-active .tasklist-header,
+    .lists-app.has-content-above .lists-main .lists-main-header {
+        box-shadow: var(--shadow-header);
     }
 
     .sync-status {

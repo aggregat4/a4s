@@ -184,6 +184,10 @@ class ListsAppShellElement extends HTMLElement {
     window.addEventListener("popstate", () => this.onPopState(), { signal });
     this.connectListsPanel(signal);
     this.connectSearchRow(signal);
+    window.addEventListener("scroll", () => this.updateContentAbove(), {
+      passive: true,
+      signal,
+    });
     this.addEventListener("tokensearch", (event) => this.handleTokenSearch(event), { signal });
     // Events of the list elements, which bubble.
     this.addEventListener(
@@ -469,6 +473,11 @@ class ListsAppShellElement extends HTMLElement {
       unsubscribeStatus();
       searchRow.setOpen(false);
     });
+  }
+
+  /** Tasks scrolled under the sticky header: it shows a shadow. */
+  updateContentAbove() {
+    this.classList.toggle("has-content-above", window.scrollY > 0);
   }
 
   searchField() {

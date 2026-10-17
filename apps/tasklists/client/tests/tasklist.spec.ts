@@ -593,9 +593,19 @@ test.describe("lists panel on narrow screens", () => {
   });
 
   test("the header stays at the top while tasks scroll", async ({ page }) => {
+    const header = page.locator(".list-section.is-active .tasklist-header");
+    await expect(header).toHaveCSS("box-shadow", "none");
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const box = await switcher(page).boundingBox();
     expect(box && box.y >= 0 && box.y < 20).toBe(true);
+    // Tasks scrolled under it: the header, and an open search row, show a shadow.
+    await expect(header).not.toHaveCSS("box-shadow", "none");
+    await page.locator("[data-role='search-toggle']:visible").click();
+    await expect(sidebar(page)).not.toHaveCSS("box-shadow", "none");
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(header).toHaveCSS("box-shadow", "none");
+    await expect(sidebar(page)).toHaveCSS("box-shadow", "none");
   });
 
   test("the search button opens the search row under the header", async ({ page }) => {
