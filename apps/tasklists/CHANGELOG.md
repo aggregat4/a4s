@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.9.0] - 2026-10-17
+
 ### Changed
 
 - On phones the list title is a button that opens the lists and the options
