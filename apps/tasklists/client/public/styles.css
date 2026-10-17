@@ -199,7 +199,8 @@ button {
     min-width: 0;
 }
 
-.sidebar-title-row {
+.sidebar-title-row,
+.sidebar-search-row {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
@@ -215,13 +216,6 @@ button {
 /* Narrow screens only (see the width <= 640px rules). */
 .mobile-toolbar {
     display: none;
-}
-
-.sidebar-search-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    min-width: 0;
 }
 
 .sidebar-title {
@@ -377,29 +371,6 @@ button {
 
 .sidebar-list > .is-drop-target .sidebar-list-count {
     color: var(--color-text);
-}
-
-.sidebar-list-handle {
-    cursor: grab;
-    color: var(--color-handle);
-    user-select: none;
-    -webkit-touch-callout: none;
-    touch-action: none;
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 20px 20px;
-    background-image: var(--task-handle-icon);
-    margin-left: 0;
-
-    &:active {
-        cursor: grabbing;
-    }
 }
 
 /* List actions on the left, export and import on the right. */
@@ -1110,10 +1081,11 @@ a4-tasklist {
     display: block;
 }
 
-/* Compact stub for lists with no matches during search. Scoped under
-   .search-mode (no-matches only occurs while searching) and kept specific so
-   it overrides the base title rules cleanly. Only the appearance collapses —
-   document order is preserved so nothing jumps as you type. */
+/* Compact stub for lists with no matches during search. Only the appearance
+   collapses: document order is preserved so nothing jumps as you type.
+   Scoped under .search-mode because a list keeps tasklist-no-matches for a
+   moment after the search ends; collapsing it then hides an open note while
+   its scroll shadows are measured. */
 .lists-main.search-mode .tasklist-no-matches {
     /* Lay the title and the "No matching items" note out on a single row
        (title left, note right) instead of stacking them on two lines. */
@@ -1121,28 +1093,25 @@ a4-tasklist {
     align-items: baseline;
     justify-content: space-between;
     gap: var(--space-sm);
-}
 
-.lists-main.search-mode .tasklist-no-matches .tasklist-controls {
-    display: none;
-}
+    .tasklist-controls,
+    .tasklist {
+        display: none;
+    }
 
-.lists-main.search-mode .tasklist-no-matches ol.tasklist {
-    display: none;
-}
+    .tasklist-header {
+        margin-bottom: 0;
+    }
 
-.lists-main.search-mode .tasklist-no-matches .tasklist-header {
-    margin-bottom: 0;
-}
+    .tasklist-title {
+        color: var(--color-muted);
+        font-weight: 500;
+    }
 
-.lists-main.search-mode .tasklist-no-matches .tasklist-title {
-    color: var(--color-muted);
-    font-weight: 500;
-}
-
-.lists-main.search-mode .tasklist-no-matches .tasklist-empty {
-    font-style: normal;
-    padding: 0;
+    .tasklist-empty {
+        font-style: normal;
+        padding: 0;
+    }
 }
 
 /* In search mode every list title is a read-only label: drop the rename
@@ -1232,42 +1201,63 @@ button.task-token-tag {
     }
 }
 
-.move-dialog {
+/* The move and shortcuts dialogs: a centered panel over a backdrop. */
+.move-dialog,
+.shortcuts-dialog {
     position: fixed;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 2000;
+
+    &[hidden] {
+        display: none;
+    }
 }
 
-.move-dialog[hidden] {
-    display: none;
-}
-
-.move-dialog-backdrop {
+.move-dialog-backdrop,
+.shortcuts-dialog-backdrop {
     position: absolute;
     inset: 0;
     background-color: rgb(var(--color-black-rgb) / 30%);
 }
 
-.move-dialog-content {
+.move-dialog-content,
+.shortcuts-dialog-content {
     position: relative;
     background-color: var(--color-surface);
     border-radius: 8px;
     padding: var(--space-xl);
-    min-width: min(420px, calc(100vw - 40px));
-    max-width: 520px;
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
     box-shadow: 0 24px 48px rgb(var(--color-black-rgb) / 20%);
 }
 
-.move-dialog-title {
+.move-dialog-title,
+.shortcuts-dialog-title {
     margin: 0;
     font-size: 22px;
     font-weight: 600;
+}
+
+.move-dialog-cancel,
+.shortcuts-dialog-close {
+    padding: var(--space-sm) var(--space-md);
+    background-color: transparent;
+
+    &:hover,
+    &:focus-visible {
+        background-color: var(--color-text);
+        color: var(--color-surface);
+        outline: none;
+    }
+}
+
+.move-dialog-content {
+    min-width: min(420px, calc(100vw - 40px));
+    max-width: 520px;
 }
 
 .move-dialog-description {
@@ -1307,53 +1297,10 @@ button.task-token-tag {
     justify-content: flex-end;
 }
 
-.move-dialog-cancel {
-    font: inherit;
-    padding: var(--space-sm) var(--space-md);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--outline-color);
-    background-color: transparent;
-    cursor: pointer;
-
-    &:hover,
-    &:focus-visible {
-        background-color: var(--color-text);
-        color: var(--color-surface);
-        outline: none;
-    }
-}
-
-.shortcuts-dialog {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-}
-
-.shortcuts-dialog[hidden] {
-    display: none;
-}
-
-.shortcuts-dialog-backdrop {
-    position: absolute;
-    inset: 0;
-    background-color: rgb(var(--color-black-rgb) / 30%);
-}
-
 .shortcuts-dialog-content {
-    position: relative;
-    background-color: var(--color-surface);
-    border-radius: 8px;
-    padding: var(--space-xl);
     min-width: min(360px, calc(100vw - 40px));
     max-width: min(680px, calc(100vw - 40px));
     max-height: calc(100dvh - 80px);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-    box-shadow: 0 24px 48px rgb(var(--color-black-rgb) / 20%);
 }
 
 .shortcuts-dialog-header {
@@ -1363,26 +1310,8 @@ button.task-token-tag {
     gap: var(--space-md);
 }
 
-.shortcuts-dialog-title {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 600;
-}
-
 .shortcuts-dialog-close {
-    font: inherit;
-    padding: var(--space-xs) var(--space-md);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--outline-color);
-    background-color: transparent;
-    cursor: pointer;
-
-    &:hover,
-    &:focus-visible {
-        background-color: var(--color-text);
-        color: var(--color-surface);
-        outline: none;
-    }
+    padding-block: var(--space-xs);
 }
 
 .shortcuts-dialog-body {
