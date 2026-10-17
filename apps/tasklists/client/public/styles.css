@@ -49,8 +49,6 @@
     --space-xl: 20px;
     --transition-fast: 0.2s ease;
     --drop-duration: 0.3s;
-    --list-width: 70ch;
-    --search-width: 250px;
     --rename-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%23626262' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 2.5 13.5 5l-8 8H3v-2.5zM9.5 4 12 6.5'/%3E%3C/svg%3E");
     --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4=");
     --task-options-icon-left: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1sZWZ0IiB2aWV3Qm94PSIwIDAgMTYgMTYiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkuMjI0IDEuNTUzYS41LjUgMCAwIDEgLjIyMy42N0w2LjU2IDhsMi44ODggNS43NzZhLjUuNSAwIDEgMS0uODk0LjQ0OGwtMy02YS41LjUgMCAwIDEgMC0uNDQ4bDMtNmEuNS41IDAgMCAxIC42Ny0uMjIzIi8+Cjwvc3ZnPg==");
@@ -159,18 +157,6 @@ button {
     }
 }
 
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
-}
-
 .is-drop-target {
     border: 1px solid var(--color-accent);
     box-shadow: inset 0 0 0 2px rgb(var(--color-accent-rgb) / 60%);
@@ -260,14 +246,7 @@ button {
         background-color: var(--color-border-strong);
     }
 
-    .sidebar-title.sr-only {
-        position: static;
-        width: auto;
-        height: auto;
-        margin: 0;
-        overflow: visible;
-        clip-path: none;
-        white-space: normal;
+    .sidebar-title {
         letter-spacing: 0.04em;
         text-transform: uppercase;
     }
@@ -634,10 +613,6 @@ button {
     display: none;
 }
 
-.lists-main.search-mode .list-section {
-    display: flex;
-}
-
 .list-section-flash {
     animation: target-flash 0.8s ease;
 }
@@ -756,22 +731,6 @@ a4-tasklist {
         justify-content: flex-end;
         gap: var(--space-sm);
         flex-wrap: wrap;
-    }
-}
-
-.tasklist-search-input {
-    font: inherit;
-    padding: var(--space-xs);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background-color: var(--color-surface);
-    color: var(--color-text);
-    width: var(--search-width);
-    max-width: 100%;
-
-    &:focus {
-        outline: var(--field-focus-outline);
-        outline-offset: var(--field-focus-outline-offset);
     }
 }
 
@@ -902,10 +861,6 @@ a4-tasklist {
 
     /* Show spaces as typed, so editing keeps them as regular spaces. */
     white-space: pre-wrap;
-    outline: none;
-}
-
-.task-text.text-editing {
     outline: none;
 }
 
@@ -1168,13 +1123,6 @@ a4-tasklist {
     box-shadow: var(--shadow-drag);
     background: var(--color-surface);
     opacity: 0.9;
-}
-
-.task-item.placeholder {
-    background: transparent;
-    border: 2px dashed var(--color-border-muted);
-    height: 0;
-    margin-bottom: var(--space-sm);
 }
 
 .tasklist-empty {
@@ -1772,7 +1720,6 @@ button.task-token-tag {
         }
 
         .task-item-actions {
-            --task-actions-max-width: 260px;
             position: absolute;
             inset-block: 0;
             right: 0;
