@@ -2,50 +2,38 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CDPSession, Page } from "@playwright/test";
+import postcss, { type AtRule, type Rule } from "postcss";
 
 // Tracks which rules of styles.css the browser tests exercise. Tests run in
 // several worker processes, so each worker writes what it saw to a directory
 // that global setup creates, and global teardown merges and reports it.
 
-type RuleKey = string;
-
-type RuleRecord = {
-  startOffset: number;
-  endOffset: number;
-  selector: string;
-};
-
+// Chromium reports only the rules it used, so the full list of rules comes
+// from parsing the stylesheet the browser loaded.
 type WorkerCoverage = {
-  rules: [RuleKey, RuleRecord][];
-  used: RuleKey[];
+  cssText: string | null;
+  usedOffsets: number[];
 };
 
 const coverageDirEnv = "A4_CSS_COVERAGE_DIR";
 
-const allRules = new Map<RuleKey, RuleRecord>();
-const usedRules = new Set<RuleKey>();
+let cssText: string | null = null;
+const usedOffsets = new Set<number>();
 
 const stylesUrlSuffix = "/styles.css";
-
-// Every page loads the same styles.css, so a rule is known by its offsets.
-function getRuleKey(startOffset: number, endOffset: number) {
-  return `${startOffset}:${endOffset}`;
-}
-
-function extractSelector(ruleText: string) {
-  const braceIndex = ruleText.indexOf("{");
-  const selectorText = braceIndex === -1 ? ruleText : ruleText.slice(0, braceIndex);
-  return selectorText.replace(/\s+/g, " ").trim();
-}
-
-function formatRuleSnippet(rule: RuleRecord) {
-  const selector = rule.selector || "<unknown selector>";
-  return `${selector} (offsets ${rule.startOffset}-${rule.endOffset})`;
-}
 
 function shouldTrackSheet(sourceURL?: string) {
   if (!sourceURL) return false;
   return sourceURL.endsWith(stylesUrlSuffix);
+}
+
+// Nested rules read as "&:hover", so name the rules they sit in.
+function describeRule(rule: Rule) {
+  const selectors = [];
+  for (let node: Rule["parent"] = rule; node && node.type !== "root"; node = node.parent) {
+    if (node.type === "rule") selectors.unshift((node as Rule).selector.replace(/\s+/g, " "));
+  }
+  return selectors.join(" → ");
 }
 
 export function isCssCoverageEnabled() {
@@ -73,25 +61,17 @@ export async function stopCssCoverage(
   const { ruleUsage } = await session.send("CSS.stopRuleUsageTracking");
   for (const styleSheetId of styleSheetIds) {
     const relevantUsage = ruleUsage.filter(
-      (usage) => usage.styleSheetId === styleSheetId
+      (usage) => usage.styleSheetId === styleSheetId && usage.used
     );
     if (relevantUsage.length === 0) continue;
-    const { text } = await session.send("CSS.getStyleSheetText", {
-      styleSheetId,
-    });
+    // Every page loads the same styles.css, so a rule is known by its offset.
+    if (cssText === null) {
+      ({ text: cssText } = await session.send("CSS.getStyleSheetText", {
+        styleSheetId,
+      }));
+    }
     for (const usage of relevantUsage) {
-      const ruleKey = getRuleKey(usage.startOffset, usage.endOffset);
-      if (!allRules.has(ruleKey)) {
-        const ruleText = text.slice(usage.startOffset, usage.endOffset);
-        allRules.set(ruleKey, {
-          startOffset: usage.startOffset,
-          endOffset: usage.endOffset,
-          selector: extractSelector(ruleText),
-        });
-      }
-      if (usage.used) {
-        usedRules.add(ruleKey);
-      }
+      usedOffsets.add(usage.startOffset);
     }
   }
   await session.detach();
@@ -100,8 +80,8 @@ export async function stopCssCoverage(
 /** Writes what this worker saw; called once when the worker shuts down. */
 export function writeWorkerCssCoverage(workerIndex: number) {
   const dir = process.env[coverageDirEnv];
-  if (!dir || allRules.size === 0) return;
-  const coverage: WorkerCoverage = { rules: [...allRules], used: [...usedRules] };
+  if (!dir || cssText === null) return;
+  const coverage: WorkerCoverage = { cssText, usedOffsets: [...usedOffsets] };
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `worker-${workerIndex}-${process.pid}.json`), JSON.stringify(coverage));
 }
@@ -113,30 +93,34 @@ export function setupCssCoverage() {
 export function reportCssCoverage() {
   const dir = process.env[coverageDirEnv];
   if (!dir) return;
-  const rules = new Map<RuleKey, RuleRecord>();
-  const used = new Set<RuleKey>();
+  let text: string | null = null;
+  const used = new Set<number>();
   for (const file of readdirSync(dir)) {
     const coverage = JSON.parse(readFileSync(join(dir, file), "utf8")) as WorkerCoverage;
-    for (const [key, record] of coverage.rules) rules.set(key, record);
-    for (const key of coverage.used) used.add(key);
+    text ??= coverage.cssText;
+    for (const offset of coverage.usedOffsets) used.add(offset);
   }
   rmSync(dir, { recursive: true, force: true });
-  if (rules.size === 0) return;
+  if (text === null) return;
 
-  const unused = [...rules.entries()]
-    .filter(([ruleKey]) => !used.has(ruleKey))
-    .map(([, record]) => record);
+  const unused: Rule[] = [];
+  let total = 0;
+  postcss.parse(text).walkRules((rule) => {
+    // Keyframe steps are not style rules, and Chromium never reports them.
+    if (rule.parent?.type === "atrule" && /keyframes$/.test((rule.parent as AtRule).name)) {
+      return;
+    }
+    total += 1;
+    if (!used.has(rule.source?.start?.offset ?? -1)) unused.push(rule);
+  });
   if (unused.length === 0) {
-    console.warn("[css-coverage] All tracked rules were exercised.");
+    console.warn(`[css-coverage] All ${total} rules in styles.css were exercised.`);
     return;
   }
   console.warn(
-    `[css-coverage] ${unused.length} unused rule(s) detected in ${stylesUrlSuffix}:`
+    `[css-coverage] ${unused.length} of ${total} rules in styles.css were never used:`
   );
-  for (const record of unused.slice(0, 50)) {
-    console.warn(`[css-coverage] - ${formatRuleSnippet(record)}`);
-  }
-  if (unused.length > 50) {
-    console.warn(`[css-coverage] ...and ${unused.length - 50} more.`);
+  for (const rule of unused) {
+    console.warn(`[css-coverage] - styles.css:${rule.source?.start?.line} ${describeRule(rule)}`);
   }
 }
