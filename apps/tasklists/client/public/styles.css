@@ -1,8 +1,18 @@
 :root {
+    /* Type */
     --font-family-base: "Inter", sans-serif;
-    --font-size-base: 16px;
-    --font-size-title: 20px;
+    --font-size-xs: 10px;
     --font-size-sm: 13px;
+    --font-size-md: 14px;
+    --font-size-base: 16px;
+    --font-size-lg: 20px;
+    --font-size-xl: 22px;
+    --font-size-2xl: 24px;
+    --font-size-3xl: 28px;
+    --font-weight-medium: 500;
+    --font-weight-bold: 600;
+
+    /* Colors */
     --color-background: #f5f5f5;
     --color-surface: #fff;
     --color-surface-muted: #f0f0f0;
@@ -12,41 +22,69 @@
     --color-text: #333;
     --color-muted: #626262;
     --color-border: #949494;
-    --color-border-muted: #949494;
     --color-border-strong: #4d4d4d;
     --color-highlight: #ffec99;
     --color-handle: #848484;
     --color-accent: #1c7ed6;
     --color-danger: #c92a2a;
-    --color-focus-ring: #6d7dbd;
+    --color-drag-outline: #6d7dbd;
+    --color-shadow: #000;
+    --color-dialog-backdrop: color-mix(in srgb, var(--color-shadow) 30%, transparent);
+    --color-panel-backdrop: color-mix(in srgb, var(--color-shadow) 35%, transparent);
 
     /* Disabled controls: dimmed but still about 3:1 against their fill. */
     --color-disabled-text: #8a8a8a;
-    --outline-color: #4d4d4d;
-    --color-black-rgb: 0 0 0;
-    --color-white-rgb: 255 255 255;
-    --color-accent-rgb: 28 126 214;
-    --color-border-strong-rgb: 77 77 77;
-    --color-editing-outline: rgb(var(--color-border-strong-rgb) / 60%);
-    --field-focus-outline: 2px solid var(--color-editing-outline);
+
+    /* Focus rings: solid on controls, softer on fields. */
+    --focus-outline: 2px solid var(--color-border-strong);
+    --focus-outline-offset: 2px;
+    --field-focus-outline: 2px solid color-mix(in srgb, var(--color-border-strong) 60%, transparent);
     --field-focus-outline-offset: 2px;
-    --shadow-drag: 0 8px 24px rgb(var(--color-black-rgb) / 18%);
-    --shadow-toolbar: 0 -6px 12px rgb(var(--color-black-rgb) / 12%);
-    --shadow-header: 0 6px 12px rgb(var(--color-black-rgb) / 12%);
-    --shadow-panel: 0 10px 24px rgb(var(--color-black-rgb) / 22%);
-    --radius-panel: 12px;
-    --touch-target: 44px;
-    --control-height: 34px;
-    --search-row-height: calc(var(--control-height) + 2 * var(--space-sm));
-    --mobile-toolbar-height: calc(var(--control-height) + 2 * var(--space-xs) + 1px);
-    --radius-sm: 4px;
+
+    /* Shadows */
+    --shadow-drag: 0 8px 24px color-mix(in srgb, var(--color-shadow) 18%, transparent);
+    --shadow-toolbar: 0 -6px 12px color-mix(in srgb, var(--color-shadow) 12%, transparent);
+    --shadow-header: 0 6px 12px color-mix(in srgb, var(--color-shadow) 12%, transparent);
+    --shadow-panel: 0 10px 24px color-mix(in srgb, var(--color-shadow) 22%, transparent);
+    --shadow-dialog: 0 24px 48px color-mix(in srgb, var(--color-shadow) 20%, transparent);
+
+    /* Spacing and sizes */
     --space-xs: 6px;
     --space-sm: 8px;
     --space-md: 12px;
     --space-lg: 16px;
     --space-xl: 20px;
+    --radius-xs: 2px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-pill: 999px;
+    --icon-size-sm: 16px;
+    --icon-size-md: 18px;
+    --icon-size-lg: 20px;
+    --icon-size-xl: 24px;
+    --checkbox-size: 20px;
+    --touch-target: 44px;
+    --control-height: 34px;
+    --search-row-height: calc(var(--control-height) + 2 * var(--space-sm));
+    --mobile-toolbar-height: calc(var(--control-height) + 2 * var(--space-xs) + 1px);
+
+    /* Stacking, lowest first. The sticky header sits above the lists panel's
+       backdrop, so its switcher can close the panel. */
+    --z-toolbar: 10;
+    --z-panel-backdrop: 25;
+    --z-sticky-header: 26;
+    --z-lists-panel: 30;
+    --z-dialog: 2000;
+
+    /* Motion. --drop-duration matches the timer in drag-behavior.ts and
+       --flash-duration matches FLASH_MS in main-pane.ts. */
     --transition-fast: 0.2s ease;
+    --flip-duration: 140ms;
     --drop-duration: 0.3s;
+    --flash-duration: 0.8s;
+
+    /* Icons */
     --rename-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%23626262' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 2.5 13.5 5l-8 8H3v-2.5zM9.5 4 12 6.5'/%3E%3C/svg%3E");
     --task-handle-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWdyaXAtdmVydGljYWwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTcgMmExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgME03IDVhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBNNyA4YTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMG0zIDBhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbS0zIDNhMSAxIDAgMSAxLTIgMCAxIDEgMCAwIDEgMiAwbTMgMGExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtLTMgM2ExIDEgMCAxIDEtMiAwIDEgMSAwIDAgMSAyIDBtMyAwYTEgMSAwIDEgMS0yIDAgMSAxIDAgMCAxIDIgMCIvPgo8L3N2Zz4=");
     --task-options-icon-left: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1sZWZ0IiB2aWV3Qm94PSIwIDAgMTYgMTYiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTkuMjI0IDEuNTUzYS41LjUgMCAwIDEgLjIyMy42N0w2LjU2IDhsMi44ODggNS43NzZhLjUuNSAwIDEgMS0uODk0LjQ0OGwtMy02YS41LjUgMCAwIDEgMC0uNDQ4bDMtNmEuNS41IDAgMCAxIC42Ny0uMjIzIi8+Cjwvc3ZnPg==");
@@ -79,7 +117,7 @@
         font: inherit;
         padding: var(--space-xs) var(--space-sm);
         border-radius: var(--radius-sm);
-        border: 1px solid var(--outline-color);
+        border: 1px solid var(--color-border-strong);
         background-color: var(--color-surface);
         color: var(--color-text);
         cursor: pointer;
@@ -88,8 +126,8 @@
             color var(--transition-fast);
 
         svg {
-            width: 16px;
-            height: 16px;
+            width: var(--icon-size-sm);
+            height: var(--icon-size-sm);
         }
 
         &:hover {
@@ -111,8 +149,8 @@
     button:focus-visible,
     .sidebar-actions-toggle:focus-visible,
     .done-toggle:focus-visible {
-        outline: 2px solid var(--outline-color);
-        outline-offset: 2px;
+        outline: var(--focus-outline);
+        outline-offset: var(--focus-outline-offset);
     }
 
     .sidebar-search-input:focus,
@@ -135,7 +173,7 @@
 
     /* The main action in a group: filled instead of outlined. */
     .primary {
-        font-weight: 600;
+        font-weight: var(--font-weight-bold);
         background-color: var(--color-text);
         border-color: var(--color-text);
         color: var(--color-surface);
@@ -164,15 +202,15 @@
         flex-shrink: 0;
 
         svg {
-            width: 18px;
-            height: 18px;
+            width: var(--icon-size-md);
+            height: var(--icon-size-md);
         }
     }
 }
 
 .is-drop-target {
     border: 1px solid var(--color-accent);
-    box-shadow: inset 0 0 0 2px rgb(var(--color-accent-rgb) / 60%);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-accent) 60%, transparent);
 }
 
 .lists-app {
@@ -191,7 +229,7 @@
     padding: var(--space-lg);
     background-color: var(--color-sidebar);
     border-right: 1px solid var(--color-border);
-    box-shadow: inset -1px 0 0 rgb(var(--color-white-rgb) / 45%);
+    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--color-surface) 45%, transparent);
     min-width: 0;
     grid-column: 1;
 }
@@ -234,8 +272,8 @@
 
 .sidebar-title {
     margin: 0;
-    font-size: 24px;
-    font-weight: 600;
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
 }
 
 @media (width > 640px) {
@@ -268,7 +306,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     color: var(--color-muted);
 }
 
@@ -323,13 +361,13 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-xs);
-    font-weight: 600;
+    font-weight: var(--font-weight-bold);
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
 .sidebar-list-count {
-    font-size: 14px;
+    font-size: var(--font-size-md);
     color: var(--color-muted);
     white-space: nowrap;
 }
@@ -344,7 +382,7 @@
 }
 
 :where(.sidebar-list) > li:not(.is-active):is(:hover, :focus-within) {
-    border-color: var(--outline-color);
+    border-color: var(--color-border-strong);
 }
 
 .sidebar-list > .is-active {
@@ -354,18 +392,18 @@
 }
 
 .sidebar-list > .is-active .sidebar-list-count {
-    color: rgb(var(--color-white-rgb) / 70%);
+    color: color-mix(in srgb, var(--color-surface) 70%, transparent);
 }
 
 .sidebar-list > .dragging {
-    outline: 2px dotted var(--color-focus-ring);
+    outline: 2px dotted var(--color-drag-outline);
     box-shadow: var(--shadow-drag);
     background-color: var(--color-surface);
 }
 
 .sidebar-list > .is-drop-target {
     border-color: var(--color-accent);
-    background-color: rgb(var(--color-accent-rgb) / 12%);
+    background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .sidebar-list > .is-drop-target .sidebar-list-count {
@@ -401,7 +439,7 @@
     align-items: center;
     gap: var(--space-xs);
     cursor: pointer;
-    font-weight: 600;
+    font-weight: var(--font-weight-bold);
     padding: var(--space-xs) 0;
     list-style: none;
 }
@@ -412,7 +450,7 @@
 
 .sidebar-actions-toggle::before {
     content: "▸";
-    font-size: 10px;
+    font-size: var(--font-size-xs);
     line-height: 1;
 }
 
@@ -439,7 +477,7 @@
     font-size: var(--font-size-sm);
 
     dt {
-        font-weight: 500;
+        font-weight: var(--font-weight-medium);
     }
 
     dd {
@@ -475,8 +513,8 @@
 
 .lists-main-title {
     margin: 0;
-    font-size: 28px;
-    font-weight: 600;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
 }
 
 .lists-main-switcher-heading {
@@ -498,8 +536,8 @@
     font-size: var(--font-size-sm);
 
     svg {
-        width: 16px;
-        height: 16px;
+        width: var(--icon-size-sm);
+        height: var(--icon-size-sm);
         flex-shrink: 0;
     }
 }
@@ -522,7 +560,7 @@
     text-align: left;
 
     &:hover {
-        border-color: var(--color-border-muted);
+        border-color: var(--color-border);
         background-color: var(--color-surface-muted);
     }
 
@@ -532,8 +570,8 @@
     }
 
     .lists-switcher-chevron {
-        width: 18px;
-        height: 18px;
+        width: var(--icon-size-md);
+        height: var(--icon-size-md);
         flex-shrink: 0;
         transition: transform var(--transition-fast);
     }
@@ -566,20 +604,20 @@
 }
 
 .list-section-flash {
-    animation: target-flash 0.8s ease;
+    animation: target-flash var(--flash-duration) ease;
 }
 
 @keyframes target-flash {
     0% {
-        box-shadow: 0 0 0 0 rgb(var(--color-accent-rgb) / 40%);
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 40%, transparent);
     }
 
     50% {
-        box-shadow: 0 0 0 6px rgb(var(--color-accent-rgb) / 20%);
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 20%, transparent);
     }
 
     100% {
-        box-shadow: 0 0 0 0 rgb(var(--color-accent-rgb) / 0%);
+        box-shadow: 0 0 0 0 transparent;
     }
 }
 
@@ -609,8 +647,8 @@ a4-tasklist {
     min-width: 0;
     white-space: pre-wrap;
     max-width: 100%;
-    font-size: var(--font-size-title);
-    font-weight: 600;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
     padding: var(--space-xs);
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -621,20 +659,19 @@ a4-tasklist {
         box-shadow var(--transition-fast);
     outline: none;
 
-    &:focus-visible {
-        border-color: var(--outline-color);
-        box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
+    &:focus-visible,
+    &.is-editing {
+        border-color: var(--color-border-strong);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-border-strong) 25%, transparent);
     }
 
     &.is-editing {
-        border-color: var(--outline-color);
         background-color: var(--color-surface);
-        box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
     }
 
     &:hover:not(.is-editing),
     &:focus-visible:not(.is-editing) {
-        border-color: var(--color-border-muted);
+        border-color: var(--color-border);
         background-color: var(--color-surface-muted);
     }
 
@@ -657,12 +694,12 @@ a4-tasklist {
     background-color: transparent;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 16px 16px;
+    background-size: var(--icon-size-sm) var(--icon-size-sm);
     background-image: var(--rename-icon);
 
     &:hover,
     &:focus-visible {
-        border-color: var(--color-border-muted);
+        border-color: var(--color-border);
         background-color: var(--color-surface-muted);
     }
 }
@@ -704,7 +741,6 @@ a4-tasklist {
     flex-wrap: wrap;
 }
 
-
 .tasklist-show-done {
     display: inline-flex;
     align-items: center;
@@ -723,7 +759,7 @@ a4-tasklist {
     height: 20px;
     margin: 0;
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background-color: var(--color-surface-muted);
     cursor: pointer;
     position: relative;
@@ -777,8 +813,8 @@ a4-tasklist {
 }
 
 .task-item.is-focused {
-    border-color: var(--outline-color);
-    box-shadow: inset 3px 0 0 var(--outline-color);
+    border-color: var(--color-border-strong);
+    box-shadow: inset 3px 0 0 var(--color-border-strong);
 }
 
 .task-item[hidden] {
@@ -800,8 +836,8 @@ a4-tasklist {
 }
 
 .done-toggle {
-    width: 20px;
-    height: 20px;
+    width: var(--checkbox-size);
+    height: var(--checkbox-size);
     flex-shrink: 0;
     cursor: pointer;
     margin: 0;
@@ -825,7 +861,7 @@ a4-tasklist {
 .task-note-highlight mark {
     background-color: var(--color-highlight);
     color: inherit;
-    border-radius: 2px;
+    border-radius: var(--radius-xs);
 }
 
 .task-text.text-checked {
@@ -847,15 +883,15 @@ a4-tasklist {
     user-select: none;
     -webkit-touch-callout: none;
     touch-action: none;
-    width: 24px;
-    height: 24px;
+    width: var(--icon-size-xl);
+    height: var(--icon-size-xl);
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 24px 24px;
+    background-size: var(--icon-size-xl) var(--icon-size-xl);
     background-image: var(--task-handle-icon);
 
     &:active {
@@ -910,8 +946,8 @@ a4-tasklist {
 
 .task-note-panel {
     padding: var(--space-sm) var(--space-sm) var(--space-sm)
-        calc(20px + var(--space-sm) * 2);
-    border-top: 1px solid rgb(var(--color-border-strong-rgb) / 60%);
+        calc(var(--checkbox-size) + var(--space-sm) * 2);
+    border-top: 1px solid color-mix(in srgb, var(--color-border-strong) 60%, transparent);
 }
 
 .task-note-scroll-wrap {
@@ -935,8 +971,8 @@ a4-tasklist {
         top: 0;
         background: linear-gradient(
             to bottom,
-            rgb(var(--color-white-rgb) / 70%) 0%,
-            rgb(var(--color-white-rgb) / 0%) 100%
+            color-mix(in srgb, var(--color-surface) 70%, transparent),
+            transparent
         );
     }
 
@@ -944,8 +980,8 @@ a4-tasklist {
         bottom: 0;
         background: linear-gradient(
             to top,
-            rgb(var(--color-white-rgb) / 70%) 0%,
-            rgb(var(--color-white-rgb) / 0%) 100%
+            color-mix(in srgb, var(--color-surface) 70%, transparent),
+            transparent
         );
     }
 
@@ -986,7 +1022,7 @@ a4-tasklist {
 
     &::-webkit-scrollbar-thumb {
         background-color: var(--color-border);
-        border-radius: 999px;
+        border-radius: var(--radius-pill);
     }
 
     &::-webkit-scrollbar-track {
@@ -1007,7 +1043,7 @@ a4-tasklist {
     border-radius: 0;
     align-self: stretch;
     flex: 0 0 auto;
-    min-width: 24px;
+    min-width: var(--icon-size-xl);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1015,7 +1051,7 @@ a4-tasklist {
     border: none;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 24px 24px;
+    background-size: var(--icon-size-xl) var(--icon-size-xl);
     background-image: var(--task-options-icon-left);
 
     &:hover,
@@ -1065,7 +1101,7 @@ a4-tasklist {
 
 .task-item.dragging {
     will-change: transform;
-    outline: 3px dotted var(--color-focus-ring);
+    outline: 3px dotted var(--color-drag-outline);
     box-shadow: var(--shadow-drag);
     background: var(--color-surface);
     opacity: 0.9;
@@ -1106,7 +1142,7 @@ a4-tasklist {
 
     .tasklist-title {
         color: var(--color-muted);
-        font-weight: 500;
+        font-weight: var(--font-weight-medium);
     }
 
     .tasklist-empty {
@@ -1129,7 +1165,7 @@ a4-tasklist {
 
 .task-token-mention,
 .task-token-tag {
-    font-weight: 600;
+    font-weight: var(--font-weight-bold);
 }
 
 /* Tags and contexts in task text are toggle buttons that add them to or
@@ -1170,7 +1206,7 @@ button.task-token-tag {
 
 .flip-animating {
     will-change: transform;
-    transition: transform 140ms ease;
+    transition: transform var(--flip-duration) ease;
 }
 
 .drop-animation {
@@ -1203,7 +1239,7 @@ button.task-token-tag {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2000;
+    z-index: var(--z-dialog);
 
     &[hidden] {
         display: none;
@@ -1214,26 +1250,26 @@ button.task-token-tag {
 .shortcuts-dialog-backdrop {
     position: absolute;
     inset: 0;
-    background-color: rgb(var(--color-black-rgb) / 30%);
+    background-color: var(--color-dialog-backdrop);
 }
 
 .move-dialog-content,
 .shortcuts-dialog-content {
     position: relative;
     background-color: var(--color-surface);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: var(--space-xl);
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
-    box-shadow: 0 24px 48px rgb(var(--color-black-rgb) / 20%);
+    box-shadow: var(--shadow-dialog);
 }
 
 .move-dialog-title,
 .shortcuts-dialog-title {
     margin: 0;
-    font-size: 22px;
-    font-weight: 600;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
 }
 
 .move-dialog-cancel,
@@ -1278,11 +1314,11 @@ button.task-token-tag {
 }
 
 .move-dialog-option-name {
-    font-weight: 600;
+    font-weight: var(--font-weight-bold);
 }
 
 .move-dialog-option-count {
-    font-size: 14px;
+    font-size: var(--font-size-md);
     color: var(--color-muted);
 }
 
@@ -1325,8 +1361,8 @@ button.task-token-tag {
 
 .shortcuts-dialog-group-title {
     margin: 0;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-muted);
@@ -1364,18 +1400,18 @@ button.task-token-tag {
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-xs);
-    font-size: 14px;
+    font-size: var(--font-size-md);
     color: var(--color-muted);
 }
 
 .shortcuts-dialog-key {
     font: inherit;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     line-height: 1;
     min-width: 1.5em;
     text-align: center;
     padding: var(--space-xs) var(--space-sm);
-    border: 1px solid var(--outline-color);
+    border: 1px solid var(--color-border-strong);
     border-bottom-width: 2px;
     border-radius: var(--radius-sm);
     background-color: var(--color-surface-muted);
@@ -1394,7 +1430,7 @@ button.task-token-tag {
         position: fixed;
         inset-inline: 0;
         bottom: 0;
-        z-index: 10;
+        z-index: var(--z-toolbar);
         display: flex;
         align-items: center;
         gap: var(--space-sm);
@@ -1453,7 +1489,7 @@ button.task-token-tag {
         position: fixed;
         top: var(--lists-panel-top, 0);
         inset-inline: 0;
-        z-index: 30;
+        z-index: var(--z-lists-panel);
         max-height: calc(100dvh - var(--lists-panel-top, 0%) - var(--space-xl));
         overflow-y: auto;
         overscroll-behavior: contain;
@@ -1474,7 +1510,7 @@ button.task-token-tag {
 
     .lists-app.is-lists-panel-open .lists-sidebar {
         display: flex;
-        border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
         box-shadow: var(--shadow-panel);
     }
 
@@ -1486,8 +1522,8 @@ button.task-token-tag {
     .lists-panel-backdrop {
         position: fixed;
         inset: 0;
-        z-index: 25;
-        background-color: rgb(var(--color-black-rgb) / 35%);
+        z-index: var(--z-panel-backdrop);
+        background-color: var(--color-panel-backdrop);
     }
 
     .lists-app.is-lists-panel-open .lists-panel-backdrop {
@@ -1638,7 +1674,7 @@ button.task-token-tag {
     .lists-main-header {
         position: sticky;
         top: 0;
-        z-index: 26;
+        z-index: var(--z-sticky-header);
         margin-inline: calc(-1 * var(--space-lg));
         padding: calc(var(--space-xs) + env(safe-area-inset-top, 0px)) var(--space-lg)
             var(--space-xs) calc(var(--space-lg) - var(--space-xs));
@@ -1657,8 +1693,8 @@ button.task-token-tag {
         display: block;
         min-width: 0;
         margin: 0;
-        font-size: var(--font-size-title);
-        font-weight: 600;
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-bold);
     }
 
     .lists-main-header {
@@ -1667,7 +1703,7 @@ button.task-token-tag {
     }
 
     .lists-main-header .lists-switcher {
-        font-size: var(--font-size-title);
+        font-size: var(--font-size-lg);
     }
 
     .tasklist-header .tasklist-rename-button {
@@ -1691,14 +1727,14 @@ button.task-token-tag {
         &:hover,
         &:focus-visible,
         &[aria-expanded="true"] {
-            border-color: var(--color-border-muted);
+            border-color: var(--color-border);
             background-color: var(--color-surface-muted);
             color: var(--color-text);
         }
 
         svg {
-            width: 20px;
-            height: 20px;
+            width: var(--icon-size-lg);
+            height: var(--icon-size-lg);
         }
     }
 
