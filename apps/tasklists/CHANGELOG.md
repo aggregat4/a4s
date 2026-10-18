@@ -18,6 +18,7 @@ Release notes for a tag are taken from the matching version section, so the
 - Tags and contexts in a done task are greyed out like the rest of its text.
 - The list buttons in the sidebar show a focus ring when reached with the
   keyboard.
+- The note dot no longer shows a dark square when hovered.
 
 ## [v1.9.0] - 2026-10-17
 

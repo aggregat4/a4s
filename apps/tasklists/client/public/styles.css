@@ -53,104 +53,120 @@
     --task-options-icon-right: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iIzg0ODQ4NCIgY2xhc3M9ImJpIGJpLWNoZXZyb24tY29tcGFjdC1yaWdodCIgdmlld0JveD0iMCAwIDE2IDE2Ij4KICA8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik02Ljc3NiAxLjU1M2EuNS41IDAgMCAxIC42NzEuMjIzbDMgNmEuNS41IDAgMCAxIDAgLjQ0OGwtMyA2YS41LjUgMCAxIDEtLjg5NC0uNDQ4TDkuNDQgOCA2LjU1MyAyLjIyNGEuNS41IDAgMCAxIC4yMjMtLjY3MSIvPgo8L3N2Zz4=");
 }
 
-html,
-body {
-    /* Suppress iOS rubber-band/bounce on the document scroller. There is no
-       pull-to-reload in the installed home-screen app, so the bounce only
-       gets in the way. Needs iOS 16+; older versions ignore it harmlessly. */
-    overscroll-behavior-y: none;
-}
-
-body {
-    font-family: var(--font-family-base);
-    font-size: var(--font-size-base);
-    background-color: var(--color-background);
-    color: var(--color-text);
-    margin: 0;
-    min-height: 100vh;
-    display: flex;
-}
-
-button {
-    font: inherit;
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--outline-color);
-    background-color: var(--color-surface);
-    color: var(--color-text);
-    cursor: pointer;
-    transition:
-        background-color var(--transition-fast),
-        color var(--transition-fast);
-
-    svg {
-        width: 16px;
-        height: 16px;
+/* Element defaults and shared button looks. Everything after this layer is
+   unlayered, so component rules override these whatever their specificity:
+   a component's own background or color beats button:hover, for example. */
+@layer base {
+    html,
+    body {
+        /* Suppress iOS rubber-band/bounce on the document scroller. There is no
+           pull-to-reload in the installed home-screen app, so the bounce only
+           gets in the way. Needs iOS 16+; older versions ignore it harmlessly. */
+        overscroll-behavior-y: none;
     }
 
-    &:hover {
-        background-color: var(--color-text);
-        color: var(--color-surface);
+    body {
+        font-family: var(--font-family-base);
+        font-size: var(--font-size-base);
+        background-color: var(--color-background);
+        color: var(--color-text);
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
     }
 
-    &:focus-visible {
+    button {
+        font: inherit;
+        padding: var(--space-xs) var(--space-sm);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--outline-color);
+        background-color: var(--color-surface);
+        color: var(--color-text);
+        cursor: pointer;
+        transition:
+            background-color var(--transition-fast),
+            color var(--transition-fast);
+
+        svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        &:hover {
+            background-color: var(--color-text);
+            color: var(--color-surface);
+        }
+
+        &:disabled,
+        &:disabled:hover {
+            background-color: var(--color-surface-muted);
+            border-color: var(--color-border);
+            color: var(--color-disabled-text);
+            cursor: default;
+        }
+    }
+
+    /* Focus rings: a solid one on controls, the softer editing one on fields
+       and controls that sit in a field-like row. */
+    button:focus-visible,
+    .sidebar-actions-toggle:focus-visible,
+    .done-toggle:focus-visible {
         outline: 2px solid var(--outline-color);
         outline-offset: 2px;
     }
 
-    &:disabled,
-    &:disabled:hover {
-        background-color: var(--color-surface-muted);
-        border-color: var(--color-border);
-        color: var(--color-disabled-text);
-        cursor: default;
+    .sidebar-search-input:focus,
+    .switch:focus-visible,
+    .task-note-toggle:focus-visible {
+        outline: var(--field-focus-outline);
+        outline-offset: var(--field-focus-outline-offset);
     }
-}
 
-.danger {
-    border-color: var(--color-danger);
-    color: var(--color-danger);
+    .danger {
+        border-color: var(--color-danger);
+        color: var(--color-danger);
 
-    &:hover,
-    &:focus-visible {
-        background-color: var(--color-danger);
+        &:hover,
+        &:focus-visible {
+            background-color: var(--color-danger);
+            color: var(--color-surface);
+        }
+    }
+
+    /* The main action in a group: filled instead of outlined. */
+    .primary {
+        font-weight: 600;
+        background-color: var(--color-text);
+        border-color: var(--color-text);
         color: var(--color-surface);
+
+        &:hover {
+            background-color: var(--color-border-strong);
+            border-color: var(--color-border-strong);
+        }
     }
-}
 
-/* The main action in a group: filled instead of outlined. */
-.primary {
-    font-weight: 600;
-    background-color: var(--color-text);
-    border-color: var(--color-text);
-    color: var(--color-surface);
-
-    &:hover {
-        background-color: var(--color-border-strong);
-        border-color: var(--color-border-strong);
+    .iconlabel {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
     }
-}
 
-.iconlabel {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-xs);
-}
+    /* A square button showing only an icon; give it an aria-label. */
+    .icon-button {
+        --icon-button-size: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--icon-button-size);
+        height: var(--icon-button-size);
+        padding: 0;
+        flex-shrink: 0;
 
-/* A square button showing only an icon; give it an aria-label. */
-.icon-button {
-    --icon-button-size: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--icon-button-size);
-    height: var(--icon-button-size);
-    padding: 0;
-    flex-shrink: 0;
-
-    svg {
-        width: 18px;
-        height: 18px;
+        svg {
+            width: 18px;
+            height: 18px;
+        }
     }
 }
 
@@ -269,11 +285,6 @@ button {
     background-color: var(--color-surface);
     color: var(--color-text);
     width: 100%;
-
-    &:focus {
-        outline: var(--field-focus-outline);
-        outline-offset: var(--field-focus-outline-offset);
-    }
 }
 
 .sidebar-sections {
@@ -305,11 +316,6 @@ button {
     color: inherit;
     text-align: left;
     flex: 1;
-
-    &:hover {
-        background-color: transparent;
-        color: inherit;
-    }
 }
 
 .sidebar-list-label {
@@ -337,8 +343,7 @@ button {
     background-color: var(--color-surface);
 }
 
-.sidebar-list > li:hover:not(.is-active),
-.sidebar-list > li:focus-within:not(.is-active) {
+:where(.sidebar-list) > li:not(.is-active):is(:hover, :focus-within) {
     border-color: var(--outline-color);
 }
 
@@ -411,17 +416,12 @@ button {
     line-height: 1;
 }
 
-.sidebar-actions-disclosure[open] .sidebar-actions-toggle::before {
+[open] > .sidebar-actions-toggle::before {
     content: "▾";
 }
 
 .sidebar-actions-toggle-label {
     min-width: 0;
-}
-
-.sidebar-actions-toggle:focus-visible {
-    outline: 2px solid var(--outline-color);
-    outline-offset: 2px;
 }
 
 .sidebar-actions-panel {
@@ -469,7 +469,7 @@ button {
 }
 
 /* The main header shows in search mode and when there are no lists. */
-.lists-main:not(.search-mode):has(.list-section.is-visible) .lists-main-header {
+:where(.lists-main:not(.search-mode):has(.list-section.is-visible)) .lists-main-header {
     display: none;
 }
 
@@ -524,7 +524,6 @@ button {
     &:hover {
         border-color: var(--color-border-muted);
         background-color: var(--color-surface-muted);
-        color: var(--color-text);
     }
 
     .lists-switcher-label {
@@ -594,116 +593,117 @@ a4-tasklist {
     align-items: center;
     gap: var(--space-lg);
     margin-bottom: var(--space-md);
+}
 
-    .tasklist-title-wrapper {
-        position: relative;
-        display: inline-flex;
-        flex-wrap: wrap;
-        align-items: center;
-        min-width: 0;
-        justify-self: start;
+.tasklist-title-wrapper {
+    position: relative;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    min-width: 0;
+    justify-self: start;
+}
+
+.tasklist-title {
+    margin: 0;
+    min-width: 0;
+    white-space: pre-wrap;
+    max-width: 100%;
+    font-size: var(--font-size-title);
+    font-weight: 600;
+    padding: var(--space-xs);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: text;
+    transition:
+        border-color var(--transition-fast),
+        background-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+    outline: none;
+
+    &:focus-visible {
+        border-color: var(--outline-color);
+        box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
     }
 
-    .tasklist-title {
-        margin: 0;
-        min-width: 0;
-        white-space: pre-wrap;
-        max-width: 100%;
-        font-size: var(--font-size-title);
-        font-weight: 600;
-        padding: var(--space-xs);
-        border: 1px solid transparent;
-        border-radius: var(--radius-sm);
-        cursor: text;
-        transition:
-            border-color var(--transition-fast),
-            background-color var(--transition-fast),
-            box-shadow var(--transition-fast);
-        outline: none;
-
-        /* Hidden only outside editing: hiding the title while it is being
-           edited (e.g. after deleting its text) drops focus and ends the edit. */
-        &:empty:not(.is-editing) {
-            display: none;
-        }
-
-        &:focus-visible {
-            border-color: var(--outline-color);
-            box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
-        }
-
-        &.is-editing {
-            border-color: var(--outline-color);
-            background-color: var(--color-surface);
-            box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
-        }
-
-        &:hover:not(.is-editing),
-        &:focus-visible:not(.is-editing) {
-            border-color: var(--color-border-muted);
-            background-color: var(--color-surface-muted);
-        }
+    &.is-editing {
+        border-color: var(--outline-color);
+        background-color: var(--color-surface);
+        box-shadow: 0 0 0 2px rgb(var(--color-border-strong-rgb) / 25%);
     }
 
-    /* Renames the list in place; on narrow screens the only way to, as the
-       title opens the lists there. */
-    .tasklist-rename-button {
-        --rename-button-size: 32px;
-        width: var(--rename-button-size);
-        height: var(--rename-button-size);
-        flex-shrink: 0;
-        padding: 0;
-        border-color: transparent;
-        background-color: transparent;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 16px 16px;
-        background-image: var(--rename-icon);
-
-        &:hover,
-        &:focus-visible {
-            border-color: var(--color-border-muted);
-            background-color: var(--color-surface-muted);
-        }
+    &:hover:not(.is-editing),
+    &:focus-visible:not(.is-editing) {
+        border-color: var(--color-border-muted);
+        background-color: var(--color-surface-muted);
     }
 
-    /* The switcher replaces the title on narrow screens only. */
-    .tasklist-switcher-heading {
+    /* Hidden only outside editing: hiding the title while it is being
+       edited (e.g. after deleting its text) drops focus and ends the edit. */
+    &:empty:not(.is-editing) {
         display: none;
     }
+}
 
-    /* Below the title, in its wrapper: an empty line takes no room. */
-    .tasklist-sync-status {
-        flex-basis: 100%;
-    }
+/* Renames the list in place; on narrow screens the only way to, as the
+   title opens the lists there. */
+.tasklist-rename-button {
+    --rename-button-size: 32px;
+    width: var(--rename-button-size);
+    height: var(--rename-button-size);
+    flex-shrink: 0;
+    padding: 0;
+    border-color: transparent;
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 16px 16px;
+    background-image: var(--rename-icon);
 
-    /* A failed save, in a row of its own above the title and controls. */
-    .tasklist-header-error {
-        grid-column: 1 / -1;
-        display: flex;
-        align-items: center;
-        gap: var(--space-sm);
-        padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-sm);
-        border: 1px solid var(--color-danger);
-        border-radius: var(--radius-sm);
-        background-color: var(--color-surface);
-        color: var(--color-danger);
-    }
-
-    .tasklist-header-error-message {
-        flex: 1;
-        min-width: 0;
-        overflow-wrap: anywhere;
-    }
-
-    .tasklist-controls {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: var(--space-sm);
-        flex-wrap: wrap;
+    &:hover,
+    &:focus-visible {
+        border-color: var(--color-border-muted);
+        background-color: var(--color-surface-muted);
     }
 }
+
+/* The switcher replaces the title on narrow screens only. */
+.tasklist-switcher-heading {
+    display: none;
+}
+
+/* Below the title, in its wrapper: an empty line takes no room. */
+.tasklist-sync-status {
+    flex-basis: 100%;
+}
+
+/* A failed save, in a row of its own above the title and controls. */
+.tasklist-header-error {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+    color: var(--color-danger);
+}
+
+.tasklist-header-error-message {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.tasklist-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
 
 .tasklist-show-done {
     display: inline-flex;
@@ -752,11 +752,6 @@ a4-tasklist {
             transform: translate(16px, -50%);
             border-color: var(--color-text);
         }
-    }
-
-    &:focus-visible {
-        outline: var(--field-focus-outline);
-        outline-offset: var(--field-focus-outline-offset);
     }
 }
 
@@ -810,11 +805,6 @@ a4-tasklist {
     flex-shrink: 0;
     cursor: pointer;
     margin: 0;
-
-    &:focus-visible {
-        outline: 2px solid var(--outline-color);
-        outline-offset: 2px;
-    }
 }
 
 .task-text {
@@ -898,11 +888,6 @@ a4-tasklist {
         border-color: var(--color-text);
     }
 
-    &:focus-visible {
-        outline: var(--field-focus-outline);
-        outline-offset: var(--field-focus-outline-offset);
-    }
-
     &[aria-pressed="true"]::before {
         border-color: var(--color-text);
     }
@@ -914,19 +899,13 @@ a4-tasklist {
     }
 }
 
-.task-note-toggle.has-note {
-    &::before {
-        border: none;
-        background-color: var(--color-muted);
-    }
+.task-note-toggle.has-note::before {
+    border: none;
+    background-color: var(--color-muted);
+}
 
-    &:hover::before {
-        background-color: var(--color-text);
-    }
-
-    &[aria-pressed="true"]::before {
-        background-color: var(--color-text);
-    }
+.has-note:is(:hover, [aria-pressed="true"])::before {
+    background-color: var(--color-text);
 }
 
 .task-note-panel {
@@ -1108,7 +1087,7 @@ a4-tasklist {
    Scoped under .search-mode because a list keeps tasklist-no-matches for a
    moment after the search ends; collapsing it then hides an open note while
    its scroll shadows are measured. */
-.lists-main.search-mode .tasklist-no-matches {
+:where(.lists-main.search-mode) .tasklist-no-matches {
     /* Lay the title and the "No matching items" note out on a single row
        (title left, note right) instead of stacking them on two lines. */
     display: flex;
@@ -1138,13 +1117,12 @@ a4-tasklist {
 
 /* In search mode every list title is a read-only label: drop the rename
    cursor/hover affordance and the padding reserved for the edit icon. */
-.lists-main.search-mode .tasklist-header .tasklist-title {
+.search-mode .tasklist-title {
     cursor: default;
     padding-right: var(--space-xs);
 }
 
-.lists-main.search-mode .tasklist-header .tasklist-title:hover,
-.lists-main.search-mode .tasklist-header .tasklist-title:focus-visible {
+.search-mode .tasklist-title:is(:hover, :focus-visible) {
     border-color: transparent;
     background-color: transparent;
 }
@@ -1168,8 +1146,6 @@ button.task-token-tag {
     text-align: inherit;
 
     &:hover {
-        background-color: transparent;
-        color: inherit;
         text-decoration: underline;
     }
 
@@ -1503,7 +1479,7 @@ button.task-token-tag {
     }
 
     /* Tasks scrolled under the search row, as under the header. */
-    .lists-app.has-content-above.is-search-row-open:not(.is-lists-panel-open) .lists-sidebar {
+    :where(.lists-app.has-content-above.is-search-row-open:not(.is-lists-panel-open)) .lists-sidebar {
         box-shadow: var(--shadow-header);
     }
 
@@ -1588,11 +1564,11 @@ button.task-token-tag {
     }
 
     /* The toolbar holds Add and "Show done" outside search mode. */
-    .lists-main:not(.search-mode) .tasklist-header .tasklist-controls {
+    :where(.lists-main:not(.search-mode)) .tasklist-controls {
         display: none;
     }
 
-    .lists-main.search-mode .tasklist-header {
+    .search-mode .tasklist-header {
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
 
@@ -1601,7 +1577,7 @@ button.task-token-tag {
         }
     }
 
-    .tasklist > .task-item {
+    .task-item {
         --task-actions-reveal-width: 128px;
         --task-swipe-translate: 0px;
 
@@ -1658,8 +1634,8 @@ button.task-token-tag {
     /* The header naming what is shown stays at the top of the screen: the
        active list's, or the main one in search mode. It sits above the
        panel's backdrop, so its switcher also closes the panel. */
-    .lists-main:not(.search-mode) .list-section.is-active .tasklist-header,
-    .lists-main .lists-main-header {
+    :where(.lists-main:not(.search-mode) .list-section.is-active) .tasklist-header,
+    .lists-main-header {
         position: sticky;
         top: 0;
         z-index: 26;
@@ -1671,13 +1647,13 @@ button.task-token-tag {
         transition: box-shadow var(--transition-fast);
     }
 
-    .lists-main .lists-main-title,
-    .lists-main:not(.search-mode) .tasklist-title:not(.is-editing) {
+    .lists-main-title,
+    :where(.lists-main:not(.search-mode)) .tasklist-title:not(.is-editing) {
         display: none;
     }
 
-    .lists-main .lists-main-switcher-heading,
-    .lists-main:not(.search-mode) .tasklist-header .tasklist-switcher-heading {
+    .lists-main-switcher-heading,
+    :where(.lists-main:not(.search-mode)) .tasklist-switcher-heading {
         display: block;
         min-width: 0;
         margin: 0;
@@ -1685,7 +1661,7 @@ button.task-token-tag {
         font-weight: 600;
     }
 
-    .lists-main .lists-main-header {
+    .lists-main-header {
         align-items: center;
         gap: 0 var(--space-xs);
     }
@@ -1728,23 +1704,23 @@ button.task-token-tag {
 
     /* The open search row hangs below the sticky header, over the tasks, so
        the header keeps room for it (the row's bottom border included). */
-    .lists-app.is-search-row-open .lists-main:not(.search-mode) .list-section.is-active .tasklist-header {
+    :where(.lists-app.is-search-row-open .lists-main:not(.search-mode) .list-section.is-active) .tasklist-header {
         margin-bottom: calc(var(--space-md) + var(--search-row-height) + 1px);
     }
 
-    .lists-app.is-search-row-open .lists-main .lists-main-header {
+    :where(.lists-app.is-search-row-open) .lists-main-header {
         margin-bottom: calc(var(--search-row-height) + 1px);
     }
 
     /* The row continues the header: one line under both, not one between. */
-    .lists-app.is-search-row-open .lists-main:not(.search-mode) .list-section.is-active .tasklist-header,
-    .lists-app.is-search-row-open .lists-main .lists-main-header {
+    :where(.lists-app.is-search-row-open .lists-main:not(.search-mode) .list-section.is-active) .tasklist-header,
+    :where(.lists-app.is-search-row-open) .lists-main-header {
         border-bottom-color: transparent;
     }
 
     /* Tasks scrolled under the header, like the toolbar's shadow below. */
-    .lists-app.has-content-above .lists-main:not(.search-mode) .list-section.is-active .tasklist-header,
-    .lists-app.has-content-above .lists-main .lists-main-header {
+    :where(.lists-app.has-content-above .lists-main:not(.search-mode) .list-section.is-active) .tasklist-header,
+    :where(.lists-app.has-content-above) .lists-main-header {
         box-shadow: var(--shadow-header);
     }
 
