@@ -10,6 +10,15 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Fixed
+
+- A failed save shows its message in a red box above the list title instead
+  of squeezing the title and buttons aside.
+- A note that matches a search keeps its line breaks and spacing.
+- Tags and contexts in a done task are greyed out like the rest of its text.
+- The list buttons in the sidebar show a focus ring when reached with the
+  keyboard.
+
 ## [v1.9.0] - 2026-10-17
 
 ### Changed

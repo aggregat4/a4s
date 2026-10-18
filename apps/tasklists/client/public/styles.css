@@ -15,8 +15,6 @@
     --color-border-muted: #949494;
     --color-border-strong: #4d4d4d;
     --color-highlight: #ffec99;
-    --color-mention: #333;
-    --color-tag: #333;
     --color-handle: #848484;
     --color-accent: #1c7ed6;
     --color-danger: #c92a2a;
@@ -311,10 +309,6 @@ button {
     &:hover {
         background-color: transparent;
         color: inherit;
-    }
-
-    &:focus-visible {
-        outline: none;
     }
 }
 
@@ -683,6 +677,25 @@ a4-tasklist {
         flex-basis: 100%;
     }
 
+    /* A failed save, in a row of its own above the title and controls. */
+    .tasklist-header-error {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-sm);
+        border: 1px solid var(--color-danger);
+        border-radius: var(--radius-sm);
+        background-color: var(--color-surface);
+        color: var(--color-danger);
+    }
+
+    .tasklist-header-error-message {
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
     .tasklist-controls {
         display: flex;
         align-items: center;
@@ -818,7 +831,8 @@ a4-tasklist {
     outline: none;
 }
 
-.task-text mark {
+.task-text mark,
+.task-note-highlight mark {
     background-color: var(--color-highlight);
     color: inherit;
     border-radius: 2px;
@@ -1001,6 +1015,14 @@ a4-tasklist {
     }
 }
 
+/* A note shown read-only with its search matches marked, set like the field. */
+.task-note-highlight {
+    padding: var(--space-xs) 0;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .task-item-toggle {
     background-color: inherit;
     border-radius: 0;
@@ -1127,13 +1149,8 @@ a4-tasklist {
     background-color: transparent;
 }
 
-.task-token-mention {
-    color: var(--color-mention);
-    font-weight: 600;
-}
-
+.task-token-mention,
 .task-token-tag {
-    color: var(--color-tag);
     font-weight: 600;
 }
 
@@ -1147,6 +1164,7 @@ button.task-token-tag {
     border: 0;
     border-radius: 0;
     background-color: transparent;
+    color: inherit;
     text-align: inherit;
 
     &:hover {
