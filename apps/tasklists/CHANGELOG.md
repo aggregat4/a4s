@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.9.1] - 2026-11-01
+
 ### Fixed
 
 - A failed save shows its message in a red box above the list title instead
