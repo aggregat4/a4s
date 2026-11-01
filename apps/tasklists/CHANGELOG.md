@@ -20,6 +20,11 @@ Release notes for a tag are taken from the matching version section, so the
   keyboard.
 - The note dot no longer shows a dark square when hovered.
 
+### Security
+
+- Built with Go 1.27.3, which distrusts compromised intermediate
+  certificates in `crypto/x509` (GO-2026-6809).
+
 ## [v1.9.0] - 2026-10-17
 
 ### Changed

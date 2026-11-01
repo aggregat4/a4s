@@ -10,6 +10,14 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Security
+
+- Built with Go 1.27.3, which distrusts compromised intermediate
+  certificates in `crypto/x509` (GO-2026-6809).
+- Upgraded `golang.org/x/net` to v0.62.0, fixing quadratic HTML parsing time
+  on crafted feeds (GO-2026-6860) and unsafe raw-text rendering
+  (GO-2026-6866).
+
 ## [v1.6.0] - 2026-10-03
 
 ### Changed
