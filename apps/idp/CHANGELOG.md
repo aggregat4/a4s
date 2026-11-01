@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v2.2.1] - 2026-11-01
+
 ### Security
 
 - Built with Go 1.27.3, which distrusts compromised intermediate
