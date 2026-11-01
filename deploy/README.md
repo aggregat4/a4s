@@ -102,8 +102,31 @@ Runtime configuration lives under `/etc/a4s`, outside release directories:
 | `env/comments.env.example` | `/etc/a4s/comments.env` | `root:a4-comments`, `0640` |
 | `config/rssgrid/rssgrid.json` | `/etc/a4s/rssgrid/rssgrid.json` | `root:a4-rssgrid`, `0644` |
 | `config/openidprovider/openidprovider.json.example` | `/etc/a4s/openidprovider/openidprovider.json` | `root:a4-openidprovider`, `0640` |
-| OpenID Provider private key | `/etc/a4s/openidprovider/private.pem` | `root:a4-openidprovider`, `0640` |
-| OpenID Provider public key | `/etc/a4s/openidprovider/public.pem` | `root:a4-openidprovider`, `0644` |
+
+Bookmarks is the one exception: `bmserver` also calls `godotenv.Load()` for a
+`.env` file in its working directory, so `/opt/a4services/bookmarks/.env` is
+read when present. It is optional (a missing file is not an error), and
+variables already supplied by `EnvironmentFile` win, because godotenv does not
+override the environment. It can still carry
+`DELBM_OIDC_CLIENT_SECRET`, so keep it `root:a4-bookmarks` mode `0640` - never
+world-readable - and treat it as a second source of truth for the same
+settings. No other application reads a `.env`; the leftover
+`/opt/a4services/tasklists/.env` was stale and has been retired.
+
+Only the JSON configuration lives under `/etc/a4s`. The OpenID Provider keeps
+its signing key pair and SQLite database in its state directory, and its
+configuration points there:
+
+```text
+/opt/a4services/openidprovider/data/   0750 a4-openidprovider:a4-openidprovider
+├── openidprovider.sqlite              0600   (databasefilename)
+├── private.pem                        0600   (privatekeypemfilename)
+└── public.pem                         0600   (publickeypemfilename)
+```
+
+`ProtectSystem=strict` plus `ReadWritePaths` makes that directory the only
+writable path, so the key pair belongs with the mutable state rather than with
+the read-only configuration.
 
 Provision the configuration directories before installing files:
 
@@ -239,3 +262,88 @@ point `current.next` at the previous version, atomically replace `current`
 again, and restart. A binary rollback does not roll back a database migration;
 take an SQLite-consistent backup and check release notes before deploying a
 schema-changing version.
+
+## Deploying on the live host
+
+The production host runs Debian 12 "bookworm" (glibc 2.36) and serves every
+public service name. That libc version matches the Bookworm image used by
+`task package`, so the CGO/SQLite archives run unchanged; re-check this baseline
+before changing the host distribution or the packaging image. The machine's own
+identity and access details belong in private operator notes, not here.
+
+Do not deploy by hand. Use the deployer in this directory:
+
+```bash
+# with the archive and its .sha256 already in the archive directory
+sudo deploy/scripts/deploy-service.sh <app> <version> --archive-dir <dir> [--dry-run]
+# app: bookmarks | idp | rssgrid | tasklists, version: v1.9.2 or 1.9.2
+```
+
+| App | Unit | Archive prefix | Entry binary | State dir | Port | Health probe |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bookmarks` | `bookmarks.service` | `bookmarks` | `bmserver` | `db` | 1302 | `/` → 302 |
+| `idp` | `openidprovider.service` | `openidprovider` | `server` | `data` | 1301 | `/status` → 200 |
+| `rssgrid` | `rssgrid.service` | `rssgrid` | `rssgrid` | `data` | 1400 | `/` → 302 |
+| `tasklists` | `tasklists.service` | `tasklists` | `tasklists` | `data` | 9085 | `/healthz` → 200 |
+
+The deployer enforces the rules in this file: it verifies the published
+SHA-256 file, refuses to overwrite an existing version directory, copies the
+database with the SQLite backup API and integrity-checks the copy, unpacks into
+a new root-owned version directory, switches `current` with a relative symlink
+and an atomic rename, restarts the unit, and waits for the health probe. If the
+restart or the probe fails, it reverts `current`, restarts the previous release
+and removes the new version directory. `--dry-run` prints the plan and changes
+nothing.
+
+The database backup waits on a SQLite busy timeout and retries up to three
+times, so a transient exclusive lock from the running service (for example
+during a checkpoint) does not abort a deployment; a real failure is reported
+with the SQLite error text and leaves `current` untouched. Because these
+backups, the migration backups under `/opt/a4services/cleanup-backup-*` and
+`migration-backup-*`, and the OpenID Provider signing key are sensitive, their
+directories stay `0700` and their files `0600`.
+
+Host conventions:
+
+| Path | Purpose |
+| --- | --- |
+| `/opt/a4services/<service>/<version>` | release directories, `root:root`, `0755` |
+| `/opt/a4services/<service>/current` | relative symlink to the active version |
+| `/opt/a4services/<service>/data` or `/db` | service-owned state, `0750`/`0600` |
+| `/opt/a4services/backups` | SQLite backups made by the deployer, `root:root`, `0700` |
+| `/etc/a4s` | runtime configuration and secrets |
+| `~/a4s-deploy/deploy` | host copy of this directory; keep it in sync with the repository |
+| `~/a4s-deploy/releases` | host copy of downloaded release archives and `.sha256` files |
+| `~/a4s-deploy/backups` | older SQLite backups, superseded by `/opt/a4services/backups` |
+
+The deployer defaults `--archive-dir` to `/opt/a4services/releases`. The host
+currently keeps downloads in `~/a4s-deploy/releases` and its wrapper scripts
+pass that explicitly, so either location works as long as the archive and its
+checksum sit in the same directory.
+
+`~/a4s-deploy/redeploy.sh` deploys several services in one invocation and
+requires an explicit version for every app, so it can never fall back to a
+stale default version:
+
+```bash
+sudo bash ~/a4s-deploy/redeploy.sh idp=<version> bookmarks=<version> \
+  rssgrid=<version> tasklists=<version>
+```
+
+Deployment stops at the first failure; services deployed before it keep their
+new release and the rest are untouched. Release directories are never removed
+automatically, so the previous version stays available for a manual rollback
+(`ln -sfn <old-version> current.next && mv -Tf current.next current &&
+systemctl restart <service>`).
+
+Check what is deployed with `readlink /opt/a4services/*/current` and whether
+anything failed with `systemctl list-units --failed`. Nginx and the certificate
+are unchanged by a release deployment; they only change when a service is added
+or removed.
+
+Comments is prepared but not deployed on this host: the release artifact exists
+under `/opt/a4services/comments`, but there is no unit, no `/etc/a4s/comments`
+configuration and no DNS record. Enabling it needs a `comments.aggregat4.net`
+record, `certbot ... -d comments.aggregat4.net` for the `a4services`
+certificate, the unit and configuration from this directory, and the Nginx site
+symlink.

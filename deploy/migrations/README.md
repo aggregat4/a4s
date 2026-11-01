@@ -241,3 +241,14 @@ After all services and Nginx have survived an observation period:
 - retain at least one previous release and verified database backup;
 - inspect `systemctl list-units --failed`, application logs, and Certbot renewal
   status before considering the migration complete.
+
+### Status
+
+The cleanup above was completed on 2026-11-01: the
+`/opt/a4services/a4tasklists` compatibility symlink is gone, the stale unit and
+configuration copies (`bookmarks.service`, `a4tasklists.service`,
+`openidprovider.json`, `rssgrid.json`, the pre-migration Nginx backup) were
+relocated to `/opt/a4services/cleanup-backup-*`, the Comments artifact is owned
+by `root:root`, and the service state directories are `0750` with `0600` files.
+The migration record above stays as written for disaster recovery; use
+`deploy/README.md` for steady-state deployments.
