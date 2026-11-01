@@ -27,14 +27,14 @@
     "lit": "3.3.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.0",
-    "@types/node": "26.6.4",
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.6",
     "esbuild": "0.28.2",
-    "fake-indexeddb": "6.2.5",
+    "fake-indexeddb": "6.2.7",
     "fast-check": "4.10.2",
     "http-server": "14.1.1",
-    "knip": "6.41.0",
-    "postcss": "8.5.26",
+    "knip": "6.44.1",
+    "postcss": "8.5.32",
     "stylelint": "17.16.0",
     "stylelint-config-standard": "40.0.0",
     "typescript": "^7.0.2"
