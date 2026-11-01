@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.9.2] - 2026-11-01
+
 ### Fixed
 
 - Saving keeps working after a sync request is cut off partway through, for
