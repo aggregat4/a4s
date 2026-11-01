@@ -13,6 +13,11 @@ for (const filename of process.argv.slice(1)) {
   "$repo_root/deploy/config/openidprovider/openidprovider.json.example" \
   "$repo_root/deploy/config/rssgrid/rssgrid.json"
 
+for script in "$repo_root"/deploy/scripts/*.sh; do
+  [[ -e $script ]] || continue
+  bash -n "$script"
+done
+
 if command -v systemd-analyze >/dev/null 2>&1; then
   deploy_check_tmp=$(mktemp -d)
   trap 'rm -rf "$deploy_check_tmp"' EXIT
