@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"time"
@@ -193,7 +194,7 @@ func (s *SQLiteStore) InsertOps(ctx context.Context, userID string, ops []Op) (i
 		if committed {
 			return
 		}
-		_, _ = conn.ExecContext(ctx, "ROLLBACK;")
+		rollbackWrite(conn)
 	}()
 
 	stmt, err := conn.PrepareContext(ctx, `
@@ -460,7 +461,7 @@ func (s *SQLiteStore) ReplaceSnapshot(ctx context.Context, userID string, snapsh
 		if committed {
 			return
 		}
-		_, _ = conn.ExecContext(ctx, "ROLLBACK;")
+		rollbackWrite(conn)
 	}()
 
 	now := time.Now().Unix()
@@ -516,4 +517,15 @@ func (s *SQLiteStore) datasetGenerationKeyExists(ctx context.Context, userID int
 		return false, fmt.Errorf("check datasetGenerationKey: %w", err)
 	}
 	return true, nil
+}
+
+// rollbackWrite ends a failed write transaction. It does not use the request
+// context: when that context is cancelled the ROLLBACK would not run, and the
+// still open transaction would stay on the single write connection and break
+// every later write. If the rollback fails anyway, the connection is discarded
+// so the pool opens a fresh one.
+func rollbackWrite(conn *sql.Conn) {
+	if _, err := conn.ExecContext(context.Background(), "ROLLBACK;"); err != nil {
+		_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+	}
 }

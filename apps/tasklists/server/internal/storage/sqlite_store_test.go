@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func newSQLiteStore(t *testing.T) *SQLiteStore {
@@ -127,5 +129,43 @@ func TestSnapshotReplaceResetsOps(t *testing.T) {
 	}
 	if snapshot.DatasetGenerationKey != "dataset-new" {
 		t.Fatalf("snapshot datasetGenerationKey mismatch: %s", snapshot.DatasetGenerationKey)
+	}
+}
+
+// A request cancelled in the middle of a write must not leave its transaction
+// open on the single write connection, or every later write fails with
+// "cannot start a transaction within a transaction".
+func TestCancelledWritesDoNotBreakLaterWrites(t *testing.T) {
+	store := newSQLiteStore(t)
+	userID := "user-1"
+	ops := make([]Op, 500)
+	for i := range ops {
+		ops[i] = Op{
+			Scope:    "list",
+			Resource: "list-1",
+			Actor:    "actor-1",
+			Clock:    int64(i + 1),
+			Payload:  []byte(`{"type":"insert"}`),
+		}
+	}
+	if _, err := store.InsertOps(context.Background(), userID, ops[:1]); err != nil {
+		t.Fatalf("seed ops: %v", err)
+	}
+
+	for attempt := range 200 {
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(time.Duration(attempt%40) * 50 * time.Microsecond)
+			cancel()
+		}()
+		_, _ = store.InsertOps(ctx, userID, ops)
+		cancel()
+
+		if err := store.ReplaceSnapshot(context.Background(), userID, Snapshot{
+			DatasetGenerationKey: fmt.Sprintf("generation-%d", attempt),
+			Blob:                 `{}`,
+		}); err != nil {
+			t.Fatalf("write after cancelled insert %d: %v", attempt, err)
+		}
 	}
 }

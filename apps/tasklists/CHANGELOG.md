@@ -10,6 +10,12 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Fixed
+
+- Saving keeps working after a sync request is cut off partway through, for
+  example when a device goes offline mid-save. Before, every later save
+  failed until the server restarted.
+
 ## [v1.9.1] - 2026-11-01
 
 ### Fixed
