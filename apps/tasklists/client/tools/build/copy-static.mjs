@@ -9,6 +9,7 @@ export async function copyStatic() {
   await mkdir(distRoot, { recursive: true });
   await cp(resolve(root, "public", "index.html"), resolve(distRoot, "index.html"));
   await cp(resolve(root, "public", "styles.css"), resolve(distRoot, "styles.css"));
+  await cp(resolve(root, "public", "wordmark-grain.png"), resolve(distRoot, "wordmark-grain.png"));
   await cp(resolve(root, "public", "manifest.json"), resolve(distRoot, "manifest.json"));
   await cp(resolve(root, "public", "icons"), resolve(distRoot, "icons"), { recursive: true, force: true });
   await writeFile(

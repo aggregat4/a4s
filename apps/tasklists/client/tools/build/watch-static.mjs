@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { copyStatic } from "./copy-static.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const watchedFiles = ["index.html", "styles.css"].map((file) =>
+const watchedFiles = ["index.html", "styles.css", "wordmark-grain.png"].map((file) =>
   resolve(root, "public", file)
 );
 const watchedDirs = [];

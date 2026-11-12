@@ -273,26 +273,41 @@
 .sidebar-title {
     margin: 0;
     font-size: var(--font-size-2xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: 750;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+
+    span {
+        --wordmark-ink: var(--color-text);
+        color: var(--wordmark-ink);
+    }
+
+    .sidebar-title-accent {
+        --wordmark-ink: #2b669d;
+        font-weight: var(--font-weight-medium);
+    }
 }
 
-@media (width > 640px) {
-    .sidebar-title-row {
-        gap: var(--space-sm);
-    }
-
-    .sidebar-title-row::before {
-        content: "";
-        display: block;
-        width: 3px;
-        height: 22px;
-        border-radius: var(--radius-sm);
-        background-color: var(--color-border-strong);
-    }
-
+@supports (background-clip: text) {
     .sidebar-title {
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
+        filter: blur(0.35px) drop-shadow(0.3px 0.45px 0.65px rgb(0 0 0 / 28%));
+
+        span {
+            background: var(--wordmark-ink) url("./wordmark-grain.png") 0 0 / 64px 32px;
+            background-clip: text;
+            color: transparent;
+        }
+    }
+}
+
+@media (forced-colors: active) {
+    .sidebar-title {
+        filter: none;
+
+        span {
+            background: none;
+            color: CanvasText;
+        }
     }
 }
 
