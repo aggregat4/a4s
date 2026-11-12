@@ -12,7 +12,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Changed
 
-- The desktop sidebar shows a new two-tone Tasklists wordmark with a grainy ink texture.
+- The desktop sidebar shows a larger two-tone Tasklists wordmark with a grainy
+  ink texture.
 
 ## [v1.9.2] - 2026-11-01
 
