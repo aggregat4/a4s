@@ -110,7 +110,9 @@ test.describe("PWA", () => {
     // Navigate to the app while offline
     await page.goto("/");
     await page.waitForSelector(".lists-sidebar", { state: "visible" });
-    await expect(page.locator(".sidebar-title")).toHaveText("Lists");
+    await expect(page.getByRole("heading", { name: "Tasklists", exact: true })).toBeVisible();
+    const hasGrain = await page.evaluate(async () => (await fetch("/wordmark-grain.png")).ok);
+    expect(hasGrain).toBe(true);
 
     await page.context().setOffline(false);
   });

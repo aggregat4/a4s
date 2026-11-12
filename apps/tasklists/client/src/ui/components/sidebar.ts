@@ -177,7 +177,7 @@ class SidebarElement extends HTMLElement {
         <div class="sidebar-content">
           <div class="sidebar-topbar">
             <div class="sidebar-title-row">
-              <h1 class="sidebar-title">Lists</h1>
+              <h1 class="sidebar-title"><span>Task</span><span class="sidebar-title-accent">lists</span></h1>
               <div class="sidebar-history" role="group" aria-label="History">
                 <button
                   type="button"
