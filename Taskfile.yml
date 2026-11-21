@@ -72,12 +72,12 @@ tasks:
   modernize:
     desc: Report Go modernization opportunities without changing source
     cmds:
-      - go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.23.0 -test ./...
+      - go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@v0.53.0 -test ./...
   security:
     desc: Verify the module graph and scan reachable vulnerabilities
     cmds:
       - go mod verify
-      - go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
   ci:
     desc: Run lint, security checks, tests, and builds sequentially
     cmds:
