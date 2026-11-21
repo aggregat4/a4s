@@ -5,6 +5,7 @@
   - Clicking a saved search replaces the current search with it.
   - Pin them near the search field, or at least somewhere easy to reach.
   - They belong to no one list; a saved search runs across all lists, like the search field.
+  - They need not sync across devices for now; keeping them on the device is enough.
 - Consider refactoring `src/ui/components/app-shell.ts` to avoid `querySelector` by using lit `ref` (or direct element references) for custom elements.
 
 ## CRDT Store Open Questions & Follow-ups
