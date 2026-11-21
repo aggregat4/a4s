@@ -15,6 +15,11 @@ Release notes for a tag are taken from the matching version section, so the
 - The desktop sidebar shows a larger two-tone Tasklists wordmark with a grainy
   ink texture.
 
+### Fixed
+
+- Redo brings back a task, or moves it back, also after another device moved
+  the tasks around it past each other. Before, the redo did nothing.
+
 ## [v1.9.2] - 2026-11-01
 
 ### Fixed

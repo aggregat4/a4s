@@ -261,6 +261,71 @@ test("a removal after an item was brought back removes it", () => {
   assert.deepEqual(source.getSnapshot(), []);
 });
 
+/**
+ * A replica with items in the given order, and a second replica of it that
+ * stands for another device.
+ */
+function replicasWith(...ids: string[]) {
+  const local = new OrderedSetCRDT({ actorId: "local" });
+  const remote = new OrderedSetCRDT({ actorId: "remote" });
+  let afterId: string | null = null;
+  for (const itemId of ids) {
+    remote.applyOperation(local.generateInsert({ itemId, data: {}, afterId }).op);
+    afterId = itemId;
+  }
+  /** Applies a change made on the other device here too. */
+  const fromRemote = (result: { op: Parameters<typeof local.applyOperation>[0] }) =>
+    local.applyOperation(result.op);
+  const order = () => local.getSnapshot().map((entry) => entry.id);
+  return { local, remote, fromRemote, order };
+}
+
+test("an item placed between neighbours another device swapped goes right after the first", () => {
+  const { local, remote, fromRemote, order } = replicasWith("a", "b");
+  fromRemote(remote.generateMove({ itemId: "b", beforeId: "a" }));
+  assert.deepEqual(order(), ["b", "a"]);
+
+  local.generateInsert({ itemId: "new", data: {}, afterId: "a", beforeId: "b" });
+  assert.deepEqual(order(), ["b", "a", "new"]);
+});
+
+test("an item placed after a neighbour goes before what another device put next to it", () => {
+  const { local, remote, fromRemote, order } = replicasWith("a", "b");
+  fromRemote(remote.generateInsert({ itemId: "x", data: {}, afterId: "a", beforeId: "b" }));
+
+  local.generateInsert({ itemId: "new", data: {}, afterId: "a", beforeId: "b" });
+  assert.deepEqual(order(), ["a", "new", "x", "b"]);
+});
+
+test("an item placed after a deleted neighbour goes before the other one", () => {
+  const { local, remote, fromRemote, order } = replicasWith("a", "b", "c");
+  fromRemote(remote.generateRemove("b"));
+
+  local.generateInsert({ itemId: "new", data: {}, afterId: "b", beforeId: "c" });
+  assert.deepEqual(order(), ["a", "new", "c"]);
+});
+
+test("an item placed between deleted neighbours goes to the end, or to the top without one before it", () => {
+  const { local, remote, fromRemote, order } = replicasWith("a", "b", "c");
+  fromRemote(remote.generateRemove("b"));
+  fromRemote(remote.generateRemove("c"));
+
+  local.generateInsert({ itemId: "end", data: {}, afterId: "b", beforeId: "c" });
+  local.generateInsert({ itemId: "top", data: {}, afterId: null, beforeId: "c" });
+  assert.deepEqual(order(), ["top", "a", "end"]);
+});
+
+test("a move between neighbours another device swapped goes right after the first", () => {
+  const { local, remote, fromRemote, order } = replicasWith("a", "b", "c");
+  fromRemote(remote.generateMove({ itemId: "b", beforeId: "a" }));
+  assert.deepEqual(order(), ["b", "a", "c"]);
+
+  local.generateMove({ itemId: "c", afterId: "a", beforeId: "b" });
+  assert.deepEqual(order(), ["b", "a", "c"]);
+  local.generateMove({ itemId: "a", afterId: "c", beforeId: "b" });
+  assert.deepEqual(order(), ["b", "c", "a"]);
+});
+
 test("exported state captures entries and clock", () => {
   const crdt = new OrderedSetCRDT({ actorId: "tester" });
   crdt.generateInsert({ itemId: "one", data: { value: 1 } });

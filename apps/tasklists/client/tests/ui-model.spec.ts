@@ -96,11 +96,34 @@ const visibleNeighbour = (m: Readonly<Model>, id: string, direction: -1 | 1) => 
   return tasks[tasks.findIndex((t) => t.id === id) + direction]?.id ?? null;
 };
 
-/** A new position between two tasks, as `actor` makes it. */
-const positionBetween = (m: Model, afterId: string | null, beforeId: string | null, actor: string) =>
-  between(afterId ? m.tasks.get(afterId)?.pos : null, beforeId ? m.tasks.get(beforeId)?.pos : null, {
-    actor,
-  });
+/**
+ * A new position as `actor` makes it: right after `afterId` if that task is
+ * still there, or else right before `beforeId`; if both are gone at the top,
+ * or at the end if it was asked to follow a task. `movingId` is the task
+ * being moved, which is not its own neighbour. Naming no neighbour at all
+ * gets the default position.
+ */
+const positionBetween = (
+  m: Model,
+  afterId: string | null,
+  beforeId: string | null,
+  actor: string,
+  movingId: string | null = null
+) => {
+  if (!afterId && !beforeId) return between(null, null, { actor });
+  const order = ordered(m).filter((t) => t.id !== movingId);
+  const after = afterId ? order.findIndex((t) => t.id === afterId) : -1;
+  const before = beforeId ? order.findIndex((t) => t.id === beforeId) : -1;
+  const [left, right] =
+    after !== -1
+      ? [order[after], order[after + 1]]
+      : before !== -1
+        ? [order[before - 1], order[before]]
+        : afterId
+          ? [order[order.length - 1], undefined]
+          : [undefined, order[0]];
+  return between(left?.pos ?? null, right?.pos ?? null, { actor });
+};
 
 /** Applies a change, made by `actor`. Changes to deleted tasks do nothing. */
 function apply(m: Model, op: Op, actor: string) {
@@ -121,7 +144,7 @@ function apply(m: Model, op: Op, actor: string) {
       if (live && op.done !== undefined) live.done = op.done;
       return;
     case "move":
-      if (live) live.pos = op.pos ?? positionBetween(m, op.afterId, op.beforeId, actor);
+      if (live) live.pos = op.pos ?? positionBetween(m, op.afterId, op.beforeId, actor, op.id);
       return;
   }
 }

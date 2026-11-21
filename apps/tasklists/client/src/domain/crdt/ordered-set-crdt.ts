@@ -468,12 +468,37 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     return this.clock.tick(remoteTime);
   }
 
-  ensurePositionBetween(leftId?: string | null, rightId?: string | null) {
-    const left = leftId ? this.items.get(leftId) : null;
-    const right = rightId ? this.items.get(rightId) : null;
-    const leftPos = left ? left.pos : null;
-    const rightPos = right ? right.pos : null;
-    return between(leftPos, rightPos, { actor: this.actorId });
+  /**
+   * A position for an item to go after `afterId`, or else before `beforeId`,
+   * as `placement` in the UI places it. The neighbours were named when the
+   * change was made, as for redo, and other devices may since have deleted
+   * them or moved them past each other. So the position is made against the
+   * items as they are now: right after `afterId` if it is still there, or
+   * else right before `beforeId`. If both are gone it goes to the top, unless
+   * it was asked to follow an item, then to the end.
+   * `movingId` is the item being moved, which is not its own neighbour.
+   * Naming no neighbour at all gets the default position.
+   */
+  ensurePositionBetween(
+    afterId?: string | null,
+    beforeId?: string | null,
+    movingId?: string | null
+  ) {
+    if (!afterId && !beforeId) return between(null, null, { actor: this.actorId });
+    const order = Array.from(this.items.values())
+      .filter((record) => record.deletedAt == null && record.id !== movingId)
+      .sort((a, b) => comparePositions(a.pos, b.pos) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const after = afterId ? order.findIndex((entry) => entry.id === afterId) : -1;
+    const before = beforeId ? order.findIndex((entry) => entry.id === beforeId) : -1;
+    const [left, right] =
+      after !== -1
+        ? [order[after], order[after + 1]]
+        : before !== -1
+          ? [order[before - 1], order[before]]
+          : afterId
+            ? [order[order.length - 1], undefined]
+            : [undefined, order[0]];
+    return between(left?.pos ?? null, right?.pos ?? null, { actor: this.actorId });
   }
 
   generateInsert(options: {
@@ -551,7 +576,7 @@ export class OrderedSetCRDT<TData extends Record<string, unknown> = Record<strin
     const position =
       options.position && normalizePosition(options.position).length
         ? normalizePosition(options.position)
-        : this.ensurePositionBetween(options.afterId, options.beforeId);
+        : this.ensurePositionBetween(options.afterId, options.beforeId, itemId);
     const clock = this.nextClock();
     const op = {
       type: ORDERED_SET_OPERATIONS.move,

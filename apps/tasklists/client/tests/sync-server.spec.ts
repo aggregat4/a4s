@@ -866,6 +866,57 @@ test("a task restored by redo is still there after a reload", async ({ page }) =
   await expect(taskTexts(page)).toHaveCount(1);
 });
 
+test("redo puts a task back after its neighbour when another device swapped its neighbours", async ({
+  browser,
+}) => {
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  const errors: string[] = [];
+  pageA.on("pageerror", (error) => errors.push(error.message));
+  try {
+    for (const page of [pageA, pageB]) {
+      await Promise.all([
+        page.waitForResponse((response) => response.url().includes("/sync/bootstrap")),
+        page.goto("/?sync=1"),
+      ]);
+    }
+    const listTitle = `Redo between swapped tasks ${Date.now()}`;
+    await createList(pageA, listTitle);
+    await addTask(pageA, "Bottom");
+    await addTask(pageA, "Top");
+    await taskItem(pageA, "Top").locator(".text").click();
+    await pageA.keyboard.press("End");
+    await pageA.keyboard.press("Enter");
+    await pageA.keyboard.type("Middle");
+    await pageA.keyboard.press("Escape");
+    await expect(taskTexts(pageA)).toHaveText(["Top", "Middle", "Bottom"]);
+    const sidebar = pageA.locator("[data-role='sidebar']");
+    const undo = sidebar.getByRole("button", { name: "Undo", exact: true });
+    const redo = sidebar.getByRole("button", { name: "Redo", exact: true });
+    await undo.click();
+    await undo.click();
+    await expect(taskTexts(pageA)).toHaveText(["Top", "Bottom"]);
+
+    await selectList(pageB, listTitle);
+    await expect(taskTexts(pageB)).toHaveText(["Top", "Bottom"]);
+    await taskItem(pageB, "Bottom").locator(".text").click();
+    await pageB.keyboard.press("ControlOrMeta+ArrowUp");
+    await pageB.keyboard.press("Escape");
+    await expect(taskTexts(pageA)).toHaveText(["Bottom", "Top"]);
+
+    await redo.click();
+    await redo.click();
+    await expect(taskTexts(pageA)).toHaveText(["Bottom", "Top", "Middle"]);
+    await expect(taskTexts(pageB)).toHaveText(["Bottom", "Top", "Middle"]);
+    expect(errors).toEqual([]);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
 test("the task being edited moves after another device ticked it off", async ({ browser }) => {
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
