@@ -1,6 +1,6 @@
 module github.com/aggregat4/a4s
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/altcha-org/altcha-lib-go v1.0.0

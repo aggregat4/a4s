@@ -10,6 +10,11 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Security
+
+- Built with Go 1.27.4, which fixes an HTTP/1 server crash caused by a race
+  in `net/http` (GO-2026-6859).
+
 ## [v1.6.1] - 2026-11-01
 
 ### Security

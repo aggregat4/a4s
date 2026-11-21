@@ -20,6 +20,11 @@ Release notes for a tag are taken from the matching version section, so the
 - Redo brings back a task, or moves it back, also after another device moved
   the tasks around it past each other. Before, the redo did nothing.
 
+### Security
+
+- Built with Go 1.27.4, which fixes an HTTP/1 server crash caused by a race
+  in `net/http` (GO-2026-6859).
+
 ## [v1.9.2] - 2026-11-01
 
 ### Fixed
