@@ -700,6 +700,16 @@ test("the task list matches the model for any sequence of user input", async ({
         }
       }
     ),
-    { numRuns: Number(process.env.UI_MODEL_RUNS ?? 3), includeErrorInReport: true }
+    { numRuns: Number(process.env.UI_MODEL_RUNS ?? 3), includeErrorInReport: true, ...replay() }
   );
 });
+
+/**
+ * Replays a failing run: set UI_MODEL_SEED and UI_MODEL_PATH to the `seed`
+ * and `path` fast-check reported. Only that run is tried, and not shrunk.
+ */
+function replay() {
+  const seed = process.env.UI_MODEL_SEED;
+  if (!seed) return {};
+  return { seed: Number(seed), path: process.env.UI_MODEL_PATH, endOnFailure: true };
+}
