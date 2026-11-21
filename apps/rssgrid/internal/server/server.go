@@ -296,6 +296,9 @@ func (s *Server) Handler() http.Handler {
 	// panics in anything below, including the authentication middleware.
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	// Reject cross-origin form posts. Browsers mark where a request comes
+	// from with Sec-Fetch-Site; without it, Origin must match the Host.
+	r.Use(http.NewCrossOriginProtection().Handler)
 	r.Use(oidcAuthenticationMiddleware)
 
 	// Public routes

@@ -12,6 +12,11 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Security
 
+- Form posts from other sites are rejected. Before, a page on any site could
+  make a logged-in user's browser change their preferences, add, delete or
+  reorder feeds, or mark posts seen. The check is Go's
+  `http.CrossOriginProtection`, which uses the browser's `Sec-Fetch-Site`
+  header and otherwise compares `Origin` with `Host`.
 - Built with Go 1.27.4, which fixes an HTTP/1 server crash caused by a race
   in `net/http` (GO-2026-6859).
 
