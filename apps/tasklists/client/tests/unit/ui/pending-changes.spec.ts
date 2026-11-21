@@ -1,12 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyPendingChanges } from "../../../src/ui/state/pending-changes.js";
+import { applyChange } from "../../../src/ui/state/pending-changes.js";
 import type { PendingChange } from "../../../src/ui/state/pending-changes.js";
 import type { TaskListState } from "../../../src/types/domain.js";
 
 const task = (id: string, text = id) => ({ id, text, done: false, note: "" });
 const list = (...ids: string[]): TaskListState => ({ title: "List", items: ids.map((id) => task(id)) });
 const ids = (state: TaskListState) => state.items.map((item) => item.id);
+const applyPendingChanges = (state: TaskListState, changes: PendingChange[]) =>
+  changes.reduce(applyChange, state);
 
 test("an insert goes after its neighbour, or before the other one", () => {
   const insert = (afterId: string | null, beforeId: string | null): PendingChange => ({

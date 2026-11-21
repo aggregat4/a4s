@@ -191,9 +191,3 @@ export function between(
 export function clonePosition(position: unknown): Position {
   return normalizePosition(position).map((component) => ({ ...component }));
 }
-
-export function positionToKey(position: unknown) {
-  return normalizePosition(position)
-    .map((component) => `${component.digit}:${component.actor}`)
-    .join("|");
-}

@@ -5,7 +5,6 @@ import {
     comparePositions,
     between,
     clonePosition,
-    positionToKey,
 } from "../../../src/domain/crdt/position.js";
 
 test("normalizePosition sanitizes non-arrays and component shapes", () => {
@@ -189,14 +188,14 @@ test("between() always produces a position strictly inside its bounds", () => {
                     assert.equal(
                         comparePositions(result, left) > 0,
                         true,
-                        `${positionToKey(result)} must sort after ${positionToKey(left)}`
+                        `${JSON.stringify(result)} must sort after ${JSON.stringify(left)}`
                     );
                 }
                 if (hasRight) {
                     assert.equal(
                         comparePositions(result, right) < 0,
                         true,
-                        `${positionToKey(result)} must sort before ${positionToKey(right)}`
+                        `${JSON.stringify(result)} must sort before ${JSON.stringify(right)}`
                     );
                 }
                 assert.notEqual(
@@ -221,12 +220,4 @@ test("clonePosition returns a detached, sanitized copy", () => {
 
     cloned[0].digit = 999;
     assert.equal(original[0].digit, 5);
-});
-
-test("positionToKey flattens positions deterministically", () => {
-    const pos = [
-        { digit: 3, actor: "alice" },
-        { digit: 9, actor: "bob" },
-    ];
-    assert.equal(positionToKey(pos), "3:alice|9:bob");
 });

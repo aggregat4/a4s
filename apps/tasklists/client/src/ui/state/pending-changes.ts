@@ -62,8 +62,3 @@ export function applyChange(state: TaskListState, change: PendingChange): TaskLi
       return { ...state, title: change.title };
   }
 }
-
-/** The state with the changes applied in order. */
-export function applyPendingChanges(state: TaskListState, changes: PendingChange[]) {
-  return changes.reduce(applyChange, state);
-}
