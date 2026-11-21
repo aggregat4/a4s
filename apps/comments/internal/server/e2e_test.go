@@ -188,10 +188,10 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	var err error
 
 	// Step 1: Navigate to the comment form. Should show login button.
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Navigate(commentFormURL),
-		chromedp.WaitVisible(`[data-auth-required]`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
+		chromedp.WaitVisible(chromedp.CSS(`[data-auth-required]`)),
+		into(&body, chromedp.OuterHTML(chromedp.CSS("body"))),
 	)
 	if err != nil {
 		t.Fatalf("step 1 failed: %v", err)
@@ -205,10 +205,10 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	// The OIDC middleware redirects to the mock IdP, which immediately
 	// redirects back to the callback, which creates a session and redirects
 	// back to /login.
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Navigate(server.BaseURL+"/login"),
-		chromedp.WaitVisible(`[data-auth-success]`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
+		chromedp.WaitVisible(chromedp.CSS(`[data-auth-success]`)),
+		into(&body, chromedp.OuterHTML(chromedp.CSS("body"))),
 	)
 	if err != nil {
 		t.Fatalf("step 2 failed: %v", err)
@@ -219,10 +219,10 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	t.Log("Step 2 passed: OIDC login succeeded")
 
 	// Step 3: Navigate back to the comment form. Should now show the form.
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Navigate(commentFormURL),
-		chromedp.WaitVisible(`form[action*="/comments/"]`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
+		chromedp.WaitVisible(chromedp.CSS(`form[action*="/comments/"]`)),
+		into(&body, chromedp.OuterHTML(chromedp.CSS("body"))),
 	)
 	if err != nil {
 		t.Fatalf("step 3 failed: %v", err)
@@ -236,10 +236,10 @@ func TestE2E_OidcLoginPersistsSession(t *testing.T) {
 	t.Log("Step 3 passed: comment form visible after login")
 
 	// Step 4: Reload the comment form. Session should persist.
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Reload(),
-		chromedp.WaitVisible(`form[action*="/comments/"]`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
+		chromedp.WaitVisible(chromedp.CSS(`form[action*="/comments/"]`)),
+		into(&body, chromedp.OuterHTML(chromedp.CSS("body"))),
 	)
 	if err != nil {
 		t.Fatalf("step 4 failed: %v", err)
@@ -267,23 +267,23 @@ func TestE2E_CommentSubmissionAndModerationFlow(t *testing.T) {
 	postCommentsURL := server.BaseURL + "/services/" + testServiceKey + "/posts/" + postKey + "/comments/"
 	adminCommentsURL := server.BaseURL + "/admin/" + testServiceKey + "/comments"
 
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(server.BaseURL+"/login"),
-		chromedp.WaitVisible(`[data-auth-success]`, chromedp.ByQuery),
+		chromedp.WaitVisible(chromedp.CSS(`[data-auth-success]`)),
 	); err != nil {
 		t.Fatalf("login failed: %v", err)
 	}
 
 	submitComment := func(comment string) {
 		t.Helper()
-		if err := chromedp.Run(ctx,
+		if err := chromedp.Do(ctx,
 			chromedp.Navigate(commentFormURL),
-			chromedp.WaitVisible(`form[action*="/comments/"]`, chromedp.ByQuery),
-			chromedp.SetValue(`#name`, "Browser User", chromedp.ByQuery),
-			chromedp.SetValue(`#website`, "https://reader.example.com", chromedp.ByQuery),
-			chromedp.SetValue(`#comment`, comment, chromedp.ByQuery),
-			chromedp.Click(`input[type="submit"]`, chromedp.ByQuery),
-			chromedp.WaitVisible(`.toast.success`, chromedp.ByQuery),
+			chromedp.WaitVisible(chromedp.CSS(`form[action*="/comments/"]`)),
+			chromedp.SetValue(chromedp.CSS(`#name`), "Browser User"),
+			chromedp.SetValue(chromedp.CSS(`#website`), "https://reader.example.com"),
+			chromedp.SetValue(chromedp.CSS(`#comment`), comment),
+			chromedp.Click(chromedp.CSS(`input[type="submit"]`)),
+			chromedp.WaitVisible(chromedp.CSS(`.toast.success`)),
 		); err != nil {
 			t.Fatalf("failed to submit comment %q: %v", comment, err)
 		}
@@ -292,17 +292,17 @@ func TestE2E_CommentSubmissionAndModerationFlow(t *testing.T) {
 	approveComment := func(commentID int) {
 		t.Helper()
 		actionURL := fmt.Sprintf("/admin/%s/comments/%d/approve", testServiceKey, commentID)
-		if err := chromedp.Run(ctx,
+		if err := chromedp.Do(ctx,
 			chromedp.Navigate(adminCommentsURL),
-			chromedp.WaitVisible(`action-confirmation[actionurl="`+actionURL+`"]`, chromedp.ByQuery),
-			chromedp.Evaluate(fmt.Sprintf(`
+			chromedp.WaitVisible(chromedp.CSS(`action-confirmation[actionurl="`+actionURL+`"]`)),
+			chromedp.Evaluate[chromedp.Void](fmt.Sprintf(`
 				(() => {
 					const action = document.querySelector('action-confirmation[actionurl=%q]');
 					action.shadowRoot.querySelector('.confirm').click();
 					action.shadowRoot.querySelector('.action').click();
 				})()
-			`, actionURL), nil),
-			chromedp.WaitVisible(`.badge.approved`, chromedp.ByQuery),
+			`, actionURL)),
+			chromedp.WaitVisible(chromedp.CSS(`.badge.approved`)),
 		); err != nil {
 			t.Fatalf("failed to approve comment %d: %v", commentID, err)
 		}
@@ -312,17 +312,17 @@ func TestE2E_CommentSubmissionAndModerationFlow(t *testing.T) {
 		t.Helper()
 		actionURL := fmt.Sprintf("/admin/%s/comments/%d/delete", testServiceKey, commentID)
 		actionSelector := `action-confirmation[actionurl="` + actionURL + `"]`
-		if err := chromedp.Run(ctx,
+		if err := chromedp.Do(ctx,
 			chromedp.Navigate(adminCommentsURL),
-			chromedp.WaitVisible(actionSelector, chromedp.ByQuery),
-			chromedp.Evaluate(fmt.Sprintf(`
+			chromedp.WaitVisible(chromedp.CSS(actionSelector)),
+			chromedp.Evaluate[chromedp.Void](fmt.Sprintf(`
 				(() => {
 					const action = document.querySelector('action-confirmation[actionurl=%q]');
 					action.shadowRoot.querySelector('.confirm').click();
 					action.shadowRoot.querySelector('.action').click();
 				})()
-			`, actionURL), nil),
-			chromedp.WaitNotPresent(actionSelector, chromedp.ByQuery),
+			`, actionURL)),
+			chromedp.WaitNotPresent(chromedp.CSS(actionSelector)),
 		); err != nil {
 			t.Fatalf("failed to delete comment %d: %v", commentID, err)
 		}
@@ -337,10 +337,10 @@ func TestE2E_CommentSubmissionAndModerationFlow(t *testing.T) {
 	}
 
 	var body string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(postCommentsURL),
-		chromedp.WaitVisible(`.badge.pending-approval`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
+		chromedp.WaitVisible(chromedp.CSS(`.badge.pending-approval`)),
+		into(&body, chromedp.OuterHTML(chromedp.CSS("body"))),
 	); err != nil {
 		t.Fatalf("failed to inspect pending comment page: %v", err)
 	}
@@ -355,10 +355,10 @@ func TestE2E_CommentSubmissionAndModerationFlow(t *testing.T) {
 		t.Fatalf("expected approved comment after admin action, got %v", approvedCandidate.Status)
 	}
 
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(postCommentsURL),
-		chromedp.WaitVisible(`dl.comments`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
+		chromedp.WaitVisible(chromedp.CSS(`dl.comments`)),
+		into(&body, chromedp.OuterHTML(chromedp.CSS("body"))),
 	); err != nil {
 		t.Fatalf("failed to inspect approved comment page: %v", err)
 	}
@@ -376,10 +376,10 @@ func TestE2E_CommentSubmissionAndModerationFlow(t *testing.T) {
 		t.Fatalf("expected deleted comment %d to be removed", deletedCandidate.Id)
 	}
 
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(adminCommentsURL),
-		chromedp.WaitVisible(`dl.comments`, chromedp.ByQuery),
-		chromedp.OuterHTML("body", &body),
+		chromedp.WaitVisible(chromedp.CSS(`dl.comments`)),
+		into(&body, chromedp.OuterHTML(chromedp.CSS("body"))),
 	); err != nil {
 		t.Fatalf("failed to inspect admin dashboard after delete: %v", err)
 	}
@@ -429,17 +429,17 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 	var iframeHTML string
 
 	// Step 1: Navigate to the demo page. The iframe should show the login link.
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(server.BaseURL+"/demo"),
-		chromedp.WaitVisible("iframe", chromedp.ByQuery),
-		chromedp.PollFunction(`() => {
+		chromedp.WaitVisible(chromedp.CSS("iframe")),
+		into(&iframeHTML, chromedp.PollFunction[string](`() => {
 			try {
 				const iframe = document.querySelector('iframe');
 				return iframe.contentDocument.body.innerHTML;
 			} catch (e) {
 				return '';
 			}
-		}`, &iframeHTML, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second)),
+		}`, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second))),
 	)
 	if err != nil {
 		t.Fatalf("step 1 failed: %v", err)
@@ -451,8 +451,8 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 
 	// Step 2: Click the login link inside the iframe. The iframe asks the parent
 	// page to navigate the top-level window through the login handoff.
-	err = chromedp.Run(ctx,
-		chromedp.Evaluate(`document.querySelector('iframe').contentDocument.querySelector('a[data-embed-login-path]').click()`, nil),
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`document.querySelector('iframe').contentDocument.querySelector('a[data-embed-login-path]').click()`),
 	)
 	if err != nil {
 		t.Fatalf("step 2 click failed: %v", err)
@@ -461,9 +461,9 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 
 	// Step 3: Wait for the top-level page to return to /demo, then verify that
 	// the embedded iframe shows the authenticated state.
-	err = chromedp.Run(ctx,
-		chromedp.WaitVisible("iframe", chromedp.ByQuery),
-		chromedp.PollFunction(`() => {
+	err = chromedp.Do(ctx,
+		chromedp.WaitVisible(chromedp.CSS("iframe")),
+		into(&iframeHTML, chromedp.PollFunction[string](`() => {
 			try {
 				const iframe = document.querySelector('iframe');
 				const doc = iframe.contentDocument;
@@ -479,7 +479,7 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 			} catch (e) {
 				return '';
 			}
-		}`, &iframeHTML, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(10*time.Second)),
+		}`, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(10*time.Second))),
 	)
 	if err != nil {
 		t.Fatalf("step 3 failed: %v", err)
@@ -493,17 +493,17 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 	t.Log("Step 3 passed: iframe shows authenticated state after top-level login handoff")
 
 	// Step 4: Reload the parent page. The iframe should still be authenticated.
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Reload(),
-		chromedp.WaitVisible("iframe", chromedp.ByQuery),
-		chromedp.PollFunction(`() => {
+		chromedp.WaitVisible(chromedp.CSS("iframe")),
+		into(&iframeHTML, chromedp.PollFunction[string](`() => {
 			try {
 				const iframe = document.querySelector('iframe');
 				return iframe.contentDocument.body.innerHTML;
 			} catch (e) {
 				return '';
 			}
-		}`, &iframeHTML, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(2*time.Second)),
+		}`, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(2*time.Second))),
 	)
 	if err != nil {
 		t.Fatalf("step 4 failed: %v", err)
@@ -519,18 +519,18 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 	// Step 5: Submit a comment from inside the embedded UI and verify that the
 	// iframe returns to the post page showing the author's pending comment.
 	const embeddedCommentBody = "This comment was submitted from inside the iframe."
-	err = chromedp.Run(ctx,
-		chromedp.Evaluate(`
+	err = chromedp.Do(ctx,
+		chromedp.Evaluate[chromedp.Void](`
 			document.querySelector('iframe')
 				.contentDocument
 				.querySelector('a[href*="/commentform"]')
 				.click()
-		`, nil),
-		chromedp.PollFunction(`() => {
+		`),
+		into(new(bool), chromedp.PollFunction[bool](`() => {
 			const doc = document.querySelector('iframe')?.contentDocument;
 			return Boolean(doc?.querySelector('form[action*="/comments/"]'));
-		}`, nil, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second)),
-		chromedp.Evaluate(fmt.Sprintf(`
+		}`, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second))),
+		chromedp.Evaluate[chromedp.Void](fmt.Sprintf(`
 			(() => {
 				const doc = document.querySelector('iframe').contentDocument;
 				doc.querySelector('#name').value = 'Embedded Browser User';
@@ -538,15 +538,15 @@ func TestE2E_IframeLayoutLoginUsesTopLevelHandoff(t *testing.T) {
 				doc.querySelector('#comment').value = %q;
 				doc.querySelector('input[type="submit"]').click();
 			})()
-		`, embeddedCommentBody), nil),
-		chromedp.PollFunction(`() => {
+		`, embeddedCommentBody)),
+		into(&iframeHTML, chromedp.PollFunction[string](`() => {
 			const doc = document.querySelector('iframe')?.contentDocument;
 			const body = doc?.body?.innerHTML ?? '';
 			return body.includes('This comment was submitted from inside the iframe.') &&
 				body.includes('Awaiting moderation')
 				? body
 				: '';
-		}`, &iframeHTML, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second)),
+		}`, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(5*time.Second))),
 	)
 	if err != nil {
 		t.Fatalf("step 5 failed: %v", err)
@@ -609,12 +609,12 @@ func TestE2E_CrossOriginEmbedReportsAuthStateAfterTopLevelLogin(t *testing.T) {
 	defer cancel()
 
 	var authState string
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Navigate(embedderURL),
-		chromedp.WaitVisible("iframe", chromedp.ByQuery),
-		chromedp.PollFunction(`() => document.body.dataset.authenticated`, &authState,
+		chromedp.WaitVisible(chromedp.CSS("iframe")),
+		into(&authState, chromedp.PollFunction[string](`() => document.body.dataset.authenticated`,
 			chromedp.WithPollingInterval(100*time.Millisecond),
-			chromedp.WithPollingTimeout(5*time.Second)),
+			chromedp.WithPollingTimeout(5*time.Second))),
 	)
 	if err != nil {
 		t.Fatalf("initial embed load failed: %v", err)
@@ -623,14 +623,24 @@ func TestE2E_CrossOriginEmbedReportsAuthStateAfterTopLevelLogin(t *testing.T) {
 		t.Fatalf("expected initial unauthenticated iframe state, got %q", authState)
 	}
 
-	err = chromedp.Run(ctx,
-		chromedp.Click("#login", chromedp.ByQuery),
-		chromedp.WaitVisible("iframe", chromedp.ByQuery),
-		chromedp.PollFunction(`() => document.body.dataset.authenticated === 'true'`, nil,
+	err = chromedp.Do(ctx,
+		chromedp.Click(chromedp.CSS("#login")),
+		chromedp.WaitVisible(chromedp.CSS("iframe")),
+		into(new(bool), chromedp.PollFunction[bool](`() => document.body.dataset.authenticated === 'true'`,
 			chromedp.WithPollingInterval(100*time.Millisecond),
-			chromedp.WithPollingTimeout(10*time.Second)),
+			chromedp.WithPollingTimeout(10*time.Second))),
 	)
 	if err != nil {
 		t.Fatalf("top-level embed login flow failed: %v", err)
+	}
+}
+
+// into stores the value of an action, so that it can run among the steps of
+// chromedp.Do.
+func into[T any](dst *T, action chromedp.Action[T]) chromedp.Action[chromedp.Void] {
+	return func(ctx context.Context, target *chromedp.Target) (chromedp.Void, error) {
+		value, err := action(ctx, target)
+		*dst = value
+		return chromedp.Void{}, err
 	}
 }
