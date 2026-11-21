@@ -17,8 +17,6 @@ import (
 	"strings"
 	"time"
 
-	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
@@ -89,9 +87,14 @@ func InitServer(controller Controller) *chi.Mux {
 	r.Use(CreateSessionMiddleware(sessionStore))
 	r.Use(middleware.Compress(5))
 	r.Use(controller.basicAuthMiddleware)
-	r.Use(baselibmiddleware.CreateCsrfMiddlewareWithSkipperStd(func(r *http.Request) bool {
-		return r.URL.Path == "/token" || r.URL.Path == "/revoke"
-	}))
+	// Reject cross-origin requests that change data. Browsers mark where a
+	// request comes from with Sec-Fetch-Site; without it, Origin must match
+	// the Host. Relying parties call the token and revocation endpoints from
+	// their servers, where client authentication protects them.
+	crossOriginProtection := http.NewCrossOriginProtection()
+	crossOriginProtection.AddInsecureBypassPattern("/token")
+	crossOriginProtection.AddInsecureBypassPattern("/revoke")
+	r.Use(crossOriginProtection.Handler)
 
 	// Static files
 	stylesServer := http.FileServer(http.FS(styles))
