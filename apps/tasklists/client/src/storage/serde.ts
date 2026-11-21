@@ -130,6 +130,7 @@ function decodeEntry<TOut>(
   return decoded as OrderedSetEntry<TOut>;
 }
 
+/** @internal Exported for its unit tests. */
 export function serializeOrderedSetSnapshot<TIn, TOut>(
   entries: OrderedSetEntry<TIn>[],
   mapData?: MapDataFn<TIn, TOut>
@@ -141,6 +142,7 @@ export function serializeOrderedSetSnapshot<TIn, TOut>(
   return encoded;
 }
 
+/** @internal Exported for its unit tests. */
 export function deserializeOrderedSetSnapshot<TOut>(
   entries: unknown,
   mapData?: MapDataFn<unknown, TOut>

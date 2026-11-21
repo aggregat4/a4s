@@ -6,7 +6,7 @@
     "build": "node tools/build/clean-dist.mjs && tsc -p tsconfig.app.json --noEmit && node tools/build/esbuild.mjs && tsc -p tsconfig.tests.json && pnpm run lint:deps && pnpm run lint:css && node tools/build/copy-static.mjs && node tools/build/generate-asset-manifest.mjs",
     "watch": "node tools/build/watch.mjs",
     "start": "pnpm run build && http-server dist -p 8000 -c-1",
-    "lint:deps": "knip",
+    "lint:deps": "knip && knip --production --exclude binaries",
     "lint:css": "stylelint \"public/**/*.css\"",
     "test": "pnpm run build && pnpm run test:built",
     "test:built": "pnpm run test:unit:built && pnpm run test:e2e:built && pnpm run test:e2e:embedded:built && pnpm run test:e2e:oidc:built",

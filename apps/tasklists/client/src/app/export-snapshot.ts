@@ -1,6 +1,7 @@
 import { between, comparePositions } from "../domain/crdt/position.js";
 import type { ListId, ListState, RegistryState } from "../types/domain.js";
 
+/** @internal Exported for its unit tests. */
 export const SNAPSHOT_SCHEMA = "net.aggregat4.tasklist.snapshot@v1";
 
 type SnapshotListItem = {
@@ -134,6 +135,7 @@ export function stringifyExportSnapshot(snapshot: ExportSnapshotEnvelope) {
   return JSON.stringify(snapshot, null, 2);
 }
 
+/** @internal Exported for its unit tests. */
 export function parseExportSnapshot(raw: unknown):
   | { ok: true; value: ParsedSnapshot }
   | { ok: false; error: string } {

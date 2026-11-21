@@ -12,8 +12,12 @@ export type ListsChange =
   | { type: "move"; id: ListId; afterId: ListId | null; beforeId: ListId | null }
   | { type: "rename"; id: ListId; title: string };
 
-// Applying a change again changes nothing more: the repository's lists can
-// already include a change whose save has not reported back yet.
+/**
+ * Applying a change again changes nothing more: the repository's lists can
+ * already include a change whose save has not reported back yet.
+ *
+ * @internal Exported for its unit tests.
+ */
 export function applyListsChange(lists: ListEntry[], change: ListsChange): ListEntry[] {
   switch (change.type) {
     case "remove":

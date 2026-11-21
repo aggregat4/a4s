@@ -165,7 +165,8 @@ const wrapToken = (
   return `<span class="${className}">${inner}</span>`;
 };
 
-const buildDecoratedMarkup = (
+/** @internal Exported for its unit tests. */
+export const buildDecoratedMarkup = (
   original: string,
   tokens: string[],
   patternConfig: PatternConfig[],
@@ -267,5 +268,5 @@ export const matchesSearchEntry = ({
   return tokens.every((token) => haystack.includes(token));
 };
 
-export { URL_PATTERN, buildDecoratedMarkup };
+export { URL_PATTERN };
 export type { PatternConfig, PatternKind };
