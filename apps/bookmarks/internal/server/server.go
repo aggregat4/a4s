@@ -181,7 +181,7 @@ func (controller *Controller) render(w http.ResponseWriter, status int, name str
 
 func (controller *Controller) handleInternalServerError(w http.ResponseWriter, err error) {
 	slog.Error("Internal server error", "err", err)
-	controller.render(w, http.StatusInternalServerError, "error-internalserver", nil)
+	controller.render(w, http.StatusInternalServerError, "error-internal", nil)
 }
 
 func highlight(text string) string {
@@ -329,7 +329,7 @@ func (controller *Controller) addBookmark(w http.ResponseWriter, r *http.Request
 	}
 	url := r.FormValue("url")
 	if url == "" {
-		controller.render(w, http.StatusBadRequest, "error-badrequest", "url parameter is required")
+		http.Error(w, "url parameter is required", http.StatusBadRequest)
 		return
 	}
 	title := r.FormValue("title")

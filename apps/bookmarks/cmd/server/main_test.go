@@ -414,3 +414,13 @@ func TestCrossOriginChecksFollowTheBrowsersFetchMetadata(t *testing.T) {
 	require.NotContains(t, page, "example.org/cross-site")
 	require.NotContains(t, page, "example.org/other-port")
 }
+
+func TestABookmarkWithoutAURLIsABadRequest(t *testing.T) {
+	a := startApp(t)
+	client := newClient(t)
+	body(t, login(t, a, client, "/bookmarks"))
+
+	res := post(t, a, client, "/bookmarks", url.Values{"title": {"No address"}}, a.baseURL)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	require.Contains(t, body(t, res), "url parameter is required")
+}

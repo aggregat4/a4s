@@ -464,6 +464,7 @@ func TestIntegration_UnauthorizedAccess(t *testing.T) {
 	// Without login there is no user to show bookmarks for. In the running
 	// server the login middleware never lets such a request through.
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), "An error occurred.")
 }
 
 func TestIntegration_BookmarkSearchHighlighting(t *testing.T) {

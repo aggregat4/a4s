@@ -25,6 +25,12 @@ Release notes for a tag are taken from the matching version section, so the
   same host is now rejected, and the client-controlled `X-Forwarded-Host`
   header is no longer trusted.
 
+### Fixed
+
+- Saving a bookmark without an address answers 400 with a message instead
+  of a server error, and other errors show the error page again instead of a
+  bare message.
+
 ## [v1.2.1] - 2026-11-01
 
 ### Security
