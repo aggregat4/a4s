@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v2.2.2] - 2026-11-21
+
 ### Security
 
 - Cross-origin form posts are rejected with Go's `http.CrossOriginProtection`,
