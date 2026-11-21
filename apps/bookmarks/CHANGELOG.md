@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-11-21
+
 ### Changed
 
 - The server runs on the Go standard library instead of the Echo framework.
