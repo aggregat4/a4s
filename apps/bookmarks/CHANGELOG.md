@@ -10,6 +10,16 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+### Changed
+
+- The server runs on the Go standard library instead of the Echo framework.
+  Echo v4 has known vulnerabilities without a fix (GO-2026-6875,
+  GO-2026-6872); Bookmarks did not use the affected parts, but no longer
+  depends on Echo at all. Logins stay valid across the upgrade.
+- A failed login shows a plain "Unauthorized" message instead of an error
+  page, and opening the app in several tabs while logged out no longer
+  makes the logins in the other tabs fail.
+
 ## [v1.2.1] - 2026-11-01
 
 ### Security

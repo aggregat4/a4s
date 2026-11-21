@@ -58,11 +58,17 @@
   or the current time. Pin them in the test, or compare parsed values rather
   than formatted strings.
 
+## Go HTTP servers
+
+- Serve with `net/http` and route with `http.ServeMux` method and path
+  patterns. Do not add web frameworks. The `middleware` package of chi may be
+  used as a library (request logging, panic recovery, compression), but new
+  and ported code does not use the chi router. Bookmarks follows this;
+  RSSGrid, Comments and OpenID Provider still route with chi.
+- Shared packages expose standard `net/http` APIs only.
+
 ## Application-specific invariants
 
-- Bookmarks is the only Echo application. Its Echo OIDC and CSRF adapters stay
-  under `apps/bookmarks/internal`; shared packages expose standard `net/http`
-  APIs only.
 - Tasklists targets browsers with `crypto.randomUUID`, IndexedDB,
   `localStorage`, and `navigator.storage.persist()`. Keep controls visible,
   avoid toast notifications, and populate its state store before emitting UI

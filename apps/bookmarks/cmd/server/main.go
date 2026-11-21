@@ -7,14 +7,13 @@ import (
 
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/crawler"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
-	"github.com/aggregat4/a4s/apps/bookmarks/internal/oidcecho"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/server"
 
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
 	"github.com/aggregat4/a4s/pkg/env"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
-	"github.com/labstack/echo/v4"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -30,22 +29,12 @@ func main() {
 		panic(err)
 	}
 	defer store.Close()
-	// Initialize Oidc Middleware
-	oidcMiddleware := oidcecho.NewOidcMiddleware(
+	oidcConfig := baseliboidc.CreateOidcConfiguration(
 		env.RequireStringFromEnv("DELBM_OIDC_IDP_SERVER"),
 		env.RequireStringFromEnv("DELBM_OIDC_CLIENT_ID"),
 		env.RequireStringFromEnv("DELBM_OIDC_CLIENT_SECRET"),
 		env.RequireStringFromEnv("DELBM_OIDC_REDIRECT_URI"),
-		func(c echo.Context) bool {
-			path := c.Request().URL.Path
-			if path == "/oidccallback" {
-				return true
-			}
-			if c.Request().Method == "GET" && len(path) >= 7 && path[:7] == "/feeds/" {
-				return true
-			}
-			return false
-		})
+	)
 	// Get and init config
 	config := domain.Configuration{
 		MaxContentDownloadAttempts:       env.GetIntFromEnv("DELBM_MAX_CONTENT_DOWNLOAD_ATTEMPTS", 3),
@@ -72,5 +61,5 @@ func main() {
 	server.RunServer(server.Controller{
 		Store:  &store,
 		Config: config,
-	}, oidcMiddleware)
+	}, oidcConfig)
 }

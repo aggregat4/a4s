@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
-	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,16 +14,13 @@ import (
 	"time"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestServer represents a test server instance
 type TestServer struct {
-	Server     *echo.Echo
+	Server     http.Handler
 	Store      *repository.Store
 	Config     domain.Configuration
 	TestUserID int
@@ -61,48 +57,13 @@ func setupTestServer(t *testing.T) *TestServer {
 	testUserID, err := store.FindOrCreateUser("test-user")
 	require.NoError(t, err)
 
-	// Create Echo server using the same setup as the real server
-	e := echo.New()
-
-	// Set server timeouts
-	e.Server.ReadTimeout = time.Duration(config.ServerReadTimeoutSeconds) * time.Second
-	e.Server.WriteTimeout = time.Duration(config.ServerWriteTimeoutSeconds) * time.Second
-
-	// Set up templates (same as real server)
-	funcMap := template.FuncMap{
-		"highlight": func(text string) template.HTML {
-			return template.HTML(highlight(template.HTMLEscapeString(text)))
-		},
-	}
-	tmpl := &Template{
-		templates: template.Must(template.New("").Funcs(funcMap).ParseFS(viewTemplates, "public/views/*.html")),
-	}
-	e.Renderer = tmpl
-
-	// Set up middleware (same as real server, but without OIDC)
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(session.Middleware(sessions.NewCookieStore([]byte(config.SessionCookieSecretKey))))
-	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{Level: 5}))
-
-	// Create controller (same as real server)
 	controller := &Controller{
 		Store:  store,
 		Config: config,
 	}
 
-	// Set up routes (same as real server)
-	e.GET("/", func(c echo.Context) error {
-		return c.Redirect(http.StatusFound, "/bookmarks")
-	})
-	e.GET("/bookmarks", controller.showBookmarks)
-	e.POST("/bookmarks", controller.addBookmark)
-	e.GET("/addbookmark", controller.showAddBookmark)
-	e.POST("/deletebookmark", controller.deleteBookmark)
-	e.GET("/feeds/:id", controller.showFeed)
-
 	return &TestServer{
-		Server:     e,
+		Server:     newHandlerWithoutLogin(controller),
 		Store:      store,
 		Config:     config,
 		TestUserID: testUserID,
@@ -277,6 +238,7 @@ func TestIntegration_AddBookmark(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/bookmarks", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Cookie", "user_session="+sessionCookie)
 	rec := httptest.NewRecorder()
 
@@ -315,6 +277,7 @@ func TestIntegration_DeleteBookmark(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/deletebookmark", strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Cookie", "user_session="+sessionCookie)
 	rec := httptest.NewRecorder()
 
@@ -498,8 +461,8 @@ func TestIntegration_UnauthorizedAccess(t *testing.T) {
 
 	ts.Server.ServeHTTP(rec, req)
 
-	// Should return 500 because getUserIdFromSession panics when user_id is nil
-	// This is expected behavior for the current implementation
+	// Without login there is no user to show bookmarks for. In the running
+	// server the login middleware never lets such a request through.
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 

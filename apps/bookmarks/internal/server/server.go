@@ -1,30 +1,29 @@
 package server
 
 import (
+	"bytes"
 	"embed"
+	"errors"
 	"html/template"
-	"io"
-	"log"
+	"io/fs"
+	"log/slog"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/labstack/echo/v4"
-
-	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
-	bookmarksmiddleware "github.com/aggregat4/a4s/apps/bookmarks/internal/echomiddleware"
-	"github.com/aggregat4/a4s/apps/bookmarks/internal/oidcecho"
-	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
-
-	"github.com/aggregat4/a4s/pkg/lang"
-
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/feeds"
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4/middleware"
+
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
+	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
+	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
+	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
+	"github.com/aggregat4/a4s/pkg/lang"
 )
 
 //go:embed public/views/*.html
@@ -33,112 +32,155 @@ var viewTemplates embed.FS
 //go:embed public/images/*.png
 var images embed.FS
 
+// sessionCookieName is the cookie that holds the logged-in user. Keeping its
+// name keeps users logged in across server versions.
+const sessionCookieName = "user_session"
+
 type Controller struct {
 	Store  *repository.Store
 	Config domain.Configuration
+
+	templates *template.Template
+	sessions  *sessions.CookieStore
 }
 
-func getUserIdFromSession(c echo.Context) (int, error) {
-	session, err := session.Get("user_session", c)
-	if err != nil {
-		return -1, err
+// RunServer serves Bookmarks until the server fails.
+func RunServer(controller Controller, oidcConfig *baseliboidc.OidcConfiguration) {
+	server := &http.Server{
+		Addr:    ":" + strconv.Itoa(controller.Config.ServerPort),
+		Handler: NewHandler(&controller, oidcConfig),
+		// Set server timeouts based on advice from https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/#1687428081
+		ReadTimeout:  time.Duration(controller.Config.ServerReadTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(controller.Config.ServerWriteTimeoutSeconds) * time.Second,
 	}
-	return session.Values["user_id"].(int), nil
+	slog.Info("Starting server", "addr", server.Addr)
+	err := server.ListenAndServe()
+	slog.Error("Server stopped", "err", err)
+	os.Exit(1)
 }
 
-func RunServer(controller Controller, oidcMiddleware *oidcecho.OidcMiddleware) {
-	e := echo.New()
-	// Set server timeouts based on advice from https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/#1687428081
-	e.Server.ReadTimeout = time.Duration(controller.Config.ServerReadTimeoutSeconds) * time.Second
-	e.Server.WriteTimeout = time.Duration(controller.Config.ServerWriteTimeoutSeconds) * time.Second
+// NewHandler returns the Bookmarks handler: every page needs a logged-in
+// user, except the login callback and the read-later feeds.
+func NewHandler(controller *Controller, oidcConfig *baseliboidc.OidcConfiguration) http.Handler {
+	controller.init()
+	mux := http.NewServeMux()
+	controller.routes(mux)
+	mux.Handle("GET /oidccallback", oidcConfig.CreateOidcCallbackHandler(
+		baseliboidc.CreateSTDSessionBasedOidcDelegate(controller.logIn, "/bookmarks"),
+	))
+	authenticate := oidcConfig.CreateOidcAuthenticationMiddleware(controller.isLoggedIn, isPublic)
+	return withMiddleware(authenticate(mux))
+}
 
+// newHandlerWithoutLogin serves the pages without asking anyone to log in,
+// for tests that set the session cookie themselves.
+func newHandlerWithoutLogin(controller *Controller) http.Handler {
+	controller.init()
+	mux := http.NewServeMux()
+	controller.routes(mux)
+	return withMiddleware(mux)
+}
+
+// withMiddleware logs each request, recovers from panics, compresses
+// responses and rejects cross-origin form posts.
+func withMiddleware(next http.Handler) http.Handler {
+	handler := baselibmiddleware.CsrfMiddlewareStd(next)
+	handler = middleware.Compress(5)(handler)
+	handler = middleware.Recoverer(handler)
+	return middleware.Logger(handler)
+}
+
+func isPublic(r *http.Request) bool {
+	return r.URL.Path == "/oidccallback" ||
+		(r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/feeds/"))
+}
+
+func (controller *Controller) init() {
 	funcMap := template.FuncMap{
 		"highlight": func(text string) template.HTML {
 			return template.HTML(highlight(template.HTMLEscapeString(text)))
 		},
 	}
-	t := &Template{
-		templates: template.Must(template.New("").Funcs(funcMap).ParseFS(viewTemplates, "public/views/*.html")),
-	}
-	e.Renderer = t
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	sessionCookieSecretKey := controller.Config.SessionCookieSecretKey
-	e.Use(session.Middleware(sessions.NewCookieStore([]byte(sessionCookieSecretKey))))
-	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
-		Level: 5,
-	}))
-	e.Use(bookmarksmiddleware.CreateCsrfMiddlewareWithSkipper(func(c echo.Context) bool {
-		return false
-	}))
-	e.Use(oidcMiddleware.CreateOidcMiddleware(
-		func(c echo.Context) bool {
-			session, err := session.Get("user_session", c)
-			if err != nil {
-				log.Printf("Error getting session in auth middleware (likely invalid cookie): %v", err)
-				// Clear invalid session cookie
-				http.SetCookie(c.Response(), &http.Cookie{
-					Name:     "user_session",
-					Value:    "",
-					Path:     "/",
-					MaxAge:   -1,
-					HttpOnly: true,
-					Secure:   false, // Set to true in production with HTTPS
-				})
-				return false
-			}
-			return session.Values["user_id"] != nil
-		},
-	))
-	// Endpoints
-	imageFS := echo.MustSubFS(images, "public/images") // MustSubFS basically strips the prefix from the path that is automatically added by Go's embedFS
-	e.StaticFS("/images", imageFS)
-	e.GET("/oidccallback", oidcMiddleware.CreateOidcCallbackEndpoint(oidcecho.CreateSessionBasedOidcDelegate(
-		func(c echo.Context, idToken *oidc.IDToken) error {
-			session, err := session.Get("user_session", c)
-			if err != nil {
-				log.Printf("Error getting session in OIDC callback, likely due to invalid cookie (e.g., after server restart with new secret): %v", err)
-				// Clear any invalid session cookie and create a new session
-				// First, clear the invalid cookie by setting it to expire
-				http.SetCookie(c.Response(), &http.Cookie{
-					Name:     "user_session",
-					Value:    "",
-					Path:     "/",
-					MaxAge:   -1,
-					HttpOnly: true,
-					Secure:   false, // Set to true in production with HTTPS
-				})
-				// Create a new session
-				store := sessions.NewCookieStore([]byte(controller.Config.SessionCookieSecretKey))
-				session = sessions.NewSession(store, "user_session")
-			}
-			userId, err := controller.Store.FindOrCreateUser(idToken.Subject)
-			if err != nil {
-				log.Printf("Error finding or creating user in auth middleware: %v", err)
-				return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
-			}
-			session.Values["user_id"] = userId
-			session.Save(c.Request(), c.Response())
-			return c.Redirect(http.StatusFound, "/bookmarks")
-		},
-		"/bookmarks")))
-	e.GET("/", func(c echo.Context) error {
-		return c.Redirect(http.StatusFound, "/bookmarks")
-	})
-	e.GET("/bookmarks", controller.showBookmarks)
-	e.POST("/bookmarks", controller.addBookmark)
-	e.GET("/addbookmark", controller.showAddBookmark)
-	e.POST("/deletebookmark", controller.deleteBookmark)
-	e.GET("/feeds/:id", controller.showFeed)
-	// Start the server
-	port := controller.Config.ServerPort
-	e.Logger.Fatal(e.Start(":" + strconv.Itoa(port)))
-	// NO MORE CODE HERE, IT WILL NOT BE EXECUTED
+	controller.templates = template.Must(template.New("").Funcs(funcMap).ParseFS(viewTemplates, "public/views/*.html"))
+	controller.sessions = sessions.NewCookieStore([]byte(controller.Config.SessionCookieSecretKey))
 }
 
-func handleInternalServerError(c echo.Context, err error) error {
-	log.Println(err)
-	return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
+func (controller *Controller) routes(mux *http.ServeMux) {
+	imageFS, err := fs.Sub(images, "public/images")
+	if err != nil {
+		panic(err)
+	}
+	mux.Handle("GET /images/{file}", http.StripPrefix("/images/", http.FileServerFS(imageFS)))
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/bookmarks", http.StatusFound)
+	})
+	mux.HandleFunc("GET /bookmarks", controller.showBookmarks)
+	mux.HandleFunc("POST /bookmarks", controller.addBookmark)
+	mux.HandleFunc("GET /addbookmark", controller.showAddBookmark)
+	mux.HandleFunc("POST /deletebookmark", controller.deleteBookmark)
+	mux.HandleFunc("GET /feeds/{id}", controller.showFeed)
+}
+
+// isLoggedIn tells whether the request carries the session of a logged-in
+// user. A session cookie that cannot be read, for example after the secret
+// key changed, counts as logged out, and logging in replaces it.
+func (controller *Controller) isLoggedIn(r *http.Request) bool {
+	session, err := controller.sessions.Get(r, sessionCookieName)
+	if err != nil {
+		slog.Warn("Error getting session in auth middleware (likely invalid cookie)", "err", err)
+		return false
+	}
+	return session.Values["user_id"] != nil
+}
+
+// logIn stores the user the identity provider vouched for in the session.
+func (controller *Controller) logIn(w http.ResponseWriter, r *http.Request, idToken *oidc.IDToken) error {
+	// Get returns a new session when the cookie cannot be read, which
+	// saving then replaces.
+	session, err := controller.sessions.Get(r, sessionCookieName)
+	if err != nil {
+		slog.Warn("Error getting session in OIDC callback, likely due to invalid cookie (e.g., after server restart with new secret)", "err", err)
+	}
+	userId, err := controller.Store.FindOrCreateUser(idToken.Subject)
+	if err != nil {
+		return err
+	}
+	session.Values["user_id"] = userId
+	return session.Save(r, w)
+}
+
+func (controller *Controller) userId(r *http.Request) (int, error) {
+	session, err := controller.sessions.Get(r, sessionCookieName)
+	if err != nil {
+		return -1, err
+	}
+	userId, ok := session.Values["user_id"].(int)
+	if !ok {
+		return -1, errors.New("no user in session")
+	}
+	return userId, nil
+}
+
+// render executes the named template into a buffer and only writes it to the
+// response when rendering succeeded, so a template error yields a clean 500
+// instead of a partial page.
+func (controller *Controller) render(w http.ResponseWriter, status int, name string, data any) {
+	var buf bytes.Buffer
+	if err := controller.templates.ExecuteTemplate(&buf, name, data); err != nil {
+		slog.Error("Error rendering template", "template", name, "err", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+	w.WriteHeader(status)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Warn("Error writing response", "template", name, "err", err)
+	}
+}
+
+func (controller *Controller) handleInternalServerError(w http.ResponseWriter, err error) {
+	slog.Error("Internal server error", "err", err)
+	controller.render(w, http.StatusInternalServerError, "error-internalserver", nil)
 }
 
 func highlight(text string) string {
@@ -149,22 +191,25 @@ type AddBookmarkPage struct {
 	Bookmark domain.Bookmark
 }
 
-// TODO: continue here refactoring controller methods into this struct and moving db operations to the repository
-func (controller *Controller) showBookmarks(c echo.Context) error {
-	userid, err := getUserIdFromSession(c)
+func (controller *Controller) showBookmarks(w http.ResponseWriter, r *http.Request) {
+	userid, err := controller.userId(r)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
 	currentLastModifiedDateTime, err := controller.Store.GetLastModifiedDate(userid)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
-	if c.Request().Header.Get("If-Modified-Since") == currentLastModifiedDateTime.Format(http.TimeFormat) {
-		return c.NoContent(http.StatusNotModified)
+	if r.Header.Get("If-Modified-Since") == currentLastModifiedDateTime.Format(http.TimeFormat) {
+		w.WriteHeader(http.StatusNotModified)
+		return
 	}
+	query := r.URL.Query()
 	var direction = domain.DirectionRight
-	if c.QueryParam("direction") != "" {
-		direction, err = strconv.Atoi(c.QueryParam("direction"))
+	if query.Get("direction") != "" {
+		direction, err = strconv.Atoi(query.Get("direction"))
 		if err != nil {
 			direction = domain.DirectionRight
 		}
@@ -178,14 +223,15 @@ func (controller *Controller) showBookmarks(c echo.Context) error {
 	} else {
 		offset = math.MaxInt64
 	}
-	if c.QueryParam("offset") != "" {
-		offset, _ = strconv.ParseInt(c.QueryParam("offset"), 10, 64)
+	if query.Get("offset") != "" {
+		offset, _ = strconv.ParseInt(query.Get("offset"), 10, 64)
 		// ignore error here, we'll just use the default value
 	}
-	var searchQuery = c.QueryParam("q")
+	var searchQuery = query.Get("q")
 	bookmarks, err := controller.Store.GetBookmarks(searchQuery, direction, userid, offset, controller.Config.BookmarksPageSize)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
 	moreResultsLeft := len(bookmarks) == (controller.Config.BookmarksPageSize + 1)
 	if moreResultsLeft {
@@ -217,12 +263,13 @@ func (controller *Controller) showBookmarks(c echo.Context) error {
 
 	feedId, err := controller.Store.GetOrCreateFeedIdForUser(userid)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
 
-	c.Response().Header().Set("Cache-Control", "no-cache")
-	c.Response().Header().Set("Last-Modified", currentLastModifiedDateTime.Format(http.TimeFormat))
-	return c.Render(http.StatusOK, "bookmarks", domain.BookmarkSlice{
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Last-Modified", currentLastModifiedDateTime.Format(http.TimeFormat))
+	controller.render(w, http.StatusOK, "bookmarks", domain.BookmarkSlice{
 		Bookmarks:   bookmarks,
 		HasLeft:     HasLeft,
 		LeftOffset:  LeftOffset,
@@ -232,82 +279,86 @@ func (controller *Controller) showBookmarks(c echo.Context) error {
 		RssFeedUrl:  controller.Config.DeliciousBookmarksBaseUrl + "/feeds/" + feedId})
 }
 
-func (controller *Controller) showAddBookmark(c echo.Context) error {
-	handleError := func(err error) error {
-		log.Println(err)
-		return c.Render(http.StatusInternalServerError, "error-internalserver", nil)
-	}
-	userid, err := getUserIdFromSession(c)
+func (controller *Controller) showAddBookmark(w http.ResponseWriter, r *http.Request) {
+	userid, err := controller.userId(r)
 	if err != nil {
-		return handleError(err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
-	url := c.QueryParam("url")
-	title := c.QueryParam("title")
-	description := c.QueryParam("description")
+	query := r.URL.Query()
+	url := query.Get("url")
+	title := query.Get("title")
+	description := query.Get("description")
 	if url != "" {
 		existingBookmark, err := controller.Store.FindExistingBookmark(url, userid)
 		if err != nil {
-			return handleError(err)
+			controller.handleInternalServerError(w, err)
+			return
 		}
 		if existingBookmark != (domain.Bookmark{}) {
-			return c.Render(http.StatusOK, "addbookmark", AddBookmarkPage{Bookmark: existingBookmark})
+			controller.render(w, http.StatusOK, "addbookmark", AddBookmarkPage{Bookmark: existingBookmark})
+			return
 		}
 	}
-	return c.Render(http.StatusOK, "addbookmark", AddBookmarkPage{Bookmark: domain.Bookmark{URL: url, Title: title, Description: description}})
+	controller.render(w, http.StatusOK, "addbookmark", AddBookmarkPage{Bookmark: domain.Bookmark{URL: url, Title: title, Description: description}})
 }
 
-func (controller *Controller) deleteBookmark(c echo.Context) error {
-	userid, err := getUserIdFromSession(c)
+func (controller *Controller) deleteBookmark(w http.ResponseWriter, r *http.Request) {
+	userid, err := controller.userId(r)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
-	url := c.FormValue("url")
+	url := r.FormValue("url")
 	if url != "" {
 		err := controller.Store.DeleteBookmark(url, userid)
 		if err != nil {
-			return handleInternalServerError(c, err)
+			controller.handleInternalServerError(w, err)
+			return
 		}
 	}
-	return c.Redirect(http.StatusFound, "/bookmarks")
+	http.Redirect(w, r, "/bookmarks", http.StatusFound)
 }
 
-func (controller *Controller) addBookmark(c echo.Context) error {
-	userid, err := getUserIdFromSession(c)
+func (controller *Controller) addBookmark(w http.ResponseWriter, r *http.Request) {
+	userid, err := controller.userId(r)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
-	url := c.FormValue("url")
+	url := r.FormValue("url")
 	if url == "" {
-		return c.Render(http.StatusBadRequest, "error-badrequest", "url parameter is required")
+		controller.render(w, http.StatusBadRequest, "error-badrequest", "url parameter is required")
+		return
 	}
-	title := c.FormValue("title")
-	description := c.FormValue("description")
-	tags := c.FormValue("tags")
-	private := c.FormValue("private") == "on"
-	readlater := c.FormValue("readlater") == "on"
+	title := r.FormValue("title")
+	description := r.FormValue("description")
+	tags := r.FormValue("tags")
+	private := r.FormValue("private") == "on"
+	readlater := r.FormValue("readlater") == "on"
 	err = controller.Store.AddOrUpdateBookmark(domain.Bookmark{URL: url, Title: title, Description: description, Tags: tags, Private: private, Readlater: readlater}, userid)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
-	return c.Redirect(http.StatusFound, "/bookmarks")
+	http.Redirect(w, r, "/bookmarks", http.StatusFound)
 }
 
-func (controller *Controller) showFeed(c echo.Context) error {
-	feedId := c.Param("id")
-	if feedId == "" {
-		return c.String(http.StatusBadRequest, "feed id is required")
-	}
+func (controller *Controller) showFeed(w http.ResponseWriter, r *http.Request) {
+	feedId := r.PathValue("id")
 	userId, err := controller.Store.FindUserIdForFeedId(feedId)
 	if err != nil {
-		log.Println(err)
+		slog.Info("Feed not found", "feedId", feedId, "err", err)
 		// this is not entirely correct, we are returning 404 for all errors, but we may
 		// also get a random database error, and we do not cleanly distinguish between
 		// those and not finding the ID
-		return c.String(http.StatusNotFound, "feed with id "+feedId+" not found")
+		http.Error(w, "feed with id "+feedId+" not found", http.StatusNotFound)
+		return
 	}
 	readLaterBookmarks, err := controller.Store.FindReadLaterBookmarksWithContent(userId, controller.Config.MaxContentDownloadAttempts)
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
 	feed := &feeds.Feed{
 		Title:       "Delicious Read Later Bookmarks",
@@ -324,28 +375,18 @@ func (controller *Controller) showFeed(c echo.Context) error {
 				Link:    &feeds.Link{Href: readLaterBookmark.Url},
 				Content: lang.IfElse(contentTypeIsHtml, readLaterBookmark.Content, "Content is not HTML."),
 				Id:      readLaterBookmark.Url + "#" + strconv.FormatInt(readLaterBookmark.RetrievalTime.Unix(), 10),
-				// Description: "This is the first item in my RSS feed",
 				Author:  &feeds.Author{Name: readLaterBookmark.Byline},
 				Created: readLaterBookmark.RetrievalTime,
 			}
 			feed.Add(item)
-		} else {
-			// TODO: implement
 		}
 	}
 
 	rss, err := feed.ToRss()
 	if err != nil {
-		return handleInternalServerError(c, err)
+		controller.handleInternalServerError(w, err)
+		return
 	}
-	c.Response().Header().Set("Content-Type", "application/rss+xml")
-	return c.String(http.StatusOK, rss)
-}
-
-type Template struct {
-	templates *template.Template
-}
-
-func (t *Template) Render(w io.Writer, name string, data interface{}, _ echo.Context) error {
-	return t.templates.ExecuteTemplate(w, name, data)
+	w.Header().Set("Content-Type", "application/rss+xml")
+	_, _ = w.Write([]byte(rss))
 }
