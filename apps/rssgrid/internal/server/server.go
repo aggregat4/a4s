@@ -243,7 +243,8 @@ func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) StartWithContext(ctx context.Context, addr string) error {
+// Handler returns the routes behind authentication and the other middleware.
+func (s *Server) Handler() http.Handler {
 	oidcAuthenticationMiddleware := s.oidcConfig.CreateOidcAuthenticationMiddleware(
 		func(r *http.Request) bool {
 			session, err := s.sessions.Get(r, "user_session")
@@ -319,9 +320,13 @@ func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 		r.Post("/feeds/{feedId}/seen", s.handleMarkAllSeen)
 	})
 
+	return r
+}
+
+func (s *Server) StartWithContext(ctx context.Context, addr string) error {
 	server := &http.Server{
 		Addr:    addr,
-		Handler: r,
+		Handler: s.Handler(),
 	}
 
 	slog.Info("Starting server", "addr", addr)
