@@ -3,3 +3,7 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+# Only install releases that are at least 14 days old (in minutes), so a
+# compromised release is usually found and pulled before it reaches us.
+minimumReleaseAge: 20160
