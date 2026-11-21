@@ -19,6 +19,11 @@ Release notes for a tag are taken from the matching version section, so the
 - A failed login shows a plain "Unauthorized" message instead of an error
   page, and opening the app in several tabs while logged out no longer
   makes the logins in the other tabs fail.
+- Cross-origin form posts are rejected with Go's `http.CrossOriginProtection`,
+  which uses the browser's `Sec-Fetch-Site` header and otherwise compares
+  `Origin` with `Host`, including the port. A post from another port on the
+  same host is now rejected, and the client-controlled `X-Forwarded-Host`
+  header is no longer trusted.
 
 ## [v1.2.1] - 2026-11-01
 

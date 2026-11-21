@@ -66,6 +66,9 @@
   and ported code does not use the chi router. Bookmarks follows this;
   RSSGrid, Comments and OpenID Provider still route with chi.
 - Shared packages expose standard `net/http` APIs only.
+- Reject cross-origin requests with `http.CrossOriginProtection`. Bookmarks
+  uses it; the other applications still use the custom middleware in
+  `pkg/http/middleware` until they migrate (see `ROADMAP.md`).
 
 ## Application-specific invariants
 

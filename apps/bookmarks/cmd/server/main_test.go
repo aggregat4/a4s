@@ -369,3 +369,48 @@ func TestPagesAreCompressed(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.Equal(t, "gzip", res.Header.Get("Content-Encoding"))
 }
+
+// postWithHeaders submits a form with exactly the given headers, as a
+// browser marks a request it sends from another page.
+func postWithHeaders(t *testing.T, a app, client *http.Client, path string, form url.Values, headers map[string]string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, a.url(path), strings.NewReader(form.Encode()))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
+	res, err := client.Do(req)
+	require.NoError(t, err)
+	return res
+}
+
+func TestCrossOriginChecksFollowTheBrowsersFetchMetadata(t *testing.T) {
+	a := startApp(t)
+	client := newClient(t)
+	body(t, login(t, a, client, "/bookmarks"))
+	bookmark := func(name string) url.Values {
+		return url.Values{"url": {"https://example.org/" + name}, "title": {name}}
+	}
+
+	res := postWithHeaders(t, a, client, "/bookmarks", bookmark("cross-site"), map[string]string{"Sec-Fetch-Site": "cross-site"})
+	res.Body.Close()
+	require.Equal(t, http.StatusForbidden, res.StatusCode, "a cross-site post is rejected")
+
+	res = postWithHeaders(t, a, client, "/bookmarks", bookmark("same-origin"), map[string]string{"Sec-Fetch-Site": "same-origin"})
+	res.Body.Close()
+	require.Equal(t, http.StatusFound, res.StatusCode, "a same-origin post is accepted")
+
+	// Another port on the same host is another origin.
+	otherPort := strings.Replace(a.baseURL, "localhost:", "localhost:1", 1)
+	res = postWithHeaders(t, a, client, "/bookmarks", bookmark("other-port"), map[string]string{"Origin": otherPort})
+	res.Body.Close()
+	require.Equal(t, http.StatusForbidden, res.StatusCode, "a post from another port is rejected")
+
+	res, err := client.Get(a.url("/bookmarks"))
+	require.NoError(t, err)
+	page := body(t, res)
+	require.Contains(t, page, "example.org/same-origin")
+	require.NotContains(t, page, "example.org/cross-site")
+	require.NotContains(t, page, "example.org/other-port")
+}

@@ -16,7 +16,7 @@ We currently use our own Origin-based middleware:
 
 | Application | Current protection |
 | ----------- | ------------------ |
-| Bookmarks | `pkg/http/middleware.CsrfMiddlewareStd` |
+| Bookmarks | `http.CrossOriginProtection` (migrated) |
 | Comments | `pkg/http/middleware.CsrfMiddlewareStd`, behind the `enableCsrf` flag |
 | OpenID Provider | `pkg/http/middleware.CreateCsrfMiddlewareWithSkipperStd`, skipping `/token` and `/revoke` |
 | Tasklists | `pkg/http/middleware.CsrfMiddlewareStd` |
@@ -33,7 +33,9 @@ names (ignoring scheme and port) and trusts the client-controllable
 2. Migrate Tasklists, Comments and the OpenID Provider. Replace the skipper
    with `AddInsecureBypassPattern` for the OAuth endpoints
    (`POST /token`, `POST /revoke`), which are called server-to-server.
-3. Migrate Bookmarks.
+3. ~~Migrate Bookmarks.~~ Done: Bookmarks moved from Echo to `net/http` and
+   uses `http.CrossOriginProtection`, with end-to-end tests of cross-site,
+   same-origin and other-port posts.
 4. Deprecate, then remove, `CsrfMiddlewareStd` and
    `CreateCsrfMiddlewareWithSkipperStd` from `pkg/http/middleware`.
 

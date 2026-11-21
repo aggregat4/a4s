@@ -22,7 +22,6 @@ import (
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/domain"
 	"github.com/aggregat4/a4s/apps/bookmarks/internal/repository"
 	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
-	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
 	"github.com/aggregat4/a4s/pkg/lang"
 )
 
@@ -82,9 +81,11 @@ func newHandlerWithoutLogin(controller *Controller) http.Handler {
 }
 
 // withMiddleware logs each request, recovers from panics, compresses
-// responses and rejects cross-origin form posts.
+// responses and rejects cross-origin form posts. Browsers mark where a
+// request comes from with Sec-Fetch-Site; without it, the Origin header must
+// match the Host, which the proxy forwards.
 func withMiddleware(next http.Handler) http.Handler {
-	handler := baselibmiddleware.CsrfMiddlewareStd(next)
+	handler := http.NewCrossOriginProtection().Handler(next)
 	handler = middleware.Compress(5)(handler)
 	handler = middleware.Recoverer(handler)
 	return middleware.Logger(handler)
