@@ -10,6 +10,8 @@ Release notes for a tag are taken from the matching version section, so the
 
 ## [Unreleased]
 
+## [v1.10.0] - 2026-11-21
+
 ### Changed
 
 - The desktop sidebar shows a larger two-tone Tasklists wordmark with a grainy
