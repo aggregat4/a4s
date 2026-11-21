@@ -1041,3 +1041,18 @@ test("tasks added while the server comes back reach other devices", async ({ bro
     await contextB.close();
   }
 });
+
+test("sync requests from another site or port are rejected", async ({ page }) => {
+  await page.goto("/");
+  const push = (headers: Record<string, string>) =>
+    page.request.post("/sync/push", { headers, data: {}, failOnStatusCode: false });
+  const otherPort = new URL(page.url());
+  otherPort.port = String(Number(otherPort.port) + 1);
+
+  expect((await push({ "Sec-Fetch-Site": "cross-site" })).status()).toBe(403);
+  expect((await push({ Origin: "https://evil.example" })).status()).toBe(403);
+  expect((await push({ Origin: otherPort.origin })).status()).toBe(403);
+  // A request of the app itself gets past the check; the empty push is
+  // then refused as incomplete.
+  expect((await push({ "Sec-Fetch-Site": "same-origin" })).status()).toBe(400);
+});

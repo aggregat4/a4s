@@ -17,8 +17,6 @@ import (
 	"github.com/aggregat4/a4s/apps/tasklists/server/internal/auth"
 	"github.com/aggregat4/a4s/apps/tasklists/server/internal/httpapi"
 	"github.com/aggregat4/a4s/apps/tasklists/server/internal/storage"
-
-	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
 )
 
 //go:embed all:static
@@ -146,7 +144,12 @@ func main() {
 		handler = auth.DevUserMiddleware(devUserID)(handler)
 	} else {
 		handler = authManager.WithUser(handler)
-		handler = baselibmiddleware.CsrfMiddlewareStd(handler)
+	}
+	// Reject cross-origin requests that change data. Browsers mark where a
+	// request comes from with Sec-Fetch-Site; without it, Origin must match
+	// the Host.
+	handler = http.NewCrossOriginProtection().Handler(handler)
+	if authMode != "dev" {
 		handler = authManager.OIDCMiddleware(authSkipper)(handler)
 	}
 
