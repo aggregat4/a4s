@@ -14,8 +14,8 @@ const createStorage = () => {
       outbox = [];
     },
     loadAllLists: async () => [],
-    loadList: async (listId: string) => ({ listId, state: null, operations: [], updatedAt: null }),
-    loadRegistry: async () => ({ state: null, operations: [], updatedAt: null }),
+    loadList: async (listId: string) => ({ listId, state: null, updatedAt: null }),
+    loadRegistry: async () => ({ state: null, updatedAt: null }),
     loadSyncState: async () => ({ ...syncState }),
     persistSyncState: async (state) => {
       syncState = { ...state };

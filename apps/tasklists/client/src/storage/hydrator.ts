@@ -44,9 +44,6 @@ export async function hydrateFromStorage({
   } else {
     listsCrdt.resetFromState({ entries: [], clock: 0 });
   }
-  (registryPayload?.operations || []).forEach((operation) => {
-    listsCrdt.applyOperation?.(operation);
-  });
 
   const listPayloads = await storage.loadAllLists();
   const listMap = new Map<ListId, HydratedListRecord>();
@@ -56,28 +53,15 @@ export async function hydrateFromStorage({
     if (record.state) {
       instance.resetFromState(record.state);
     }
-    (record.operations || []).forEach((operation) => {
-      instance.applyOperation(operation);
-    });
-    const clocks = [
-      record.state?.clock ?? 0,
-      ...(record.operations || []).map((op) =>
-        Number.isFinite(op?.clock) ? Math.floor(op.clock) : 0
-      ),
-    ].filter(Number.isFinite);
-    const lastClock = clocks.length ? Math.max(...clocks) : 0;
     listMap.set(listId, {
       crdt: instance,
       state: record.state,
-      operations: record.operations || [],
       updatedAt: record.updatedAt ?? null,
-      lastClock,
     });
   });
 
   return {
     lists: listMap,
-    registryOperations: registryPayload?.operations || [],
     registryState: registryPayload?.state ?? null,
     registryUpdatedAt: registryPayload?.updatedAt ?? null,
   };

@@ -5,10 +5,8 @@ import {
   deserializeListState,
   serializeRegistryState,
   deserializeRegistryState,
-  deserializeOperation,
 } from "./serde.js";
 import type { ListId, ListState, RegistryState } from "../types/domain.js";
-import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
 import type { SyncOp, SyncState } from "../types/sync.js";
 import type {
   ListStorage,
@@ -18,14 +16,18 @@ import type {
 
 const DB_NAME = "protoLists";
 export const DEFAULT_DB_NAME = DB_NAME;
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const STORE_LIST_STATES = "listStates";
-const STORE_LIST_OPERATIONS = "listOperations";
 const STORE_REGISTRY_STATE = "registryState";
-const STORE_REGISTRY_OPERATIONS = "registryOperations";
 const STORE_SYNC_STATE = "syncState";
 const STORE_SYNC_OUTBOX = "syncOutbox";
+
+/**
+ * Stores of operations that versions before 1.8.0 saved next to a state that
+ * already held them. Version 3 of the database drops them.
+ */
+const REMOVED_STORES = ["listOperations", "registryOperations"];
 
 const SYNC_STATE_ID = "sync";
 const OUTBOX_ID = "outbox";
@@ -34,48 +36,6 @@ type StorageOptions = {
   dbName?: string;
   requestPersistence?: boolean;
 };
-
-const TASK_OPERATION_TYPES = new Set([
-  "insert",
-  "remove",
-  "move",
-  "update",
-  "renameList",
-]);
-const REGISTRY_OPERATION_TYPES = new Set([
-  "createList",
-  "removeList",
-  "reorderList",
-  "renameList",
-]);
-
-const isTaskListOperation = (
-  operation: TaskListOperation | ListsOperation | null
-): operation is TaskListOperation =>
-  Boolean(operation && TASK_OPERATION_TYPES.has(operation.type));
-
-const isRegistryOperation = (
-  operation: TaskListOperation | ListsOperation | null
-): operation is ListsOperation =>
-  Boolean(operation && REGISTRY_OPERATION_TYPES.has(operation.type));
-
-const sortOperations = <T extends TaskListOperation | ListsOperation>(
-  operations: T[]
-) =>
-  operations.sort((a, b) => {
-    if (a.clock !== b.clock) return a.clock - b.clock;
-    if (a.actor !== b.actor) return a.actor < b.actor ? -1 : 1;
-    if ((a.listId ?? "") !== (b.listId ?? "")) {
-      return (a.listId ?? "") < (b.listId ?? "") ? -1 : 1;
-    }
-    if ((a.itemId ?? "") !== (b.itemId ?? "")) {
-      return (a.itemId ?? "") < (b.itemId ?? "") ? -1 : 1;
-    }
-    if ((a.type ?? "") !== (b.type ?? "")) {
-      return (a.type ?? "") < (b.type ?? "") ? -1 : 1;
-    }
-    return 0;
-  });
 
 async function requestPersistentStorage() {
   const storageManager = globalThis.navigator?.storage;
@@ -103,19 +63,8 @@ function openDatabase(options: StorageOptions = {}) {
       if (!db.objectStoreNames.contains(STORE_LIST_STATES)) {
         db.createObjectStore(STORE_LIST_STATES, { keyPath: "listId" });
       }
-      if (!db.objectStoreNames.contains(STORE_LIST_OPERATIONS)) {
-        const store = db.createObjectStore(STORE_LIST_OPERATIONS, {
-          keyPath: ["listId", "clock", "actor"],
-        });
-        store.createIndex("byList", "listId", { unique: false });
-      }
       if (!db.objectStoreNames.contains(STORE_REGISTRY_STATE)) {
         db.createObjectStore(STORE_REGISTRY_STATE, { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains(STORE_REGISTRY_OPERATIONS)) {
-        db.createObjectStore(STORE_REGISTRY_OPERATIONS, {
-          keyPath: ["clock", "actor"],
-        });
       }
       if (!db.objectStoreNames.contains(STORE_SYNC_STATE)) {
         db.createObjectStore(STORE_SYNC_STATE, { keyPath: "id" });
@@ -123,6 +72,11 @@ function openDatabase(options: StorageOptions = {}) {
       if (!db.objectStoreNames.contains(STORE_SYNC_OUTBOX)) {
         db.createObjectStore(STORE_SYNC_OUTBOX, { keyPath: "id" });
       }
+      REMOVED_STORES.forEach((name) => {
+        if (db.objectStoreNames.contains(name)) {
+          db.deleteObjectStore(name);
+        }
+      });
     };
     request.onerror = () => {
       reject(request.error || new Error("Failed to open IndexedDB"));
@@ -153,28 +107,6 @@ function transactionCompleted(transaction: IDBTransaction) {
   });
 }
 
-function iterateCursor(
-  request: IDBRequest,
-  handler: (cursor: IDBCursorWithValue) => boolean | void
-) {
-  return new Promise<void>((resolve, reject) => {
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest)?.result as IDBCursorWithValue;
-      if (!cursor) {
-        resolve();
-        return;
-      }
-      const shouldContinue = handler(cursor);
-      if (shouldContinue === false) {
-        resolve();
-        return;
-      }
-      cursor.continue();
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
 class IndexedDbListStorage implements ListStorage {
   private dbPromise: Promise<IDBDatabase>;
 
@@ -186,112 +118,46 @@ class IndexedDbListStorage implements ListStorage {
     return this.dbPromise;
   }
 
-  async loadAllLists() {
+  async loadAllLists(): Promise<PersistedListRecord[]> {
     const db = await this.ready();
-    const transaction = db.transaction(
-      [STORE_LIST_STATES, STORE_LIST_OPERATIONS],
-      "readonly"
-    );
+    const transaction = db.transaction(STORE_LIST_STATES, "readonly");
     const completion = transactionCompleted(transaction);
-    const stateStore = transaction.objectStore(STORE_LIST_STATES);
-    const operationsStore = transaction.objectStore(STORE_LIST_OPERATIONS);
-    const [stateRecords, operationRecords] = await Promise.all([
-      promisifyRequest(stateStore.getAll()),
-      promisifyRequest(operationsStore.getAll()),
-    ]);
+    const records = await promisifyRequest(
+      transaction.objectStore(STORE_LIST_STATES).getAll()
+    );
     await completion;
-
-    const operationsByList = new Map<string, TaskListOperation[]>();
-    (operationRecords || []).forEach((record) => {
-      const listId = record.listId;
-      if (!operationsByList.has(listId)) {
-        operationsByList.set(listId, []);
-      }
-      const op = deserializeOperation(record.operation);
-      if (isTaskListOperation(op)) {
-        operationsByList.get(listId)!.push(op);
-      }
-    });
-
-    const response: PersistedListRecord[] = [];
-    (stateRecords || []).forEach((record) => {
-      const listId = record.listId;
-      const decodedState = deserializeListState(record.state);
-      const operations = sortOperations(operationsByList.get(listId) || []);
-      operationsByList.delete(listId);
-      response.push({
-        listId,
-        state: decodedState,
-        operations,
-        updatedAt: record.updatedAt ?? null,
-      });
-    });
-
-    operationsByList.forEach((operations, listId) => {
-      response.push({
-        listId,
-        state: null,
-        operations: sortOperations(operations),
-        updatedAt: null,
-      });
-    });
-
-    return response;
+    return (records || []).map((record) => ({
+      listId: record.listId,
+      state: deserializeListState(record.state),
+      updatedAt: record.updatedAt ?? null,
+    }));
   }
 
   async loadList(listId: ListId): Promise<PersistedListRecord> {
     if (typeof listId !== "string" || !listId.length) {
-      return { listId, state: null, operations: [], updatedAt: null };
+      return { listId, state: null, updatedAt: null };
     }
     const db = await this.ready();
-    const transaction = db.transaction(
-      [STORE_LIST_STATES, STORE_LIST_OPERATIONS],
-      "readonly"
-    );
+    const transaction = db.transaction(STORE_LIST_STATES, "readonly");
     const completion = transactionCompleted(transaction);
-    const stateStore = transaction.objectStore(STORE_LIST_STATES);
-    const operationsStore = transaction.objectStore(STORE_LIST_OPERATIONS);
-    const stateRequest = stateStore.get(listId);
-    const opsIndex = operationsStore.index("byList");
-    const opsRequest = opsIndex.getAll(listId);
-    const [stateRecord, opRecords] = await Promise.all([
-      promisifyRequest(stateRequest),
-      promisifyRequest(opsRequest),
-    ]);
+    const record = await promisifyRequest(
+      transaction.objectStore(STORE_LIST_STATES).get(listId)
+    );
     await completion;
-
-    const operations = sortOperations(
-      (opRecords || [])
-        .map((record) => deserializeOperation(record.operation))
-        .filter(isTaskListOperation)
-    ) as TaskListOperation[];
-
     return {
       listId,
-      state: stateRecord ? deserializeListState(stateRecord.state) : null,
-      operations,
-      updatedAt: stateRecord?.updatedAt ?? null,
+      state: record ? deserializeListState(record.state) : null,
+      updatedAt: record?.updatedAt ?? null,
     };
   }
 
-  /**
-   * Saves a list's state. Its operations are in the state, so none are
-   * stored; any an older version stored are removed with it.
-   */
   async persistList(listId: ListId, state: ListState) {
     if (typeof listId !== "string" || !listId.length) {
       throw new Error("persistList requires a listId");
     }
     const db = await this.ready();
-    const transaction = db.transaction(
-      [STORE_LIST_STATES, STORE_LIST_OPERATIONS],
-      "readwrite"
-    );
+    const transaction = db.transaction(STORE_LIST_STATES, "readwrite");
     const completion = transactionCompleted(transaction);
-    const index = transaction.objectStore(STORE_LIST_OPERATIONS).index("byList");
-    await iterateCursor(index.openCursor(listId), (cursor) => {
-      cursor.delete();
-    });
     transaction.objectStore(STORE_LIST_STATES).put({
       listId,
       state: serializeListState(state),
@@ -303,30 +169,15 @@ class IndexedDbListStorage implements ListStorage {
 
   async loadRegistry(): Promise<PersistedRegistryRecord> {
     const db = await this.ready();
-    const transaction = db.transaction(
-      [STORE_REGISTRY_STATE, STORE_REGISTRY_OPERATIONS],
-      "readonly"
-    );
+    const transaction = db.transaction(STORE_REGISTRY_STATE, "readonly");
     const completion = transactionCompleted(transaction);
-    const stateStore = transaction.objectStore(STORE_REGISTRY_STATE);
-    const operationsStore = transaction.objectStore(STORE_REGISTRY_OPERATIONS);
-    const stateRequest = stateStore.get(REGISTRY_STATE_ID);
-    const opsRequest = operationsStore.getAll();
-    const [stateRecord, opRecords] = await Promise.all([
-      promisifyRequest(stateRequest),
-      promisifyRequest(opsRequest),
-    ]);
+    const record = await promisifyRequest(
+      transaction.objectStore(STORE_REGISTRY_STATE).get(REGISTRY_STATE_ID)
+    );
     await completion;
-    const operations = sortOperations(
-      (opRecords || [])
-        .map((record) => deserializeOperation(record.operation))
-        .filter(isRegistryOperation)
-    ) as ListsOperation[];
-
     return {
-      state: stateRecord ? deserializeRegistryState(stateRecord.state) : null,
-      operations,
-      updatedAt: stateRecord?.updatedAt ?? null,
+      state: record ? deserializeRegistryState(record.state) : null,
+      updatedAt: record?.updatedAt ?? null,
     };
   }
 
@@ -381,15 +232,10 @@ class IndexedDbListStorage implements ListStorage {
     await completion;
   }
 
-  /** Saves the registry's state; see `persistList`. */
   async persistRegistry(state: RegistryState) {
     const db = await this.ready();
-    const transaction = db.transaction(
-      [STORE_REGISTRY_STATE, STORE_REGISTRY_OPERATIONS],
-      "readwrite"
-    );
+    const transaction = db.transaction(STORE_REGISTRY_STATE, "readwrite");
     const completion = transactionCompleted(transaction);
-    transaction.objectStore(STORE_REGISTRY_OPERATIONS).clear();
     transaction.objectStore(STORE_REGISTRY_STATE).put({
       id: REGISTRY_STATE_ID,
       state: serializeRegistryState(state),
@@ -399,42 +245,17 @@ class IndexedDbListStorage implements ListStorage {
     await completion;
   }
 
-  async pruneRegistryOperations(beforeClock: number) {
-    if (!Number.isFinite(beforeClock)) return;
-    const db = await this.ready();
-    const transaction = db.transaction(STORE_REGISTRY_OPERATIONS, "readwrite");
-    const completion = transactionCompleted(transaction);
-    const operationsStore = transaction.objectStore(STORE_REGISTRY_OPERATIONS);
-    const cursorRequest = operationsStore.openCursor();
-    await iterateCursor(cursorRequest, (cursor) => {
-      const record = cursor.value;
-      if (record.clock <= beforeClock) {
-        cursor.delete();
-      }
-    });
-    await completion;
-  }
-
   async clear() {
     const db = await this.ready();
-    const transaction = db.transaction(
-      [
-        STORE_LIST_STATES,
-        STORE_LIST_OPERATIONS,
-        STORE_REGISTRY_STATE,
-        STORE_REGISTRY_OPERATIONS,
-        STORE_SYNC_STATE,
-        STORE_SYNC_OUTBOX,
-      ],
-      "readwrite"
-    );
+    const stores = [
+      STORE_LIST_STATES,
+      STORE_REGISTRY_STATE,
+      STORE_SYNC_STATE,
+      STORE_SYNC_OUTBOX,
+    ];
+    const transaction = db.transaction(stores, "readwrite");
     const completion = transactionCompleted(transaction);
-    transaction.objectStore(STORE_LIST_STATES).clear();
-    transaction.objectStore(STORE_LIST_OPERATIONS).clear();
-    transaction.objectStore(STORE_REGISTRY_STATE).clear();
-    transaction.objectStore(STORE_REGISTRY_OPERATIONS).clear();
-    transaction.objectStore(STORE_SYNC_STATE).clear();
-    transaction.objectStore(STORE_SYNC_OUTBOX).clear();
+    stores.forEach((name) => transaction.objectStore(name).clear());
     await completion;
   }
 }

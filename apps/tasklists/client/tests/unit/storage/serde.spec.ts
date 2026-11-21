@@ -5,13 +5,10 @@ import {
     deserializeListState,
     serializeRegistryState,
     deserializeRegistryState,
-    serializeOperation,
-    deserializeOperation,
     serializeOrderedSetSnapshot,
     deserializeOrderedSetSnapshot,
 } from "../../../src/storage/serde.js";
 import type { ListState, RegistryState } from "../../../src/types/domain.js";
-import type { TaskListOperation } from "../../../src/types/crdt.js";
 
 test("list state serialization round-trips entries and metadata", () => {
     const original: ListState = {
@@ -67,21 +64,6 @@ test("registry state serialization retains ordering data", () => {
     const decoded = deserializeRegistryState(encoded);
     assert.equal(decoded!.entries[0].data.title, "A");
     assert.equal(decoded!.entries[0].pos!.length, 1);
-});
-
-test("operation serialization drops undefined fields and restores payload", () => {
-    const original: TaskListOperation = {
-        type: "insert",
-        itemId: "task-1",
-        payload: { pos: [{ digit: 5, actor: "x" }] },
-        clock: 7,
-        actor: "actor-1",
-    };
-    const encoded = serializeOperation(original);
-    assert.equal(Object.prototype.hasOwnProperty.call(encoded, "listId"), false);
-    const decoded = deserializeOperation(encoded);
-    assert.equal(decoded!.actor, "actor-1");
-    assert.equal(decoded!.payload!.pos![0].digit, 5);
 });
 
 test("ordered set snapshot helpers filter invalid entries", () => {

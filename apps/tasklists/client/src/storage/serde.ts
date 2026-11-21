@@ -7,7 +7,6 @@ import type {
   RegistryState,
   Version,
 } from "../types/domain.js";
-import type { ListsOperation, TaskListOperation } from "../types/crdt.js";
 
 export const SERIALIZATION_VERSION = 1;
 export const REGISTRY_STATE_ID = "registry";
@@ -249,94 +248,4 @@ export function deserializeRegistryState(encoded: unknown = {}): RegistryState {
       mapRegistryDataDecode
     ),
   };
-}
-
-function serializePayload(payload: unknown) {
-  if (!payload || typeof payload !== "object") return undefined;
-  const result: Record<string, unknown> = {};
-  Object.entries(payload).forEach(([key, value]) => {
-    if (key === "pos") {
-      result.pos = encodePosition(value as Position);
-    } else if (
-      Array.isArray(value) &&
-      value.length > 0 &&
-      typeof value[0] === "object" &&
-      value[0]?.digit != null
-    ) {
-      result[key] = value.map((component) =>
-        encodePosition(component as Position)
-      );
-    } else {
-      result[key] = value;
-    }
-  });
-  return result;
-}
-
-function deserializePayload(payload: unknown) {
-  if (!payload || typeof payload !== "object") return undefined;
-  const result: Record<string, unknown> = {};
-  Object.entries(payload).forEach(([key, value]) => {
-    if (key === "pos") {
-      result.pos = decodePosition(value);
-    } else if (
-      Array.isArray(value) &&
-      value.length > 0 &&
-      typeof value[0] === "object" &&
-      value[0]?.digit != null
-    ) {
-      result[key] = value.map((component) => decodePosition(component));
-    } else {
-      result[key] = value;
-    }
-  });
-  return result;
-}
-
-export function serializeOperation(operation: TaskListOperation | ListsOperation) {
-  if (!operation || typeof operation !== "object") return null;
-  const base = {
-    type: typeof operation.type === "string" ? operation.type : "",
-    itemId: typeof operation.itemId === "string" ? operation.itemId : undefined,
-    listId: typeof operation.listId === "string" ? operation.listId : undefined,
-    payload: serializePayload(operation.payload),
-    clock: encodeTimestamp(operation.clock),
-    actor: typeof operation.actor === "string" ? operation.actor : "",
-  };
-  return cleanUndefinedKeys(base);
-}
-
-export function deserializeOperation(
-  encoded: unknown
-): TaskListOperation | ListsOperation | null {
-  if (!encoded || typeof encoded !== "object") return null;
-  const record = encoded as {
-    type?: unknown;
-    itemId?: unknown;
-    listId?: unknown;
-    payload?: unknown;
-    clock?: unknown;
-    actor?: unknown;
-  };
-  const payload = deserializePayload(record.payload);
-  const operation = {
-    type: typeof record.type === "string" ? record.type : "",
-    itemId: typeof record.itemId === "string" ? record.itemId : undefined,
-    listId: typeof record.listId === "string" ? record.listId : undefined,
-    payload,
-    clock: encodeTimestamp(record.clock),
-    actor: typeof record.actor === "string" ? record.actor : "",
-  };
-  return operation as TaskListOperation | ListsOperation;
-}
-
-function cleanUndefinedKeys<T extends Record<string, unknown>>(object: T | null) {
-  if (!object || typeof object !== "object") return object;
-  const next: Record<string, unknown> = { ...object };
-  Object.keys(next).forEach((key) => {
-    if (next[key] === undefined) {
-      delete next[key];
-    }
-  });
-  return next;
 }

@@ -44,12 +44,10 @@ const createMemoryStorage = (): ListStorage => {
     loadList: async (listId) => ({
       listId,
       state: null,
-      operations: [],
       updatedAt: null,
     }),
     loadRegistry: async () => ({
       state: null,
-      operations: [],
       updatedAt: null,
     }),
     loadSyncState: async () => ({ ...syncState }),

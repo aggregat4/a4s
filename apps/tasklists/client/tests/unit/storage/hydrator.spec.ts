@@ -15,7 +15,7 @@ class MemoryListStorage {
 
     constructor() {
         this.lists = new Map();
-        this.registry = { state: null, operations: [], updatedAt: null };
+        this.registry = { state: null, updatedAt: null };
         this.syncState = { clientId: "", lastServerSeq: 0 };
         this.outbox = [];
     }
@@ -24,14 +24,13 @@ class MemoryListStorage {
 
     async clear() {
         this.lists.clear();
-        this.registry = { state: null, operations: [], updatedAt: null };
+        this.registry = { state: null, updatedAt: null };
     }
 
     async loadAllLists() {
         return Array.from(this.lists.entries()).map(([listId, record]) => ({
             listId,
             state: clone(record.state),
-            operations: record.operations.map((op: any) => clone(op)),
             updatedAt: record.updatedAt,
         }));
     }
@@ -39,7 +38,6 @@ class MemoryListStorage {
     async loadRegistry() {
         return {
             state: clone(this.registry.state),
-            operations: this.registry.operations.map((op: any) => clone(op)),
             updatedAt: this.registry.updatedAt,
         };
     }
@@ -64,24 +62,22 @@ class MemoryListStorage {
         if (typeof listId !== "string" || !listId.length) {
             throw new Error("persistList requires a listId");
         }
-        this.lists.set(listId, { state: clone(state), operations: [], updatedAt: Date.now() });
+        this.lists.set(listId, { state: clone(state), updatedAt: Date.now() });
     }
 
     async persistRegistry(state: any) {
         this.registry.state = clone(state);
-        this.registry.operations = [];
         this.registry.updatedAt = Date.now();
     }
 
     async loadList(listId: string) {
         const record = this.lists.get(listId);
         if (!record) {
-            return { listId, state: null, operations: [], updatedAt: null };
+            return { listId, state: null, updatedAt: null };
         }
         return {
             listId,
             state: clone(record.state),
-            operations: record.operations.map((op: any) => clone(op)),
             updatedAt: record.updatedAt,
         };
     }
@@ -154,5 +150,4 @@ test("hydrateFromStorage rebuilds CRDT instances from persisted registry and lis
     assert.equal(alphaSnapshot[0].text.length > 0, true);
     assert.equal(typeof alphaSnapshot[0].done, "boolean");
 
-    assert.ok(Array.isArray(hydrateResult.registryOperations));
 });
