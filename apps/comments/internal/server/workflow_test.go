@@ -36,7 +36,8 @@ func TestCommentLifecycleHappyPath(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, h.URL(submitPath), strings.NewReader(form.Encode()))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Origin", h.Data.Service.Origin)
+	// Posted from the comments iframe, which is served from this origin.
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
 
 	res, err := userClient.Do(req)
 	require.NoError(t, err)
@@ -65,7 +66,7 @@ func TestCommentLifecycleHappyPath(t *testing.T) {
 	approveReq, err := http.NewRequest(http.MethodPost, h.URL(approvePath), strings.NewReader(""))
 	require.NoError(t, err)
 	approveReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	approveReq.Header.Set("Origin", h.Data.Service.Origin)
+	approveReq.Header.Set("Sec-Fetch-Site", "same-origin")
 
 	approveRes, err := adminClient.Do(approveReq)
 	require.NoError(t, err)

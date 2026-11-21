@@ -12,6 +12,12 @@ Release notes for a tag are taken from the matching version section, so the
 
 ### Security
 
+- Cross-origin requests are rejected with Go's `http.CrossOriginProtection`,
+  which uses the browser's `Sec-Fetch-Site` header and otherwise compares
+  `Origin` with `Host`, including the port. Comment forms keep working in
+  embedded iframes, which post from the comments origin. A request from
+  another port on the same host is now rejected, and the client-controlled
+  `X-Forwarded-Host` header is no longer trusted.
 - Built with Go 1.27.4, which fixes an HTTP/1 server crash caused by a race
   in `net/http` (GO-2026-6859).
 

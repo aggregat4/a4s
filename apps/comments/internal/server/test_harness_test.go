@@ -81,7 +81,6 @@ type ServerHarness struct {
 
 type harnessConfig struct {
 	seedBaseline bool
-	enableCsrf   bool
 	oidcIdp      *oidcmock.Server
 }
 
@@ -91,13 +90,6 @@ type HarnessOption func(*harnessConfig)
 func WithoutBaselineData() HarnessOption {
 	return func(cfg *harnessConfig) {
 		cfg.seedBaseline = false
-	}
-}
-
-// WithCsrfEnabled allows tests to opt-in to CSRF middleware checks.
-func WithCsrfEnabled() HarnessOption {
-	return func(cfg *harnessConfig) {
-		cfg.enableCsrf = true
 	}
 }
 
@@ -161,7 +153,7 @@ func NewServerHarness(t testing.TB, opts ...HarnessOption) *ServerHarness {
 		controller.Config.OidcRedirectUri = "http://localhost:8080/oidccallback"
 		server = InitServer(controller)
 	} else {
-		server = InitServerWithOidcMiddleware(controller, noopOidcMiddleware, noopOidcCallback, cfg.enableCsrf)
+		server = InitServerWithOidcMiddleware(controller, noopOidcMiddleware, noopOidcCallback)
 	}
 
 	harness := &ServerHarness{

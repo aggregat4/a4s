@@ -13,7 +13,6 @@ import (
 	"time"
 
 	baseliboidc "github.com/aggregat4/a4s/pkg/auth/oidc"
-	baselibmiddleware "github.com/aggregat4/a4s/pkg/http/middleware"
 	"github.com/aggregat4/a4s/pkg/lang"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
@@ -97,14 +96,13 @@ func InitServer(controller *Controller) *http.Server {
 		),
 	)
 
-	return InitServerWithOidcMiddleware(controller, oidcMiddleware, oidcCallback, true)
+	return InitServerWithOidcMiddleware(controller, oidcMiddleware, oidcCallback)
 }
 
 func InitServerWithOidcMiddleware(
 	controller *Controller,
 	oidcMiddleware func(http.Handler) http.Handler,
 	oidcCallback http.HandlerFunc,
-	enableCsrf bool,
 ) *http.Server {
 	controller.initializeSessionStores()
 
@@ -132,10 +130,11 @@ func InitServerWithOidcMiddleware(
 	router.Use(chimiddleware.Compress(5))
 	router.Use(httpResponseLogger)
 	router.Use(oidcMiddleware)
-
-	if enableCsrf {
-		router.Use(baselibmiddleware.CsrfMiddlewareStd)
-	}
+	// Reject cross-origin requests that change data. Comment forms post from
+	// the comments iframe, which is served from this origin; the embedding
+	// site is another one. Browsers mark where a request comes from with
+	// Sec-Fetch-Site; without it, Origin must match the Host.
+	router.Use(http.NewCrossOriginProtection().Handler)
 
 	router.Get("/js/*", hashedStaticHandler(javaScript, "js"))
 	router.Get("/css/*", hashedStaticHandler(styleSheets, "css"))
